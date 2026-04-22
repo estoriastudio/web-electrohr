@@ -4,7 +4,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap");
 /* Root Prefix Variable */
 :root {
-  --bs-logo-lg-height: 30px;
+  --bs-logo-lg-height: 45px;
   --bs-logo-sm-height: 28px;
   --bs-main-nav-width: 260px;
   --bs-main-nav-width-sm: 75px;
