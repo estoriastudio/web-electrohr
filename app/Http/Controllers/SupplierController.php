@@ -1,0 +1,163 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Support\Facades\Auth;
+
+use App\Exports\SupplierExport;
+use App\Imports\SupplierImport;
+use App\Models\Supplier;
+use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+
+/* Notificaciones */
+use App\Services\NotificationService;
+
+class SupplierController extends Controller
+{
+    public function __construct(private NotificationService $notification) {}
+
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $suppliers = Supplier::withCount('purchaseOrders')->paginate(25);
+
+        return view('suppliers.index', compact('suppliers'));
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     * Creation is handled via modal on the index view.
+     */
+    public function create()
+    {
+        return redirect()->route('suppliers.index');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'rfc_name' => 'required|string|max:255',
+            'email'    => 'nullable|email|max:255',
+            'phone'    => 'nullable|string|max:50',
+        ]);
+
+        $supplier = Supplier::create($validated);
+
+        // Notificación
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'create',
+            'model_id'     => $supplier->id,
+            'data'         => 'creó un nuevo proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Proveedor creado correctamente.');
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Supplier $supplier)
+    {
+        $supplier = Supplier::withCount('purchaseOrders')->findOrFail($supplier->id);
+
+        return view('suppliers.show', compact('supplier'));
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Supplier $supplier)
+    {
+        return view('suppliers.edit', compact('supplier'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, Supplier $supplier)
+    {
+        $validated = $request->validate([
+            'commercial_name' => 'nullable|string|max:255',
+            'rfc_name'        => 'required|string|max:255',
+            'rfc_num'         => 'nullable|string|max:20',
+            'email'           => 'nullable|email|max:255',
+            'phone'           => 'nullable|string|max:50',
+            'cellphone'       => 'nullable|string|max:50',
+            'address'         => 'nullable|string|max:1000',
+            'attended_by'     => 'nullable|string|max:255',
+            'status'          => 'nullable|in:active,inactive,blacklisted',
+            'bank_name'       => 'nullable|string|max:255',
+            'bank_account'    => 'nullable|string|max:50',
+            'bank_clabe'      => 'nullable|string|max:18',
+            'swift_code'      => 'nullable|string|max:11',
+            'currency'        => 'nullable|in:MXN,USD,EUR',
+        ]);
+
+        $supplier->update($validated);
+
+        // Notificación
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $supplier->id,
+            'data'         => 'actualizó la información del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Proveedor actualizado correctamente.');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Supplier $supplier)
+    {
+        $supplier->delete();
+
+        // Notificación
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'destroy',
+            'model_id'     => $supplier->id,
+            'data'         => 'eliminó al proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.index')
+            ->with('success', 'Proveedor eliminado correctamente.');
+    }
+
+    /**
+     * Export suppliers to Excel.
+     */
+    public function export()
+    {
+        return Excel::download(new SupplierExport, 'proveedores.xlsx');
+    }
+
+    /**
+     * Import suppliers from Excel.
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        Excel::import(new SupplierImport, $request->file('file'));
+
+        return redirect()->route('suppliers.index')
+            ->with('success', 'Proveedores importados correctamente.');
+    }
+}
+

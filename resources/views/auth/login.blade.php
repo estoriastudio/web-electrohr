@@ -10,53 +10,71 @@
                     <div class="card auth-card">
                         <div class="card-body px-3 py-5">
                             <div class="mx-auto mb-4 text-center auth-logo">
-                                <a href="index.html" class="logo-dark">
-                                        <img src="assets/images/logo-dark.png" height="32" alt="logo dark">
+                                <a href="{{ url('/') }}" class="logo-dark">
+                                    <img src="{{ asset('assets/images/logo-dark.png') }}" height="45" alt="logo dark">
                                 </a>
 
-                                <a href="index.html" class="logo-light">
-                                        <img src="assets/images/logo-light.png" height="28" alt="logo light">
+                                <a href="{{ url('/') }}" class="logo-light">
+                                    <img src="{{ asset('assets/images/logo-light.png') }}" height="45" alt="logo light">
                                 </a>
                             </div>
 
-                            <h2 class="fw-bold text-uppercase text-center fs-18">Sign In</h2>
-                            <p class="text-muted text-center mt-1 mb-4">Enter your email address and password to access admin panel.</p>
+                            <h2 class="fw-bold text-uppercase text-center fs-18">Inicio de sesión</h2>
+                            <p class="text-muted text-center mt-1 mb-4">Ingrese su dirección de correo electrónico y contraseña para acceder al panel de administración.</p>
 
                             <div class="px-4">
-                                <form action="index.html" class="authentication-form">
-                                        <div class="mb-3">
-                                            <label class="form-label" for="example-email">Email</label>
-                                            <input type="email" id="example-email" name="example-email" class="form-control bg-light bg-opacity-50 border-light py-2" placeholder="Enter your email">
-                                        </div>
-                                        <div class="mb-3">
-                                            <a href="auth-password.html" class="float-end text-muted text-unline-dashed ms-1">Reset password</a>
-                                            <label class="form-label" for="example-password">Password</label>
-                                            <input type="text" id="example-password" class="form-control bg-light bg-opacity-50 border-light py-2" placeholder="Enter your password">
-                                        </div>
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input type="checkbox" class="form-check-input" id="checkbox-signin">
-                                                <label class="form-check-label" for="checkbox-signin">Remember me</label>
-                                            </div>
-                                        </div>
+                                @if (session('status'))
+                                    <div class="alert alert-success" role="alert">{{ session('status') }}</div>
+                                @endif
 
-                                        <div class="mb-1 text-center d-grid">
-                                            <button class="btn btn-danger py-2 fw-medium" type="submit">Sign In</button>
+                                @if ($errors->any())
+                                    <div class="alert alert-danger">
+                                        <ul class="mb-0">
+                                            @foreach ($errors->all() as $error)
+                                                <li>{{ $error }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                <form method="POST" action="{{ route('login') }}" class="authentication-form">
+                                    @csrf
+
+                                    <div class="mb-3">
+                                        <label class="form-label" for="email">Correo electrónico</label>
+                                        <input type="email" id="email" name="email" class="form-control bg-light bg-opacity-50 border-light py-2 @error('email') is-invalid @enderror" placeholder="Ingrese su correo electrónico" value="{{ old('email') }}" required autofocus>
+                                        @error('email')
+                                            <span class="text-danger small">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+
+                                    <div class="mb-3">
+                                        @if (Route::has('password.request'))
+                                            <a href="{{ route('password.request') }}" class="float-end text-muted text-unline-dashed ms-1">Restablecer contraseña</a>
+                                        @endif
+                                        <label class="form-label" for="password">Contraseña</label>
+                                        <input type="password" id="password" name="password" class="form-control bg-light bg-opacity-50 border-light py-2 @error('password') is-invalid @enderror" placeholder="Ingrese su contraseña" required autocomplete="current-password">
+                                        @error('password')
+                                            <span class="text-danger small">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="remember" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="remember">Recordarme</label>
                                         </div>
+                                    </div>
+
+                                    <div class="mb-1 text-center d-grid">
+                                        <button class="btn btn-danger py-2 fw-medium" type="submit">Iniciar sesión</button>
+                                    </div>
                                 </form>
-
-                                <p class="mt-3 fw-semibold no-span">OR sign with</p>
-
-                                <div class="text-center">
-                                        <a href="javascript:void(0);" class="btn btn-outline-light shadow-none"><i class='bx bxl-google fs-20'></i></a>
-                                        <a href="javascript:void(0);" class="btn btn-outline-light shadow-none"><i class='ri-facebook-fill fs-20'></i></a>
-                                        <a href="javascript:void(0);" class="btn btn-outline-light shadow-none"><i class='bx bxl-github fs-20'></i></a>
-                                </div>
                             </div> <!-- end col -->
                         </div> <!-- end card-body -->
                     </div> <!-- end card -->
 
-                    <p class="mb-0 text-center text-white">New here? <a href="auth-signup.html" class="text-reset text-unline-dashed fw-bold ms-1">Sign Up</a></p>
+                    <p class="mb-0 text-center text-white">¿Problemas? <a href="#" class="text-reset text-unline-dashed fw-bold ms-1">Contacta a soporte</a></p>
 
             </div> <!-- end col -->
         </div> <!-- end row -->

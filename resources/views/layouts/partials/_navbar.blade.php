@@ -23,7 +23,7 @@
             <li class="menu-title">Menu</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="orders.html">
+                <a class="nav-link" href="{{ route('dashboard') }}">
                     <span class="nav-icon">
                         <i class="ri-dashboard-2-line"></i>
                     </span>
@@ -32,7 +32,7 @@
             </li>
 
             <li class="nav-item">
-                <a class="nav-link" href="widgets.html">
+                <a class="nav-link" href="{{ route('suppliers.index') }}">
                     <span class="nav-icon">
                         <i class="ri-shapes-line"></i>
                     </span>
@@ -43,9 +43,10 @@
             <li class="menu-title">Compras</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="widgets.html">
+                <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
+                   href="{{ route('purchase_orders.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-shapes-line"></i>
+                        <i class="ri-file-list-3-line"></i>
                     </span>
                     <span class="nav-text">Órdenes de Compra</span>
                 </a>
@@ -54,20 +55,12 @@
             <li class="menu-title">Pagos</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="widgets.html">
+                <a class="nav-link {{ request()->routeIs('payments.index') ? 'active' : '' }}"
+                   href="{{ route('payments.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-shapes-line"></i>
+                        <i class="ri-shield-check-line"></i>
                     </span>
-                    <span class="nav-text">Pagos</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link" href="widgets.html">
-                    <span class="nav-icon">
-                        <i class="ri-shapes-line"></i>
-                    </span>
-                    <span class="nav-text">Hitos</span>
+                    <span class="nav-text">Autorización de Pagos</span>
                 </a>
             </li>
 
@@ -83,7 +76,7 @@
                 <div class="collapse" id="sidebarPages">
                     <ul class="nav sub-navbar-nav">
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="pages-starter.html">Listado</a>
+                            <a class="sub-nav-link" href="{{ route('usuarios.index') }}">Listado</a>
                         </li>
                         
                         <li class="sub-nav-item">
@@ -94,7 +87,7 @@
             </li> <!-- end Users Menu -->
 
             <li class="nav-item">
-                <a class="nav-link" href="widgets.html">
+                <a class="nav-link" href="{{ route('notifications.index') }}">
                     <span class="nav-icon">
                         <i class="ri-shapes-line"></i>
                     </span>

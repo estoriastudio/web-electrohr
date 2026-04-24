@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Notification;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        View::composer('layouts.partials._topbar', function ($view) {
+            $topbarNotifications = Notification::with('user')
+                ->where('is_hidden', false)
+                ->latest()
+                ->limit(5)
+                ->get();
+
+            $topbarUnreadCount = Notification::where('is_hidden', false)->count();
+
+            $view->with(compact('topbarNotifications', 'topbarUnreadCount'));
+        });
     }
 }
