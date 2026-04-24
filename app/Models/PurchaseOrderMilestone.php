@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderMilestone extends Model
@@ -35,19 +36,51 @@ class PurchaseOrderMilestone extends Model
         return $this->hasMany(Payment::class, 'milestone_id');
     }
 
+    public function invoices(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            PurchaseOrderInvoice::class,
+            'invoice_milestone',
+            'purchase_order_milestone_id',
+            'purchase_order_invoice_id'
+        );
+    }
+
+    /**
+     * Monto objetivo real del hito en la moneda de la OC.
+     * - value_type = 'fijo':       devuelve value directamente.
+     * - value_type = 'porcentaje': devuelve (value / 100) * OC.amount.
+     */
+    public function getEffectiveAmountAttribute(): float
+    {
+        if ($this->value_type === 'porcentaje') {
+            $orderAmount = $this->relationLoaded('purchaseOrder')
+                ? (float) $this->purchaseOrder->amount
+                : (float) $this->purchaseOrder()->value('amount');
+
+            return round($orderAmount * (float) $this->value / 100, 2);
+        }
+
+        return (float) $this->value;
+    }
+
     public function getProgressPercentAttribute(): float
     {
-        if ((float) $this->value <= 0) {
+        $target = $this->effective_amount;
+
+        if ($target <= 0) {
             return 0.0;
         }
 
-        $percent = ((float) $this->covered_amount / (float) $this->value) * 100;
+        $percent = ((float) $this->covered_amount / $target) * 100;
 
         return min(100.0, round($percent, 1));
     }
 
     public function getIsCompleteAttribute(): bool
     {
-        return (float) $this->covered_amount >= (float) $this->value && (float) $this->value > 0;
+        $target = $this->effective_amount;
+
+        return $target > 0 && (float) $this->covered_amount >= $target;
     }
 }

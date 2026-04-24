@@ -282,10 +282,107 @@
 
 </div>
 
+{{-- ── FACTURAS ── --}}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center py-2">
+                <h5 class="card-title mb-0">
+                    <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
+                    <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
+                </h5>
+                <button type="button" class="btn btn-sm btn-primary"
+                        data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
+                    <i class="ri-upload-2-line me-1"></i> Subir factura
+                </button>
+            </div>
+
+            @if ($purchaseOrder->invoices->count() > 0)
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Archivo</th>
+                                <th>Fecha</th>
+                                <th>Moneda</th>
+                                <th class="text-end">Importe</th>
+                                <th>Hitos vinculados</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($purchaseOrder->invoices as $invoice)
+                                <tr>
+                                    <td>
+                                        <i class="ri-file-pdf-2-line text-danger me-1"></i>
+                                        <span class="fw-medium">{{ $invoice->file_name }}</span>
+                                    </td>
+                                    <td class="text-nowrap fs-12">
+                                        {{ $invoice->attached_at->format('d/m/Y H:i') }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border py-1 px-2 fs-12">
+                                            {{ $invoice->currency }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end fw-semibold">
+                                        {{ number_format($invoice->amount, 2) }}
+                                    </td>
+                                    <td>
+                                        @forelse ($invoice->milestones as $im)
+                                            <span class="badge bg-info-subtle text-info py-1 px-2 fs-11 me-1">
+                                                Hito #{{ $im->id }}
+                                            </span>
+                                        @empty
+                                            <span class="text-muted fs-12">—</span>
+                                        @endforelse
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex gap-1 justify-content-center">
+                                            <a href="{{ route('invoices.download', $invoice) }}"
+                                               target="_blank"
+                                               class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
+                                               title="Ver / Descargar PDF">
+                                                <i class="ri-download-2-line"></i>
+                                            </a>
+                                            <form action="{{ route('invoices.destroy', $invoice) }}" method="POST"
+                                                  onsubmit="return confirm('¿Eliminar la factura {{ $invoice->file_name }}? Esta acción no se puede deshacer.')">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="btn btn-xs btn-soft-danger"
+                                                        style="padding: 2px 8px;" title="Eliminar factura">
+                                                    <i class="ri-delete-bin-line"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="text-end fw-semibold fs-13">Total facturado:</td>
+                                <td class="text-end fw-bold text-primary">
+                                    {{ number_format($purchaseOrder->invoices->sum('amount'), 2) }}
+                                </td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            @else
+                <div class="card-body text-center text-muted py-4">
+                    <i class="ri-file-pdf-line fs-36 d-block mb-2 text-danger opacity-50"></i>
+                    No hay facturas registradas. Usa el botón <strong>"Subir factura"</strong> para agregar la primera.
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($purchaseOrder->milestones as $milestone)
     @php
-        $pendiente = max(0, (float)$milestone->value - (float)$milestone->covered_amount);
+        $pendiente = max(0, $milestone->effective_amount - (float)$milestone->covered_amount);
     @endphp
 
     {{-- MODAL Editar Hito --}}
@@ -318,11 +415,6 @@
                                 <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0.01" class="form-control"
                                        name="value" value="{{ $milestone->value }}" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">Fecha de factura</label>
-                                <input type="date" class="form-control"
-                                       name="invoice_date" value="{{ $milestone->invoice_date?->format('Y-m-d') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha vencimiento</label>
@@ -399,6 +491,98 @@
 
 @endforeach
 
+{{-- MODAL Subir Factura --}}
+<div class="modal fade" id="modalCreateInvoice" tabindex="-1" aria-labelledby="modalCreateInvoiceLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('invoices.store') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCreateInvoiceLabel">
+                        <i class="ri-file-pdf-line me-1 text-danger"></i> Subir Factura — OC #{{ $purchaseOrder->id }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+
+                        {{-- Archivo PDF --}}
+                        <div class="col-12">
+                            <label class="form-label fw-medium">
+                                Archivo PDF <span class="text-danger">*</span>
+                                <small class="text-muted fw-normal">(máx. 10 MB)</small>
+                            </label>
+                            <input type="file" class="form-control @error('pdf_file') is-invalid @enderror"
+                                   name="pdf_file" accept=".pdf" required>
+                            <div class="form-text">
+                                El nombre se generará automáticamente:
+                                <strong>OC{{ $purchaseOrder->id }}-FACT{{ $purchaseOrder->invoices->count() + 1 }}.pdf</strong>
+                            </div>
+                            @error('pdf_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        {{-- Importe y Moneda --}}
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.01"
+                                   class="form-control @error('amount') is-invalid @enderror"
+                                   name="amount" placeholder="0.00" required>
+                            @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
+                            <select class="form-select @error('currency') is-invalid @enderror" name="currency" required>
+                                <option value="MXN" {{ $purchaseOrder->currency === 'MXN' ? 'selected' : '' }}>MXN — Peso Mexicano</option>
+                                <option value="USD" {{ $purchaseOrder->currency === 'USD' ? 'selected' : '' }}>USD — Dólar</option>
+                                <option value="EUR" {{ $purchaseOrder->currency === 'EUR' ? 'selected' : '' }}>EUR — Euro</option>
+                            </select>
+                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        {{-- Hitos relacionados --}}
+                        @if ($purchaseOrder->milestones->count() > 0)
+                            <div class="col-12">
+                                <label class="form-label fw-medium">Hitos relacionados</label>
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="row g-2">
+                                        @foreach ($purchaseOrder->milestones as $m)
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox"
+                                                           name="milestone_ids[]" value="{{ $m->id }}"
+                                                           id="inv_milestone_{{ $m->id }}">
+                                                    <label class="form-check-label fs-13" for="inv_milestone_{{ $m->id }}">
+                                                        <strong>Hito #{{ $m->id }}</strong>
+                                                        <span class="text-muted">
+                                                            — {{ $m->type === 'anticipo' ? 'Anticipo' : 'Regular' }}
+                                                            · {{ $purchaseOrder->currency }} {{ number_format($m->value, 2) }}
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <div class="form-text">Selecciona los hitos que cubre esta factura (opcional).</div>
+                                @error('milestone_ids')<div class="text-danger fs-12 mt-1">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-upload-2-line me-1"></i> Subir factura
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {{-- MODAL Crear Hito --}}
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -432,10 +616,6 @@
                             <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" min="0.01" class="form-control"
                                    name="value" placeholder="Ej. 5000.00" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-medium">Fecha de factura</label>
-                            <input type="date" class="form-control" name="invoice_date">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Fecha vencimiento</label>

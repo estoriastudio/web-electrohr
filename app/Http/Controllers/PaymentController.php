@@ -30,10 +30,10 @@ class PaymentController extends Controller
             ->select('payments.*')
             ->orderByRaw("
                 CASE
-                    WHEN purchase_order_milestones.fecha_vencimiento <= ? THEN 0
+                    WHEN purchase_order_milestones.due_date <= ? THEN 0
                     ELSE 1
                 END ASC,
-                purchase_order_milestones.fecha_vencimiento ASC
+                purchase_order_milestones.due_date ASC
             ", [$urgentDate->toDateString()])
             ->get();
 
@@ -61,6 +61,13 @@ class PaymentController extends Controller
         if ($milestone->is_complete) {
             return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
                 ->with('error', 'El hito ya está completamente cubierto. No se pueden agregar más pagos.');
+        }
+
+        $saldoPendiente = $milestone->effective_amount - (float) $milestone->covered_amount;
+
+        if ($validated['amount'] > $saldoPendiente) {
+            return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
+                ->with('error', 'El monto del pago excede el saldo pendiente del hito (' . number_format($saldoPendiente, 2) . ').');
         }
 
         if (empty($validated['folio'])) {

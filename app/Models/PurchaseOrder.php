@@ -44,6 +44,11 @@ class PurchaseOrder extends Model
         return $this->hasManyThrough(Payment::class, PurchaseOrderMilestone::class, 'purchase_order_id', 'milestone_id');
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderInvoice::class);
+    }
+
     public function getNextDueDateAttribute(): ?string
     {
         $milestone = $this->milestones()

@@ -49,7 +49,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="card-title mb-0 fw-semibold">Completitud del perfil</h6>
+                    <h6 class="card-title mb-0 fw-semibold">Información del perfil</h6>
                     <span class="badge
                         @if($supplier->profile_completeness >= 80) bg-success-subtle text-success
                         @elseif($supplier->profile_completeness >= 40) bg-warning-subtle text-warning
@@ -119,7 +119,7 @@
                             </div>
                             <span class="text-muted fs-12 fw-medium">Hitos totales</span>
                         </div>
-                        <h4 class="fw-bold mb-0">0</h4>
+                        <h4 class="fw-bold mb-0">{{ $milestonesCount }}</h4>
                     </div>
                 </div>
             </div>
@@ -134,7 +134,7 @@
                             </div>
                             <span class="text-muted fs-12 fw-medium">Saldo pagado</span>
                         </div>
-                        <h4 class="fw-bold mb-0">$0.00</h4>
+                        <h4 class="fw-bold mb-0">${{ number_format($saldoPagado, 2) }}</h4>
                     </div>
                 </div>
             </div>
@@ -149,7 +149,7 @@
                             </div>
                             <span class="text-muted fs-12 fw-medium">Saldo pendiente</span>
                         </div>
-                        <h4 class="fw-bold mb-0">$0.00</h4>
+                        <h4 class="fw-bold mb-0">${{ number_format($saldoPendiente, 2) }}</h4>
                     </div>
                 </div>
             </div>
@@ -164,7 +164,7 @@
                             </div>
                             <span class="text-muted fs-12 fw-medium">Próximo hito</span>
                         </div>
-                        <p class="fw-semibold mb-0 fs-14">—</p>
+                        <p class="fw-semibold mb-0 fs-14">{{ $proximoHito?->due_date->format('d/m/Y') ?? '—' }}</p>
                     </div>
                 </div>
             </div>
@@ -305,13 +305,49 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {{-- Se conectará al modelo en siguiente fase --}}
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
-                                    <i class="ri-file-list-3-line fs-24 d-block mb-1 opacity-50"></i>
-                                    Sin órdenes de compra registradas aún.
-                                </td>
-                            </tr>
+                            @php
+                                $statusMap = [
+                                    'emitida'    => ['label' => 'Emitida',    'class' => 'bg-info-subtle text-info'],
+                                    'pendiente'  => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
+                                    'autorizada' => ['label' => 'Autorizada', 'class' => 'bg-success-subtle text-success'],
+                                ];
+                            @endphp
+                            @forelse ($supplier->purchaseOrders as $order)
+                                @php
+                                    $os = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                                    $tipoLabel = $order->type === 'materiales_servicios' ? 'Materiales / Servicios' : 'Mantenimiento';
+                                @endphp
+                                <tr>
+                                    <td>
+                                        <a href="{{ route('purchase_orders.show', $order) }}" class="fw-semibold text-dark">
+                                            OC #{{ $order->id }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="fs-13">{{ $tipoLabel }}</span>
+                                        @if ($order->project || $order->site)
+                                            <small class="text-muted d-block fs-11">
+                                                {{ implode(' · ', array_filter([$order->project, $order->site])) }}
+                                            </small>
+                                        @endif
+                                    </td>
+                                    <td>{{ $order->milestones_count }}</td>
+                                    <td class="fw-semibold">
+                                        {{ $order->currency }} {{ number_format($order->amount, 2) }}
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ $os['class'] }} py-1 px-2 fs-12">{{ $os['label'] }}</span>
+                                    </td>
+                                    <td class="text-muted fs-12">{{ $order->created_at->format('d/m/Y') }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="ri-file-list-3-line fs-24 d-block mb-1 opacity-50"></i>
+                                        Sin órdenes de compra registradas aún.
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

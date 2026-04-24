@@ -2,64 +2,114 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
+use App\Services\NotificationService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class PurchaseOrderInvoiceController extends Controller
 {
+    public function __construct(private NotificationService $notification) {}
+
     /**
-     * Display a listing of the resource.
+     * Almacenar una nueva factura vinculada a una OC.
      */
-    public function index()
+    public function store(Request $request): RedirectResponse
     {
-        //
+        $validated = $request->validate([
+            'purchase_order_id' => 'required|exists:purchase_orders,id',
+            'amount'            => 'required|numeric|min:0.01',
+            'currency'          => 'required|in:MXN,USD,EUR',
+            'milestone_ids'     => 'nullable|array',
+            'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
+            'pdf_file'          => 'required|file|mimes:pdf|max:10240',
+        ]);
+
+        $purchaseOrder = PurchaseOrder::findOrFail($validated['purchase_order_id']);
+
+        // Generar nombre de archivo: OC{id}-FACT{n+1}
+        $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
+        $fileName      = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '.pdf';
+        $storagePath   = 'invoices/' . $purchaseOrder->id . '/' . $fileName;
+
+        $request->file('pdf_file')->storeAs(
+            'invoices/' . $purchaseOrder->id,
+            $fileName
+        );
+
+        $invoice = PurchaseOrderInvoice::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'file_name'         => $fileName,
+            'file_path'         => $storagePath,
+            'amount'            => $validated['amount'],
+            'currency'          => $validated['currency'],
+        ]);
+
+        if (!empty($validated['milestone_ids'])) {
+            $validIds = $purchaseOrder->milestones()
+                ->whereIn('id', $validated['milestone_ids'])
+                ->pluck('id');
+            $invoice->milestones()->sync($validIds);
+        }
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrderInvoice',
+            'action_by'    => Auth::id(),
+            'model_action' => 'create',
+            'model_id'     => $invoice->id,
+            'data'         => 'subió la factura ' . $fileName . ' a la OC #' . $purchaseOrder->id,
+        ]);
+
+        return redirect()
+            ->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Factura ' . $fileName . ' registrada correctamente.');
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Descargar / visualizar el PDF de una factura.
      */
-    public function create()
+    public function download(PurchaseOrderInvoice $invoice)
     {
-        //
+        if (!Storage::exists($invoice->file_path)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return response()->file(
+            Storage::path($invoice->file_path),
+            [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $invoice->file_name . '"',
+            ]
+        );
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Eliminar una factura y su archivo.
      */
-    public function store(Request $request)
+    public function destroy(PurchaseOrderInvoice $invoice): RedirectResponse
     {
-        //
-    }
+        $purchaseOrderId = $invoice->purchase_order_id;
+        $fileName        = $invoice->file_name;
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(PurchaseOrderInvoice $purchaseOrderInvoice)
-    {
-        //
-    }
+        if (Storage::exists($invoice->file_path)) {
+            Storage::delete($invoice->file_path);
+        }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(PurchaseOrderInvoice $purchaseOrderInvoice)
-    {
-        //
-    }
+        $invoice->delete();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, PurchaseOrderInvoice $purchaseOrderInvoice)
-    {
-        //
-    }
+        $this->notification->send([
+            'type'         => 'PurchaseOrderInvoice',
+            'action_by'    => Auth::id(),
+            'model_action' => 'destroy',
+            'model_id'     => $invoice->id,
+            'data'         => 'eliminó la factura ' . $fileName . ' de la OC #' . $purchaseOrderId,
+        ]);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(PurchaseOrderInvoice $purchaseOrderInvoice)
-    {
-        //
+        return redirect()
+            ->route('purchase_orders.show', $purchaseOrderId)
+            ->with('success', 'Factura eliminada correctamente.');
     }
 }

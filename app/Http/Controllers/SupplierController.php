@@ -67,9 +67,34 @@ class SupplierController extends Controller
      */
     public function show(Supplier $supplier)
     {
-        $supplier = Supplier::withCount('purchaseOrders')->findOrFail($supplier->id);
+        $supplier = Supplier::withCount('purchaseOrders')
+            ->with(['purchaseOrders' => fn ($q) => $q->withCount('milestones')->orderByDesc('created_at')])
+            ->findOrFail($supplier->id);
 
-        return view('suppliers.show', compact('supplier'));
+        $orderIds = $supplier->purchaseOrders->pluck('id');
+
+        $milestonesCount = $supplier->purchaseOrders->sum('milestones_count');
+
+        $saldoPagado = \App\Models\Payment::whereHas('milestone', fn ($q) => $q->whereIn('purchase_order_id', $orderIds))
+            ->where('status', 'pagado')
+            ->sum('amount');
+
+        $totalOrdenado  = $supplier->purchaseOrders->sum('amount');
+        $saldoPendiente = max(0, $totalOrdenado - $saldoPagado);
+
+        $proximoHito = \App\Models\PurchaseOrderMilestone::whereIn('purchase_order_id', $orderIds)
+            ->whereNotNull('due_date')
+            ->whereColumn('covered_amount', '<', 'value')
+            ->orderBy('due_date')
+            ->first();
+
+        return view('suppliers.show', compact(
+            'supplier',
+            'milestonesCount',
+            'saldoPagado',
+            'saldoPendiente',
+            'proximoHito',
+        ));
     }
 
     /**

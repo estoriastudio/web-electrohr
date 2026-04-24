@@ -5,6 +5,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
+use App\Http\Controllers\PurchaseOrderInvoiceController;
+
 use App\Http\Controllers\PaymentController;
 
 /* Ayudantes */
@@ -57,7 +59,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'update'  => 'milestones.update',
                 'destroy' => 'milestones.destroy',
             ],
-            'parameters' => ['hitos' => 'milestone']
+            'parameters' => ['hitos' => 'purchaseOrderMilestone'],
         ]);
 
         // Pagos
@@ -70,6 +72,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             'update'  => 'payments.update',
             'destroy' => 'payments.destroy',
         ]);
+
+        // Facturas de Órdenes de Compra
+        Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
+        Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
+        Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
 
         // Usuarios
         Route::resource('usuarios', UserController::class, [

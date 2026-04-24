@@ -52,6 +52,16 @@
                 </a>
             </li>
 
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
+                   href="{{ route('milestones.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-file-list-3-line"></i>
+                    </span>
+                    <span class="nav-text">Hitos de Pago</span>
+                </a>
+            </li>
+
             <li class="menu-title">Pagos</li>
 
             <li class="nav-item">
