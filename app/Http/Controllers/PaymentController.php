@@ -21,23 +21,43 @@ class PaymentController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         $urgentDate = Carbon::now()->addDays(7);
+        $search     = trim($request->input('search', ''));
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier'])
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('payments.folio', 'like', '%' . $search . '%')
+                        ->orWhere('payments.reference_number', 'like', '%' . $search . '%');
+                });
+            })
             ->orderByRaw("
+                CASE
+                    WHEN payments.folio = ? THEN 0
+                    WHEN payments.reference_number = ? THEN 0
+                    WHEN payments.folio LIKE ? THEN 1
+                    WHEN payments.reference_number LIKE ? THEN 1
+                    ELSE 2
+                END ASC,
                 CASE
                     WHEN purchase_order_milestones.due_date <= ? THEN 0
                     ELSE 1
                 END ASC,
                 purchase_order_milestones.due_date ASC
-            ", [$urgentDate->toDateString()])
+            ", [
+                $search,
+                $search,
+                $search . '%',
+                $search . '%',
+                $urgentDate->toDateString(),
+            ])
             ->get();
 
-        return view('payments.index', compact('payments', 'urgentDate'));
+        return view('payments.index', compact('payments', 'urgentDate', 'search'));
     }
 
     public function create()

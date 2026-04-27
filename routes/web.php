@@ -1,6 +1,7 @@
 <?php
 
 /* Controladores */
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PurchaseOrderController;

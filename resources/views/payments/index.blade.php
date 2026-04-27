@@ -41,6 +41,29 @@
                 </div>
             </div>
 
+            {{-- Barra de búsqueda unificada --}}
+            <div class="card-body border-bottom py-3">
+                <form method="GET" action="{{ route('payments.index') }}" class="d-flex gap-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light">
+                            <i class="ri-search-line text-muted"></i>
+                        </span>
+                        <input type="text" name="search" value="{{ $search }}"
+                               class="form-control"
+                               placeholder="Buscar por folio o referencia…"
+                               autocomplete="off">
+                        @if ($search)
+                            <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                                <i class="ri-close-line"></i>
+                            </a>
+                        @endif
+                        <button type="submit" class="btn btn-primary">
+                            Buscar
+                        </button>
+                    </div>
+                </form>
+            </div>
+
             <div class="card-body p-0">
                 @if ($payments->isEmpty())
                     <div class="p-4 text-center">
