@@ -24,7 +24,7 @@
                 @include('notifications.utilities._table')
             </div>
             <div class="card-footer border-top">
-                {{ $notifications->links() }}
+                {{ $notifications->links('pagination::bootstrap-5') }}
             </div>
         </div>
 

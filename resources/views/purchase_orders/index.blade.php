@@ -157,7 +157,7 @@
 
             @if ($orders->hasPages())
                 <div class="card-footer d-flex justify-content-end">
-                    {{ $orders->links() }}
+                    {{ $orders->links('pagination::bootstrap-5') }}
                 </div>
             @endif
         </div>
@@ -193,8 +193,10 @@
                         {{-- Proveedor --}}
                         <div class="col-md-6">
                             <label for="supplier_id" class="form-label fw-medium">Proveedor <span class="text-danger">*</span></label>
-                            <select class="form-select @error('supplier_id') is-invalid @enderror" id="supplier_id" name="supplier_id" required>
-                                <option value="">Seleccionar...</option>
+                            <select class="form-control @error('supplier_id') is-invalid @enderror"
+                                    id="supplier_id" name="supplier_id"
+                                    required>
+                                <option value="">Buscar proveedor...</option>
                                 @foreach ($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
                                         {{ $supplier->rfc_name ?? $supplier->commercial_name }}
@@ -234,9 +236,9 @@
 
                         <div class="col-md-4">
                             <label for="amount" class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0"
+                            <input type="number" step="0" min="0"
                                    class="form-control @error('amount') is-invalid @enderror"
-                                   id="amount" name="amount" value="{{ old('amount', '0.00') }}" required>
+                                   id="amount" name="amount" value="{{ old('amount', '') }}" required>
                             @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
@@ -318,31 +320,58 @@
 
 @push('scripts')
 <script>
-$(function () {
-    // Toggle campos Proyecto / Obra
+document.addEventListener('DOMContentLoaded', function () {
+    var modalEl         = document.getElementById('modalCreateOrder');
+    var typeSelect      = document.getElementById('type');
+    var camposProject   = document.querySelectorAll('.campo-project');
+    var camposSite      = document.querySelectorAll('.campo-site');
+    var projectInput    = document.getElementById('project');
+    var siteInput       = document.getElementById('site');
+    var camposRec       = document.getElementById('campos_recurrencia');
+    var recInputs       = document.querySelectorAll('input[name="recurrence_type"]');
+    var supplierChoices = null;
+
+    // ── Choices.js: inicializar al mostrar el modal ─────────────────────────
+    modalEl.addEventListener('shown.bs.modal', function () {
+        if (!supplierChoices) {
+            supplierChoices = new Choices(document.getElementById('supplier_id'), {
+                searchEnabled: true,
+                searchPlaceholderValue: 'Buscar proveedor...',
+                itemSelectText: '',
+                noResultsText: 'Sin resultados',
+                noChoicesText: 'Sin opciones disponibles',
+            });
+        }
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (supplierChoices) {
+            supplierChoices.destroy();
+            supplierChoices = null;
+        }
+    });
+
+    // ── Toggle Proyecto / Obra ──────────────────────────────────────────────
     function toggleProyectoObra() {
-        var tipo = $('#type').val();
-        if (tipo === 'materiales_servicios') {
-            $('.campo-project, .campo-site').show();
-        } else {
-            $('.campo-project, .campo-site').hide();
-            $('#project, #site').val('');
+        var show = typeSelect.value === 'materiales_servicios';
+        camposProject.forEach(function (el) { el.style.display = show ? '' : 'none'; });
+        camposSite.forEach(function (el)    { el.style.display = show ? '' : 'none'; });
+        if (!show) {
+            if (projectInput) projectInput.value = '';
+            if (siteInput)    siteInput.value    = '';
         }
     }
 
-    // Toggle campos recurrencia
+    // ── Toggle Recurrencia ──────────────────────────────────────────────────
     function toggleRecurrencia() {
-        if ($('input[name="recurrence_type"]:checked').val() === 'recurrente') {
-            $('#campos_recurrencia').show();
-        } else {
-            $('#campos_recurrencia').hide();
-        }
+        var checked = document.querySelector('input[name="recurrence_type"]:checked');
+        camposRec.style.display = (checked && checked.value === 'recurrente') ? '' : 'none';
     }
 
-    $('#type').on('change', toggleProyectoObra);
-    $('input[name="recurrence_type"]').on('change', toggleRecurrencia);
+    typeSelect.addEventListener('change', toggleProyectoObra);
+    recInputs.forEach(function (el) { el.addEventListener('change', toggleRecurrencia); });
 
-    // Inicializar si hay errores de validación (old values)
+    // Inicializar estado con valores old() si los hay
     toggleProyectoObra();
     toggleRecurrencia();
 });

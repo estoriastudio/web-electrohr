@@ -77,24 +77,13 @@
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarPages" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarPages">
+                <a class="nav-link" href="{{ route('usuarios.index') }}">
                     <span class="nav-icon">
                         <i class="ri-pages-line"></i>
                     </span>
-                    <span class="nav-text"> Usuarios </span>
+                    <span class="nav-text">Usuarios</span>
                 </a>
-                <div class="collapse" id="sidebarPages">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('usuarios.index') }}">Listado</a>
-                        </li>
-                        
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="pages-calendar.html">Roles y Permisos</a>
-                        </li>
-                    </ul>
-                </div>
-            </li> <!-- end Users Menu -->
+            </li>
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('notifications.index') }}">

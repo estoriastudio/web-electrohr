@@ -114,26 +114,97 @@
 
     @forelse ($purchaseOrder->milestones as $milestone)
         @php
-            $percent = $milestone->progress_percent;
-            $isComplete = $milestone->is_complete;
+            $percent     = $milestone->progress_percent;
+            $isComplete  = $milestone->is_complete;
+            $hasInvoice  = $milestone->invoices->isNotEmpty();
             $progressClass = $isComplete ? 'bg-success' : ($percent >= 50 ? 'bg-warning' : 'bg-danger');
             $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];
             $tipoValorMap = ['fijo' => 'Monto Fijo', 'porcentaje' => 'Porcentaje'];
+
+            $today      = \Carbon\Carbon::today();
+            $urgentDate = $today->copy()->addDays(7);
+            $hasDueDate = !is_null($milestone->due_date);
+            $isOverdue  = $hasDueDate && $milestone->due_date->lt($today);
+            $isNearlyDue = $hasDueDate && !$isOverdue && $milestone->due_date->lte($urgentDate);
+
+            // Semáforo: misma lógica que milestones/index (negro > rojo > amarillo > verde)
+            if ($isComplete && !$hasInvoice) {
+                $semBorder   = 'border-dark';
+                $semHeader   = 'bg-dark text-white';
+                $semDotColor = '#212529';
+                $semLabel    = 'Sin factura';
+                $semIcon     = 'ri-file-unknow-line';
+                $semBadge    = 'bg-dark text-white';
+            } elseif (!$isComplete && $isOverdue) {
+                $semBorder   = 'border-danger';
+                $semHeader   = 'bg-danger-subtle';
+                $semDotColor = '#dc3545';
+                $semLabel    = 'Vencido';
+                $semIcon     = 'ri-alarm-warning-line';
+                $semBadge    = 'bg-danger-subtle text-danger';
+            } elseif (!$isComplete && $isNearlyDue) {
+                $semBorder   = 'border-warning';
+                $semHeader   = 'bg-warning-subtle';
+                $semDotColor = '#ffc107';
+                $semLabel    = 'Próximo a vencer';
+                $semIcon     = 'ri-time-line';
+                $semBadge    = 'bg-warning-subtle text-warning';
+            } elseif ($isComplete) {
+                $semBorder   = 'border-success';
+                $semHeader   = 'bg-success-subtle';
+                $semDotColor = '#28a745';
+                $semLabel    = 'Completado';
+                $semIcon     = 'ri-check-double-line';
+                $semBadge    = 'bg-success-subtle text-success';
+            } else {
+                $semBorder   = 'border-success';
+                $semHeader   = '';
+                $semDotColor = '#28a745';
+                $semLabel    = 'Al día';
+                $semIcon     = 'ri-checkbox-circle-line';
+                $semBadge    = 'bg-success-subtle text-success';
+            }
+
+            // Tiempo relativo al vencimiento (legible para humanos)
+            $dueLabel = null;
+            $dueLabelClass = 'text-muted';
+            if ($hasDueDate) {
+                $diffDays = $today->diffInDays($milestone->due_date, false); // negativo = pasado
+                if ($diffDays === 0) {
+                    $dueLabel = 'Vence hoy';
+                    $dueLabelClass = 'text-danger fw-semibold';
+                } elseif ($diffDays < 0) {
+                    $abs = abs($diffDays);
+                    $dueLabel = 'Hace ' . $abs . ' ' . ($abs === 1 ? 'día' : 'días');
+                    $dueLabelClass = $isComplete ? 'text-muted' : 'text-danger fw-semibold';
+                } elseif ($diffDays <= 7) {
+                    $dueLabel = 'En ' . $diffDays . ' ' . ($diffDays === 1 ? 'día' : 'días');
+                    $dueLabelClass = 'text-warning fw-semibold';
+                } elseif ($diffDays <= 30) {
+                    $weeks = (int) ceil($diffDays / 7);
+                    $dueLabel = 'En ~' . $weeks . ' ' . ($weeks === 1 ? 'semana' : 'semanas');
+                    $dueLabelClass = 'text-body';
+                } else {
+                    $months = (int) ceil($diffDays / 30);
+                    $dueLabel = 'En ~' . $months . ' ' . ($months === 1 ? 'mes' : 'meses');
+                    $dueLabelClass = 'text-muted';
+                }
+            }
         @endphp
 
-        <div class="col-md-6 col-xl-4 mb-3">
-            <div class="card h-100 {{ $isComplete ? 'border-success' : '' }}">
-                <div class="card-header d-flex justify-content-between align-items-center py-2">
-                    <div>
+        <div class="col-md-6 col-xl-6 mb-3">
+            <div class="card h-100 {{ $semBorder }} border-2">
+                <div class="card-header d-flex justify-content-between align-items-center py-2 {{ $semHeader }}">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        {{-- Indicador semáforo --}}
+                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ $semDotColor }};flex-shrink:0;"></span>
                         <span class="fw-semibold fs-14">Hito #{{ $milestone->id }}</span>
-                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11 ms-1">
+                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11">
                             {{ $tipoHitoMap[$milestone->type] ?? $milestone->type }}
                         </span>
-                        @if ($isComplete)
-                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-11 ms-1">
-                                <i class="ri-check-line"></i> Completado
-                            </span>
-                        @endif
+                        <span class="badge {{ $semBadge }} py-1 px-2 fs-11">
+                            <i class="{{ $semIcon }} me-1"></i>{{ $semLabel }}
+                        </span>
                     </div>
                     <div class="d-flex gap-1">
                         @if ($milestone->payments->count() === 0)
@@ -190,8 +261,13 @@
                     @if ($milestone->due_date)
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted fs-12">Vencimiento:</span>
-                            <span class="fs-12 {{ $milestone->due_date->isPast() && !$isComplete ? 'text-danger fw-semibold' : '' }}">
-                                {{ $milestone->due_date->format('d/m/Y') }}
+                            <span class="fs-12 text-end">
+                                <span class="{{ $isOverdue && !$isComplete ? 'text-danger fw-semibold' : '' }}">
+                                    {{ $milestone->due_date->format('d/m/Y') }}
+                                </span>
+                                @if ($dueLabel)
+                                    <span class="d-block fs-11 {{ $dueLabelClass }}">{{ $dueLabel }}</span>
+                                @endif
                             </span>
                         </div>
                     @endif
@@ -230,7 +306,7 @@
                                         <th>Monto</th>
                                         <th>Fecha</th>
                                         <th>Estatus</th>
-                                        <th></th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -239,23 +315,59 @@
                                             $payStatusMap = [
                                                 'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
                                                 'autorizado'    => ['label' => 'Autorizado',    'class' => 'bg-info-subtle text-info'],
-                                                'pagado'        => ['label' => 'Pagado',         'class' => 'bg-success-subtle text-success'],
+                                                'pagado'        => ['label' => 'Pagado',        'class' => 'bg-success-subtle text-success'],
+                                                'rechazado'     => ['label' => 'Rechazado',     'class' => 'bg-danger-subtle text-danger'],
                                             ];
                                             $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
+
+                                            // Transiciones permitidas por estatus
+                                            $transitions = match ($payment->status) {
+                                                'por_autorizar' => [
+                                                    'autorizado' => ['label' => 'Autorizar',  'icon' => 'ri-check-line',           'btn' => 'btn-soft-info',    'confirm' => '¿Autorizar este pago?'],
+                                                    'rechazado'  => ['label' => 'Rechazar',   'icon' => 'ri-close-circle-line',    'btn' => 'btn-soft-danger',  'confirm' => '¿Rechazar este pago?'],
+                                                ],
+                                                'autorizado' => [
+                                                    'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
+                                                ],
+                                                'rechazado' => [
+                                                    'por_autorizar' => ['label' => 'Reactivar', 'icon' => 'ri-arrow-go-back-line', 'btn' => 'btn-soft-warning', 'confirm' => '¿Reactivar este pago a «Por autorizar»?'],
+                                                ],
+                                                default => [], // pagado: sin transiciones
+                                            };
                                         @endphp
                                         <tr>
                                             <td class="fw-medium">{{ $payment->folio }}</td>
                                             <td>{{ number_format($payment->amount, 2) }}</td>
                                             <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
-                                            <td><span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span></td>
                                             <td>
-                                                <form action="{{ route('payments.destroy', $payment) }}" method="POST"
-                                                      onsubmit="return confirm('¿Eliminar este pago?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-xs btn-soft-danger" style="padding: 1px 6px;" title="Eliminar pago">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
-                                                </form>
+                                                <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    {{-- Botones de transición de estatus --}}
+                                                    @foreach ($transitions as $newStatus => $transition)
+                                                        <form action="{{ route('payments.update', $payment) }}" method="POST">
+                                                            @csrf @method('PATCH')
+                                                            <input type="hidden" name="status" value="{{ $newStatus }}">
+                                                            <button type="submit"
+                                                                    class="btn btn-xs {{ $transition['btn'] }}"
+                                                                    title="{{ $transition['label'] }}"
+                                                                    onclick="return confirm('{{ $transition['confirm'] }}')">
+                                                                <i class="{{ $transition['icon'] }}"></i>
+                                                                {{ $transition['label'] }}
+                                                            </button>
+                                                        </form>
+                                                    @endforeach
+
+                                                    {{-- Eliminar (siempre disponible) --}}
+                                                    <form action="{{ route('payments.destroy', $payment) }}" method="POST"
+                                                          onsubmit="return confirm('¿Eliminar este pago?')">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-xs btn-soft-danger" title="Eliminar pago">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     @endforeach

@@ -32,8 +32,8 @@
                     <p class="text-muted fs-13 mb-0">Los pagos con vencimiento en los próximos 7 días aparecen primero.</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('payments.interactive') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="ri-file-list-3-line me-1"></i> Activar Modo Interactivo
+                    <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-primary">
+                        <i class="ri-file-list-3-line me-1"></i> Regresar a Listado
                     </a>
                     <a href="{{ route('purchase_orders.index') }}" class="btn btn-sm btn-outline-secondary">
                         <i class="ri-file-list-3-line me-1"></i> Ir a Órdenes de Compra
@@ -41,18 +41,10 @@
                 </div>
             </div>
 
-            <div class="card-body p-0">
-                @if ($payments->isEmpty())
-                    <div class="p-4 text-center">
-                        <i class="ri-file-list-3-line fs-1 text-muted"></i>
-                        <p class="text-muted fs-14 mt-2 mb-0">No hay pagos pendientes de autorización.</p>  
-                    </div>
-                @else
-                    @include('payments.utilities.table', ['payments' => $payments])
-                @endif
+            <div class="card-body p-5 d-flex justify-content-center align-items-center">
+                @include('payments.utilities.swipable_cards', ['payments' => $payments])
             </div>
         </div>
     </div>
 </div>
-
 @endsection

@@ -64,6 +64,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // Pagos
         Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
+        Route::get('/pagos/interactivo/autorizar', [PaymentController::class, 'interactive'])->name('payments.interactive');
+        Route::post('/pagos/{payment}/swipe', [PaymentController::class, 'swipe'])->name('payments.swipe');
         Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
             'create'  => 'payments.create',
             'store'   => 'payments.store',
@@ -71,7 +73,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             'edit'    => 'payments.edit',
             'update'  => 'payments.update',
             'destroy' => 'payments.destroy',
-        ]);
+        ])->parameters(['pagos' => 'payment']);
 
         // Facturas de Órdenes de Compra
         Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');

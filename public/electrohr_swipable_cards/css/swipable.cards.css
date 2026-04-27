@@ -1,0 +1,492 @@
+:root {
+    --color-primary: #CA5839;
+    --color-primary-light: #e8845f;
+    --color-autorizar: #22c55e;
+    --color-rechazar: #ef4444;
+    --color-urgency-ok: #22c55e;
+    --color-urgency-proximo: #f59e0b;
+    --color-urgency-vencido: #ef4444;
+    --color-text-dark: #1a1a1a;
+    --color-text-medium: #555555;
+    --color-text-light: #888888;
+    --color-bg-card: #ffffff;
+    --color-border: #e5e5e5;
+}
+
+.swipe-widget {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Progreso */
+.swipe-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--color-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-light);
+    white-space: nowrap;
+}
+
+/* Stack de tarjetas */
+.card-stack {
+    position: relative;
+    height: 360px;
+    margin-bottom: 20px;
+    touch-action: none;
+}
+
+.swipe-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-bg-card);
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    transition: box-shadow 0.2s ease;
+    border-left: 6px solid transparent;
+}
+
+/* Wrapper interno que aplica overflow:hidden para las esquinas redondeadas */
+.card-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 14px;
+    min-height: 0;
+}
+
+.swipe-card:active { cursor: grabbing; }
+
+.swipe-card.dragging {
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+}
+
+/* Tarjetas apiladas detrás — el last-child es la tarjeta superior */
+.swipe-card:nth-last-child(2) {
+    transform: scale(0.95) translateY(10px);
+    z-index: -1;
+}
+.swipe-card:nth-last-child(3) {
+    transform: scale(0.9) translateY(20px);
+    z-index: -2;
+}
+.swipe-card:nth-last-child(n+4) { display: none; }
+
+.swipe-card.swiping {
+    z-index: 10 !important;
+    pointer-events: none !important;
+}
+
+/* Semáforo — borde izquierdo */
+.swipe-card.urgency-vencido { border-left-color: var(--color-urgency-vencido); }
+.swipe-card.urgency-proximo { border-left-color: var(--color-urgency-proximo); }
+.swipe-card.urgency-ok      { border-left-color: var(--color-urgency-ok); }
+
+/* Indicadores de swipe — efecto sello */
+.swipe-indicator {
+    position: absolute;
+    top: 50%;
+    padding: 12px 22px;
+    border-radius: 6px;
+    font-size: 20px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+    z-index: 99999;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+}
+
+.indicator-autorizar {
+    right: 18px;
+    background: rgba(22, 163, 74, 0.93);
+    color: #fff;
+    border: 4px solid rgba(255,255,255,0.75);
+    transform: translateY(-50%) rotate(22deg);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+.indicator-rechazar {
+    left: 18px;
+    background: rgba(220, 38, 38, 0.93);
+    color: #fff;
+    border: 4px solid rgba(255,255,255,0.75);
+    transform: translateY(-50%) rotate(-22deg);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+/* Cabecera de la tarjeta — monto */
+.card-amount-section {
+    padding: 28px 28px 16px;
+    text-align: center;
+    background: linear-gradient(135deg, #faf8f7 0%, #f3eeec 100%);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.card-amount-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-text-light);
+    margin-bottom: 6px;
+}
+
+.card-amount {
+    font-size: 42px;
+    font-weight: 800;
+    color: var(--color-primary);
+    line-height: 1;
+    letter-spacing: -1px;
+}
+
+.card-amount-currency {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-medium);
+    margin-left: 4px;
+    vertical-align: super;
+}
+
+/* Cuerpo de la tarjeta */
+.card-body {
+    flex: 1;
+    padding: 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+}
+
+.card-supplier-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.card-supplier-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-text-light);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.card-supplier-label i {
+    font-size: 12px;
+}
+
+.card-supplier {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text-dark);
+    line-height: 1.3;
+}
+
+.card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.card-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-text-medium);
+}
+
+.card-meta-item i {
+    font-size: 15px;
+    color: var(--color-text-light);
+    flex-shrink: 0;
+}
+
+/* Badge de urgencia */
+.urgency-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.urgency-badge.badge-vencido {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--color-urgency-vencido);
+}
+
+.urgency-badge.badge-proximo {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--color-urgency-proximo);
+}
+
+.urgency-badge.badge-ok {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--color-urgency-ok);
+}
+
+/* Botones de acción */
+.swipe-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    margin-bottom: 35px;
+}
+
+.swipe-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    font-size: 24px;
+}
+
+.swipe-btn:hover  { transform: scale(1.1); }
+.swipe-btn:active { transform: scale(0.95); }
+
+.btn-rechazar {
+    background: #fee2e2;
+    color: var(--color-rechazar);
+    box-shadow: 0 4px 15px rgba(239,68,68,0.2);
+}
+
+.btn-autorizar {
+    background: #dcfce7;
+    color: var(--color-autorizar);
+    box-shadow: 0 4px 15px rgba(34,197,94,0.2);
+}
+
+/* Botón Deshacer */
+.undo-container {
+    display: flex;
+    justify-content: center;
+    min-height: 36px;
+    margin-bottom: 4px;
+}
+
+.btn-undo {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 18px;
+    border-radius: 20px;
+    border: 1.5px solid var(--color-border);
+    background: #fff;
+    color: var(--color-text-medium);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    animation: fadeInUp 0.3s ease;
+}
+
+.btn-undo.visible {
+    display: flex;
+}
+
+.btn-undo:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+/* Barra de progreso del undo */
+.undo-timer-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--color-border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+    display: none;
+}
+
+.undo-timer-bar.visible {
+    display: block;
+}
+
+.undo-timer-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--color-primary);
+    border-radius: 2px;
+    transition: width linear;
+}
+
+/* Estado de carga en tarjeta */
+.card-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    z-index: 20;
+    display: none;
+}
+
+.card-loading-overlay.show { display: flex; }
+
+/* Estado completado */
+.swipe-complete {
+    display: none;
+    text-align: center;
+    padding: 40px 20px;
+    animation: fadeInUp 0.5s ease;
+}
+
+.swipe-complete.show { display: block; }
+
+.complete-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 36px;
+}
+
+.complete-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-dark);
+    margin-bottom: 12px;
+}
+
+.complete-stats {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.stat-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 20px;
+    border-radius: 12px;
+}
+
+.stat-pill.pill-autorizado {
+    background: rgba(34,197,94,0.1);
+    color: var(--color-autorizar);
+}
+
+.stat-pill.pill-rechazado {
+    background: rgba(239,68,68,0.1);
+    color: var(--color-rechazar);
+}
+
+.stat-number {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.btn-back-list {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    background: var(--color-primary);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.btn-back-list:hover {
+    background: var(--color-primary-light);
+    color: white;
+}
+
+/* Estado vacío */
+.swipe-empty {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.swipe-empty .empty-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+}
+
+.swipe-empty h4 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text-dark);
+    margin-bottom: 8px;
+}
+
+.swipe-empty p {
+    font-size: 14px;
+    color: var(--color-text-medium);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}

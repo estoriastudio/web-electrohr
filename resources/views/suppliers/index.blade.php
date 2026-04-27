@@ -148,7 +148,7 @@
 
             @if ($suppliers->hasPages())
                 <div class="card-footer d-flex justify-content-end">
-                    {{ $suppliers->links() }}
+                    {{ $suppliers->links('pagination::bootstrap-5') }}
                 </div>
             @endif
         </div>
@@ -255,7 +255,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="btnImportSubmit">
                         <i class="ri-upload-2-line me-1"></i> Importar
                     </button>
                 </div>
@@ -276,4 +276,15 @@
     });
 </script>
 @endif
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const importForm = document.querySelector('#modalImport form');
+        const importBtn  = document.getElementById('btnImportSubmit');
+
+        importForm.addEventListener('submit', function () {
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Importando...';
+        });
+    });
+</script>
 @endpush

@@ -45,6 +45,54 @@ class PaymentController extends Controller
         return redirect()->route('payments.index');
     }
 
+    public function interactive(): View
+    {
+        $urgentDate = Carbon::now()->addDays(7);
+
+        $payments = Payment::with(['milestone.purchaseOrder.supplier'])
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->select('payments.*')
+            ->where('payments.status', 'por_autorizar')
+            ->orderByRaw("
+                CASE
+                    WHEN purchase_order_milestones.due_date <= ? THEN 0
+                    ELSE 1
+                END ASC,
+                purchase_order_milestones.due_date ASC
+            ", [$urgentDate->toDateString()])
+            ->get();
+
+        return view('payments.interactive', compact('payments', 'urgentDate'));
+    }
+
+    public function swipe(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:autorizado,rechazado,por_autorizar',
+        ]);
+
+        $payment->update(['status' => $validated['status']]);
+
+        // Solo notificar si no es un undo (revertir a por_autorizar)
+        if ($validated['status'] !== 'por_autorizar') {
+            $milestone = $payment->milestone;
+            $this->notification->send([
+                'type'         => 'Payment',
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $payment->id,
+                'data'         => $validated['status'] === 'autorizado'
+                    ? 'autorizó el pago #' . $payment->folio . ' del hito #' . $milestone->id . ' de la orden de compra #' . $milestone->purchase_order_id
+                    : 'rechazó el pago #' . $payment->folio . ' del hito #' . $milestone->id . ' de la orden de compra #' . $milestone->purchase_order_id,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'status'  => $validated['status'],
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -106,17 +154,35 @@ class PaymentController extends Controller
     public function update(Request $request, Payment $payment): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:por_autorizar,autorizado,pagado',
+            'status' => 'required|in:por_autorizar,autorizado,pagado,rechazado',
         ]);
 
         $previousStatus = $payment->status;
-        $payment->update($validated);
+        $newStatus      = $validated['status'];
 
-        $milestone = $payment->milestone;
+        // Reglas de transición de estatus (no se puede ir "hacia atrás")
+        $allowed = match ($previousStatus) {
+            'por_autorizar' => ['autorizado', 'rechazado'],
+            'autorizado'    => ['pagado'],
+            'pagado'        => [],                    // pagado es estado final
+            'rechazado'     => ['por_autorizar'],     // solo reactivar
+            default         => [],
+        };
 
-        if ($previousStatus !== 'pagado' && $validated['status'] === 'pagado') {
+        $milestone = $payment->milestone()->firstOrFail();
+        $orderId   = $milestone->purchase_order_id;
+
+        if (!in_array($newStatus, $allowed)) {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('error', 'Transición de estatus no permitida.');
+        }
+
+        $payment->update(['status' => $newStatus]);
+
+        // Ajustar saldo cubierto del hito según transición
+        if ($previousStatus !== 'pagado' && $newStatus === 'pagado') {
             $milestone->increment('covered_amount', $payment->amount);
-        } elseif ($previousStatus === 'pagado' && $validated['status'] !== 'pagado') {
+        } elseif ($previousStatus === 'pagado' && $newStatus !== 'pagado') {
             $milestone->decrement('covered_amount', $payment->amount);
         }
 
@@ -126,10 +192,10 @@ class PaymentController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $payment->id,
-            'data'         => 'actualizó el estatus del pago en el hito #' . $milestone->id . ' de la orden de compra #' . $milestone->purchase_order_id,
+            'data'         => 'actualizó el estatus del pago #' . $payment->folio . ' a «' . $newStatus . '» en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
         ]);
-        
-        return redirect()->route('payments.index')
+
+        return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Estatus del pago actualizado.');
     }
 

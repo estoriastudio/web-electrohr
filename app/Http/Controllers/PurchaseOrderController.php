@@ -63,12 +63,14 @@ class PurchaseOrderController extends Controller
         $order = PurchaseOrder::create($validated);
 
         // Notificación
+        $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? 'Proveedor desconocido';
+
         $this->notification->send([
             'type'         => 'PurchaseOrder',
             'action_by'    => Auth::id(),
             'model_action' => 'create',
             'model_id'     => $order->id,
-            'data'         => 'creó una nueva orden de compra.',
+            'data'         => 'creó una nueva orden de compra para ' . $supplierName . '.',
         ]);
 
         return redirect()->route('purchase_orders.show', $order)
@@ -77,7 +79,7 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder): View
     {
-        $purchaseOrder->load(['supplier', 'milestones.payments', 'invoices.milestones']);
+        $purchaseOrder->load(['supplier', 'milestones.payments', 'milestones.invoices', 'invoices.milestones']);
 
         return view('purchase_orders.show', compact('purchaseOrder'));
     }
@@ -134,12 +136,14 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->update($validated);
 
         // Notificación
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
         $this->notification->send([
             'type'         => 'PurchaseOrder',
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $purchaseOrder->id,
-            'data'         => 'actualizó la información de la orden de compra #' . $purchaseOrder->id,
+            'data'         => 'actualizó la orden de compra #' . $purchaseOrder->id . ' de ' . $supplierName . '.',
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
@@ -151,12 +155,14 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->delete();
 
         // Notificación
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
         $this->notification->send([
             'type'         => 'PurchaseOrder',
             'action_by'    => Auth::id(),
             'model_action' => 'destroy',
             'model_id'     => $purchaseOrder->id,
-            'data'         => 'eliminó la orden de compra #' . $purchaseOrder->id,
+            'data'         => 'eliminó la orden de compra #' . $purchaseOrder->id . ' de ' . $supplierName . '.',
         ]);
 
         return redirect()->route('purchase_orders.index')

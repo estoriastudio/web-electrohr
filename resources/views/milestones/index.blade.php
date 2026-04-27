@@ -15,16 +15,16 @@
         <div class="d-flex flex-wrap gap-3 align-items-center">
             <span class="fw-semibold text-muted fs-13">Semáforo:</span>
             <span class="d-flex align-items-center gap-1 fs-13">
-                <span class="badge rounded-circle p-2" style="background:#28a745;">&nbsp;</span> Al día
+                <span class="badge rounded-circle p-2" style="height:15px; width:15px; background:#28a745;">&nbsp;</span> Al día
             </span>
             <span class="d-flex align-items-center gap-1 fs-13">
-                <span class="badge rounded-circle p-2" style="background:#ffc107;">&nbsp;</span> Próximo a vencer (&le;7 días)
+                <span class="badge rounded-circle p-2" style="height:15px; width:15px; background:#ffc107;">&nbsp;</span> Próximo a vencer (&le;7 días)
             </span>
             <span class="d-flex align-items-center gap-1 fs-13">
-                <span class="badge rounded-circle p-2" style="background:#dc3545;">&nbsp;</span> Vencido
+                <span class="badge rounded-circle p-2" style="height:15px; width:15px; background:#dc3545;">&nbsp;</span> Vencido
             </span>
             <span class="d-flex align-items-center gap-1 fs-13">
-                <span class="badge rounded-circle p-2" style="background:#212529;">&nbsp;</span> Completo sin factura
+                <span class="badge rounded-circle p-2" style="height:15px; width:15px; background:#212529;">&nbsp;</span> Completo sin factura
             </span>
         </div>
     </div>
@@ -104,6 +104,32 @@
                                     ];
                                     $semColor = $semColors[$semaphore];
 
+                                    // Tiempo relativo al vencimiento
+                                    $dueLabel = null;
+                                    $dueLabelClass = 'text-muted';
+                                    if ($hasDueDate) {
+                                        $diffDays = $today->diffInDays($milestone->due_date, false);
+                                        if ($diffDays === 0) {
+                                            $dueLabel = 'Vence hoy';
+                                            $dueLabelClass = 'text-danger fw-semibold';
+                                        } elseif ($diffDays < 0) {
+                                            $abs = abs($diffDays);
+                                            $dueLabel = 'Hace ' . $abs . ' ' . ($abs === 1 ? 'día' : 'días');
+                                            $dueLabelClass = $isComplete ? 'text-muted' : 'text-danger fw-semibold';
+                                        } elseif ($diffDays <= 7) {
+                                            $dueLabel = 'En ' . $diffDays . ' ' . ($diffDays === 1 ? 'día' : 'días');
+                                            $dueLabelClass = 'text-warning fw-semibold';
+                                        } elseif ($diffDays <= 30) {
+                                            $weeks = (int) ceil($diffDays / 7);
+                                            $dueLabel = 'En ~' . $weeks . ' ' . ($weeks === 1 ? 'semana' : 'semanas');
+                                            $dueLabelClass = 'text-body';
+                                        } else {
+                                            $months = (int) ceil($diffDays / 30);
+                                            $dueLabel = 'En ~' . $months . ' ' . ($months === 1 ? 'mes' : 'meses');
+                                            $dueLabelClass = 'text-muted';
+                                        }
+                                    }
+
                                     $effectiveAmount = $milestone->effective_amount;
                                     $progressPct     = $milestone->progress_percent;
                                     $progressClass   = $progressPct >= 100 ? 'bg-success'
@@ -174,6 +200,9 @@
                                             <span class="{{ $isOverdue && !$isComplete ? 'text-danger fw-semibold' : '' }}">
                                                 {{ $milestone->due_date->format('d/m/Y') }}
                                             </span>
+                                            @if ($dueLabel)
+                                                <small class="d-block fs-11 {{ $dueLabelClass }}">{{ $dueLabel }}</small>
+                                            @endif
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
