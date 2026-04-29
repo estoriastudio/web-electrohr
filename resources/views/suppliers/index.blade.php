@@ -37,6 +37,7 @@
                 <div>
                     <h4 class="card-title mb-0">Listado de proveedores</h4>
                 </div>
+                @role('admin')
                 <div class="d-flex gap-2">
                     {{-- Importar --}}
                     <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -55,6 +56,7 @@
                         <i class="ri-add-line me-1"></i> Crear nuevo proveedor
                     </button>
                 </div>
+                @endrole
             </div>
 
             {{-- Barra de búsqueda --}}
@@ -139,6 +141,7 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            @role('admin')
                                             <a href="{{ route('suppliers.edit', $supplier) }}"
                                                class="btn btn-soft-primary btn-sm" title="Editar">
                                                 <i class="ri-edit-line"></i>
@@ -152,6 +155,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endrole
                                         </div>
                                     </td>
                                 </tr>

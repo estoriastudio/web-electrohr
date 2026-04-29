@@ -52,10 +52,12 @@
                             <h4 class="card-title mb-0">Listado de usuarios</h4>
                         </div>
                         <div>
+                            @role('admin')
                             <button type="button" class="btn btn-sm btn-primary"
                                     data-bs-toggle="modal" data-bs-target="#modalCreateUser">
                                 <i class="ri-user-add-line me-1"></i> Nuevo usuario
                             </button>
+                            @endrole
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -96,6 +98,7 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2">
+                                                    @role('admin')
                                                     <button class="btn btn-soft-primary btn-sm"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalEditUser{{ $user->id }}">
@@ -112,6 +115,7 @@
                                                             </button>
                                                         </form>
                                                     @endif
+                                                    @endrole
                                                 </div>
                                             </td>
                                         </tr>
@@ -207,10 +211,12 @@
                             <h4 class="card-title mb-0">Roles del sistema</h4>
                         </div>
                         <div>
+                            @role('admin')
                             <button type="button" class="btn btn-sm btn-primary"
                                     data-bs-toggle="modal" data-bs-target="#modalCreateRole">
                                 <i class="ri-shield-star-line me-1"></i> Nuevo rol
                             </button>
+                            @endrole
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -238,6 +244,7 @@
                                             <td>{{ $role->users()->count() }}</td>
                                             <td>
                                                 @if ($role->name !== 'admin')
+                                                    @role('admin')
                                                     <div class="d-flex gap-2">
                                                         <form method="POST"
                                                               action="{{ route('roles.destroy', $role) }}"
@@ -249,6 +256,7 @@
                                                             </button>
                                                         </form>
                                                     </div>
+                                                    @endrole
                                                 @else
                                                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">Protegido</span>
                                                 @endif

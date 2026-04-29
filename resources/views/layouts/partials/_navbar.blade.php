@@ -31,6 +31,7 @@
                 </a>
             </li>
 
+            @role('admin')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('suppliers.index') }}">
                     <span class="nav-icon">
@@ -39,9 +40,11 @@
                     <span class="nav-text">Proveedores</span>
                 </a>
             </li>
+            @endrole
 
             <li class="menu-title">Compras</li>
 
+            @hasanyrole('admin|payments|orders')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
                    href="{{ route('purchase_orders.index') }}">
@@ -51,7 +54,9 @@
                     <span class="nav-text">Órdenes de Compra</span>
                 </a>
             </li>
+            @endhasanyrole
 
+            @hasanyrole('admin|payments|orders')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                    href="{{ route('milestones.index') }}">
@@ -61,7 +66,9 @@
                     <span class="nav-text">Hitos de Pago</span>
                 </a>
             </li>
+            @endhasanyrole
 
+            @hasanyrole('admin|payments')
             <li class="menu-title">Pagos</li>
 
             <li class="nav-item">
@@ -73,7 +80,9 @@
                     <span class="nav-text">Autorización de Pagos</span>
                 </a>
             </li>
+            @endhasanyrole
 
+            @role('admin')
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
@@ -94,6 +103,7 @@
                     <span class="badge bg-danger badge-pill text-end">Hot</span>
                 </a>
             </li>
+            @endrole
         </ul>
     </div>
 </div>

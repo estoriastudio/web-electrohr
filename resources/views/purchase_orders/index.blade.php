@@ -42,10 +42,12 @@
                     <h4 class="card-title mb-0">Listado de órdenes de compra</h4>
                 </div>
                 <div>
+                    @hasanyrole('admin|orders')
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreateOrder">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
                     </button>
+                    @endhasanyrole
                 </div>
             </div>
 
@@ -196,6 +198,7 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            @hasanyrole('admin|orders')
                                             <a href="{{ route('purchase_orders.edit', $order) }}"
                                                class="btn btn-soft-primary btn-sm" title="Editar">
                                                 <i class="ri-edit-line"></i>
@@ -209,6 +212,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endhasanyrole
                                         </div>
                                     </td>
                                 </tr>

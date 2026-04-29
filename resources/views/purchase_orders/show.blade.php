@@ -96,12 +96,14 @@
                         </div>
                     </div>
                     <div>
+                        @hasanyrole('admin|orders')
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary me-1">
                             <i class="ri-edit-line me-1"></i> Editar OC
                         </a>
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
                             <i class="ri-add-line me-1"></i> Agregar hito
                         </button>
+                        @endhasanyrole
                     </div>
                 </div>
             </div>
@@ -207,6 +209,7 @@
                         </span>
                     </div>
                     <div class="d-flex gap-1">
+                        @hasanyrole('admin|orders')
                         @if ($milestone->payments->count() === 0)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -227,6 +230,7 @@
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
+                        @endhasanyrole
                     </div>
                 </div>
 
@@ -288,6 +292,7 @@
                 <div class="card-body pt-0">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="fw-semibold text-muted text-uppercase fs-11">Pagos ({{ $milestone->payments->count() }})</small>
+                        @hasanyrole('admin|payments')
                         @if (!$isComplete)
                             <button type="button" class="btn btn-xs btn-primary btn-sm"
                                     data-bs-toggle="modal"
@@ -295,6 +300,7 @@
                                 <i class="ri-add-line"></i> Pago
                             </button>
                         @endif
+                        @endhasanyrole
                     </div>
 
                     @if ($milestone->payments->count() > 0)
@@ -346,20 +352,39 @@
                                                 <div class="d-flex gap-1 flex-wrap">
                                                     {{-- Botones de transición de estatus --}}
                                                     @foreach ($transitions as $newStatus => $transition)
-                                                        <form action="{{ route('payments.update', $payment) }}" method="POST">
-                                                            @csrf @method('PATCH')
-                                                            <input type="hidden" name="status" value="{{ $newStatus }}">
-                                                            <button type="submit"
-                                                                    class="btn btn-xs {{ $transition['btn'] }}"
-                                                                    title="{{ $transition['label'] }}"
-                                                                    onclick="return confirm('{{ $transition['confirm'] }}')">
-                                                                <i class="{{ $transition['icon'] }}"></i>
-                                                                {{ $transition['label'] }}
-                                                            </button>
-                                                        </form>
+                                                        @if ($newStatus === 'autorizado')
+                                                            @role('admin')
+                                                            <form action="{{ route('payments.update', $payment) }}" method="POST">
+                                                                @csrf @method('PATCH')
+                                                                <input type="hidden" name="status" value="{{ $newStatus }}">
+                                                                <button type="submit"
+                                                                        class="btn btn-xs {{ $transition['btn'] }}"
+                                                                        title="{{ $transition['label'] }}"
+                                                                        onclick="return confirm('{{ $transition['confirm'] }}')">
+                                                                    <i class="{{ $transition['icon'] }}"></i>
+                                                                    {{ $transition['label'] }}
+                                                                </button>
+                                                            </form>
+                                                            @endrole
+                                                        @else
+                                                            @hasanyrole('admin|payments')
+                                                            <form action="{{ route('payments.update', $payment) }}" method="POST">
+                                                                @csrf @method('PATCH')
+                                                                <input type="hidden" name="status" value="{{ $newStatus }}">
+                                                                <button type="submit"
+                                                                        class="btn btn-xs {{ $transition['btn'] }}"
+                                                                        title="{{ $transition['label'] }}"
+                                                                        onclick="return confirm('{{ $transition['confirm'] }}')">
+                                                                    <i class="{{ $transition['icon'] }}"></i>
+                                                                    {{ $transition['label'] }}
+                                                                </button>
+                                                            </form>
+                                                            @endhasanyrole
+                                                        @endif
                                                     @endforeach
 
-                                                    {{-- Eliminar (siempre disponible) --}}
+                                                    {{-- Eliminar (solo admin|payments) --}}
+                                                    @hasanyrole('admin|payments')
                                                     <form action="{{ route('payments.destroy', $payment) }}" method="POST"
                                                           onsubmit="return confirm('¿Eliminar este pago?')">
                                                         @csrf @method('DELETE')
@@ -367,6 +392,7 @@
                                                             <i class="ri-delete-bin-line"></i>
                                                         </button>
                                                     </form>
+                                                    @endhasanyrole
                                                 </div>
                                             </td>
                                         </tr>
@@ -403,10 +429,12 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
+                @hasanyrole('admin|payments')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
                 </button>
+                @endhasanyrole
             </div>
 
             @if ($purchaseOrder->invoices->count() > 0)
@@ -451,6 +479,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
+                                            @hasanyrole('admin|payments')
                                             <a href="{{ route('invoices.download', $invoice) }}"
                                                target="_blank"
                                                class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
@@ -465,6 +494,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endhasanyrole
                                         </div>
                                     </td>
                                 </tr>

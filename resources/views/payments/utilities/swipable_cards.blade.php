@@ -62,12 +62,14 @@
     <div class="card-stack" id="cardStack"></div>
 
     <div class="swipe-buttons" id="swipeButtons">
+        @role('admin')
         <button class="swipe-btn btn-rechazar" id="btnRechazar" aria-label="Rechazar">
             <i class="ri-close-line"></i>
         </button>
         <button class="swipe-btn btn-autorizar" id="btnAutorizar" aria-label="Autorizar">
             <i class="ri-check-line"></i>
         </button>
+        @endrole
     </div>
 
     <div class="undo-container">

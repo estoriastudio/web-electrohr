@@ -33,9 +33,11 @@
             <p class="text-muted mb-0 fs-13">{{ $supplier->commercial_name }}</p>
         @endif
     </div>
+    @role('admin')
     <a href="{{ route('suppliers.edit', $supplier) }}" class="btn btn-primary btn-sm">
         <i class="ri-edit-line me-1"></i> Editar perfil
     </a>
+    @endrole
 </div>
 
 

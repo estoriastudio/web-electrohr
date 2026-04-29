@@ -77,8 +77,9 @@
                     </td>
                     <td>
                         <div class="d-flex gap-1 flex-wrap">
-                            {{-- Autorizar --}}
+                            {{-- Autorizar: solo admin --}}
                             @if ($payment->status === 'por_autorizar')
+                                @role('admin')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="status" value="autorizado">
@@ -87,9 +88,11 @@
                                         <i class="ri-check-line"></i> Autorizar
                                     </button>
                                 </form>
+                                @endrole
                             @endif
 
-                            {{-- Marcar como pagado --}}
+                            {{-- Marcar como pagado: admin|payments --}}
+                            @hasanyrole('admin|payments')
                             @if (in_array($payment->status, ['por_autorizar', 'autorizado']))
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
@@ -112,6 +115,7 @@
                                     </button>
                                 </form>
                             @endif
+                            @endhasanyrole
 
                             {{-- Ver OC --}}
                             <a href="{{ route('purchase_orders.show', $order) }}"
