@@ -637,20 +637,18 @@
                         {{-- Importe y Moneda --}}
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01"
+                            <input type="number" step="0.01" min="0.01" max="{{ $purchaseOrder->amount }}"
                                    class="form-control @error('amount') is-invalid @enderror"
                                    name="amount" placeholder="0.00" required>
+                            <div class="form-text">Máximo: {{ $purchaseOrder->currency }} {{ number_format($purchaseOrder->amount, 2) }}</div>
                             @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
-                            <select class="form-select @error('currency') is-invalid @enderror" name="currency" required>
-                                <option value="MXN" {{ $purchaseOrder->currency === 'MXN' ? 'selected' : '' }}>MXN — Peso Mexicano</option>
-                                <option value="USD" {{ $purchaseOrder->currency === 'USD' ? 'selected' : '' }}>USD — Dólar</option>
-                                <option value="EUR" {{ $purchaseOrder->currency === 'EUR' ? 'selected' : '' }}>EUR — Euro</option>
-                            </select>
-                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label class="form-label fw-medium">Moneda</label>
+                            <input type="text" class="form-control bg-light" value="{{ $purchaseOrder->currency }}" disabled>
+                            <input type="hidden" name="currency" value="{{ $purchaseOrder->currency }}">
+                            <div class="form-text">Dato heredado de la Orden de Compra.</div>
                         </div>
 
                         {{-- Hitos relacionados --}}
@@ -669,7 +667,7 @@
                                                         <strong>Hito #{{ $m->id }}</strong>
                                                         <span class="text-muted">
                                                             — {{ $m->type === 'anticipo' ? 'Anticipo' : 'Regular' }}
-                                                            · {{ $purchaseOrder->currency }} {{ number_format($m->value, 2) }}
+                                                            · {{ $purchaseOrder->currency }} {{ number_format($m->effective_amount, 2) }}
                                                         </span>
                                                     </label>
                                                 </div>
@@ -681,7 +679,6 @@
                                 @error('milestone_ids')<div class="text-danger fs-12 mt-1">{{ $message }}</div>@enderror
                             </div>
                         @endif
-
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -719,15 +716,18 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Tipo de valor <span class="text-danger">*</span></label>
-                            <select class="form-select" name="value_type" required>
+                            <select class="form-select" name="value_type" id="milestoneValueType" required>
                                 <option value="fijo" selected>Fijo</option>
                                 <option value="porcentaje">Porcentaje</option>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" class="form-control"
+                            <input type="number" step="0.01" min="0.01"
+                                   max="{{ $purchaseOrder->amount }}"
+                                   class="form-control" id="milestoneValue"
                                    name="value" placeholder="Ej. 5000.00" required>
+                            <div class="invalid-feedback" id="milestoneValueFeedback"></div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Fecha vencimiento</label>
@@ -756,6 +756,72 @@ $(function () {
         var modal = new bootstrap.Modal(document.getElementById('modalCreateMilestone'));
         modal.show();
     @endif
+
+    // ── Validación dinámica del campo Valor en Nuevo Hito ──
+    var ocAmount = {{ $purchaseOrder->amount }};
+
+    function updateMilestoneValueConstraints() {
+        var type  = $('#milestoneValueType').val();
+        var $input = $('#milestoneValue');
+
+        if (type === 'porcentaje') {
+            $input.attr('max', 100).attr('placeholder', 'Ej. 30 (máx. 100%)');
+        } else {
+            $input.attr('max', ocAmount).attr('placeholder', 'Ej. 5000.00');
+        }
+
+        // Re-validar si ya hay un valor capturado
+        if ($input.val() !== '') {
+            validateMilestoneValue();
+        }
+    }
+
+    function validateMilestoneValue() {
+        var type   = $('#milestoneValueType').val();
+        var val    = parseFloat($('#milestoneValue').val());
+        var $input = $('#milestoneValue');
+        var $fb    = $('#milestoneValueFeedback');
+        var valid  = true;
+        var msg    = '';
+
+        if (type === 'porcentaje' && val > 100) {
+            valid = false;
+            msg   = 'El porcentaje no puede ser mayor a 100%.';
+        } else if (type === 'fijo' && val > ocAmount) {
+            valid = false;
+            msg   = 'El valor fijo no puede superar el importe total de la OC (' + ocAmount.toLocaleString('es-MX', {minimumFractionDigits:2}) + ').';
+        }
+
+        if (!valid) {
+            $input.addClass('is-invalid').removeClass('is-valid');
+            $fb.text(msg);
+        } else {
+            $input.removeClass('is-invalid').addClass('is-valid');
+            $fb.text('');
+        }
+
+        return valid;
+    }
+
+    $('#milestoneValueType').on('change', updateMilestoneValueConstraints);
+    $('#milestoneValue').on('input blur', validateMilestoneValue);
+
+    // Bloquear submit si hay error
+    $('#modalCreateMilestone form').on('submit', function (e) {
+        if ($('#milestoneValue').val() !== '' && !validateMilestoneValue()) {
+            e.preventDefault();
+        }
+    });
+
+    // Limpiar estado al cerrar el modal
+    $('#modalCreateMilestone').on('hidden.bs.modal', function () {
+        $('#milestoneValue').val('').removeClass('is-invalid is-valid');
+        $('#milestoneValueFeedback').text('');
+        $('#milestoneValueType').val('fijo').trigger('change');
+    });
+
+    // Inicializar
+    updateMilestoneValueConstraints();
 });
 </script>
 @endpush

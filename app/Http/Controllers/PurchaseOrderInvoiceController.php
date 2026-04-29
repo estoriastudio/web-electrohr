@@ -19,16 +19,19 @@ class PurchaseOrderInvoiceController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Cargar la OC antes de validar para usar su importe como límite
+        $purchaseOrder = PurchaseOrder::findOrFail($request->input('purchase_order_id'));
+
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
-            'amount'            => 'required|numeric|min:0.01',
+            'amount'            => ['required', 'numeric', 'min:0.01', 'max:' . $purchaseOrder->amount],
             'currency'          => 'required|in:MXN,USD,EUR',
             'milestone_ids'     => 'nullable|array',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
             'pdf_file'          => 'required|file|mimes:pdf|max:10240',
+        ], [
+            'amount.max' => 'El importe no puede exceder el total de la orden de compra (' . number_format($purchaseOrder->amount, 2) . ' ' . $purchaseOrder->currency . ').',
         ]);
-
-        $purchaseOrder = PurchaseOrder::findOrFail($validated['purchase_order_id']);
 
         // Generar nombre de archivo: OC{id}-FACT{n+1}
         $invoiceNumber = $purchaseOrder->invoices()->count() + 1;

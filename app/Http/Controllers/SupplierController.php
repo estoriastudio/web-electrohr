@@ -20,11 +20,22 @@ class SupplierController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $suppliers = Supplier::withCount('purchaseOrders')->paginate(25);
+        $search = trim($request->input('search', ''));
 
-        return view('suppliers.index', compact('suppliers'));
+        $suppliers = Supplier::withCount('purchaseOrders')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByRaw('COALESCE(NULLIF(rfc_name, \'\'), commercial_name) ASC')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('suppliers.index', compact('suppliers', 'search'));
     }
 
     /**

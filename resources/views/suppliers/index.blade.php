@@ -57,6 +57,27 @@
                 </div>
             </div>
 
+            {{-- Barra de búsqueda --}}
+            <div class="card-body border-bottom py-3">
+                <form method="GET" action="{{ route('suppliers.index') }}" class="d-flex gap-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light">
+                            <i class="ri-search-line text-muted"></i>
+                        </span>
+                        <input type="text" name="search" value="{{ $search }}"
+                               class="form-control"
+                               placeholder="Buscar por razón social o nombre comercial…"
+                               autocomplete="off">
+                        @if ($search)
+                            <a href="{{ route('suppliers.index') }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                                <i class="ri-close-line"></i>
+                            </a>
+                        @endif
+                        <button type="submit" class="btn btn-primary">Buscar</button>
+                    </div>
+                </form>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table align-middle text-nowrap table-hover table-centered mb-0">

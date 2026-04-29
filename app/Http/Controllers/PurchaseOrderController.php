@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
@@ -19,16 +20,41 @@ class PurchaseOrderController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search  = trim($request->input('search', ''));
+        $tipo    = $request->input('tipo', '');
+        $sortDue = $request->input('sort_due', '');
+
         $orders = PurchaseOrder::with('supplier')
-            ->withCount('milestones')
-            ->latest()
-            ->paginate(25);
+            ->withCount(['milestones', 'children'])
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('supplier', function ($sub) use ($search) {
+                    $sub->where('rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                });
+            })
+            ->when($tipo, fn ($q) => $q->where('type', $tipo))
+            ->when($sortDue === 'asc', function ($q) {
+                // Ordena por el vencimiento más próximo de sus hitos
+                $q->withMin('milestones', 'due_date')
+                  ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
+                  ->orderBy('milestones_min_due_date', 'asc');
+            }, function ($q) use ($sortDue) {
+                if ($sortDue === 'desc') {
+                    $q->withMin('milestones', 'due_date')
+                      ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
+                      ->orderBy('milestones_min_due_date', 'desc');
+                } else {
+                    $q->latest();
+                }
+            })
+            ->paginate(25)
+            ->withQueryString();
 
         $suppliers = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
 
-        return view('purchase_orders.index', compact('orders', 'suppliers'));
+        return view('purchase_orders.index', compact('orders', 'suppliers', 'search', 'tipo', 'sortDue'));
     }
 
     public function create(): RedirectResponse
@@ -62,6 +88,14 @@ class PurchaseOrderController extends Controller
 
         $order = PurchaseOrder::create($validated);
 
+        // Generar órdenes hijas si es recurrente y tiene rango de fechas
+        $childrenCreated = 0;
+        if ($order->recurrence_type === 'recurrente'
+            && $order->recurrence_start_date
+            && $order->recurrence_end_date) {
+            $childrenCreated = $this->generateRecurringChildren($order);
+        }
+
         // Notificación
         $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -73,10 +107,59 @@ class PurchaseOrderController extends Controller
             'data'         => 'creó una nueva orden de compra para ' . $supplierName . '.',
         ]);
 
+        $successMsg = 'Orden de compra creada correctamente.';
+        if ($childrenCreated > 0) {
+            $successMsg .= ' Se generaron ' . $childrenCreated . ' órdenes individuales de la serie.';
+        }
+
         return redirect()->route('purchase_orders.show', $order)
-            ->with('success', 'Orden de compra creada correctamente.');
+            ->with('success', $successMsg);
     }
 
+    /**
+     * Genera órdenes de compra individuales (hijas) para cada ocurrencia de una serie recurrente.
+     * Retorna la cantidad de órdenes generadas.
+     */
+    private function generateRecurringChildren(PurchaseOrder $parent): int
+    {
+        $current = $parent->recurrence_start_date->copy();
+        $end     = $parent->recurrence_end_date->copy();
+
+        $childData = [
+            'parent_id'             => $parent->id,
+            'type'                  => $parent->type,
+            'supplier_id'           => $parent->supplier_id,
+            'project'               => $parent->project,
+            'site'                  => $parent->site,
+            'currency'              => $parent->currency,
+            'amount'                => $parent->amount,
+            'status'                => $parent->status,
+            'recurrence_type'       => 'unico',
+            'recurrence_frequency'  => null,
+            'recurrence_end_date'   => null,
+        ];
+
+        $count    = 0;
+        $maxItems = 60; // límite de seguridad
+
+        while ($current->lte($end) && $count < $maxItems) {
+            PurchaseOrder::create(array_merge($childData, [
+                'recurrence_start_date' => $current->format('Y-m-d'),
+            ]));
+
+            match ($parent->recurrence_frequency) {
+                'semanal'   => $current->addWeek(),
+                'quincenal' => $current->addWeeks(2),
+                'mensual'   => $current->addMonth(),
+                default     => $current->addMonth(),
+            };
+
+            $count++;
+        }
+
+        return $count;
+    }
+    
     public function show(PurchaseOrder $purchaseOrder): View
     {
         $purchaseOrder->load(['supplier', 'milestones.payments', 'milestones.invoices', 'invoices.milestones']);

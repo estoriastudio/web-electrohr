@@ -31,10 +31,39 @@
     <script src="{{ asset('assets/js/config.min.js') }}"></script>
 
     @stack('styles')
+
+    <style>
+        .authentication-bg-video{
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+
+        .video-bg-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg,hsl(205deg,46%,30%) 0,hsl(260deg,29%,36%) 100%);
+            z-index: 0;
+            opacity: .7;
+        }
+    </style>
 </head>
 
 <body class="authentication-bg">
-
+    <!-- Video BG -->
+    <div class="video-bg-overlay"></div>
+    <video autoplay muted loop id="auth-video" class="authentication-bg-video">
+        <source src="{{ asset('video-bg.mp4') }}" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    
      <div class="account-pages pt-2 pt-sm-5 pb-4 pb-sm-5">
         @yield('content')
      </div>

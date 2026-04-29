@@ -87,8 +87,12 @@
      <!-- Vendor Javascript (Require in all Page) -->
      <script src="{{ asset('assets/js/vendor.js') }}"></script>
 
+     <!-- jQuery CDN -->
+     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
      <!-- App Javascript (Require in all Page) -->
      <script src="{{ asset('assets/js/app.js') }}"></script>
+
     @stack('scripts')
 </body>
 

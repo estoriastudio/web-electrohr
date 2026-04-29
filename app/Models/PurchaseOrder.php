@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class PurchaseOrder extends Model
 {
     protected $fillable = [
+        'parent_id',
         'type',
         'supplier_id',
         'project',
@@ -32,6 +33,16 @@ class PurchaseOrder extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'parent_id');
     }
 
     public function milestones(): HasMany
