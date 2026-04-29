@@ -32,7 +32,7 @@
                     ];
                     $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
                 @endphp
-                <tr class="{{ $isUrgent ? 'table-warning' : '' }}">
+                <tr class="{{ $isUrgent ? 'table-warning' : '' }}" {{ $isUrgent ? 'data-bs-theme="light"' : '' }}>
                     <td>
                         @if ($isUrgent)
                             <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">
