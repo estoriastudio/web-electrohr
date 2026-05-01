@@ -84,6 +84,11 @@ class PurchaseOrderController extends Controller
             $rules['recurrence_end_date']    = 'nullable|date|after_or_equal:recurrence_start_date';
         }
 
+        // Solo admin puede asignar el estatus «autorizada» directamente
+        if (isset($rules['status']) && !Auth::user()->hasRole('admin')) {
+            $rules['status'] = 'required|in:emitida,pendiente';
+        }
+
         $validated = $request->validate($rules);
 
         $order = PurchaseOrder::create($validated);
@@ -198,6 +203,11 @@ class PurchaseOrderController extends Controller
 
         $validated = $request->validate($rules);
 
+        // Solo admin puede asignar el estatus «autorizada» directamente
+        if (!Auth::user()->hasRole('admin') && ($validated['status'] ?? '') === 'autorizada') {
+            $validated['status'] = 'pendiente';
+        }
+
         if ($request->type === 'mantenimiento') {
             $validated['project'] = null;
             $validated['site']    = null;
@@ -231,6 +241,29 @@ class PurchaseOrderController extends Controller
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
             ->with('success', 'Orden de compra actualizada correctamente.');
+    }
+
+    public function approve(PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        if ($purchaseOrder->status === 'autorizada') {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La orden de compra ya está autorizada.');
+        }
+
+        $purchaseOrder->update(['status' => 'autorizada']);
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'autorizó la orden de compra #' . $purchaseOrder->id . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . $purchaseOrder->id . ' autorizada correctamente.');
     }
 
     public function destroy(PurchaseOrder $purchaseOrder): RedirectResponse

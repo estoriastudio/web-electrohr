@@ -115,6 +115,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ])->parameters(['pagos' => 'payment']);
         });
 
+        // Autorización de Órdenes de Compra — solo admin
+        Route::middleware('role:admin')->group(function () {
+            Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
+        });
+
         // Modo interactivo (swipable) — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::get('/pagos/interactivo/autorizar', [PaymentController::class, 'interactive'])->name('payments.interactive');

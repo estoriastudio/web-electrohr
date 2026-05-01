@@ -50,6 +50,32 @@
         : 0;
 @endphp
 
+{{-- ── ALERTA DE AUTORIZACIÓN ── --}}
+@if (in_array($purchaseOrder->status, ['emitida', 'pendiente']))
+    <div class="alert alert-warning alert-dismissible d-flex align-items-start gap-3 mb-3" role="alert">
+        <i class="ri-shield-check-line fs-22 flex-shrink-0 mt-1 text-warning"></i>
+        <div class="flex-grow-1">
+            <h6 class="alert-heading mb-1 fw-semibold">Orden de compra pendiente de autorización</h6>
+            <p class="mb-0 fs-13">
+                Esta OC se encuentra en estatus
+                <span class="badge {{ $s['class'] }} py-1 px-2 fs-12 ms-1">{{ $s['label'] }}</span>.
+                Requiere revisión y aprobación de un administrador antes de proceder con los pagos.
+            </p>
+        </div>
+        @role('admin')
+        <form action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class="flex-shrink-0 align-self-center">
+            @csrf @method('PATCH')
+            <button type="submit"
+                    class="btn btn-success btn-sm"
+                    onclick="return confirm('¿Autorizar la OC #{{ $purchaseOrder->id }}? El estatus cambiará a Autorizada.')">
+                <i class="ri-check-double-line me-1"></i> Autorizar OC
+            </button>
+        </form>
+        @endrole
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 {{-- ── ENCABEZADO ── --}}
 <div class="row mb-3">
     <div class="col-12">
@@ -294,11 +320,19 @@
                         <small class="fw-semibold text-muted text-uppercase fs-11">Pagos ({{ $milestone->payments->count() }})</small>
                         @hasanyrole('admin|payments')
                         @if (!$isComplete)
-                            <button type="button" class="btn btn-xs btn-primary btn-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#modalCreatePayment{{ $milestone->id }}">
-                                <i class="ri-add-line"></i> Pago
-                            </button>
+                            @if ($purchaseOrder->status === 'autorizada')
+                                <button type="button" class="btn btn-xs btn-primary btn-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalCreatePayment{{ $milestone->id }}">
+                                    <i class="ri-add-line"></i> Pago
+                                </button>
+                            @else
+                                <button type="button" class="btn btn-xs btn-primary btn-sm"
+                                        disabled
+                                        title="La OC debe estar Autorizada para registrar pagos">
+                                    <i class="ri-add-line"></i> Pago
+                                </button>
+                            @endif
                         @endif
                         @endhasanyrole
                     </div>
