@@ -2,6 +2,10 @@
 
 @section('page_title', 'Autorización de Pagos')
 
+@push('styles')
+    <style>body, html { overflow-x: hidden; }</style>
+@endpush
+
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
     <li class="breadcrumb-item active">Autorización de Pagos</li>
@@ -41,7 +45,7 @@
                 </div>
             </div>
 
-            <div class="card-body p-5 d-flex justify-content-center align-items-center">
+            <div class="card-body p-3 p-sm-4 p-md-5 d-flex justify-content-center align-items-center">
                 @include('payments.utilities.swipable_cards', ['payments' => $payments])
             </div>
         </div>

@@ -58,8 +58,10 @@
             <div class="card-inner">
                 <div class="card-amount-section">
                     <div class="card-amount-label">Monto a autorizar</div>
-                    <div class="card-amount">
-                        $${data.amount}<span class="card-amount-currency">${data.currency}</span>
+                    <div class="card-amount-wrapper">
+                        <div class="card-amount">
+                            $${data.amount}<span class="card-amount-currency">${data.currency}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -91,10 +93,29 @@
     function renderCards() {
         cardStack.innerHTML = '';
         const slice = CARD_DATA.slice(currentIndex, currentIndex + 3);
+        const cards = [];
         for (let i = slice.length - 1; i >= 0; i--) {
-            cardStack.appendChild(createCard(slice[i]));
+            const card = createCard(slice[i]);
+            cardStack.appendChild(card);
+            cards.push(card);
         }
+        cards.forEach(setupMarquee);
         updateProgress();
+    }
+
+    function setupMarquee(card) {
+        requestAnimationFrame(() => {
+            const wrapper  = card.querySelector('.card-amount-wrapper');
+            const amountEl = card.querySelector('.card-amount');
+            if (!wrapper || !amountEl) return;
+            const overflow = amountEl.scrollWidth - wrapper.clientWidth;
+            if (overflow > 0) {
+                const half = Math.ceil(overflow / 2) + 6;
+                amountEl.style.setProperty('--marquee-start', `${half}px`);
+                amountEl.style.setProperty('--marquee-end',   `-${half}px`);
+                amountEl.classList.add('marquee-active');
+            }
+        });
     }
 
     function updateProgress() {

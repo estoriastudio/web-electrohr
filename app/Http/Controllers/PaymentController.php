@@ -181,11 +181,13 @@ class PaymentController extends Controller
         $newStatus      = $validated['status'];
 
         // Reglas de transición de estatus (no se puede ir "hacia atrás")
+        $isAdmin = Auth::user()->hasRole('admin');
+
         $allowed = match ($previousStatus) {
             'por_autorizar' => ['autorizado', 'rechazado'],
-            'autorizado'    => ['pagado'],
-            'pagado'        => [],                    // pagado es estado final
-            'rechazado'     => ['por_autorizar'],     // solo reactivar
+            'autorizado'    => $isAdmin ? ['pagado', 'por_autorizar'] : ['pagado'],
+            'pagado'        => [],                                      // pagado es estado final
+            'rechazado'     => $isAdmin ? ['por_autorizar'] : [],       // solo admin puede reactivar
             default         => [],
         };
 
