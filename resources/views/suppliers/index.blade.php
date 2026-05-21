@@ -37,7 +37,7 @@
                 <div>
                     <h4 class="card-title mb-0">Listado de proveedores</h4>
                 </div>
-                @role('admin')
+                @role('admin|orders')
                 <div class="d-flex gap-2">
                     {{-- Importar --}}
                     <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -141,7 +141,7 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @role('admin')
+                                            @role('admin|orders')
                                             <a href="{{ route('suppliers.edit', $supplier) }}"
                                                class="btn btn-soft-primary btn-sm" title="Editar">
                                                 <i class="ri-edit-line"></i>

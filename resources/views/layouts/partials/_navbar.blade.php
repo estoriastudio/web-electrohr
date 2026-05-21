@@ -31,7 +31,7 @@
                 </a>
             </li>
 
-            @role('admin')
+            @role('admin|orders')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('suppliers.index') }}">
                     <span class="nav-icon">
