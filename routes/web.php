@@ -26,7 +26,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
-        Route::middleware('role:admin')->group(function () {
+        Route::middleware('role:admin|orders')->group(function () {
             Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
             Route::resource('/proveedores', SupplierController::class, [
