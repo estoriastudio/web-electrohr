@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 /* Modelos */
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\Project;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -53,8 +54,9 @@ class PurchaseOrderController extends Controller
             ->withQueryString();
 
         $suppliers = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
+        $projects  = Project::where('status', 'active')->orderBy('name')->get();
 
-        return view('purchase_orders.index', compact('orders', 'suppliers', 'search', 'tipo', 'sortDue'));
+        return view('purchase_orders.index', compact('orders', 'suppliers', 'search', 'tipo', 'sortDue', 'projects'));
     }
 
     public function create(): RedirectResponse
@@ -74,8 +76,8 @@ class PurchaseOrderController extends Controller
         ];
 
         if ($request->type === 'materiales_servicios') {
-            $rules['project'] = 'nullable|string|max:255';
-            $rules['site']    = 'nullable|string|max:255';
+            $rules['project_id']      = 'nullable|exists:projects,id';
+            $rules['project_work_id'] = 'nullable|exists:project_works,id';
         }
 
         if ($request->recurrence_type === 'recurrente') {
@@ -85,11 +87,16 @@ class PurchaseOrderController extends Controller
         }
 
         // Solo admin puede asignar el estatus «autorizada» directamente
-        if (isset($rules['status']) && !Auth::user()->hasRole('admin')) {
+        if (!Auth::user()->hasRole('admin')) {
             $rules['status'] = 'required|in:emitida,pendiente';
         }
 
         $validated = $request->validate($rules);
+
+        if ($request->type === 'mantenimiento') {
+            $validated['project_id']      = null;
+            $validated['project_work_id'] = null;
+        }
 
         $order = PurchaseOrder::create($validated);
 
@@ -134,6 +141,8 @@ class PurchaseOrderController extends Controller
             'parent_id'             => $parent->id,
             'type'                  => $parent->type,
             'supplier_id'           => $parent->supplier_id,
+            'project_id'            => $parent->project_id,
+            'project_work_id'       => $parent->project_work_id,
             'project'               => $parent->project,
             'site'                  => $parent->site,
             'currency'              => $parent->currency,
@@ -175,8 +184,9 @@ class PurchaseOrderController extends Controller
     public function edit(PurchaseOrder $purchaseOrder): View
     {
         $suppliers = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
+        $projects  = Project::where('status', 'active')->orderBy('name')->get();
 
-        return view('purchase_orders.edit', compact('purchaseOrder', 'suppliers'));
+        return view('purchase_orders.edit', compact('purchaseOrder', 'suppliers', 'projects'));
     }
 
     public function update(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
@@ -191,8 +201,8 @@ class PurchaseOrderController extends Controller
         ];
 
         if ($request->type === 'materiales_servicios') {
-            $rules['project'] = 'nullable|string|max:255';
-            $rules['site']    = 'nullable|string|max:255';
+            $rules['project_id']      = 'nullable|exists:projects,id';
+            $rules['project_work_id'] = 'nullable|exists:project_works,id';
         }
 
         if ($request->recurrence_type === 'recurrente') {
@@ -209,8 +219,10 @@ class PurchaseOrderController extends Controller
         }
 
         if ($request->type === 'mantenimiento') {
-            $validated['project'] = null;
-            $validated['site']    = null;
+            $validated['project_id']      = null;
+            $validated['project_work_id'] = null;
+            $validated['project']         = null;
+            $validated['site']            = null;
         }
 
         if ($request->recurrence_type === 'unico') {

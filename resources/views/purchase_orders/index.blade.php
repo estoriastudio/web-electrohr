@@ -138,8 +138,8 @@
                                             {{ $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—' }}
                                         </a>
                                     </td>
-                                    <td>{{ $order->project ?? '—' }}</td>
-                                    <td>{{ $order->site ?? '—' }}</td>
+                                    <td>{{ $order->projectRelation?->name ?? $order->project ?? '—' }}</td>
+                                    <td>{{ $order->workRelation?->name ?? $order->site ?? '—' }}</td>
                                     <td>{{ $order->next_due_date ?? '—' }}</td>
                                     <td>
                                         <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $order->currency }}</span>
@@ -281,19 +281,26 @@
 
                         {{-- Proyecto / Obra — solo visibles para materiales_servicios --}}
                         <div class="col-md-6 campo-project" style="display:none;">
-                            <label for="project" class="form-label fw-medium">Proyecto</label>
-                            <input type="text" class="form-control @error('project') is-invalid @enderror"
-                                   id="project" name="project" value="{{ old('project') }}"
-                                   placeholder="Ej. Planta Norte">
-                            @error('project')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="project_id" class="form-label fw-medium">Proyecto</label>
+                            <select class="form-control @error('project_id') is-invalid @enderror"
+                                    id="project_id" name="project_id">
+                                <option value="">Seleccionar proyecto...</option>
+                                @foreach ($projects as $proj)
+                                    <option value="{{ $proj->id }}" {{ old('project_id') == $proj->id ? 'selected' : '' }}>
+                                        {{ $proj->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('project_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="col-md-6 campo-site" style="display:none;">
-                            <label for="site" class="form-label fw-medium">Obra</label>
-                            <input type="text" class="form-control @error('site') is-invalid @enderror"
-                                   id="site" name="site" value="{{ old('site') }}"
-                                   placeholder="Ej. Bodega 3">
-                            @error('site')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="project_work_id" class="form-label fw-medium">Obra</label>
+                            <select class="form-control @error('project_work_id') is-invalid @enderror"
+                                    id="project_work_id" name="project_work_id">
+                                <option value="">Seleccionar obra...</option>
+                            </select>
+                            @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Moneda e Importe --}}
@@ -398,11 +405,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var typeSelect      = document.getElementById('type');
     var camposProject   = document.querySelectorAll('.campo-project');
     var camposSite      = document.querySelectorAll('.campo-site');
-    var projectInput    = document.getElementById('project');
-    var siteInput       = document.getElementById('site');
+    var projectSelect   = document.getElementById('project_id');
+    var siteSelect      = document.getElementById('project_work_id');
     var camposRec       = document.getElementById('campos_recurrencia');
     var recInputs       = document.querySelectorAll('input[name="recurrence_type"]');
     var supplierChoices = null;
+    var projectChoices  = null;
 
     // ── Choices.js: inicializar al mostrar el modal ─────────────────────────
     modalEl.addEventListener('shown.bs.modal', function () {
@@ -415,13 +423,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 noChoicesText: 'Sin opciones disponibles',
             });
         }
+        if (!projectChoices) {
+            projectChoices = new Choices(projectSelect, {
+                searchEnabled: true,
+                searchPlaceholderValue: 'Buscar proyecto...',
+                itemSelectText: '',
+                noResultsText: 'Sin resultados',
+                noChoicesText: 'Sin opciones disponibles',
+            });
+        }
     });
 
     modalEl.addEventListener('hidden.bs.modal', function () {
-        if (supplierChoices) {
-            supplierChoices.destroy();
-            supplierChoices = null;
-        }
+        if (supplierChoices) { supplierChoices.destroy(); supplierChoices = null; }
+        if (projectChoices)  { projectChoices.destroy();  projectChoices  = null; }
+    });
+
+    // ── Cargar obras cuando cambia el proyecto ──────────────────────────────
+    projectSelect.addEventListener('change', function () {
+        var projectId = this.value;
+        siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
+        if (!projectId) return;
+
+        fetch('/proyectos/' + projectId + '/obras-json', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (works) {
+            works.forEach(function (w) {
+                var opt = document.createElement('option');
+                opt.value = w.id;
+                opt.textContent = w.name;
+                siteSelect.appendChild(opt);
+            });
+        });
     });
 
     // ── Toggle Proyecto / Obra ──────────────────────────────────────────────
@@ -430,8 +465,8 @@ document.addEventListener('DOMContentLoaded', function () {
         camposProject.forEach(function (el) { el.style.display = show ? '' : 'none'; });
         camposSite.forEach(function (el)    { el.style.display = show ? '' : 'none'; });
         if (!show) {
-            if (projectInput) projectInput.value = '';
-            if (siteInput)    siteInput.value    = '';
+            if (projectSelect) projectSelect.value = '';
+            if (siteSelect)    siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
         }
     }
 

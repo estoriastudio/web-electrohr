@@ -42,7 +42,49 @@
             </li>
             @endrole
 
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('mobile_assets.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-shapes-line"></i>
+                    </span>
+                    <span class="nav-text">Bienes Móviles</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-building-2-line"></i>
+                    </span>
+                    <span class="nav-text">Proyectos</span>
+                    @if($activeProjectsCount > 0)
+                        <span class="badge bg-success badge-pill">{{ $activeProjectsCount }}</span>
+                    @endif
+                </a>
+            </li>
+
             <li class="menu-title">Compras</li>
+
+            @hasanyrole('admin|orders')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
+                   href="{{ route('material_requests.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-file-add-line"></i>
+                    </span>
+                    <span class="nav-text">Solicitudes de Material</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
+                   href="{{ route('purchase_requests.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-shopping-cart-2-line"></i>
+                    </span>
+                    <span class="nav-text">Solicitudes de Compra</span>
+                </a>
+            </li>
+            @endhasanyrole
 
             @hasanyrole('admin|payments|orders')
             <li class="nav-item">
@@ -84,6 +126,15 @@
 
             @role('admin')
             <li class="menu-title">Configuración</li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('concepts.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-pages-line"></i>
+                    </span>
+                    <span class="nav-text">Conceptos</span>
+                </a>
+            </li>
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('usuarios.index') }}">

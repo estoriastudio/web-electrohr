@@ -53,12 +53,24 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'rfc_name' => 'required|string|max:255',
-            'email'    => 'nullable|email|max:255',
-            'phone'    => 'nullable|string|max:50',
+            'rfc_name'     => 'required|string|max:255',
+            'contact_name' => 'nullable|string|max:255',
+            'email'        => 'nullable|email|max:255',
+            'phone'        => 'nullable|string|max:50',
         ]);
 
-        $supplier = Supplier::create($validated);
+        $supplier = Supplier::create([
+            'rfc_name' => $validated['rfc_name'],
+        ]);
+
+        if ($validated['contact_name'] ?? null) {
+            $supplier->contacts()->create([
+                'name'     => $validated['contact_name'] ?? null,
+                'email'    => $validated['email'] ?? null,
+                'phone'    => $validated['phone'] ?? null,
+                'is_primary' => true,
+            ]);
+        }
 
         // Notificación
         $this->notification->send([
@@ -79,7 +91,11 @@ class SupplierController extends Controller
     public function show(Supplier $supplier)
     {
         $supplier = Supplier::withCount('purchaseOrders')
-            ->with(['purchaseOrders' => fn ($q) => $q->withCount('milestones')->orderByDesc('created_at')])
+            ->with([
+                'purchaseOrders' => fn ($q) => $q->withCount('milestones')->orderByDesc('created_at'),
+                'contacts',
+                'locations',
+            ])
             ->findOrFail($supplier->id);
 
         $orderIds = $supplier->purchaseOrders->pluck('id');
@@ -106,6 +122,33 @@ class SupplierController extends Controller
             'saldoPendiente',
             'proximoHito',
         ));
+    }
+
+    /**
+     * Update only the general info fields from the inline modal.
+     */
+    public function updateInfo(Request $request, Supplier $supplier): \Illuminate\Http\RedirectResponse
+    {
+        $validated = $request->validate([
+            'rfc_name'        => 'required|string|max:255',
+            'commercial_name' => 'nullable|string|max:255',
+            'rfc_num'         => 'nullable|string|max:20',
+            'attended_by'     => 'nullable|string|max:255',
+            'status'          => 'nullable|in:active,inactive,blacklisted',
+        ]);
+
+        $supplier->update($validated);
+
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $supplier->id,
+            'data'         => 'actualizó la información general del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Información general actualizada correctamente.');
     }
 
     /**

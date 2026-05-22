@@ -13,6 +13,9 @@ class PurchaseOrder extends Model
         'parent_id',
         'type',
         'supplier_id',
+        'mobile_asset_id',
+        'project_id',
+        'project_work_id',
         'project',
         'site',
         'currency',
@@ -33,6 +36,16 @@ class PurchaseOrder extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function projectRelation(): BelongsTo
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    public function workRelation(): BelongsTo
+    {
+        return $this->belongsTo(ProjectWork::class, 'project_work_id');
     }
 
     public function parent(): BelongsTo
