@@ -136,6 +136,7 @@ class MaterialRequestController extends Controller
     public function storeItem(Request $request, MaterialRequest $materialRequest)
     {
         $data = $request->validate([
+            'concept_id'  => 'nullable|exists:concepts,id',
             'code'        => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit'        => 'required|string|max:50',
@@ -144,15 +145,29 @@ class MaterialRequestController extends Controller
 
         $data['material_request_id'] = $materialRequest->id;
 
-        MaterialRequestItem::create($data);
+        $item = MaterialRequestItem::create($data);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'id'          => $item->id,
+                'code'        => $item->code,
+                'description' => $item->description,
+                'unit'        => $item->unit,
+                'quantity'    => $item->quantity,
+            ]);
+        }
 
         return redirect()->route('material_requests.show', $materialRequest)
                          ->with('success', 'Concepto agregado.');
     }
 
-    public function destroyItem(MaterialRequest $materialRequest, MaterialRequestItem $item)
+    public function destroyItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
         $item->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
 
         return redirect()->route('material_requests.show', $materialRequest)
                          ->with('success', 'Concepto eliminado.');
