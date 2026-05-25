@@ -20,8 +20,15 @@ class ProjectWorkController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'project_id' => 'required|exists:projects,id',
-            'name'       => 'required|string|max:255',
+            'project_id'          => 'required|exists:projects,id',
+            'name'                => 'required|string|max:255',
+            'supervisor'          => 'nullable|string|max:255',
+            'resident'            => 'nullable|string|max:255',
+            'contract_number'     => 'nullable|string|max:255',
+            'contract_start_date' => 'nullable|date',
+            'contract_end_date'   => 'nullable|date|after_or_equal:contract_start_date',
+            'contract_value'      => 'nullable|string|max:255',
+            'currency'            => 'nullable|string|max:10',
         ]);
 
         $work = ProjectWork::create(array_merge($validated, ['status' => 'active']));
@@ -60,8 +67,15 @@ class ProjectWorkController extends Controller
     public function update(Request $request, ProjectWork $projectWork): RedirectResponse
     {
         $validated = $request->validate([
-            'name'   => 'required|string|max:255',
-            'status' => 'required|in:active,inactive',
+            'name'                => 'required|string|max:255',
+            'status'              => 'required|in:active,inactive',
+            'supervisor'          => 'nullable|string|max:255',
+            'resident'            => 'nullable|string|max:255',
+            'contract_number'     => 'nullable|string|max:255',
+            'contract_start_date' => 'nullable|date',
+            'contract_end_date'   => 'nullable|date|after_or_equal:contract_start_date',
+            'contract_value'      => 'nullable|string|max:255',
+            'currency'            => 'nullable|string|max:10',
         ]);
 
         $projectWork->update($validated);

@@ -35,20 +35,10 @@
                     <h4 class="card-title mb-0">Listado de proyectos</h4>
                 </div>
                 <div class="d-flex gap-2">
-                    <form method="GET" action="{{ route('projects.index') }}" class="d-flex gap-2">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
-                            <input type="text" name="search" value="{{ $search }}"
-                                   class="form-control" placeholder="Buscar por nombre o cliente…"
-                                   autocomplete="off">
-                            @if ($search)
-                                <a href="{{ route('projects.index') }}" class="btn btn-outline-secondary" title="Limpiar">
-                                    <i class="ri-close-line"></i>
-                                </a>
-                            @endif
-                            <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
-                        </div>
-                    </form>
+                    <button type="button" class="btn btn-sm btn-soft-success"
+                            data-bs-toggle="modal" data-bs-target="#modalImportProjects">
+                        <i class="ri-upload-2-line me-1"></i> Importar
+                    </button>
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreateProject">
                         <i class="ri-add-line me-1"></i> Nuevo Proyecto
@@ -56,16 +46,34 @@
                 </div>
             </div>
 
+            {{-- Barra de búsqueda --}}
+            <div class="card-body border-bottom py-3">
+                <form method="GET" action="{{ route('projects.index') }}" class="d-flex gap-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
+                        <input type="text" name="search" value="{{ $search }}"
+                               class="form-control" placeholder="Buscar por nombre o cliente…"
+                               autocomplete="off">
+                        @if ($search)
+                            <a href="{{ route('projects.index') }}" class="btn btn-outline-secondary" title="Limpiar">
+                                <i class="ri-close-line"></i>
+                            </a>
+                        @endif
+                        <button type="submit" class="btn btn-primary">Buscar</button>
+                    </div>
+                </form>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                    <table class="table align-middle table-hover table-centered mb-0">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Nombre del Proyecto</th>
                                 <th>Nombre del Cliente</th>
-                                <th># Obras</th>
-                                <th>Estatus</th>
-                                <th>Acciones</th>
+                                <th class="text-nowrap"># Obras</th>
+                                <th class="text-nowrap">Estatus</th>
+                                <th class="text-nowrap">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -79,14 +87,23 @@
                                 @endphp
                                 <tr>
                                     <td>
-                                        <a href="{{ route('projects.show', $project) }}" class="fw-medium text-dark">
-                                            {{ $project->name }}
-                                        </a>
-                                        @if ($project->city || $project->state)
-                                            <div class="text-muted fs-12">
-                                                {{ implode(', ', array_filter([$project->city, $project->state])) }}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="avatar-sm bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                                <span class="text-primary fw-semibold">
+                                                    {{ strtoupper(substr($project->name, 0, 1)) }}
+                                                </span>
                                             </div>
-                                        @endif
+                                            <div>
+                                                <a href="{{ route('projects.show', $project) }}" class="text-dark fw-medium fs-15">
+                                                    {{ $project->name }}
+                                                </a>
+                                                @if ($project->city || $project->state)
+                                                    <div class="text-muted fs-12">
+                                                        {{ implode(', ', array_filter([$project->city, $project->state])) }}
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </td>
                                     <td>{{ $project->client_name }}</td>
                                     <td>
@@ -257,6 +274,68 @@
 </div>
 
 @endsection
+
+{{-- ══════════════════════════════════════════════════════════════
+     MODAL — Importar Proyectos
+══════════════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalImportProjects" tabindex="-1" aria-labelledby="modalImportProjectsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('projects.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalImportProjectsLabel">
+                        <i class="ri-upload-2-line me-1"></i> Importar Proyectos y Obras
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        El archivo Excel debe contener las siguientes columnas:
+                    </p>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-sm fs-12 mb-0">
+                            <thead class="bg-light-subtle">
+                                <tr>
+                                    <th>Columna</th>
+                                    <th>Destino</th>
+                                    <th>Requerido</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>proyecto</code></td><td>Nombre del proyecto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>cliente</code></td><td>Cliente del proyecto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>obra</code></td><td>Nombre de la obra</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>num_contrato</code></td><td>Número de contrato</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>fecha_inicio_contrato</code></td><td>Fecha inicio del contrato</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>importe_contratado</code></td><td>Valor del contrato</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>residente</code></td><td>Residente de obra</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>supervisor</code></td><td>Supervisor</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>moneda</code></td><td>Moneda (MXN, USD…)</td><td class="text-center text-muted">—</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mb-0">
+                        <label for="import_file" class="form-label fw-medium">Archivo Excel <span class="text-danger">*</span></label>
+                        <input type="file"
+                               class="form-control @error('file') is-invalid @enderror"
+                               id="import_file" name="file"
+                               accept=".xlsx,.xls,.csv"
+                               required>
+                        <div class="form-text">Formatos aceptados: .xlsx, .xls, .csv — Máx. 10 MB</div>
+                        @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="ri-upload-2-line me-1"></i> Importar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 @push('scripts')
 <script>

@@ -14,7 +14,19 @@ return new class extends Migration
         Schema::create('project_works', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('projects')->cascadeOnDelete();
-            $table->string('name');
+            $table->text('name');
+
+            $table->string('supervisor')->nullable();
+            $table->string('resident')->nullable();
+
+            $table->string('contract_number')->nullable();
+
+            $table->date('contract_start_date')->nullable();
+            $table->date('contract_end_date')->nullable();
+
+            $table->string('contract_value')->nullable();
+            $table->string('currency')->nullable();
+
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });

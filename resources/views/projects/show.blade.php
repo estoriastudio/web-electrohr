@@ -107,9 +107,40 @@
                                 {{ $work->name }}
                             </a>
                         </h6>
-                        <p class="text-muted fs-13 mb-3">
+                        <p class="text-muted fs-13 mb-2">
                             <i class="ri-user-line me-1"></i>{{ $project->client_name }}
                         </p>
+
+                        {{-- Datos del contrato --}}
+                        <div class="mb-3">
+                            @if ($work->supervisor)
+                                <div class="text-muted fs-12 mb-1">
+                                    <i class="ri-user-star-line me-1"></i>
+                                    <span class="fw-medium">Supervisor:</span> {{ $work->supervisor }}
+                                </div>
+                            @endif
+                            @if ($work->contract_number)
+                                <div class="text-muted fs-12 mb-1">
+                                    <i class="ri-file-text-line me-1"></i>
+                                    <span class="fw-medium">Contrato:</span> {{ $work->contract_number }}
+                                </div>
+                            @endif
+                            @if ($work->contract_value)
+                                <div class="text-muted fs-12 mb-1">
+                                    <i class="ri-money-dollar-circle-line me-1"></i>
+                                    <span class="fw-medium">Valor:</span>
+                                    {{ $work->currency }} {{ number_format((float) str_replace(',', '', $work->contract_value), 2) }}
+                                </div>
+                            @endif
+                            @if ($work->contract_start_date || $work->contract_end_date)
+                                <div class="text-muted fs-12">
+                                    <i class="ri-calendar-line me-1"></i>
+                                    {{ $work->contract_start_date ? \Carbon\Carbon::parse($work->contract_start_date)->format('d/m/Y') : '—' }}
+                                    &rarr;
+                                    {{ $work->contract_end_date ? \Carbon\Carbon::parse($work->contract_end_date)->format('d/m/Y') : '—' }}
+                                </div>
+                            @endif
+                        </div>
 
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
@@ -146,7 +177,7 @@
      MODAL — Nueva Obra
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalCreateWork" tabindex="-1" aria-labelledby="modalCreateWorkLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <form action="{{ route('project_works.store') }}" method="POST">
                 @csrf
@@ -161,6 +192,8 @@
                     <p class="text-muted fs-13 mb-3">
                         Proyecto: <strong>{{ $project->name }}</strong>
                     </p>
+
+                    {{-- Nombre --}}
                     <div class="mb-3">
                         <label for="work_name" class="form-label fw-medium">Nombre de la Obra <span class="text-danger">*</span></label>
                         <input type="text"
@@ -170,6 +203,83 @@
                                placeholder="Ej. Bodega 3, Planta Norte…"
                                autofocus required>
                         @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    {{-- Supervisor / Residente --}}
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="work_supervisor" class="form-label fw-medium">Supervisor</label>
+                            <input type="text"
+                                   class="form-control @error('supervisor') is-invalid @enderror"
+                                   id="work_supervisor" name="supervisor"
+                                   value="{{ old('supervisor') }}"
+                                   placeholder="Nombre del supervisor">
+                            @error('supervisor')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="work_resident" class="form-label fw-medium">Residente</label>
+                            <input type="text"
+                                   class="form-control @error('resident') is-invalid @enderror"
+                                   id="work_resident" name="resident"
+                                   value="{{ old('resident') }}"
+                                   placeholder="Nombre del residente">
+                            @error('resident')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    {{-- Número de contrato --}}
+                    <div class="mb-3">
+                        <label for="work_contract_number" class="form-label fw-medium">Número de Contrato</label>
+                        <input type="text"
+                               class="form-control @error('contract_number') is-invalid @enderror"
+                               id="work_contract_number" name="contract_number"
+                               value="{{ old('contract_number') }}"
+                               placeholder="Ej. CONT-2026-001">
+                        @error('contract_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    {{-- Fechas de contrato --}}
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="work_contract_start_date" class="form-label fw-medium">Fecha Inicio</label>
+                            <input type="date"
+                                   class="form-control @error('contract_start_date') is-invalid @enderror"
+                                   id="work_contract_start_date" name="contract_start_date"
+                                   value="{{ old('contract_start_date') }}">
+                            @error('contract_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="work_contract_end_date" class="form-label fw-medium">Fecha Fin</label>
+                            <input type="date"
+                                   class="form-control @error('contract_end_date') is-invalid @enderror"
+                                   id="work_contract_end_date" name="contract_end_date"
+                                   value="{{ old('contract_end_date') }}">
+                            @error('contract_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    {{-- Valor de contrato / Moneda --}}
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="work_contract_value" class="form-label fw-medium">Valor del Contrato</label>
+                            <input type="text"
+                                   class="form-control @error('contract_value') is-invalid @enderror"
+                                   id="work_contract_value" name="contract_value"
+                                   value="{{ old('contract_value') }}"
+                                   placeholder="Ej. 1,500,000.00">
+                            @error('contract_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="work_currency" class="form-label fw-medium">Moneda</label>
+                            <select class="form-select @error('currency') is-invalid @enderror"
+                                    id="work_currency" name="currency">
+                                <option value="">— Seleccionar —</option>
+                                <option value="MXN" {{ old('currency') === 'MXN' ? 'selected' : '' }}>MXN</option>
+                                <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+                                <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR</option>
+                            </select>
+                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

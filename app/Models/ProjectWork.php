@@ -8,7 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjectWork extends Model
 {
-    protected $fillable = ['project_id', 'name', 'status'];
+    protected $fillable = [
+        'project_id', 'name', 'status',
+        'supervisor', 'resident',
+        'contract_number',
+        'contract_start_date', 'contract_end_date',
+        'contract_value', 'currency',
+    ];
 
     public function project(): BelongsTo
     {

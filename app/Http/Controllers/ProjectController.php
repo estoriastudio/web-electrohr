@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Imports\ProjectImport;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
 
 class ProjectController extends Controller
@@ -120,6 +122,18 @@ class ProjectController extends Controller
             ->get(['id', 'name']);
 
         return response()->json($works);
+    }
+
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        Excel::import(new ProjectImport, $request->file('file'));
+
+        return redirect()->route('projects.index')
+            ->with('success', 'Proyectos y obras importados correctamente.');
     }
 }
 

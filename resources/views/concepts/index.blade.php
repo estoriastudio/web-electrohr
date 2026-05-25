@@ -41,10 +41,16 @@
                 <div>
                     <h4 class="card-title mb-0">Catálogo de Conceptos</h4>
                 </div>
-                <button type="button" class="btn btn-sm btn-primary"
-                        data-bs-toggle="modal" data-bs-target="#modalCreateConcept">
-                    <i class="ri-add-line me-1"></i> Nuevo Concepto
-                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-soft-success"
+                            data-bs-toggle="modal" data-bs-target="#modalImportConcepts">
+                        <i class="ri-upload-2-line me-1"></i> Importar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal" data-bs-target="#modalCreateConcept">
+                        <i class="ri-add-line me-1"></i> Nuevo Concepto
+                    </button>
+                </div>
             </div>
 
             {{-- Barra de búsqueda y filtros --}}
@@ -330,6 +336,67 @@
     </div>
 </div>
 
+{{-- ══════════════════════════════════════════════════════════════
+     MODAL — Importar Conceptos
+══════════════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalImportConcepts" tabindex="-1" aria-labelledby="modalImportConceptsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('concepts.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalImportConceptsLabel">
+                        <i class="ri-upload-2-line me-1"></i> Importar Conceptos
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        El archivo debe contener una fila de encabezados con las siguientes columnas:
+                    </p>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-sm fs-12 mb-0">
+                            <thead class="bg-light-subtle">
+                                <tr>
+                                    <th>Columna</th>
+                                    <th>Destino</th>
+                                    <th>Requerido</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>codigo</code></td><td>Código del concepto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>descripcion</code></td><td>Descripción</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>unidad</code></td><td>Unidad de medida</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>costo</code></td><td>Precio unitario</td><td class="text-center text-muted">—</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted fs-12 mb-3">
+                        <i class="ri-information-line me-1"></i>
+                        Si el código ya existe, se actualizará su información. Las demás columnas del archivo serán ignoradas.
+                    </p>
+                    <div class="mb-0">
+                        <label for="concept_import_file" class="form-label fw-medium">Archivo Excel <span class="text-danger">*</span></label>
+                        <input type="file"
+                               class="form-control @error('file') is-invalid @enderror"
+                               id="concept_import_file" name="file"
+                               accept=".xlsx,.xls,.csv"
+                               required>
+                        <div class="form-text">Formatos aceptados: .xlsx, .xls, .csv — Máx. 10 MB</div>
+                        @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success" id="btnImportConceptsSubmit">
+                        <i class="ri-upload-2-line me-1"></i> Importar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -355,6 +422,17 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         var modal = new bootstrap.Modal(document.getElementById('modalEditConcept'));
         modal.show();
     });
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    const importForm = document.querySelector('#modalImportConcepts form');
+    const importBtn  = document.getElementById('btnImportConceptsSubmit');
+    if (importForm && importBtn) {
+        importForm.addEventListener('submit', function () {
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Importando...';
+        });
+    }
 });
 </script>
 @endpush

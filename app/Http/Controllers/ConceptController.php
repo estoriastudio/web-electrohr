@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concept;
+use App\Imports\ConceptImport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
 
 class ConceptController extends Controller
@@ -83,6 +85,18 @@ class ConceptController extends Controller
             ->get(['id', 'code', 'description', 'unit', 'unit_price']);
 
         return response()->json($concepts);
+    }
+
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        Excel::import(new ConceptImport, $request->file('file'));
+
+        return redirect()->route('concepts.index')
+            ->with('success', 'Conceptos importados correctamente.');
     }
 
     public function create(): RedirectResponse

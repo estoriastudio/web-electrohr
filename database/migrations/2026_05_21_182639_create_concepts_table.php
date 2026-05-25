@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('code')->unique();
             $table->text('description');
             $table->string('unit');
+            $table->decimal('unit_price', 12, 2)->nullable()->default(0);
+
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });

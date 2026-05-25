@@ -100,6 +100,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
             ->name('projects.works_json');
 
+        Route::post('/proyectos/import', [ProjectController::class, 'import'])
+            ->name('projects.import');
+
         Route::resource('/obras', ProjectWorkController::class, [
             'names' => [
                 'index'   => 'project_works.index',
@@ -120,6 +123,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // Conceptos (catálogo) — CRUD solo admin
         Route::middleware('role:admin')->group(function () {
+            Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
             Route::resource('/conceptos', ConceptController::class, [
                 'names' => [
                     'index'   => 'concepts.index',

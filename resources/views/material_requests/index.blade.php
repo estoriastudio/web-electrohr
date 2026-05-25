@@ -187,7 +187,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Proyecto <span class="text-danger">*</span></label>
                             <select name="project_id" id="mrProjectId"
-                                    class="form-select @error('project_id') is-invalid @enderror" required>
+                                    class="form-control @error('project_id') is-invalid @enderror" required>
                                 <option value="">— Selecciona proyecto —</option>
                                 @foreach ($projects as $project)
                                     <option value="{{ $project->id }}" {{ old('project_id') == $project->id ? 'selected' : '' }}>
@@ -262,32 +262,61 @@
 
 @push('scripts')
 <script>
-document.getElementById('mrProjectId').addEventListener('change', function () {
-    const projectId  = this.value;
-    const workSelect = document.getElementById('mrProjectWorkId');
+document.addEventListener('DOMContentLoaded', function () {
+    var modalEl        = document.getElementById('modalCreateMR');
+    var projectSelect  = document.getElementById('mrProjectId');
+    var workSelect     = document.getElementById('mrProjectWorkId');
+    var projectChoices = null;
 
-    workSelect.innerHTML = '<option value="">— Cargando obras… —</option>';
+    // ── Choices.js: inicializar al mostrar el modal ─────────────────────────
+    modalEl.addEventListener('shown.bs.modal', function () {
+        if (!projectChoices) {
+            projectChoices = new Choices(projectSelect, {
+                searchEnabled: true,
+                searchPlaceholderValue: 'Buscar proyecto...',
+                itemSelectText: '',
+                noResultsText: 'Sin resultados',
+                noChoicesText: 'Sin opciones disponibles',
+            });
+        }
+    });
 
-    if (!projectId) {
-        workSelect.innerHTML = '<option value="">— Selecciona obra —</option>';
-        return;
-    }
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (projectChoices) { projectChoices.destroy(); projectChoices = null; }
+    });
 
-    fetch(`/proyectos/${projectId}/obras-json`)
-        .then(r => r.json())
-        .then(works => {
+    // ── Cargar obras cuando cambia el proyecto ──────────────────────────────
+    projectSelect.addEventListener('change', function () {
+        var projectId = this.value;
+
+        workSelect.innerHTML = '<option value="">— Cargando obras… —</option>';
+
+        if (!projectId) {
             workSelect.innerHTML = '<option value="">— Selecciona obra —</option>';
-            works.forEach(w => {
-                workSelect.innerHTML += `<option value="${w.id}">${w.name}</option>`;
+            return;
+        }
+
+        fetch('/proyectos/' + projectId + '/obras-json', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (works) {
+            workSelect.innerHTML = '<option value="">— Selecciona obra —</option>';
+            works.forEach(function (w) {
+                var opt = document.createElement('option');
+                opt.value = w.id;
+                opt.textContent = w.name;
+                workSelect.appendChild(opt);
             });
         })
-        .catch(() => {
+        .catch(function () {
             workSelect.innerHTML = '<option value="">— Error al cargar obras —</option>';
         });
+    });
 });
 
 @if ($errors->any())
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', function () {
         new bootstrap.Modal(document.getElementById('modalCreateMR')).show();
     });
 @endif

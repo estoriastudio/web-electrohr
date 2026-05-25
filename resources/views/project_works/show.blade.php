@@ -48,6 +48,72 @@
 
 
 {{-- ══════════════════════════════════════════════════════════════
+     DATOS DEL CONTRATO
+══════════════════════════════════════════════════════════════════ --}}
+@if ($projectWork->supervisor || $projectWork->resident || $projectWork->contract_number ||
+     $projectWork->contract_start_date || $projectWork->contract_end_date ||
+     $projectWork->contract_value || $projectWork->currency)
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+        <h5 class="card-title mb-0">
+            <i class="ri-file-text-line me-1 text-muted"></i> Datos del Contrato
+        </h5>
+        <a href="{{ route('project_works.edit', $projectWork) }}" class="btn btn-sm btn-soft-primary">
+            <i class="ri-edit-line me-1"></i> Editar
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            @if ($projectWork->supervisor)
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Supervisor</div>
+                <div class="fw-medium fs-14"><i class="ri-user-star-line me-1 text-info"></i>{{ $projectWork->supervisor }}</div>
+            </div>
+            @endif
+            @if ($projectWork->resident)
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Residente</div>
+                <div class="fw-medium fs-14"><i class="ri-user-line me-1 text-info"></i>{{ $projectWork->resident }}</div>
+            </div>
+            @endif
+            @if ($projectWork->contract_number)
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Número de Contrato</div>
+                <div class="fw-medium fs-14"><i class="ri-file-text-line me-1 text-primary"></i>{{ $projectWork->contract_number }}</div>
+            </div>
+            @endif
+            @if ($projectWork->contract_value)
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Valor del Contrato</div>
+                <div class="fw-medium fs-14">
+                    <i class="ri-money-dollar-circle-line me-1 text-success"></i>
+                    {{ $projectWork->currency }}
+                    {{ number_format((float) str_replace(',', '', $projectWork->contract_value), 2) }}
+                </div>
+            </div>
+            @endif
+            @if ($projectWork->contract_start_date || $projectWork->contract_end_date)
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Fecha Inicio</div>
+                <div class="fw-medium fs-14">
+                    <i class="ri-calendar-line me-1 text-muted"></i>
+                    {{ $projectWork->contract_start_date ? \Carbon\Carbon::parse($projectWork->contract_start_date)->format('d/m/Y') : '—' }}
+                </div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+                <div class="text-muted fs-12 mb-1">Fecha Fin</div>
+                <div class="fw-medium fs-14">
+                    <i class="ri-calendar-check-line me-1 text-muted"></i>
+                    {{ $projectWork->contract_end_date ? \Carbon\Carbon::parse($projectWork->contract_end_date)->format('d/m/Y') : '—' }}
+                </div>
+            </div>
+            @endif
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════
      ÓRDENES DE COMPRA
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="row">
