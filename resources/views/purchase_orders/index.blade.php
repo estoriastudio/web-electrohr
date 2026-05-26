@@ -102,8 +102,7 @@
                                 <th>Folio</th>
                                 <th>Tipo</th>
                                 <th>Proveedor</th>
-                                <th>Proyecto</th>
-                                <th>Obra</th>
+                                <th>Proyecto / Obra</th>
                                 <th>Próx. Vencimiento</th>
                                 <th>Moneda</th>
                                 <th>Importe</th>
@@ -141,14 +140,25 @@
                                             {{ $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—' }}
                                         </a>
                                     </td>
-                                    <td>{{ $order->projectRelation?->name ?? $order->project ?? '—' }}</td>
-                                    <td>{{ $order->workRelation?->name ?? $order->site ?? '—' }}</td>
+                                    <td style="max-width:160px">
+                                        @php
+                                            $proj = $order->projectRelation?->name ?? $order->project ?? null;
+                                            $obra = $order->workRelation?->name  ?? $order->site    ?? null;
+                                        @endphp
+                                        @if ($proj)
+                                            <div class="text-truncate" style="max-width:150px" title="{{ $proj }}">{{ $proj }}</div>
+                                        @endif
+                                        @if ($obra)
+                                            <small class="text-muted text-truncate d-block" style="max-width:150px" title="{{ $obra }}">{{ $obra }}</small>
+                                        @endif
+                                        @if (!$proj && !$obra)—@endif
+                                    </td>
                                     <td>{{ $order->next_due_date ?? '—' }}</td>
                                     <td>
                                         <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $order->currency }}</span>
                                     </td>
-                                    <td>{{ number_format($order->amount, 2) }}</td>
-                                    <td>{{ number_format($order->saldo_cubierto, 2) }}</td>
+                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->amount, 2) }}</td>
+                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
                                     <td>
                                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                                     </td>
@@ -205,27 +215,12 @@
                                                class="btn btn-soft-secondary btn-sm" title="Descargar PDF" target="_blank">
                                                 <i class="ri-file-pdf-2-line"></i>
                                             </a>
-                                            @hasanyrole('admin|orders')
-                                            <a href="{{ route('purchase_orders.edit', $order) }}"
-                                               class="btn btn-soft-primary btn-sm" title="Editar">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('purchase_orders.destroy', $order) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('¿Eliminar esta orden de compra y todos sus hitos y pagos?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
-                                            @endhasanyrole
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center text-muted py-4">
+                                    <td colspan="11" class="text-center text-muted py-4">
                                         No hay órdenes de compra registradas.
                                     </td>
                                 </tr>
