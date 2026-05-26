@@ -59,8 +59,17 @@
                                 Necesidad: {{ $materialRequest->need_date?->format('d/m/Y') }}
                             </span>
                         </div>
+
+                        <div class="mt-2">
+                            @include('material_requests.partials._process_map')
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
+                        <a href="{{ route('material_requests.pdf', $materialRequest) }}"
+                           class="btn btn-sm btn-outline-danger" target="_blank">
+                            <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
+                        </a>
+                        
                         @hasanyrole('admin|orders')
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
@@ -167,7 +176,7 @@
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                     <td>{{ $item->description }}</td>
                                     <td>{{ $item->unit }}</td>
-                                    <td class="text-end">{{ number_format($item->quantity, 2) }}</td>
+                                    <td class="text-end">{{ (int) $item->quantity }}</td>
                                     <td>
                                         @hasanyrole('admin|orders')
                                         <form action="{{ route('material_requests.items.destroy', [$materialRequest, $item]) }}"
@@ -192,7 +201,7 @@
                     </table>
                 </div>
             </div>
-
+            
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
             @hasanyrole('admin|orders')
             <div class="border-top px-3 py-3" id="solmat_add_panel">
@@ -244,10 +253,10 @@
                     <input type="number"
                            id="solmat_quantity"
                            class="form-control form-control-lg text-center mb-3"
-                           placeholder="0.00"
-                           step="0.01"
-                           min="0.01"
-                           inputmode="decimal">
+                           placeholder="0"
+                           step="1"
+                           min="1"
+                           inputmode="numeric">
                     <div id="solmat_add_error" class="text-danger fs-12 mb-2 d-none"></div>
                     <div class="d-grid">
                         <button type="button" id="solmat_btn_add" class="btn btn-primary btn-lg">
@@ -484,7 +493,7 @@
         fd.append('code',        selectedConcept.code);
         fd.append('description', selectedConcept.description);
         fd.append('unit',        selectedConcept.unit);
-        fd.append('quantity',    qty.toFixed(2));
+        fd.append('quantity',    Math.round(qty));
 
         fetch(storeUrl, {
             method: 'POST',
@@ -522,8 +531,7 @@
 
         var num  = itemCount() + 1;
         var qty  = parseFloat(item.quantity);
-        var qtyF = isNaN(qty) ? item.quantity
-                              : qty.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        var qtyF = isNaN(qty) ? item.quantity : Math.round(qty).toString();
 
         var tr = document.createElement('tr');
         tr.className      = 'solmat-item-row solmat-item-new';

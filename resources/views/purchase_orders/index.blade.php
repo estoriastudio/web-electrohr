@@ -43,10 +43,9 @@
                 </div>
                 <div>
                     @hasanyrole('admin|orders')
-                    <button type="button" class="btn btn-sm btn-primary"
-                            data-bs-toggle="modal" data-bs-target="#modalCreateOrder">
+                    <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
-                    </button>
+                    </a>
                     @endhasanyrole
                 </div>
             </div>
@@ -100,6 +99,7 @@
                     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
                         <thead class="bg-light-subtle">
                             <tr>
+                                <th>Folio</th>
                                 <th>Tipo</th>
                                 <th>Proveedor</th>
                                 <th>Proyecto</th>
@@ -130,6 +130,9 @@
                                     $t = $tipoMap[$order->type] ?? ['label' => $order->type, 'class' => 'bg-secondary-subtle text-secondary'];
                                 @endphp
                                 <tr>
+                                    <td>
+                                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">#{{ $order->folio ?? '—' }}</span>
+                                    </td>
                                     <td>
                                         <span class="badge {{ $t['class'] }} py-1 px-2 fs-12">{{ $t['label'] }}</span>
                                     </td>
@@ -198,6 +201,10 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            <a href="{{ route('purchase_orders.pdf', $order) }}"
+                                               class="btn btn-soft-secondary btn-sm" title="Descargar PDF" target="_blank">
+                                                <i class="ri-file-pdf-2-line"></i>
+                                            </a>
                                             @hasanyrole('admin|orders')
                                             <a href="{{ route('purchase_orders.edit', $order) }}"
                                                class="btn btn-soft-primary btn-sm" title="Editar">
@@ -218,7 +225,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted py-4">
+                                    <td colspan="12" class="text-center text-muted py-4">
                                         No hay órdenes de compra registradas.
                                     </td>
                                 </tr>
@@ -237,259 +244,4 @@
     </div>
 </div>
 
-{{-- MODAL — Crear nueva orden de compra --}}
-<div class="modal fade" id="modalCreateOrder" tabindex="-1" aria-labelledby="modalCreateOrderLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form action="{{ route('purchase_orders.store') }}" method="POST" id="formCreateOrder">
-                @csrf
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalCreateOrderLabel">
-                        <i class="ri-file-list-3-line me-1"></i> Nueva Orden de Compra
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3">
-
-                        {{-- Tipo --}}
-                        <div class="col-md-6">
-                            <label for="type" class="form-label fw-medium">Tipo <span class="text-danger">*</span></label>
-                            <select class="form-select @error('type') is-invalid @enderror" id="type" name="type" required>
-                                <option value="">Seleccionar...</option>
-                                <option value="materiales_servicios" {{ old('type') === 'materiales_servicios' ? 'selected' : '' }}>Materiales / Servicios</option>
-                                <option value="mantenimiento" {{ old('type') === 'mantenimiento' ? 'selected' : '' }}>Mantenimiento</option>
-                            </select>
-                            @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        {{-- Proveedor --}}
-                        <div class="col-md-6">
-                            <label for="supplier_id" class="form-label fw-medium">Proveedor <span class="text-danger">*</span></label>
-                            <select class="form-control @error('supplier_id') is-invalid @enderror"
-                                    id="supplier_id" name="supplier_id"
-                                    required>
-                                <option value="">Buscar proveedor...</option>
-                                @foreach ($suppliers as $supplier)
-                                    <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
-                                        {{ $supplier->rfc_name ?? $supplier->commercial_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('supplier_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        {{-- Proyecto / Obra — solo visibles para materiales_servicios --}}
-                        <div class="col-md-6 campo-project" style="display:none;">
-                            <label for="project_id" class="form-label fw-medium">Proyecto</label>
-                            <select class="form-control @error('project_id') is-invalid @enderror"
-                                    id="project_id" name="project_id">
-                                <option value="">Seleccionar proyecto...</option>
-                                @foreach ($projects as $proj)
-                                    <option value="{{ $proj->id }}" {{ old('project_id') == $proj->id ? 'selected' : '' }}>
-                                        {{ $proj->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('project_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        <div class="col-md-6 campo-site" style="display:none;">
-                            <label for="project_work_id" class="form-label fw-medium">Obra</label>
-                            <select class="form-control @error('project_work_id') is-invalid @enderror"
-                                    id="project_work_id" name="project_work_id">
-                                <option value="">Seleccionar obra...</option>
-                            </select>
-                            @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        {{-- Moneda e Importe --}}
-                        <div class="col-md-4">
-                            <label for="currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
-                            <select class="form-select @error('currency') is-invalid @enderror" id="currency" name="currency" required>
-                                <option value="MXN" {{ old('currency', 'MXN') === 'MXN' ? 'selected' : '' }}>MXN — Peso Mexicano</option>
-                                <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD — Dólar</option>
-                                <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR — Euro</option>
-                            </select>
-                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="amount" class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
-                            <input type="number" step="0" min="0"
-                                   class="form-control @error('amount') is-invalid @enderror"
-                                   id="amount" name="amount" value="{{ old('amount', '') }}" required>
-                            @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        {{-- Estatus --}}
-                        <div class="col-md-4">
-                            <label for="status" class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
-                            <select class="form-select @error('status') is-invalid @enderror" id="status" name="status" required>
-                                <option value="emitida"    {{ old('status', 'emitida') === 'emitida'    ? 'selected' : '' }}>Emitida</option>
-                                <option value="pendiente"  {{ old('status') === 'pendiente'  ? 'selected' : '' }}>Pendiente</option>
-                                <option value="autorizada" {{ old('status') === 'autorizada' ? 'selected' : '' }}>Autorizada</option>
-                            </select>
-                            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-
-                        {{-- Recurrencia --}}
-                        <div class="col-12">
-                            <label class="form-label fw-medium">Recurrencia <span class="text-danger">*</span></label>
-                            <div class="d-flex gap-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="recurrence_type"
-                                           id="rec_unico" value="unico"
-                                           {{ old('recurrence_type', 'unico') === 'unico' ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="rec_unico">Pago único</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="recurrence_type"
-                                           id="rec_recurrente" value="recurrente"
-                                           {{ old('recurrence_type') === 'recurrente' ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="rec_recurrente">Pago recurrente</label>
-                                </div>
-                            </div>
-                        </div>
-
-                        {{-- Campos de recurrencia (ocultos por defecto) --}}
-                        <div id="campos_recurrencia" style="display:none;" class="col-12">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label for="recurrence_frequency" class="form-label fw-medium">Frecuencia <span class="text-danger">*</span></label>
-                                    <select class="form-select @error('recurrence_frequency') is-invalid @enderror"
-                                            id="recurrence_frequency" name="recurrence_frequency">
-                                        <option value="">Seleccionar...</option>
-                                        <option value="semanal"    {{ old('recurrence_frequency') === 'semanal'    ? 'selected' : '' }}>Semanal</option>
-                                        <option value="quincenal"  {{ old('recurrence_frequency') === 'quincenal'  ? 'selected' : '' }}>Quincenal</option>
-                                        <option value="mensual"    {{ old('recurrence_frequency') === 'mensual'    ? 'selected' : '' }}>Mensual</option>
-                                    </select>
-                                    @error('recurrence_frequency')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="recurrence_start_date" class="form-label fw-medium">Fecha inicio <span class="text-danger">*</span></label>
-                                    <input type="date" class="form-control @error('recurrence_start_date') is-invalid @enderror"
-                                           id="recurrence_start_date" name="recurrence_start_date"
-                                           value="{{ old('recurrence_start_date') }}">
-                                    @error('recurrence_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="recurrence_end_date" class="form-label fw-medium">Fecha fin</label>
-                                    <input type="date" class="form-control @error('recurrence_end_date') is-invalid @enderror"
-                                           id="recurrence_end_date" name="recurrence_end_date"
-                                           value="{{ old('recurrence_end_date') }}">
-                                    @error('recurrence_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="ri-save-line me-1"></i> Crear orden
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 @endsection
-
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var modalEl         = document.getElementById('modalCreateOrder');
-    var typeSelect      = document.getElementById('type');
-    var camposProject   = document.querySelectorAll('.campo-project');
-    var camposSite      = document.querySelectorAll('.campo-site');
-    var projectSelect   = document.getElementById('project_id');
-    var siteSelect      = document.getElementById('project_work_id');
-    var camposRec       = document.getElementById('campos_recurrencia');
-    var recInputs       = document.querySelectorAll('input[name="recurrence_type"]');
-    var supplierChoices = null;
-    var projectChoices  = null;
-
-    // ── Choices.js: inicializar al mostrar el modal ─────────────────────────
-    modalEl.addEventListener('shown.bs.modal', function () {
-        if (!supplierChoices) {
-            supplierChoices = new Choices(document.getElementById('supplier_id'), {
-                searchEnabled: true,
-                searchPlaceholderValue: 'Buscar proveedor...',
-                itemSelectText: '',
-                noResultsText: 'Sin resultados',
-                noChoicesText: 'Sin opciones disponibles',
-            });
-        }
-        if (!projectChoices) {
-            projectChoices = new Choices(projectSelect, {
-                searchEnabled: true,
-                searchPlaceholderValue: 'Buscar proyecto...',
-                itemSelectText: '',
-                noResultsText: 'Sin resultados',
-                noChoicesText: 'Sin opciones disponibles',
-            });
-        }
-    });
-
-    modalEl.addEventListener('hidden.bs.modal', function () {
-        if (supplierChoices) { supplierChoices.destroy(); supplierChoices = null; }
-        if (projectChoices)  { projectChoices.destroy();  projectChoices  = null; }
-    });
-
-    // ── Cargar obras cuando cambia el proyecto ──────────────────────────────
-    projectSelect.addEventListener('change', function () {
-        var projectId = this.value;
-        siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
-        if (!projectId) return;
-
-        fetch('/proyectos/' + projectId + '/obras-json', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (works) {
-            works.forEach(function (w) {
-                var opt = document.createElement('option');
-                opt.value = w.id;
-                opt.textContent = w.name;
-                siteSelect.appendChild(opt);
-            });
-        });
-    });
-
-    // ── Toggle Proyecto / Obra ──────────────────────────────────────────────
-    function toggleProyectoObra() {
-        var show = typeSelect.value === 'materiales_servicios';
-        camposProject.forEach(function (el) { el.style.display = show ? '' : 'none'; });
-        camposSite.forEach(function (el)    { el.style.display = show ? '' : 'none'; });
-        if (!show) {
-            if (projectSelect) projectSelect.value = '';
-            if (siteSelect)    siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
-        }
-    }
-
-    // ── Toggle Recurrencia ──────────────────────────────────────────────────
-    function toggleRecurrencia() {
-        var checked = document.querySelector('input[name="recurrence_type"]:checked');
-        camposRec.style.display = (checked && checked.value === 'recurrente') ? '' : 'none';
-    }
-
-    typeSelect.addEventListener('change', toggleProyectoObra);
-    recInputs.forEach(function (el) { el.addEventListener('change', toggleRecurrencia); });
-
-    // Inicializar estado con valores old() si los hay
-    toggleProyectoObra();
-    toggleRecurrencia();
-});
-</script>
-@if ($errors->any())
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var modal = new bootstrap.Modal(document.getElementById('modalCreateOrder'));
-        modal.show();
-    });
-</script>
-@endif
-@endpush

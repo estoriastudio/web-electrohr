@@ -6,6 +6,7 @@ use App\Models\MaterialRequest;
 use App\Models\MaterialRequestItem;
 use App\Models\Project;
 use App\Services\NotificationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -140,7 +141,7 @@ class MaterialRequestController extends Controller
             'code'        => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit'        => 'required|string|max:50',
-            'quantity'    => 'required|numeric|min:0.01',
+            'quantity'    => 'required|integer|min:1',
         ]);
 
         $data['material_request_id'] = $materialRequest->id;
@@ -223,5 +224,18 @@ class MaterialRequestController extends Controller
                 'quantity'    => $i->quantity,
             ]),
         ]);
+    }
+
+    // PDF
+    public function downloadPdf(MaterialRequest $materialRequest): \Illuminate\Http\Response
+    {
+        $materialRequest->load(['project', 'projectWork', 'requestedBy', 'items']);
+
+        $pdf = Pdf::loadView('material_requests.pdf', compact('materialRequest'))
+            ->setPaper('letter', 'portrait');
+
+        $filename = 'SOLMAT-' . ($materialRequest->folio ?? $materialRequest->id) . '.pdf';
+
+        return $pdf->download($filename);
     }
 }

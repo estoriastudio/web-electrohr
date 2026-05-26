@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('page_title', 'Detalle — Orden de Compra #' . $purchaseOrder->id)
+@section('page_title', 'OC #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' — Orden de Compra')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
     <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index') }}">Órdenes de Compra</a></li>
-    <li class="breadcrumb-item active">OC #{{ $purchaseOrder->id }}</li>
+    <li class="breadcrumb-item active">OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}</li>
 @endsection
 
 @section('content')
@@ -84,8 +84,9 @@
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div>
                         <h5 class="mb-1 fw-semibold">
-                            OC #{{ $purchaseOrder->id }} —
-                            {{ $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? '—' }}
+                            <i class="ri-file-list-3-line me-1 text-primary"></i>
+                            Orden de Compra
+                            <span class="text-primary">Folio #{{ $purchaseOrder->folio ?? '—' }}</span>
                         </h5>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">{{ $tipoLabel }}</span>
@@ -100,12 +101,16 @@
                             @endif
                         </div>
                         @if ($purchaseOrder->project || $purchaseOrder->site)
-                            <p class="card-text text-muted fs-13 mb-1">
+                            <p class="card-text text-muted fs-13 mb-0 mt-1">
                                 @if ($purchaseOrder->project)<span><i class="ri-building-2-line me-1"></i>{{ $purchaseOrder->project }}</span>@endif
                                 @if ($purchaseOrder->project && $purchaseOrder->site) &nbsp;·&nbsp; @endif
                                 @if ($purchaseOrder->site)<span><i class="ri-tools-line me-1"></i>{{ $purchaseOrder->site }}</span>@endif
                             </p>
                         @endif
+
+                        <div class="mt-2">
+                            @include('purchase_orders.partials._process_map')
+                        </div>
                     </div>
                     <div class="text-end">
                         <div class="fs-22 fw-semibold text-primary">
@@ -121,14 +126,24 @@
                             <small class="text-muted">{{ $progressTotal }}% cubierto</small>
                         </div>
                     </div>
-                    <div>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="{{ route('purchase_orders.pdf', $purchaseOrder) }}"
+                           class="btn btn-sm btn-outline-danger" target="_blank">
+                            <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
+                        </a>
                         @hasanyrole('admin|orders')
-                        <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary me-1">
+                        @if ($purchaseOrder->status !== 'autorizada')
+                        <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
                         </a>
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
-                            <i class="ri-add-line me-1"></i> Agregar hito
+                            <i class="ri-add-line me-1"></i> Agregar condición de pago
                         </button>
+                        @else
+                        <span class="badge bg-success-subtle text-success border border-success py-2 px-3 fs-12">
+                            <i class="ri-lock-line me-1"></i>OC Autorizada — Solo lectura
+                        </span>
+                        @endif
                         @endhasanyrole
                     </div>
                 </div>
@@ -137,7 +152,261 @@
     </div>
 </div>
 
-{{-- ── HITOS ── --}}
+{{-- ── CONCEPTOS ── --}}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center py-3">
+                <h5 class="card-title mb-0">
+                    <i class="ri-list-check me-1 text-primary"></i> Conceptos
+                    <span id="oc_items_badge" class="badge bg-primary-subtle text-primary ms-1 fs-12">{{ $purchaseOrder->items->count() }}</span>
+                </h5>
+                @hasanyrole('admin|orders')
+                @if ($purchaseOrder->status !== 'autorizada')
+                <button type="button" class="btn btn-sm btn-primary" id="btn_toggle_add_concept">
+                    <i class="ri-add-line me-1"></i> Agregar concepto
+                </button>
+                @endif
+                @endhasanyrole
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    @php $ocLocked = $purchaseOrder->status === 'autorizada'; @endphp
+
+                    <table class="table align-middle table-hover mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th class="text-muted fs-12">#</th>
+                                <th>Concepto</th>
+                                <th>Unidad</th>
+                                <th class="text-end">Cantidad</th>
+                                <th class="text-end">P/U</th>
+                                <th class="text-end fw-semibold">Importe</th>
+                                <th>Fecha Entrega</th>
+                                @if (!$ocLocked)
+                                <th></th>
+                                @endif
+                            </tr>
+                        </thead>
+                        
+                        <tbody id="oc_items_tbody">
+                            @forelse ($purchaseOrder->items as $idx => $item)
+                                <tr class="oc-item-row" data-item-id="{{ $item->id }}">
+                                    <td class="oc-row-num text-muted fs-12">{{ $idx + 1 }}</td>
+                                    <td>{{ $item->description }}</td>
+                                    <td class="fs-12">{{ $item->unit }}</td>
+                                    <td class="text-end" style="min-width:120px;">
+                                        @hasanyrole('admin|orders')
+                                        @if (!$ocLocked)
+                                        <input type="number" step="0.01" min="0"
+                                               class="form-control form-control-sm text-end oc-qty-input"
+                                               style="max-width:100px;display:inline-block;"
+                                               value="{{ $item->quantity }}"
+                                               data-item-id="{{ $item->id }}"
+                                               data-field="quantity"
+                                               data-original="{{ $item->quantity }}">
+                                        @else
+                                        {{ number_format($item->quantity, 2) }}
+                                        @endif
+                                        @else
+                                        {{ number_format($item->quantity, 2) }}
+                                        @endhasanyrole
+                                    </td>
+                                    <td class="text-end" style="min-width:140px;">
+                                        @hasanyrole('admin|orders')
+                                        @if (!$ocLocked)
+                                        <div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;">
+                                            <span class="input-group-text py-0 px-2">$</span>
+                                            <input type="number" step="0.01" min="0"
+                                                   class="form-control form-control-sm text-end oc-qty-input"
+                                                   value="{{ $item->unit_price }}"
+                                                   data-item-id="{{ $item->id }}"
+                                                   data-field="unit_price"
+                                                   data-original="{{ $item->unit_price }}">
+                                        </div>
+                                        @else
+                                        ${{ number_format($item->unit_price, 2) }}
+                                        @endif
+                                        @else
+                                        ${{ number_format($item->unit_price, 2) }}
+                                        @endhasanyrole
+                                    </td>
+                                    <td class="text-end fw-semibold oc-importe">
+                                        ${{ number_format($item->total, 2) }}
+                                    </td>
+                                    <td style="min-width:150px;">
+                                        @hasanyrole('admin|orders')
+                                        @if (!$ocLocked)
+                                        <input type="text" maxlength="80"
+                                               class="form-control form-control-sm oc-delivery-input"
+                                               value="{{ $item->delivery_date ?? '' }}"
+                                               data-item-id="{{ $item->id }}"
+                                               data-original="{{ $item->delivery_date ?? '' }}"
+                                               placeholder="Ej. 4 SEMANAS">
+                                        @else
+                                        {{ $item->delivery_date ?? '—' }}
+                                        @endif
+                                        @else
+                                        {{ $item->delivery_date ?? '—' }}
+                                        @endhasanyrole
+                                    </td>
+                                    @if (!$ocLocked)
+                                    <td>
+                                        @hasanyrole('admin|orders')
+                                        <button type="button" class="btn btn-soft-danger btn-sm oc-item-delete"
+                                                data-item-id="{{ $item->id }}" title="Eliminar">
+                                            <i class="ri-delete-bin-line"></i>
+                                        </button>
+                                        @endhasanyrole
+                                    </td>
+                                    @endif
+                                </tr>
+                            @empty
+                                <tr id="oc_empty_row">
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>
+                                        Sin conceptos registrados.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                {{-- Tabla de totales --}}
+                <div class="d-flex justify-content-end px-3 py-2 border-top">
+                    <table class="table table-sm mb-0" style="width:280px;">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted fs-12">Subtotal</td>
+                                <td class="text-end fw-medium" id="oc_subtotal">${{ number_format($purchaseOrder->subtotal, 2) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted fs-12">IVA (16%)</td>
+                                <td class="text-end fw-medium" id="oc_iva">${{ number_format($purchaseOrder->iva, 2) }}</td>
+                            </tr>
+                            <tr class="border-top">
+                                <td class="fw-bold fs-14">Total</td>
+                                <td class="text-end fw-bold fs-14 text-primary" id="oc_total">${{ number_format($purchaseOrder->total_with_iva, 2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {{-- Panel agregar concepto --}}
+                @hasanyrole('admin|orders')
+                @if ($purchaseOrder->status !== 'autorizada')
+                <div id="oc_add_panel" class="border-top px-3 py-3" style="display:none;">
+                    <p class="text-muted fs-12 fw-medium mb-2">
+                        <i class="ri-add-circle-line me-1 text-primary"></i>Nuevo concepto
+                    </p>
+
+                    {{-- Estado búsqueda --}}
+                    <div id="oc_state_search">
+                        <div class="position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="ri-search-line text-muted"></i>
+                                </span>
+                                <input type="text" id="oc_search_input"
+                                       class="form-control border-start-0 ps-0"
+                                       placeholder="Buscar concepto por código o descripción…"
+                                       autocomplete="off">
+                            </div>
+                            <ul id="oc_search_dropdown"
+                                class="list-group position-absolute w-100 shadow d-none"
+                                style="top:100%;left:0;max-height:260px;overflow-y:auto;z-index:1050;"></ul>
+                        </div>
+                        <div class="mt-2 d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="oc_btn_add_manual">
+                                <i class="ri-pencil-line me-1"></i>Ingresar manualmente
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Estado concepto seleccionado --}}
+                    <div id="oc_state_selected" class="d-none">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-success fs-13 fw-medium">
+                                <i class="ri-checkbox-circle-line me-1"></i>Concepto seleccionado
+                            </span>
+                            <button type="button" id="oc_btn_change" class="btn btn-link btn-sm p-0 text-muted text-decoration-none">
+                                <i class="ri-close-line me-1"></i>Cambiar
+                            </button>
+                        </div>
+                        <div class="rounded-2 border bg-primary-subtle p-3 mb-3">
+                            <p class="fw-bold mb-1" id="oc_preview_code"></p>
+                            <p class="mb-1 text-body-secondary" id="oc_preview_desc"></p>
+                            <span class="badge bg-white text-dark border" id="oc_preview_unit"></span>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label fs-12 fw-medium mb-1">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" id="oc_inp_qty" class="form-control" step="0.01" min="0.01" placeholder="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
+                                <input type="number" id="oc_inp_price" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
+                                <input type="text" id="oc_inp_delivery" class="form-control" maxlength="80" placeholder="Ej. 4 SEMANAS">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div id="oc_add_error" class="text-danger fs-12 mb-2 d-none"></div>
+                                <button type="button" id="oc_btn_save_item" class="btn btn-primary w-100">
+                                    <i class="ri-add-line me-1"></i>Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Estado manual (sin concepto del catálogo) --}}
+                    <div id="oc_state_manual" class="d-none">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-muted fs-13 fw-medium">
+                                <i class="ri-pencil-line me-1"></i>Concepto libre (sin catálogo)
+                            </span>
+                            <button type="button" id="oc_btn_back_search" class="btn btn-link btn-sm p-0 text-muted text-decoration-none">
+                                <i class="ri-arrow-left-line me-1"></i>Buscar catálogo
+                            </button>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fs-12 fw-medium mb-1">Descripción <span class="text-danger">*</span></label>
+                                <input type="text" id="oc_inp_manual_desc" class="form-control" maxlength="255" placeholder="Descripción del concepto">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fs-12 fw-medium mb-1">Unidad <span class="text-danger">*</span></label>
+                                <input type="text" id="oc_inp_manual_unit" class="form-control" maxlength="50" placeholder="PZA">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fs-12 fw-medium mb-1">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" id="oc_inp_manual_qty" class="form-control" step="0.01" min="0.01" placeholder="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
+                                <input type="number" id="oc_inp_manual_price" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
+                                <input type="text" id="oc_inp_manual_delivery" class="form-control" maxlength="80" placeholder="4 SEMANAS">
+                            </div>
+                        </div>
+                        <button type="button" id="oc_btn_save_manual" class="btn btn-primary">
+                            <i class="ri-add-line me-1"></i>Agregar concepto
+                        </button>
+                    </div>
+                </div>
+                @endif
+                @endhasanyrole
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── HITOS (CONDICIONES DE PAGO) ── --}}
 <div class="row" id="hitos-container">
 
     @forelse ($purchaseOrder->milestones as $milestone)
@@ -555,6 +824,56 @@
     </div>
 </div>
 
+{{-- ── OBSERVACIONES ── --}}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom">
+                <h5 class="card-title mb-0"><i class="ri-chat-3-line me-1 text-primary"></i> Observaciones</h5>
+            </div>
+            <div class="card-body" id="oc_obs_container">
+                @forelse ($purchaseOrder->observations ?? [] as $note)
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="avatar-sm flex-shrink-0">
+                            <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
+                                {{ strtoupper(substr($note['user_name'] ?? '?', 0, 1)) }}
+                            </span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
+                                <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
+                            </div>
+                            <p class="mb-0 text-body-secondary fs-13">{{ $note['text'] }}</p>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                @empty
+                    <p class="text-muted fs-13 mb-3" id="oc_obs_empty">Sin observaciones registradas.</p>
+                @endforelse
+            </div>
+            @hasanyrole('admin|orders')
+            <div class="card-footer bg-transparent">
+                <form action="{{ route('purchase_orders.notes.store', $purchaseOrder) }}" method="POST">
+                    @csrf
+                    <div class="mb-2">
+                        <textarea name="text" rows="3"
+                                  class="form-control @error('text') is-invalid @enderror"
+                                  placeholder="Escribe una observación…" required>{{ old('text') }}</textarea>
+                        @error('text') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="ri-send-plane-line me-1"></i>Agregar observación
+                        </button>
+                    </div>
+                </form>
+            </div>
+            @endhasanyrole
+        </div>
+    </div>
+</div>
+
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($purchaseOrder->milestones as $milestone)
     @php
@@ -757,6 +1076,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
+@if ($purchaseOrder->status !== 'autorizada')
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -809,14 +1129,402 @@
         </div>
     </div>
 </div>
+@endif
+
+@push('styles')
+<style>
+.oc-qty-input,.oc-delivery-input {
+    border-color: var(--bs-border-color);
+    transition: border-color .15s, box-shadow .15s;
+}
+.oc-qty-input:focus,.oc-delivery-input:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb),.15);
+}
+.oc-qty-input.is-saved,.oc-delivery-input.is-saved {
+    border-color: var(--bs-success) !important;
+    box-shadow: 0 0 0 .2rem rgba(var(--bs-success-rgb),.15);
+}
+.oc-qty-input.is-error { border-color: var(--bs-danger) !important; }
+.oc-qty-input::-webkit-outer-spin-button,
+.oc-qty-input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.oc-qty-input[type=number] { -moz-appearance:textfield; }
+@keyframes oc-flash {
+    0%   { background-color: rgba(var(--bs-primary-rgb), .12); }
+    100% { background-color: transparent; }
+}
+.oc-item-new { animation: oc-flash .9s ease-out forwards; }
+</style>
+@endpush
 
 @endsection
 
 @push('scripts')
 <script>
+(function () {
+    var csrf     = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var tbody    = document.getElementById('oc_items_tbody');
+    var badge    = document.getElementById('oc_items_badge');
+    var addPanel = document.getElementById('oc_add_panel');
+    var btnToggle = document.getElementById('btn_toggle_add_concept');
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+    function fmtMoney(n) { return parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    function escHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str != null ? String(str) : ''));
+        return d.innerHTML;
+    }
+
+    function renumber() {
+        tbody.querySelectorAll('tr.oc-item-row').forEach(function (row, i) {
+            var td = row.querySelector('.oc-row-num');
+            if (td) td.textContent = i + 1;
+        });
+    }
+
+    function updateBadge() {
+        var n = tbody.querySelectorAll('tr.oc-item-row').length;
+        if (badge) badge.textContent = n;
+    }
+
+    function updateTotals(data) {
+        var el = function (id) { return document.getElementById(id); };
+        if (data.subtotal !== undefined && el('oc_subtotal')) el('oc_subtotal').textContent = '$' + fmtMoney(data.subtotal);
+        if (data.iva      !== undefined && el('oc_iva'))      el('oc_iva').textContent      = '$' + fmtMoney(data.iva);
+        var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
+        if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
+    }
+
+    function removeEmptyRow() {
+        var er = document.getElementById('oc_empty_row');
+        if (er) er.remove();
+    }
+
+    function addEmptyRowIfNeeded() {
+        if (tbody.querySelectorAll('tr.oc-item-row').length === 0) {
+            var tr = document.createElement('tr');
+            tr.id = 'oc_empty_row';
+            tr.innerHTML = '<td colspan="8" class="text-center text-muted py-4">'
+                + '<i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>'
+                + 'Sin conceptos registrados.</td>';
+            tbody.appendChild(tr);
+        }
+    }
+
+    // ── Toggle panel agregar ──────────────────────────────────────────────
+    if (btnToggle && addPanel) {
+        btnToggle.addEventListener('click', function () {
+            addPanel.style.display = addPanel.style.display === 'none' ? '' : 'none';
+        });
+    }
+
+    // ── Guardar cantidad/precio inline ───────────────────────────────────
+    var saveTimers = {};
+
+    function debounceSave(input) {
+        clearTimeout(saveTimers[input.dataset.itemId + input.dataset.field]);
+        saveTimers[input.dataset.itemId + input.dataset.field] = setTimeout(function () { saveField(input); }, 600);
+    }
+
+    function saveField(input) {
+        var val = parseFloat(input.value);
+        if (isNaN(val) || val < 0) { input.value = input.dataset.original; return; }
+        if (Math.abs(val - parseFloat(input.dataset.original)) < 0.0001) return;
+
+        var itemId = input.dataset.itemId;
+        var field  = input.dataset.field;
+        var url    = '{{ route("purchase_orders.items.store", $purchaseOrder) }}/' + itemId;
+
+        var body = {};
+        body[field] = val;
+        input.disabled = true;
+
+        fetch(url, { method: 'PATCH', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify(body) })
+        .then(function (r) { if (!r.ok) throw r; return r.json(); })
+        .then(function (data) {
+            input.dataset.original = val;
+            input.disabled = false;
+            input.classList.add('is-saved');
+            setTimeout(function () { input.classList.remove('is-saved'); }, 1200);
+            // actualizar importe de la fila
+            var row = input.closest('tr.oc-item-row');
+            if (row) {
+                var qty   = parseFloat(row.querySelector('[data-field="quantity"]')?.value || 0);
+                var price = parseFloat(row.querySelector('[data-field="unit_price"]')?.value || 0);
+                var imp   = row.querySelector('.oc-importe');
+                if (imp) imp.textContent = '$' + fmtMoney(qty * price);
+            }
+            updateTotals(data);
+            Toastify({ text: 'Valor guardado', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();
+        })
+        .catch(function () {
+            input.value = input.dataset.original;
+            input.disabled = false;
+            input.classList.add('is-error');
+            setTimeout(function () { input.classList.remove('is-error'); }, 2000);
+            Toastify({ text: 'Error al guardar. Intenta de nuevo.', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
+        });
+    }
+
+    // Guardar fecha entrega
+    var deliveryTimers = {};
+    function saveDelivery(input) {
+        var val  = input.value.trim();
+        var orig = input.dataset.original || '';
+        if (val === orig) return;
+
+        var itemId = input.dataset.itemId;
+        var url    = '{{ route("purchase_orders.items.store", $purchaseOrder) }}/' + itemId;
+
+        input.disabled = true;
+
+        fetch(url, { method: 'PATCH', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify({ delivery_date: val }) })
+        .then(function (r) { if (!r.ok) throw r; return r.json(); })
+        .then(function () {
+            input.dataset.original = val;
+            input.disabled = false;
+            input.classList.add('is-saved');
+            setTimeout(function () { input.classList.remove('is-saved'); }, 1200);
+            Toastify({ text: 'Fecha de entrega guardada', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();
+        })
+        .catch(function () {
+            input.value = orig;
+            input.disabled = false;
+            Toastify({ text: 'Error al guardar fecha', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
+        });
+    }
+
+    if (tbody) {
+        tbody.addEventListener('input', function (e) {
+            var qi = e.target.closest('.oc-qty-input');
+            if (qi) debounceSave(qi);
+        });
+        tbody.addEventListener('blur', function (e) {
+            var qi = e.target.closest('.oc-qty-input');
+            if (qi) saveField(qi);
+            var di = e.target.closest('.oc-delivery-input');
+            if (di) saveDelivery(di);
+        }, true);
+        tbody.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            var qi = e.target.closest('.oc-qty-input, .oc-delivery-input');
+            if (qi) { e.preventDefault(); qi.blur(); }
+        });
+    }
+
+    // ── Eliminar concepto ─────────────────────────────────────────────────
+    if (tbody) {
+        tbody.addEventListener('click', function (e) {
+            var btn = e.target.closest('.oc-item-delete');
+            if (!btn) return;
+            if (!confirm('¿Eliminar este concepto?')) return;
+            btn.disabled = true;
+            var itemId = btn.dataset.itemId;
+            var url    = '{{ route("purchase_orders.items.store", $purchaseOrder) }}/' + itemId;
+            fetch(url, { method: 'DELETE', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf } })
+            .then(function (r) { if (!r.ok) throw r; return r.json(); })
+            .then(function (data) {
+                var tr = btn.closest('tr.oc-item-row');
+                tr.style.transition = 'opacity .25s';
+                tr.style.opacity = '0';
+                setTimeout(function () {
+                    tr.remove();
+                    renumber();
+                    updateBadge();
+                    addEmptyRowIfNeeded();
+                    updateTotals(data);
+                }, 280);
+            })
+            .catch(function () {
+                btn.disabled = false;
+                Toastify({ text: 'Error al eliminar concepto', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
+            });
+        });
+    }
+
+    // ── Agregar concepto: búsqueda ────────────────────────────────────────
+    var searchInput    = document.getElementById('oc_search_input');
+    var searchDropdown = document.getElementById('oc_search_dropdown');
+    var stateSearch    = document.getElementById('oc_state_search');
+    var stateSelected  = document.getElementById('oc_state_selected');
+    var stateManual    = document.getElementById('oc_state_manual');
+    var selectedData   = {};
+
+    if (searchInput) {
+        var searchTimer;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(searchTimer);
+            var q = this.value.trim();
+            if (q.length < 2) { searchDropdown.classList.add('d-none'); return; }
+            searchTimer = setTimeout(function () {
+                fetch('{{ route("concepts.search") }}' + '?q=' + encodeURIComponent(q), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (list) {
+                    searchDropdown.innerHTML = '';
+                    if (!list.length) {
+                        searchDropdown.innerHTML =
+                            '<li class="list-group-item text-center text-muted py-3 fs-13">'
+                            + '<i class="ri-search-line me-1"></i>Sin resultados para «' + escHtml(q) + '»</li>';
+                        searchDropdown.classList.remove('d-none');
+                        return;
+                    }
+                    list.forEach(function (c) {
+                        var li = document.createElement('li');
+                        li.className = 'list-group-item list-group-item-action py-3 px-3';
+                        li.style.cursor = 'pointer';
+                        li.innerHTML =
+                            '<div class="d-flex justify-content-between align-items-start gap-2">'
+                            + '<div class="flex-grow-1 overflow-hidden">'
+                            + '<span class="fw-bold d-block">' + escHtml(c.code) + '</span>'
+                            + '<span class="text-muted fs-13 d-block text-truncate">' + escHtml(c.description) + '</span>'
+                            + '</div>'
+                            + '<span class="badge bg-light text-dark border flex-shrink-0 align-self-center">'
+                            + escHtml(c.unit) + '</span>'
+                            + '</div>';
+                        // pointerdown evita que el input pierda foco antes del click en móvil
+                        li.addEventListener('pointerdown', function (e) {
+                            e.preventDefault();
+                            selectConcept(c);
+                            searchDropdown.classList.add('d-none');
+                        });
+                        searchDropdown.appendChild(li);
+                    });
+                    searchDropdown.classList.remove('d-none');
+                });
+
+            }, 350);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!searchDropdown.contains(e.target) && e.target !== searchInput) {
+                searchDropdown.classList.add('d-none');
+            }
+        });
+    }
+
+    function selectConcept(c) {
+        selectedData = c;
+        document.getElementById('oc_preview_code').textContent = c.code || '';
+        document.getElementById('oc_preview_desc').textContent = c.description || '';
+        document.getElementById('oc_preview_unit').textContent = c.unit || '';
+        document.getElementById('oc_inp_price').value = c.unit_price || '';
+        stateSearch.classList.add('d-none');
+        stateSelected.classList.remove('d-none');
+        if (stateManual) stateManual.classList.add('d-none');
+    }
+
+    var btnChange = document.getElementById('oc_btn_change');
+    if (btnChange) btnChange.addEventListener('click', function () {
+        stateSelected.classList.add('d-none');
+        stateSearch.classList.remove('d-none');
+        if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+        selectedData = {};
+    });
+
+    var btnManual = document.getElementById('oc_btn_add_manual');
+    if (btnManual) btnManual.addEventListener('click', function () {
+        stateSearch.classList.add('d-none');
+        if (stateManual) stateManual.classList.remove('d-none');
+    });
+
+    var btnBackSearch = document.getElementById('oc_btn_back_search');
+    if (btnBackSearch) btnBackSearch.addEventListener('click', function () {
+        if (stateManual) stateManual.classList.add('d-none');
+        stateSearch.classList.remove('d-none');
+    });
+
+    // ── Guardar concepto seleccionado ─────────────────────────────────────
+    function addItem(payload) {
+        var url = '{{ route("purchase_orders.items.store", $purchaseOrder) }}';
+        var fd  = new FormData();
+        fd.append('_token', csrf);
+        Object.keys(payload).forEach(function (k) { fd.append(k, payload[k]); });
+
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: fd
+        })
+        .then(function (r) { if (!r.ok) throw r; return r.json(); })
+        .then(function (data) {
+            removeEmptyRow();
+            var tr = document.createElement('tr');
+            tr.className      = 'oc-item-row oc-item-new';
+            tr.dataset.itemId = data.id;
+            tr.innerHTML =
+                '<td class="oc-row-num text-muted fs-12">' + (tbody.querySelectorAll('tr.oc-item-row').length) + '</td>'
+                + '<td>' + escHtml(data.description || '') + '</td>'
+                + '<td class="fs-12">' + escHtml(data.unit || '') + '</td>'
+                + '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(String(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(String(data.quantity)) + '"></td>'
+                + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end oc-qty-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
+                + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
+                + '<td><input type="text" maxlength="80" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_date || '') + '" placeholder="Ej. 4 SEMANAS"></td>'
+                + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>';
+            tbody.appendChild(tr);
+            updateBadge();
+            updateTotals(data);
+            Toastify({ text: 'Concepto agregado', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();
+        });
+    }
+
+    var btnSaveItem = document.getElementById('oc_btn_save_item');
+    if (btnSaveItem) btnSaveItem.addEventListener('click', function () {
+        var qty   = document.getElementById('oc_inp_qty').value;
+        var price = document.getElementById('oc_inp_price').value;
+        var del   = document.getElementById('oc_inp_delivery').value;
+        var errEl = document.getElementById('oc_add_error');
+        if (!qty || !price) { errEl.textContent = 'Cantidad y P/U son requeridos.'; errEl.classList.remove('d-none'); return; }
+        errEl.classList.add('d-none');
+        addItem({
+            concept_id:    selectedData.id || '',
+            description:   selectedData.description || '',
+            unit:          selectedData.unit || '',
+            quantity:      qty,
+            unit_price:    price,
+            delivery_date: del,
+        })
+        .then(function () {
+            stateSelected.classList.add('d-none');
+            stateSearch.classList.remove('d-none');
+            document.getElementById('oc_inp_qty').value = '';
+            document.getElementById('oc_inp_price').value = '';
+            document.getElementById('oc_inp_delivery').value = '';
+            if (searchInput) searchInput.value = '';
+            selectedData = {};
+        })
+        .catch(function () {
+            Toastify({ text: 'Error al agregar concepto', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
+        });
+    });
+
+    var btnSaveManual = document.getElementById('oc_btn_save_manual');
+    if (btnSaveManual) btnSaveManual.addEventListener('click', function () {
+        var desc  = document.getElementById('oc_inp_manual_desc').value.trim();
+        var unit  = document.getElementById('oc_inp_manual_unit').value.trim();
+        var qty   = document.getElementById('oc_inp_manual_qty').value;
+        var price = document.getElementById('oc_inp_manual_price').value;
+        var del   = document.getElementById('oc_inp_manual_delivery').value;
+        if (!desc || !unit || !qty || !price) { alert('Descripción, Unidad, Cantidad y P/U son requeridos.'); return; }
+        addItem({ description: desc, unit: unit, quantity: qty, unit_price: price, delivery_date: del })
+        .then(function () {
+            stateManual.classList.add('d-none');
+            stateSearch.classList.remove('d-none');
+            ['oc_inp_manual_desc','oc_inp_manual_unit','oc_inp_manual_qty','oc_inp_manual_price','oc_inp_manual_delivery']
+                .forEach(function (id) { document.getElementById(id).value = ''; });
+        })
+        .catch(function () {
+            Toastify({ text: 'Error al agregar concepto', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
+        });
+    });
+})();
+
 $(function () {
     // Abrir modal de hito si hay errores de validación relacionados
-    @if ($errors->hasBag('default') && old('purchase_order_id'))
+    @if ($errors->hasBag('default') && old('purchase_order_id') && $purchaseOrder->status !== 'autorizada')
         var modal = new bootstrap.Modal(document.getElementById('modalCreateMilestone'));
         modal.show();
     @endif

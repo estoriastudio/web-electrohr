@@ -277,7 +277,7 @@
                                 <tr>
                                     <td>
                                         <a href="{{ route('purchase_orders.show', $order) }}" class="fw-semibold text-dark">
-                                            OC #{{ $order->id }}
+                                            #{{ $order->folio }}
                                         </a>
                                     </td>
                                     <td>

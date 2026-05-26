@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Services\NotificationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -159,24 +160,58 @@ class PurchaseRequestController extends Controller
     public function storeItem(Request $request, PurchaseRequest $purchaseRequest)
     {
         $data = $request->validate([
-            'code'              => 'required|string|max:100',
-            'description'       => 'required|string|max:500',
-            'unit'              => 'required|string|max:50',
-            'requested_quantity'=> 'required|numeric|min:0.01',
-            'purchase_quantity' => 'required|numeric|min:0',
+            'concept_id'         => 'nullable|exists:concepts,id',
+            'code'               => 'required|string|max:100',
+            'description'        => 'required|string|max:500',
+            'unit'               => 'required|string|max:50',
+            'requested_quantity' => 'required|integer|min:1',
+            'purchase_quantity'  => 'required|integer|min:0',
         ]);
 
         $data['purchase_request_id'] = $purchaseRequest->id;
 
-        PurchaseRequestItem::create($data);
+        $item = PurchaseRequestItem::create($data);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'id'                 => $item->id,
+                'code'               => $item->code,
+                'description'        => $item->description,
+                'unit'               => $item->unit,
+                'requested_quantity' => $item->requested_quantity,
+                'purchase_quantity'  => $item->purchase_quantity,
+            ]);
+        }
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
                          ->with('success', 'Concepto agregado.');
     }
 
-    public function destroyItem(PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
+    public function updateItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
+    {
+        $data = $request->validate([
+            'purchase_quantity' => 'required|integer|min:0',
+        ]);
+
+        $item->update($data);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'id'                => $item->id,
+                'purchase_quantity' => $item->purchase_quantity,
+            ]);
+        }
+
+        return back()->with('success', 'Cantidad actualizada.');
+    }
+
+    public function destroyItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
         $item->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
                          ->with('success', 'Concepto eliminado.');
@@ -200,5 +235,79 @@ class PurchaseRequestController extends Controller
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
                          ->with('success', 'Observación agregada.');
+    }
+
+    /**
+     * Devuelve los ítems de una SOLCOM en JSON para precarga en el modal de creación de OC.
+     */
+    public function itemsJson(PurchaseRequest $purchaseRequest): \Illuminate\Http\JsonResponse
+    {
+        $purchaseRequest->load('items.concept');
+
+        $items = $purchaseRequest->items->map(function ($item) {
+            return [
+                'concept_id'   => $item->concept_id,
+                'description'  => $item->description,
+                'unit'         => $item->unit,
+                'quantity'     => (float) $item->purchase_quantity,
+                'unit_price'   => (float) ($item->concept?->unit_price ?? 0),
+            ];
+        });
+
+        return response()->json([
+            'id'    => $purchaseRequest->id,
+            'folio' => $purchaseRequest->folio,
+            'items' => $items,
+        ]);
+    }
+
+    /**
+     * Busca una SOLCOM por número de folio y devuelve sus ítems en JSON.
+     * GET /solicitudes-compra/buscar-por-folio?folio=X
+     */
+    public function itemsJsonByFolio(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $folio = $request->query('folio');
+
+        if (!$folio || !is_numeric($folio)) {
+            return response()->json(['error' => 'Folio requerido'], 422);
+        }
+
+        $pr = PurchaseRequest::where('folio', (int) $folio)->first();
+
+        if (!$pr) {
+            return response()->json(['error' => 'SOLCOM no encontrada'], 404);
+        }
+
+        $pr->load('items.concept');
+
+        $items = $pr->items->map(function ($item) {
+            return [
+                'concept_id'   => $item->concept_id,
+                'description'  => $item->description,
+                'unit'         => $item->unit,
+                'quantity'     => (float) $item->purchase_quantity,
+                'unit_price'   => (float) ($item->concept?->unit_price ?? 0),
+            ];
+        });
+
+        return response()->json([
+            'id'    => $pr->id,
+            'folio' => $pr->folio,
+            'items' => $items,
+        ]);
+    }
+
+    // PDF
+    public function downloadPdf(PurchaseRequest $purchaseRequest): \Illuminate\Http\Response
+    {
+        $purchaseRequest->load(['project', 'projectWork', 'requestedBy', 'items']);
+
+        $pdf = Pdf::loadView('purchase_requests.pdf', compact('purchaseRequest'))
+            ->setPaper('letter', 'portrait');
+
+        $filename = 'SOLCOM-' . ($purchaseRequest->folio ?? $purchaseRequest->id) . '.pdf';
+
+        return $pdf->download($filename);
     }
 }

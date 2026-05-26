@@ -163,7 +163,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Órdenes de Compra — lectura: admin, payments, orders
         Route::middleware('role:admin|payments|orders')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
+            Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
+            Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
         });
 
         // Órdenes de Compra — escritura: admin, orders
@@ -174,6 +176,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
             Route::patch('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update']);
             Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase_orders.destroy');
+            // Ítems (conceptos)
+            Route::post('/ordenes-de-compra/{purchase_order}/items', [PurchaseOrderController::class, 'storeItem'])->name('purchase_orders.items.store');
+            Route::patch('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'updateItem'])->name('purchase_orders.items.update');
+            Route::delete('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'destroyItem'])->name('purchase_orders.items.destroy');
+            // Observaciones
+            Route::post('/ordenes-de-compra/{purchase_order}/notes', [PurchaseOrderController::class, 'storeObservation'])->name('purchase_orders.notes.store');
         });
 
         // Hitos — lectura: admin, payments, orders
@@ -255,10 +263,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/solicitudes-material/{materialRequest}/notes',
                         [MaterialRequestController::class, 'storeObservation'])
                  ->name('material_requests.notes.store');
+
+            Route::get('/solicitudes-material/{materialRequest}/pdf',
+                       [MaterialRequestController::class, 'downloadPdf'])
+                 ->name('material_requests.pdf');
         });
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
         Route::middleware('role:admin|orders')->group(function () {
+            // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
+            Route::get('/solicitudes-compra/buscar-por-folio',
+                       [PurchaseRequestController::class, 'itemsJsonByFolio'])
+                 ->name('purchase_requests.items_json_by_folio');
+
             Route::resource('/solicitudes-compra', PurchaseRequestController::class, [
                 'names'      => [
                     'index'   => 'purchase_requests.index',
@@ -280,9 +297,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
                           [PurchaseRequestController::class, 'destroyItem'])
                  ->name('purchase_requests.items.destroy');
 
+            Route::patch('/solicitudes-compra/{purchaseRequest}/items/{item}',
+                         [PurchaseRequestController::class, 'updateItem'])
+                 ->name('purchase_requests.items.update');
+
             Route::post('/solicitudes-compra/{purchaseRequest}/notes',
                         [PurchaseRequestController::class, 'storeObservation'])
                  ->name('purchase_requests.notes.store');
+
+            // JSON de ítems para precarga en modal de creación de OC
+            Route::get('/solicitudes-compra/{purchaseRequest}/items-json',
+                       [PurchaseRequestController::class, 'itemsJson'])
+                 ->name('purchase_requests.items_json');
+
+            Route::get('/solicitudes-compra/{purchaseRequest}/pdf',
+                       [PurchaseRequestController::class, 'downloadPdf'])
+                 ->name('purchase_requests.pdf');
         });
     });
 });

@@ -28,4 +28,9 @@ class Concept extends Model
     {
         return $this->hasMany(PurchaseRequestItem::class);
     }
+
+    public function purchaseOrderItems(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderItem::class);
+    }
 }
