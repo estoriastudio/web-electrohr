@@ -63,26 +63,26 @@
                             $${data.amount}<span class="card-amount-currency">${data.currency}</span>
                         </div>
                     </div>
+                    ${data.due_date_long ? `<div class="card-due-date">${urgencyLabel(data.urgency)}<span><i class="ri-calendar-event-line"></i> ${data.due_date_long}</span></div>` : ''}
                 </div>
                 <div class="card-body">
                     <div class="card-supplier-block">
                         <div class="card-supplier-label"><i class="ri-building-line"></i> Proveedor</div>
                         <div class="card-supplier">${data.supplier}</div>
                     </div>
+                    ${data.project_name ? `<div class="card-supplier-block">
+                        <div class="card-supplier-label"><i class="ri-map-pin-2-line"></i> Proyecto / Obra</div>
+                        <div class="card-supplier">${data.project_name}${data.work_name ? '<span class="card-work-name">' + data.work_name + '</span>' : ''}</div>
+                    </div>` : ''}
                     <div class="card-meta">
                         <div class="card-meta-item">
                             <i class="ri-file-list-3-line"></i>
-                            <span>Orden de Compra <strong>#${data.po_id}</strong>${data.po_project ? ' — ' + data.po_project : ''}</span>
+                            <span>OC <strong>#${data.po_id}</strong></span>
                         </div>
                         <div class="card-meta-item">
                             <i class="ri-price-tag-3-line"></i>
                             <span>${data.milestone_type} · ${data.folio}</span>
                         </div>
-                        ${data.due_date ? `
-                        <div class="card-meta-item">
-                            <i class="ri-calendar-event-line"></i>
-                            <span>Vence: ${data.due_date} ${urgencyLabel(data.urgency)}</span>
-                        </div>` : ''}
                     </div>
                 </div>
             </div>
