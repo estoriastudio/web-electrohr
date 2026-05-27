@@ -21,7 +21,6 @@ La configuración recomendada es LAMP Stack.
 * MySQL 
 * PHP - 8.4
 
-
 ### Instalar Git, Unzip.
 
 ```

@@ -5,11 +5,10 @@
                 <th>Urgencia</th>
                 <th>Folio</th>
                 <th>Proveedor</th>
-                <th>Orden de Compra</th>
+                <th>Proyecto / Obra</th>
                 <th>Hito</th>
                 <th>Monto</th>
-                <th>Fecha pago</th>
-                <th>Venc. Hito</th>
+                <th>Pago / Vencimiento</th>
                 <th>Referencia</th>
                 <th>Estatus</th>
                 <th>Acciones</th>
@@ -42,17 +41,26 @@
                             <span class="text-muted fs-12">—</span>
                         @endif
                     </td>
-                    <td class="fw-semibold">{{ $payment->folio }}</td>
+                    <td class="fw-semibold">
+                        {{ $payment->folio }} <br>
+                        <a href="{{ route('purchase_orders.show', $order) }}" class="badge bg-light text-secondary border d-inline-flex align-items-center gap-1 mt-1 text-decoration-none fw-normal fs-11">
+                            <i class="ri-file-list-3-line"></i> OC #{{ $order->folio }}
+                        </a>
+                    </td>
                     <td>
                         <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark fw-medium">
                             {{ $supplier->rfc_name ?? $supplier->commercial_name ?? '—' }}
                         </a>
                     </td>
                     <td>
-                        <a href="{{ route('purchase_orders.show', $order) }}" class="text-dark">
-                            OC #{{ $order->id }}
-                            <small class="text-muted d-block fs-11">{{ $order->currency }}</small>
-                        </a>
+                        @if ($order->projectRelation)
+                            <span class="fw-medium">{{ $order->projectRelation->name }}</span>
+                            @if ($order->workRelation)
+                                <small class="text-muted d-block fs-11">{{ $order->workRelation->name }}</small>
+                            @endif
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
                     </td>
                     <td>
                         Hito #{{ $milestone->id }}
@@ -60,16 +68,29 @@
                             {{ $milestone->type === 'anticipo' ? 'Anticipo' : 'Regular' }}
                         </small>
                     </td>
-                    <td class="fw-semibold">{{ number_format($payment->amount, 2) }}</td>
-                    <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
+                    <td class="fw-semibold">
+                        <span class="d-flex align-items-center gap-1">
+                            $
+                            {{ number_format($payment->amount, 2) }}
+                        </span>
+                        <small class="badge bg-secondary-subtle text-secondary fs-10 mt-1">{{ $order->currency }}</small>
+                    </td>
                     <td>
-                        @if ($milestone->due_date)
-                            <span class="{{ $milestone->due_date->isPast() && $payment->status !== 'pagado' ? 'text-danger fw-semibold' : '' }}">
-                                {{ $milestone->due_date->format('d/m/Y') }}
+                        <div class="d-flex flex-column gap-1">
+                            <span class="d-flex align-items-center gap-1 fs-12">
+                                <i class="ri-calendar-check-line text-primary"></i>
+                                {{ $payment->payment_date->format('d/m/Y') }}
                             </span>
-                        @else
-                            <span class="text-muted">—</span>
-                        @endif
+                            @if ($milestone->due_date)
+                                @php $duePast = $milestone->due_date->isPast() && $payment->status !== 'pagado'; @endphp
+                                <span class="d-flex align-items-center gap-1 fs-12 {{ $duePast ? 'text-danger fw-semibold' : 'text-muted' }}">
+                                    <i class="ri-alarm-warning-line {{ $duePast ? 'text-danger' : 'text-muted' }}"></i>
+                                    {{ $milestone->due_date->format('d/m/Y') }}
+                                </span>
+                            @else
+                                <span class="text-muted fs-12">—</span>
+                            @endif
+                        </div>
                     </td>
                     <td>{{ $payment->reference_number ?? '—' }}</td>
                     <td>
@@ -127,7 +148,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="11" class="text-center text-muted py-5">
+                    <td colspan="10" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

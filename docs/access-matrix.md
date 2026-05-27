@@ -22,15 +22,15 @@
 
 | Acción | admin | payments | orders |
 |---|:---:|:---:|:---:|
-| Ver listado | ✅ | ❌ | ❌ |
-| Ver detalle | ✅ | ❌ | ❌ |
-| Crear proveedor | ✅ | ❌ | ❌ |
-| Editar proveedor | ✅ | ❌ | ❌ |
-| Eliminar proveedor | ✅ | ❌ | ❌ |
-| Importar (Excel) | ✅ | ❌ | ❌ |
-| Exportar (Excel) | ✅ | ❌ | ❌ |
+| Ver listado | ✅ | ❌ | ✅ |
+| Ver detalle | ✅ | ❌ | ✅ |
+| Crear proveedor | ✅ | ❌ | ✅ |
+| Editar proveedor | ✅ | ❌ | ✅ |
+| Eliminar proveedor | ✅ | ❌ | ✅ |
+| Importar (Excel) | ✅ | ❌ | ✅ |
+| Exportar (Excel) | ✅ | ❌ | ✅ |
 
-**Middleware de ruta:** `role:admin`
+**Middleware de ruta:** `role:admin|orders`
 
 ---
 

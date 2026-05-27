@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Notification;
+use App\Models\Project;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +22,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer('layouts.partials._navbar', function ($view) {
+            $activeProjectsCount = Project::where('status', 'active')->count();
+            $view->with(compact('activeProjectsCount'));
+        });
+
         View::composer('layouts.partials._topbar', function ($view) {
             $topbarNotifications = Notification::with('user')
                 ->where('is_hidden', false)

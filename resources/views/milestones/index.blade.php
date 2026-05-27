@@ -147,7 +147,7 @@
 
                                     <td>
                                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-dark fw-medium">
-                                            OC #{{ $order->id }}
+                                            #{{ $order->folio }}
                                         </a>
                                         <small class="text-muted d-block fs-11">{{ $order->currency }}</small>
                                     </td>

@@ -62,21 +62,35 @@
 
                         {{-- Proyecto / Obra --}}
                         <div class="col-md-6 campo-project">
-                            <label for="project" class="form-label fw-medium">Proyecto</label>
-                            <input type="text" class="form-control @error('project') is-invalid @enderror"
-                                   id="project" name="project"
-                                   value="{{ old('project', $purchaseOrder->project) }}"
-                                   placeholder="Ej. Planta Norte">
-                            @error('project')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="project_id" class="form-label fw-medium">Proyecto</label>
+                            <select class="form-control @error('project_id') is-invalid @enderror"
+                                    id="project_id" name="project_id">
+                                <option value="">Seleccionar proyecto...</option>
+                                @foreach ($projects as $proj)
+                                    <option value="{{ $proj->id }}"
+                                        {{ old('project_id', $purchaseOrder->project_id) == $proj->id ? 'selected' : '' }}>
+                                        {{ $proj->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('project_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="col-md-6 campo-site">
-                            <label for="site" class="form-label fw-medium">Obra</label>
-                            <input type="text" class="form-control @error('site') is-invalid @enderror"
-                                   id="site" name="site"
-                                   value="{{ old('site', $purchaseOrder->site) }}"
-                                   placeholder="Ej. Bodega 3">
-                            @error('site')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="project_work_id" class="form-label fw-medium">Obra</label>
+                            <select class="form-control @error('project_work_id') is-invalid @enderror"
+                                    id="project_work_id" name="project_work_id">
+                                <option value="">Seleccionar obra...</option>
+                                @if ($purchaseOrder->project_id)
+                                    @foreach ($projects->firstWhere('id', $purchaseOrder->project_id)?->works ?? [] as $w)
+                                        <option value="{{ $w->id }}"
+                                            {{ old('project_work_id', $purchaseOrder->project_work_id) == $w->id ? 'selected' : '' }}>
+                                            {{ $w->name }}
+                                        </option>
+                                    @endforeach
+                                @endif
+                            </select>
+                            @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Moneda --}}
@@ -189,6 +203,9 @@
 @push('scripts')
 <script>
 $(function () {
+    var projectSelect = document.getElementById('project_id');
+    var siteSelect    = document.getElementById('project_work_id');
+
     function toggleProyectoObra() {
         if ($('#type').val() === 'materiales_servicios') {
             $('.campo-project, .campo-site').show();
@@ -204,6 +221,28 @@ $(function () {
             $('#campos_recurrencia').hide();
         }
     }
+
+    // Cargar obras cuando cambia el proyecto
+    projectSelect.addEventListener('change', function () {
+        var projectId       = this.value;
+        var currentWorkId   = '{{ $purchaseOrder->project_work_id }}';
+        siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
+        if (!projectId) return;
+
+        fetch('/proyectos/' + projectId + '/obras-json', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (works) {
+            works.forEach(function (w) {
+                var opt = document.createElement('option');
+                opt.value = w.id;
+                opt.textContent = w.name;
+                if (w.id == currentWorkId) opt.selected = true;
+                siteSelect.appendChild(opt);
+            });
+        });
+    });
 
     $('#type').on('change', toggleProyectoObra);
     $('input[name="recurrence_type"]').on('change', toggleRecurrencia);

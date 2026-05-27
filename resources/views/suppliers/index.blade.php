@@ -215,6 +215,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="contact_name" class="form-label fw-medium">Nombre del contacto</label>
+                        <input type="text" class="form-control @error('contact_name') is-invalid @enderror"
+                               id="contact_name" name="contact_name"
+                               value="{{ old('contact_name') }}"
+                               placeholder="Ej. Juan Pérez">
+                        <div class="form-text">Se registrará como contacto principal del proveedor.</div>
+                        @error('contact_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
                         <label for="email" class="form-label fw-medium">Correo electrónico</label>
                         <input type="email" class="form-control @error('email') is-invalid @enderror"
                                id="email" name="email"

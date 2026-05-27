@@ -4,9 +4,17 @@
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierContactController;
+use App\Http\Controllers\SupplierLocationController;
+use App\Http\Controllers\MobileAssetController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectWorkController;
+use App\Http\Controllers\MaterialRequestController;
+use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\ConceptController;
 
 use App\Http\Controllers\PaymentController;
 
@@ -41,6 +49,90 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['proveedores' => 'supplier'],
             ]);
+            Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
+
+            Route::resource('proveedores.contactos', SupplierContactController::class, [
+                'names' => [
+                    'store'   => 'supplier_contacts.store',
+                    'update'  => 'supplier_contacts.update',
+                    'destroy' => 'supplier_contacts.destroy',
+                ],
+                'parameters' => ['proveedores' => 'supplier', 'contactos' => 'contact'],
+            ])->only(['store', 'update', 'destroy']);
+
+            Route::resource('proveedores.sucursales', SupplierLocationController::class, [
+                'names' => [
+                    'store'   => 'supplier_locations.store',
+                    'update'  => 'supplier_locations.update',
+                    'destroy' => 'supplier_locations.destroy',
+                ],
+                'parameters' => ['proveedores' => 'supplier', 'sucursales' => 'location'],
+            ])->only(['store', 'update', 'destroy']);
+        });
+
+        Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
+        Route::resource('/bienes-mobiles', MobileAssetController::class, [
+            'names' => [
+                'index'   => 'mobile_assets.index',
+                'create'  => 'mobile_assets.create',
+                'store'   => 'mobile_assets.store',
+                'show'    => 'mobile_assets.show',
+                'edit'    => 'mobile_assets.edit',
+                'update'  => 'mobile_assets.update',
+                'destroy' => 'mobile_assets.destroy',
+            ],
+            'parameters' => ['bienes-mobiles' => 'mobile_asset'],
+        ]);
+
+        Route::resource('/proyectos', ProjectController::class, [
+            'names' => [
+                'index'   => 'projects.index',
+                'create'  => 'projects.create',
+                'store'   => 'projects.store',
+                'show'    => 'projects.show',
+                'edit'    => 'projects.edit',
+                'update'  => 'projects.update',
+                'destroy' => 'projects.destroy',
+            ],
+            'parameters' => ['proyectos' => 'project'],
+        ]);
+
+        Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
+            ->name('projects.works_json');
+
+        Route::post('/proyectos/import', [ProjectController::class, 'import'])
+            ->name('projects.import');
+
+        Route::resource('/obras', ProjectWorkController::class, [
+            'names' => [
+                'index'   => 'project_works.index',
+                'create'  => 'project_works.create',
+                'store'   => 'project_works.store',
+                'show'    => 'project_works.show',
+                'edit'    => 'project_works.edit',
+                'update'  => 'project_works.update',
+                'destroy' => 'project_works.destroy',
+            ],
+            'parameters' => ['obras' => 'project_work'],
+        ]);
+
+        // Conceptos (catálogo) — búsqueda JSON accesible a admin|orders
+        Route::middleware('role:admin|orders')->group(function () {
+            Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
+        });
+
+        // Conceptos (catálogo) — CRUD solo admin
+        Route::middleware('role:admin')->group(function () {
+            Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
+            Route::resource('/conceptos', ConceptController::class, [
+                'names' => [
+                    'index'   => 'concepts.index',
+                    'store'   => 'concepts.store',
+                    'update'  => 'concepts.update',
+                    'destroy' => 'concepts.destroy',
+                ],
+                'parameters' => ['conceptos' => 'concept'],
+            ])->only(['index', 'store', 'update', 'destroy']);
         });
 
         // Usuarios (gestión) y Roles
@@ -71,7 +163,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Órdenes de Compra — lectura: admin, payments, orders
         Route::middleware('role:admin|payments|orders')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
+            Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
+            Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
         });
 
         // Órdenes de Compra — escritura: admin, orders
@@ -82,6 +176,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
             Route::patch('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update']);
             Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase_orders.destroy');
+            // Ítems (conceptos)
+            Route::post('/ordenes-de-compra/{purchase_order}/items', [PurchaseOrderController::class, 'storeItem'])->name('purchase_orders.items.store');
+            Route::patch('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'updateItem'])->name('purchase_orders.items.update');
+            Route::delete('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'destroyItem'])->name('purchase_orders.items.destroy');
+            // Observaciones
+            Route::post('/ordenes-de-compra/{purchase_order}/notes', [PurchaseOrderController::class, 'storeObservation'])->name('purchase_orders.notes.store');
         });
 
         // Hitos — lectura: admin, payments, orders
@@ -131,6 +231,88 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
+        });
+
+        // ── SOLMAT (Solicitudes de Material) ──────────────────────────────────
+        Route::middleware('role:admin|orders')->group(function () {
+            // AJAX lookup (debe ir antes del resource para evitar conflicto con {material_request})
+            Route::get('/solicitudes-material/buscar', [MaterialRequestController::class, 'jsonByFolio'])
+                 ->name('material_requests.lookup');
+
+            Route::resource('/solicitudes-material', MaterialRequestController::class, [
+                'names'      => [
+                    'index'   => 'material_requests.index',
+                    'create'  => 'material_requests.create',
+                    'store'   => 'material_requests.store',
+                    'show'    => 'material_requests.show',
+                    'edit'    => 'material_requests.edit',
+                    'update'  => 'material_requests.update',
+                    'destroy' => 'material_requests.destroy',
+                ],
+                'parameters' => ['solicitudes-material' => 'materialRequest'],
+            ]);
+
+            Route::post('/solicitudes-material/{materialRequest}/items',
+                        [MaterialRequestController::class, 'storeItem'])
+                 ->name('material_requests.items.store');
+
+            Route::delete('/solicitudes-material/{materialRequest}/items/{item}',
+                          [MaterialRequestController::class, 'destroyItem'])
+                 ->name('material_requests.items.destroy');
+
+            Route::post('/solicitudes-material/{materialRequest}/notes',
+                        [MaterialRequestController::class, 'storeObservation'])
+                 ->name('material_requests.notes.store');
+
+            Route::get('/solicitudes-material/{materialRequest}/pdf',
+                       [MaterialRequestController::class, 'downloadPdf'])
+                 ->name('material_requests.pdf');
+        });
+
+        // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
+        Route::middleware('role:admin|orders')->group(function () {
+            // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
+            Route::get('/solicitudes-compra/buscar-por-folio',
+                       [PurchaseRequestController::class, 'itemsJsonByFolio'])
+                 ->name('purchase_requests.items_json_by_folio');
+
+            Route::resource('/solicitudes-compra', PurchaseRequestController::class, [
+                'names'      => [
+                    'index'   => 'purchase_requests.index',
+                    'create'  => 'purchase_requests.create',
+                    'store'   => 'purchase_requests.store',
+                    'show'    => 'purchase_requests.show',
+                    'edit'    => 'purchase_requests.edit',
+                    'update'  => 'purchase_requests.update',
+                    'destroy' => 'purchase_requests.destroy',
+                ],
+                'parameters' => ['solicitudes-compra' => 'purchaseRequest'],
+            ]);
+
+            Route::post('/solicitudes-compra/{purchaseRequest}/items',
+                        [PurchaseRequestController::class, 'storeItem'])
+                 ->name('purchase_requests.items.store');
+
+            Route::delete('/solicitudes-compra/{purchaseRequest}/items/{item}',
+                          [PurchaseRequestController::class, 'destroyItem'])
+                 ->name('purchase_requests.items.destroy');
+
+            Route::patch('/solicitudes-compra/{purchaseRequest}/items/{item}',
+                         [PurchaseRequestController::class, 'updateItem'])
+                 ->name('purchase_requests.items.update');
+
+            Route::post('/solicitudes-compra/{purchaseRequest}/notes',
+                        [PurchaseRequestController::class, 'storeObservation'])
+                 ->name('purchase_requests.notes.store');
+
+            // JSON de ítems para precarga en modal de creación de OC
+            Route::get('/solicitudes-compra/{purchaseRequest}/items-json',
+                       [PurchaseRequestController::class, 'itemsJson'])
+                 ->name('purchase_requests.items_json');
+
+            Route::get('/solicitudes-compra/{purchaseRequest}/pdf',
+                       [PurchaseRequestController::class, 'downloadPdf'])
+                 ->name('purchase_requests.pdf');
         });
     });
 });

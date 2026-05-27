@@ -26,7 +26,7 @@ class PaymentController extends Controller
         $urgentDate = Carbon::now()->addDays(7);
         $search     = trim($request->input('search', ''));
 
-        $payments = Payment::with(['milestone.purchaseOrder.supplier'])
+        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
             ->when($search, function ($q) use ($search) {
@@ -69,7 +69,7 @@ class PaymentController extends Controller
     {
         $urgentDate = Carbon::now()->addDays(7);
 
-        $payments = Payment::with(['milestone.purchaseOrder.supplier'])
+        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
             ->where('payments.status', 'por_autorizar')

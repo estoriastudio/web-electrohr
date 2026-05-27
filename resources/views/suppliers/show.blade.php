@@ -33,11 +33,6 @@
             <p class="text-muted mb-0 fs-13">{{ $supplier->commercial_name }}</p>
         @endif
     </div>
-    @role('admin')
-    <a href="{{ route('suppliers.edit', $supplier) }}" class="btn btn-primary btn-sm">
-        <i class="ri-edit-line me-1"></i> Editar perfil
-    </a>
-    @endrole
 </div>
 
 
@@ -195,12 +190,17 @@
      FILA 2 — Info general del proveedor
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="row g-3 mb-3">
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header border-bottom">
+    <div class="col-xl-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
                     <i class="ri-building-line me-1 text-muted"></i> Información general
                 </h5>
+                @role('admin')
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditSupplier">
+                    <i class="ri-edit-line me-1"></i> Editar perfil
+                </button>
+                @endrole
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
@@ -212,23 +212,6 @@
 
                     <dt class="col-sm-5 text-muted fw-normal fs-13">RFC</dt>
                     <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->rfc_num ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Correo electrónico</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">
-                        @if($supplier->email)
-                            <a href="mailto:{{ $supplier->email }}">{{ $supplier->email }}</a>
-                        @else —
-                        @endif
-                    </dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Teléfono</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->phone ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Celular</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->cellphone ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Dirección</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->address ?? '—' }}</dd>
 
                     <dt class="col-sm-5 text-muted fw-normal fs-13">Atendido por</dt>
                     <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->attended_by ?? '—' }}</dd>
@@ -245,34 +228,6 @@
                         @endphp
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                     </dd>
-                </dl>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header border-bottom">
-                <h5 class="card-title mb-0">
-                    <i class="ri-bank-line me-1 text-muted"></i> Datos bancarios
-                </h5>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Banco</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->bank_name ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Cuenta</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->bank_account ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">CLABE</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->bank_clabe ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">SWIFT</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->swift_code ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Moneda</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->currency ?? '—' }}</dd>
                 </dl>
             </div>
         </div>
@@ -322,14 +277,18 @@
                                 <tr>
                                     <td>
                                         <a href="{{ route('purchase_orders.show', $order) }}" class="fw-semibold text-dark">
-                                            OC #{{ $order->id }}
+                                            #{{ $order->folio }}
                                         </a>
                                     </td>
                                     <td>
                                         <span class="fs-13">{{ $tipoLabel }}</span>
-                                        @if ($order->project || $order->site)
+                                        @php
+                                            $projectName = $order->projectRelation?->name ?? $order->project;
+                                            $siteName    = $order->workRelation?->name ?? $order->site;
+                                        @endphp
+                                        @if ($projectName || $siteName)
                                             <small class="text-muted d-block fs-11">
-                                                {{ implode(' · ', array_filter([$order->project, $order->site])) }}
+                                                {{ implode(' · ', array_filter([$projectName, $siteName])) }}
                                             </small>
                                         @endif
                                     </td>
@@ -358,6 +317,184 @@
     </div>
 </div>
 
+{{-- ══════════════════════════════════════════════════════════════
+     FILA 4 — Contactos + Sucursales
+══════════════════════════════════════════════════════════════════ --}}
+<div class="row g-3 mt-0 mb-3">
+
+    {{-- Tarjeta de Contactos --}}
+    <div class="col-xl-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title mb-0">
+                    <i class="ri-contacts-line me-1 text-muted"></i> Contactos
+                </h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateContact">
+                    <i class="ri-add-line me-1"></i> Registrar nuevo
+                </button>
+            </div>
+            <div class="card-body p-0">
+                @if($supplier->contacts->isEmpty())
+                    <p class="text-center text-muted fs-13 py-4 mb-0">
+                        <i class="ri-contacts-line fs-24 d-block mb-1 opacity-50"></i>
+                        Sin contactos registrados.
+                    </p>
+                @else
+                    @php
+                        $avatarColors = ['primary', 'success', 'danger', 'warning', 'info', 'secondary'];
+                    @endphp
+                    <div class="table-responsive">
+                        <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                            <thead class="bg-light-subtle">
+                                <tr>
+                                    <th>Contacto</th>
+                                    <th>Teléfono</th>
+                                    <th>Correo electrónico</th>
+                                    <th>Principal</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($supplier->contacts as $contact)
+                                    @php
+                                        $colorIdx = abs(crc32($contact->name)) % count($avatarColors);
+                                        $color    = $avatarColors[$colorIdx];
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="rounded-circle bg-{{ $color }} bg-opacity-15 d-flex align-items-center justify-content-center text-{{ $color }} fw-bold flex-shrink-0"
+                                                     style="width:36px;height:36px;font-size:14px;">
+                                                    <span class="text-white">{{ strtoupper(substr($contact->name, 0, 1)) }}</span>
+                                                </div>
+                                                <span class="fw-medium fs-14">{{ $contact->name }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="fs-13 text-muted">{{ $contact->phone ?? '—' }}</td>
+                                        <td class="fs-13 text-muted">{{ $contact->email ?? '—' }}</td>
+                                        <td>
+                                            @if($contact->is_primary)
+                                                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                                                    <i class="ri-star-fill me-1"></i> Principal
+                                                </span>
+                                            @else
+                                                <span class="text-muted fs-12">—</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-1">
+                                                <button type="button" class="btn btn-sm btn-light btn-edit-contact"
+                                                    data-name="{{ $contact->name }}"
+                                                    data-phone="{{ $contact->phone }}"
+                                                    data-email="{{ $contact->email }}"
+                                                    data-is-primary="{{ $contact->is_primary ? '1' : '0' }}"
+                                                    data-url="{{ route('supplier_contacts.update', [$supplier, $contact]) }}">
+                                                    <i class="ri-edit-line fs-14"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-light btn-delete-contact"
+                                                    data-name="{{ $contact->name }}"
+                                                    data-url="{{ route('supplier_contacts.destroy', [$supplier, $contact]) }}">
+                                                    <i class="ri-delete-bin-line fs-14 text-danger"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- Tarjeta de Sucursales --}}
+    <div class="col-xl-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title mb-0">
+                    <i class="ri-map-pin-line me-1 text-muted"></i> Sucursales / Ubicaciones
+                </h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateLocation">
+                    <i class="ri-add-line me-1"></i> Registrar nueva
+                </button>
+            </div>
+            <div class="card-body p-0">
+                @if($supplier->locations->isEmpty())
+                    <p class="text-center text-muted fs-13 py-4 mb-0">
+                        <i class="ri-map-pin-line fs-24 d-block mb-1 opacity-50"></i>
+                        Sin sucursales registradas.
+                    </p>
+                @else
+                    <ul class="list-group list-group-flush">
+                        @foreach($supplier->locations as $location)
+                            <li class="list-group-item px-3 py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div style="min-width:0;">
+                                        <p class="fw-semibold fs-14 mb-0">{{ $location->name }}</p>
+                                        @php
+                                            $addrParts = array_filter([
+                                                $location->street,
+                                                $location->colony,
+                                                $location->postal_code ? 'CP ' . $location->postal_code : null,
+                                                $location->city,
+                                                $location->state,
+                                            ]);
+                                        @endphp
+                                        @if($addrParts)
+                                            <small class="text-muted fs-12 d-block text-truncate">{{ implode(', ', $addrParts) }}</small>
+                                        @endif
+                                        @if($location->bank_name || $location->bank_account || $location->bank_clabe)
+                                            <div class="mt-1 d-flex flex-wrap gap-2">
+                                                @if($location->bank_name)
+                                                    <small class="text-muted fs-12"><i class="ri-bank-line me-1"></i>{{ $location->bank_name }}</small>
+                                                @endif
+                                                @if($location->currency)
+                                                    <span class="badge bg-info-subtle text-info py-0 px-2 fs-11">{{ $location->currency }}</span>
+                                                @endif
+                                                @if($location->bank_account)
+                                                    <small class="text-muted fs-12">Cta: <span class="text-dark fw-medium">{{ $location->bank_account }}</span></small>
+                                                @endif
+                                                @if($location->bank_clabe)
+                                                    <small class="text-muted fs-12">CLABE: <span class="text-dark fw-medium">{{ $location->bank_clabe }}</span></small>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <div class="d-flex gap-1 flex-shrink-0 ms-3">
+                                        <button type="button" class="btn btn-icon btn-sm btn-light btn-edit-location"
+                                            data-name="{{ $location->name }}"
+                                            data-street="{{ $location->street }}"
+                                            data-colony="{{ $location->colony }}"
+                                            data-postal-code="{{ $location->postal_code }}"
+                                            data-state="{{ $location->state }}"
+                                            data-city="{{ $location->city }}"
+                                            data-bank-name="{{ $location->bank_name }}"
+                                            data-bank-account="{{ $location->bank_account }}"
+                                            data-bank-clabe="{{ $location->bank_clabe }}"
+                                            data-currency="{{ $location->currency }}"
+                                            data-url="{{ route('supplier_locations.update', [$supplier, $location]) }}"
+                                            title="Editar">
+                                            <i class="ri-edit-2-line fs-13"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-icon btn-sm btn-light btn-delete-location"
+                                            data-name="{{ $location->name }}"
+                                            data-url="{{ route('supplier_locations.destroy', [$supplier, $location]) }}"
+                                            title="Eliminar">
+                                            <i class="ri-delete-bin-line fs-13 text-danger"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+    </div>
+
+</div>
+
 <div class="row">
     <div class="col-12">
         @include('layouts.utilities._log_table', [
@@ -367,7 +504,414 @@
     </div>
 </div>
 
+{{-- ══════════════════════════════════════════════════════════════
+     MODAL — Editar información general del proveedor
+══════════════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalEditSupplier" tabindex="-1" aria-labelledby="modalEditSupplierLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditSupplierLabel">
+                    <i class="ri-building-line me-1"></i> Editar información general
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('suppliers.update_info', $supplier) }}" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Razón social <span class="text-danger">*</span></label>
+                        <input type="text" name="rfc_name" class="form-control"
+                               value="{{ old('rfc_name', $supplier->rfc_name) }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Nombre comercial</label>
+                        <input type="text" name="commercial_name" class="form-control"
+                               value="{{ old('commercial_name', $supplier->commercial_name) }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">RFC</label>
+                        <input type="text" name="rfc_num" class="form-control" maxlength="13"
+                               value="{{ old('rfc_num', $supplier->rfc_num) }}"
+                               id="editSupplierRfc"
+                               style="text-transform:uppercase;">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Atendido por</label>
+                        <input type="text" name="attended_by" class="form-control"
+                               value="{{ old('attended_by', $supplier->attended_by) }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Estatus</label>
+                        <select name="status" class="form-select">
+                            <option value="">— Sin definir —</option>
+                            <option value="active"      {{ old('status', $supplier->status) === 'active'      ? 'selected' : '' }}>Activo</option>
+                            <option value="inactive"    {{ old('status', $supplier->status) === 'inactive'    ? 'selected' : '' }}>Inactivo</option>
+                            <option value="blacklisted" {{ old('status', $supplier->status) === 'blacklisted' ? 'selected' : '' }}>Bloqueado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     MODALES — Contactos
+══════════════════════════════════════════════════════════════════ --}}
+
+{{-- Crear contacto --}}
+<div class="modal fade" id="modalCreateContact" tabindex="-1" aria-labelledby="modalCreateContactLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCreateContactLabel">
+                    <i class="ri-contacts-line me-1"></i> Registrar contacto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('supplier_contacts.store', $supplier) }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Nombre del contacto" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Teléfono</label>
+                        <input type="text" name="phone" class="form-control" placeholder="+52 55 0000 0000">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Correo electrónico</label>
+                        <input type="email" name="email" class="form-control" placeholder="contacto@empresa.com">
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_primary" value="1" id="createIsPrimary">
+                        <label class="form-check-label fs-13" for="createIsPrimary">Contacto principal</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar contacto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Editar contacto --}}
+<div class="modal fade" id="modalEditContact" tabindex="-1" aria-labelledby="modalEditContactLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditContactLabel">
+                    <i class="ri-edit-2-line me-1"></i> Editar contacto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditContact" action="" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editContactName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Teléfono</label>
+                        <input type="text" name="phone" id="editContactPhone" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Correo electrónico</label>
+                        <input type="email" name="email" id="editContactEmail" class="form-control">
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_primary" value="1" id="editIsPrimary">
+                        <label class="form-check-label fs-13" for="editIsPrimary">Contacto principal</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Eliminar contacto --}}
+<div class="modal fade" id="modalDeleteContact" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <i class="ri-delete-bin-line fs-36 text-danger mb-2 d-block"></i>
+                <h5 class="mb-1">¿Eliminar contacto?</h5>
+                <p class="text-muted fs-13 mb-0">Se eliminará permanentemente a <strong id="deleteContactName"></strong>.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <form id="formDeleteContact" method="POST" action="">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{{-- ══════════════════════════════════════════════════════════════
+     MODALES — Sucursales
+══════════════════════════════════════════════════════════════════ --}}
+
+{{-- Crear sucursal --}}
+<div class="modal fade" id="modalCreateLocation" tabindex="-1" aria-labelledby="modalCreateLocationLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCreateLocationLabel">
+                    <i class="ri-map-pin-line me-1"></i> Registrar sucursal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('supplier_locations.store', $supplier) }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Nombre de la sucursal <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Ej. Sucursal Norte" required>
+                    </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
+                    <div class="row g-3">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-medium fs-13">Calle</label>
+                            <input type="text" name="street" class="form-control" placeholder="Calle y número">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-medium fs-13">Código Postal</label>
+                            <input type="text" name="postal_code" class="form-control" placeholder="00000">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Colonia</label>
+                            <input type="text" name="colony" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Ciudad</label>
+                            <input type="text" name="city" class="form-control">
+                        </div>
+                        <div class="col-sm-12">
+                            <label class="form-label fw-medium fs-13">Estado</label>
+                            <input type="text" name="state" class="form-control">
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Datos bancarios</p>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Banco</label>
+                            <input type="text" name="bank_name" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Moneda</label>
+                            <select name="currency" class="form-select">
+                                <option value="">— Seleccionar —</option>
+                                <option value="MXN">MXN</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Cuenta</label>
+                            <input type="text" name="bank_account" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">CLABE Interbancaria</label>
+                            <input type="text" name="bank_clabe" class="form-control" maxlength="18">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar sucursal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Editar sucursal --}}
+<div class="modal fade" id="modalEditLocation" tabindex="-1" aria-labelledby="modalEditLocationLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditLocationLabel">
+                    <i class="ri-edit-2-line me-1"></i> Editar sucursal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditLocation" action="" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium fs-13">Nombre de la sucursal <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editLocationName" class="form-control" required>
+                    </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
+                    <div class="row g-3">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-medium fs-13">Calle</label>
+                            <input type="text" name="street" id="editLocationStreet" class="form-control">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-medium fs-13">Código Postal</label>
+                            <input type="text" name="postal_code" id="editLocationPostalCode" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Colonia</label>
+                            <input type="text" name="colony" id="editLocationColony" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Ciudad</label>
+                            <input type="text" name="city" id="editLocationCity" class="form-control">
+                        </div>
+                        <div class="col-sm-12">
+                            <label class="form-label fw-medium fs-13">Estado</label>
+                            <input type="text" name="state" id="editLocationState" class="form-control">
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Datos bancarios</p>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Banco</label>
+                            <input type="text" name="bank_name" id="editLocationBankName" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Moneda</label>
+                            <select name="currency" id="editLocationCurrency" class="form-select">
+                                <option value="">— Seleccionar —</option>
+                                <option value="MXN">MXN</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Cuenta</label>
+                            <input type="text" name="bank_account" id="editLocationBankAccount" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">CLABE Interbancaria</label>
+                            <input type="text" name="bank_clabe" id="editLocationBankClabe" class="form-control" maxlength="18">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Eliminar sucursal --}}
+<div class="modal fade" id="modalDeleteLocation" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <i class="ri-delete-bin-line fs-36 text-danger mb-2 d-block"></i>
+                <h5 class="mb-1">¿Eliminar sucursal?</h5>
+                <p class="text-muted fs-13 mb-0">Se eliminará permanentemente <strong id="deleteLocationName"></strong>.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <form id="formDeleteLocation" method="POST" action="">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Inicializar tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+    });
+
+    // RFC a mayúsculas en el modal de info general
+    document.getElementById('editSupplierRfc')?.addEventListener('input', function () {
+        this.value = this.value.toUpperCase();
+    });
+
+    // ── Contactos ────────────────────────────────────────────────────────────
+
+    document.querySelectorAll('.btn-edit-contact').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const form = document.getElementById('formEditContact');
+            form.action = this.dataset.url;
+            document.getElementById('editContactName').value   = this.dataset.name  || '';
+            document.getElementById('editContactPhone').value  = this.dataset.phone || '';
+            document.getElementById('editContactEmail').value  = this.dataset.email || '';
+            document.getElementById('editIsPrimary').checked   = this.dataset.isPrimary === '1';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditContact')).show();
+        });
+    });
+
+    document.querySelectorAll('.btn-delete-contact').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('deleteContactName').textContent = this.dataset.name;
+            document.getElementById('formDeleteContact').action = this.dataset.url;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDeleteContact')).show();
+        });
+    });
+
+    // ── Sucursales ────────────────────────────────────────────────────────────
+
+    document.querySelectorAll('.btn-edit-location').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const d    = this.dataset;
+            const form = document.getElementById('formEditLocation');
+            form.action = d.url;
+            document.getElementById('editLocationName').value        = d.name        || '';
+            document.getElementById('editLocationStreet').value      = d.street      || '';
+            document.getElementById('editLocationColony').value      = d.colony      || '';
+            document.getElementById('editLocationPostalCode').value  = d.postalCode  || '';
+            document.getElementById('editLocationCity').value        = d.city        || '';
+            document.getElementById('editLocationState').value       = d.state       || '';
+            document.getElementById('editLocationBankName').value    = d.bankName    || '';
+            document.getElementById('editLocationBankAccount').value = d.bankAccount || '';
+            document.getElementById('editLocationBankClabe').value   = d.bankClabe   || '';
+            const sel = document.getElementById('editLocationCurrency');
+            sel.value = d.currency || '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditLocation')).show();
+        });
+    });
+
+    document.querySelectorAll('.btn-delete-location').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('deleteLocationName').textContent = this.dataset.name;
+            document.getElementById('formDeleteLocation').action = this.dataset.url;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDeleteLocation')).show();
+        });
+    });
+
+});
+</script>
 @endpush
