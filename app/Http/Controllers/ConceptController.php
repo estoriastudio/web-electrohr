@@ -7,6 +7,7 @@ use App\Imports\ConceptImport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
@@ -92,6 +93,9 @@ class ConceptController extends Controller
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
+
+        // Evita que el log de queries crezca en memoria durante importaciones grandes.
+        DB::connection()->disableQueryLog();
 
         Excel::import(new ConceptImport, $request->file('file'));
 
