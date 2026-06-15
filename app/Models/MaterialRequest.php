@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /* Internamente esto se conoce como SOLMAT o Solicitud de Materiales */
@@ -14,12 +15,12 @@ class MaterialRequest extends Model
         'folio',
         'code',
         'project_id',
-        'project_work_id',
         'zone',
         'delivery_address',
         'request_date',
         'need_date',
         'supply_category',
+        'concept_category_id',
         'requested_by',
         'status',
         'observations',
@@ -36,9 +37,19 @@ class MaterialRequest extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function projectWork(): BelongsTo
+    public function conceptCategory(): BelongsTo
     {
-        return $this->belongsTo(ProjectWork::class, 'project_work_id');
+        return $this->belongsTo(ConceptCategory::class, 'concept_category_id');
+    }
+
+    public function projectWorks(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ProjectWork::class,
+            'material_request_project_works',
+            'material_request_id',
+            'project_work_id'
+        );
     }
 
     public function requestedBy(): BelongsTo

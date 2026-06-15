@@ -23,6 +23,7 @@ class PurchaseRequest extends Model
         'request_date',
         'need_date',
         'requested_by',
+        'assigned_to',
         'status',
         'observations',
     ];
@@ -51,6 +52,16 @@ class PurchaseRequest extends Model
     public function requestedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function changeNotes(): HasMany
+    {
+        return $this->hasMany(PurchaseRequestChangeNote::class)->orderBy('created_at');
     }
 
     public function items(): HasMany

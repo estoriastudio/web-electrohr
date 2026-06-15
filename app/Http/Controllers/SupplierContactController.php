@@ -82,5 +82,24 @@ class SupplierContactController extends Controller
         return redirect()->route('suppliers.show', $supplier)
             ->with('success', 'Contacto eliminado correctamente.');
     }
+
+    /**
+     * Devuelve el contacto principal del proveedor en JSON (para pre-llenado en formularios de OC).
+     */
+    public function primaryJson(Supplier $supplier): \Illuminate\Http\JsonResponse
+    {
+        $contact = $supplier->contacts()->where('is_primary', true)->first()
+            ?? $supplier->contacts()->first();
+
+        if (!$contact) {
+            return response()->json(['name' => null]);
+        }
+
+        return response()->json([
+            'name'  => $contact->name,
+            'phone' => $contact->phone,
+            'email' => $contact->email,
+        ]);
+    }
 }
 

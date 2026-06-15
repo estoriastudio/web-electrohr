@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ProjectWork;
 use App\Imports\ProjectImport;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -19,7 +20,13 @@ class ProjectController extends Controller
     {
         $search = trim($request->input('search', ''));
 
-        $projects = Project::withCount('works')
+        $projects = Project::query()
+            ->withCount('works')
+            ->addSelect([
+                'project_value' => ProjectWork::query()
+                    ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0)')
+                    ->whereColumn('project_id', 'projects.id'),
+            ])
             ->when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('client_name', 'like', "%{$search}%"))
             ->latest()
@@ -59,6 +66,12 @@ class ProjectController extends Controller
 
     public function show(Project $project): View
     {
+        $project->setAttribute(
+            'project_value',
+            (float) $project->works()
+                ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0) as total')
+                ->value('total')
+        );
         $project->loadCount('works');
         $project->load(['works' => function ($q) {
             $q->withCount('purchaseOrders');

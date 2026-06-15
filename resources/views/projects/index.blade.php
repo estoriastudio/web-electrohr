@@ -72,6 +72,7 @@
                                 <th>Nombre del Proyecto</th>
                                 <th>Nombre del Cliente</th>
                                 <th class="text-nowrap"># Obras</th>
+                                <th class="text-nowrap">Valor de proyecto</th>
                                 <th class="text-nowrap">Estatus</th>
                                 <th class="text-nowrap">Acciones</th>
                             </tr>
@@ -112,6 +113,11 @@
                                         </span>
                                     </td>
                                     <td>
+                                        <span class="fw-semibold text-dark">
+                                            $ {{ number_format((float) ($project->project_value ?? 0), 2) }}
+                                        </span>
+                                    </td>
+                                    <td>
                                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                                     </td>
                                     <td>
@@ -146,7 +152,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                         No hay proyectos registrados.
                                     </td>
                                 </tr>

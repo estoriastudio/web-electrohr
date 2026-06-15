@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\MaterialRequest;
+use App\Models\Notification;
 use App\Models\Project;
 use App\Models\PurchaseRequest;
+use App\Models\PurchaseRequestChangeNote;
 use App\Models\PurchaseRequestItem;
+use App\Models\User;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -35,10 +38,11 @@ class PurchaseRequestController extends Controller
         }
 
         $purchaseRequests = $query->paginate(15)->withQueryString();
-        $nextFolio        = (PurchaseRequest::max('folio') ?? 0) + 1;
+        $nextFolio        = max((PurchaseRequest::max('folio') ?? 17999), 17999) + 1;
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
+        $purchasingUsers  = User::role(['admin', 'orders'])->orderBy('name')->get();
 
-        return view('purchase_requests.index', compact('purchaseRequests', 'nextFolio', 'projects', 'search', 'status'));
+        return view('purchase_requests.index', compact('purchaseRequests', 'nextFolio', 'projects', 'search', 'status', 'purchasingUsers'));
     }
 
     public function create()
@@ -49,7 +53,7 @@ class PurchaseRequestController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'folio'               => 'required|integer|unique:purchase_requests,folio',
+            'folio'               => 'required|integer|min:18000|unique:purchase_requests,folio',
             'code'                => 'nullable|string|max:100',
             'material_request_id' => 'nullable|exists:material_requests,id',
             'project_id'          => 'required|exists:projects,id',
@@ -59,6 +63,7 @@ class PurchaseRequestController extends Controller
             'short_description'   => 'required|string|max:255',
             'request_date'        => 'required|date',
             'need_date'           => 'required|date|after_or_equal:request_date',
+            'assigned_to'         => 'nullable|exists:users,id',
         ]);
 
         $data['requested_by'] = Auth::id();
@@ -68,7 +73,7 @@ class PurchaseRequestController extends Controller
 
         // Si viene vinculada a una SOLMAT: copiar sus items y marcarla como 'linked'
         if (! empty($data['material_request_id'])) {
-            $mr = MaterialRequest::with('items')->find($data['material_request_id']);
+            $mr = MaterialRequest::with('items.concept.category')->find($data['material_request_id']);
 
             if ($mr) {
                 foreach ($mr->items as $item) {
@@ -81,6 +86,26 @@ class PurchaseRequestController extends Controller
                         'requested_quantity'  => $item->quantity,
                         'purchase_quantity'   => $item->quantity,
                     ]);
+                }
+
+                // Si no se eligió un comprador manualmente, sugerir desde la categoría
+                if (empty($pr->assigned_to)) {
+                    $categoryId = $mr->items
+                        ->whereNotNull('concept_id')
+                        ->map(fn($i) => optional($i->concept)->concept_category_id)
+                        ->filter()
+                        ->first();
+
+                    if ($categoryId) {
+                        $suggestedUser = \App\Models\ConceptCategory::find($categoryId)
+                            ?->users()
+                            ->orderBy('name')
+                            ->first();
+
+                        if ($suggestedUser) {
+                            $pr->update(['assigned_to' => $suggestedUser->id]);
+                        }
+                    }
                 }
 
                 $mr->update(['status' => 'linked']);
@@ -101,9 +126,20 @@ class PurchaseRequestController extends Controller
 
     public function show(PurchaseRequest $purchaseRequest)
     {
-        $purchaseRequest->load(['project', 'projectWork', 'requestedBy', 'items', 'materialRequest']);
+        $purchaseRequest->load([
+            'project', 'projectWork', 'requestedBy', 'assignedTo',
+            'items', 'materialRequest', 'changeNotes.requestedBy', 'changeNotes.resolvedBy',
+        ]);
 
-        return view('purchase_requests.show', compact('purchaseRequest'));
+        $history         = Notification::where('type', 'purchase_request')
+                                       ->where('model_id', $purchaseRequest->id)
+                                       ->with('user')
+                                       ->orderBy('created_at')
+                                       ->get();
+
+        $purchasingUsers = User::role('orders')->orderBy('name')->get();
+
+        return view('purchase_requests.show', compact('purchaseRequest', 'history', 'purchasingUsers'));
     }
 
     public function edit(PurchaseRequest $purchaseRequest)
@@ -309,5 +345,189 @@ class PurchaseRequestController extends Controller
         $filename = 'SOLCOM-' . ($purchaseRequest->folio ?? $purchaseRequest->id) . '.pdf';
 
         return $pdf->download($filename);
+    }
+
+    // ── Almacén: Pila SOLMAT ────────────────────────────────────────────────
+    public function solmatPile(Request $request)
+    {
+        $search = $request->input('search', '');
+
+        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items'])
+            ->where('status', 'sent_to_warehouse')
+            ->orderByDesc('folio');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('folio', 'like', "%{$search}%")
+                  ->orWhere('zone', 'like', "%{$search}%")
+                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $materialRequests = $query->paginate(20)->withQueryString();
+
+        return view('warehouse.solmat_pile', compact('materialRequests', 'search'));
+    }
+
+    // ── Crear SOLCOM desde SOLMAT (formulario pre-llenado) ───────────────────
+    public function createFromSolmat(MaterialRequest $materialRequest)
+    {
+        $materialRequest->load(['project', 'projectWorks', 'items']);
+        $nextFolio = max((PurchaseRequest::max('folio') ?? 17999), 17999) + 1;
+        $projects  = Project::where('status', 'active')->orderBy('name')->get();
+
+        return view('purchase_requests.create_from_solmat',
+                    compact('materialRequest', 'nextFolio', 'projects'));
+    }
+
+    // ── Enviar SOLCOM a Compras ──────────────────────────────────────────────
+    public function sendToPurchasing(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $data = $request->validate([
+            'assigned_to' => 'required|exists:users,id',
+        ]);
+
+        $purchaseRequest->update([
+            'assigned_to' => $data['assigned_to'],
+            'status'      => 'sent_to_purchasing',
+        ]);
+
+        $assignedUser = User::find($data['assigned_to']);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseRequest->id,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$purchaseRequest->folio} enviada a Compras (asignada a {$assignedUser?->name}).",
+        ]);
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+                         ->with('success', "SOLCOM #{$purchaseRequest->folio} enviada a Compras.");
+    }
+
+    // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
+    public function workload(): \Illuminate\View\View
+    {
+        // Usuarios con rol orders o admin que pueden recibir SOLCOMs
+        $ordersUsers = User::role(['admin', 'orders'])->orderBy('name')->get();
+
+        // SOLCOMs pendientes (sent_to_purchasing) agrupadas por assigned_to
+        $pendingCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
+            ->where('status', 'sent_to_purchasing')
+            ->groupBy('assigned_to')
+            ->pluck('total', 'assigned_to');
+
+        // Conteos adicionales por usuario (histórico)
+        $allCounts = PurchaseRequest::selectRaw('assigned_to, status, count(*) as total')
+            ->whereNotNull('assigned_to')
+            ->groupBy('assigned_to', 'status')
+            ->get()
+            ->groupBy('assigned_to');
+
+        // SOLCOMs sin asignar
+        $unassignedCount = PurchaseRequest::whereNull('assigned_to')
+            ->where('status', 'sent_to_purchasing')
+            ->count();
+
+        // Listado detallado de SOLCOMs pendientes por usuario para el drill-down
+        $pendingByUser = PurchaseRequest::with(['project', 'projectWork'])
+            ->where('status', 'sent_to_purchasing')
+            ->whereNotNull('assigned_to')
+            ->orderByDesc('folio')
+            ->get()
+            ->groupBy('assigned_to');
+
+        // SOLCOMs sin asignar (detalle)
+        $unassignedSolcoms = PurchaseRequest::with(['project', 'projectWork'])
+            ->whereNull('assigned_to')
+            ->where('status', 'sent_to_purchasing')
+            ->orderByDesc('folio')
+            ->get();
+
+        return view('purchasing.workload', compact(
+            'ordersUsers',
+            'pendingCounts',
+            'allCounts',
+            'unassignedCount',
+            'pendingByUser',
+            'unassignedSolcoms'
+        ));
+    }
+
+    // ── Pila SOLCOM (vista de Compras) ──────────────────────────────────────
+    public function purchasingPile(Request $request)
+    {
+        $search = $request->input('search', '');
+
+        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'changeNotes'])
+            ->where('status', 'sent_to_purchasing')
+            ->where('assigned_to', Auth::id())
+            ->orderByDesc('folio');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('folio', 'like', "%{$search}%")
+                  ->orWhere('short_description', 'like', "%{$search}%")
+                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $purchaseRequests = $query->paginate(20)->withQueryString();
+
+        return view('purchasing.solcom_pile', compact('purchaseRequests', 'search'));
+    }
+
+    // ── Solicitar cambios en SOLCOM ──────────────────────────────────────────
+    public function requestChanges(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $data = $request->validate([
+            'change_text' => 'required|string|max:2000',
+        ]);
+
+        PurchaseRequestChangeNote::create([
+            'purchase_request_id' => $purchaseRequest->id,
+            'requested_by'        => Auth::id(),
+            'text'                => $data['change_text'],
+        ]);
+
+        $purchaseRequest->update(['status' => 'changes_requested']);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseRequest->id,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$purchaseRequest->folio}: cambios solicitados por " . Auth::user()->name . '.',
+        ]);
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+                         ->with('success', 'Solicitud de cambios registrada. La SOLCOM regresa al equipo de Almacén.');
+    }
+
+    // ── Marcar nota de cambio como resuelta ──────────────────────────────────
+    public function resolveChangeNote(PurchaseRequest $purchaseRequest, PurchaseRequestChangeNote $changeNote)
+    {
+        $changeNote->update([
+            'resolved_at' => now(),
+            'resolved_by' => Auth::id(),
+        ]);
+
+        // Si todas las notas están resueltas, volver a estado 'pending' para poder reenviar
+        $unresolvedCount = $purchaseRequest->changeNotes()->whereNull('resolved_at')->count();
+        if ($unresolvedCount === 0) {
+            $purchaseRequest->update(['status' => 'pending']);
+
+            app(NotificationService::class)->send([
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $purchaseRequest->id,
+                'type'         => 'purchase_request',
+                'data'         => "SOLCOM #{$purchaseRequest->folio}: cambios resueltos, lista para reenviar a Compras.",
+            ]);
+        }
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+                         ->with('success', 'Nota marcada como resuelta.');
     }
 }

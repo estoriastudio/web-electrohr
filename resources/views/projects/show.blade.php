@@ -51,6 +51,10 @@
                     <div class="fw-semibold fs-18 text-primary">{{ $project->works_count }}</div>
                     <div class="text-muted fs-12">Obras</div>
                 </div>
+                <div class="text-center">
+                    <div class="fw-semibold fs-18 text-primary">$ {{ number_format((float) ($project->project_value ?? 0), 2) }}</div>
+                    <div class="text-muted fs-12">Valor</div>
+                </div>
                 <span class="badge {{ $ps['class'] }} py-1 px-3 fs-12">{{ $ps['label'] }}</span>
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateWork">

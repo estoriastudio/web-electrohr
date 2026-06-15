@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
 use App\Models\Payment;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
 
 use Illuminate\Http\Request;
@@ -120,6 +121,7 @@ class PaymentController extends Controller
             'folio'            => 'nullable|string|max:100',
             'amount'           => 'required|numeric|min:0.01',
             'payment_date'     => 'required|date',
+            'invoice_date'     => 'nullable|date',
             'status'           => 'required|in:por_autorizar,autorizado,pagado',
             'reference_number' => 'nullable|string|max:255',
         ]);
@@ -243,5 +245,47 @@ class PaymentController extends Controller
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Pago eliminado.');
+    }
+
+    /**
+     * Genera y descarga el PDF de contrarecibo de un pago (solo hitos crédito).
+     */
+    public function contrarecibo(Payment $payment)
+    {
+        $payment->load([
+            'milestone.purchaseOrder.supplier',
+            'milestone.purchaseOrder.projectRelation',
+        ]);
+
+        $milestone     = $payment->milestone;
+        $purchaseOrder = $milestone->purchaseOrder;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('payments.contrarecibo_pdf', compact('payment', 'milestone', 'purchaseOrder'));
+        $pdf->setPaper('letter', 'portrait');
+
+        $fileName = 'contrarecibo-' . $payment->folio . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    /**
+     * Vista de Alta de Facturas (acceso rápido para perfil payments).
+     */
+    public function altaFacturas(Request $request): \Illuminate\View\View
+    {
+        $search = trim($request->input('search', ''));
+
+        $orders = PurchaseOrder::with(['supplier', 'milestones', 'invoices'])
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('supplier', function ($s) use ($search) {
+                    $s->where('rfc_name', 'like', '%' . $search . '%')
+                      ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                })->orWhere('folio', 'like', '%' . $search . '%');
+            })
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('payments.alta_facturas', compact('orders', 'search'));
     }
 }

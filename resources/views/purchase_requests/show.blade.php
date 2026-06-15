@@ -26,9 +26,11 @@
 
 @php
     $statusMap = [
-        'pending'   => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-        'linked'    => ['label' => 'Ligado',     'class' => 'bg-info-subtle text-info'],
-        'completed' => ['label' => 'Finalizado', 'class' => 'bg-success-subtle text-success'],
+        'pending'           => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
+        'linked'            => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
+        'sent_to_purchasing'=> ['label' => 'En Compras',         'class' => 'bg-primary-subtle text-primary'],
+        'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
+        'completed'         => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
     ];
     $s = $statusMap[$purchaseRequest->status] ?? ['label' => $purchaseRequest->status, 'class' => 'bg-secondary-subtle text-secondary'];
 @endphp
@@ -76,6 +78,22 @@
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
+
+                        {{-- ENVIAR A COMPRAS: visible si NO está en compras ni finalizada --}}
+                        @if (! in_array($purchaseRequest->status, ['sent_to_purchasing', 'completed']))
+                        <button type="button" class="btn btn-primary btn-sm"
+                                data-bs-toggle="modal" data-bs-target="#modalSendToPurchasing">
+                            <i class="ri-send-plane-2-line me-1"></i>Enviar a Compras
+                        </button>
+                        @endif
+
+                        {{-- SOLICITAR CAMBIOS: visible solo cuando está en compras, para rol orders --}}
+                        @if ($purchaseRequest->status === 'sent_to_purchasing')
+                        <button type="button" class="btn btn-warning btn-sm"
+                                data-bs-toggle="modal" data-bs-target="#modalRequestChanges">
+                            <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
+                        </button>
+                        @endif
                         @endhasanyrole
                         <a href="{{ route('purchase_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
@@ -118,6 +136,18 @@
                     </div>
                     <div class="col-sm-6 col-md-4">
                         <p class="text-muted fs-12 mb-1">Solicitud Elaborada Por</p>
+                        <p class="fw-semibold mb-0">{{ $purchaseRequest->requestedBy?->name ?? '—' }}</p>
+                    </div>
+                    @if ($purchaseRequest->assignedTo)
+                    <div class="col-sm-6 col-md-4">
+                        <p class="text-muted fs-12 mb-1">Asignado a Compras</p>
+                        <p class="fw-semibold mb-0">
+                            <span class="badge bg-primary-subtle text-primary py-1 px-2">
+                                <i class="ri-user-line me-1"></i>{{ $purchaseRequest->assignedTo->name }}
+                            </span>
+                        </p>
+                    </div>
+                    @endif
                         <p class="fw-semibold mb-0">{{ $purchaseRequest->requestedBy?->name ?? '—' }}</p>
                     </div>
                 </div>
@@ -295,6 +325,113 @@
     </div>
 </div>
 
+{{-- ── Solicitudes de Cambios ── --}}
+@if ($purchaseRequest->changeNotes->count() > 0)
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-warning">
+                    <i class="ri-edit-circle-line me-2"></i>Solicitudes de Cambios
+                </h5>
+                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                    {{ $purchaseRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
+                </span>
+            </div>
+            <div class="card-body">
+                @foreach ($purchaseRequest->changeNotes as $note)
+                <div class="d-flex gap-3 mb-3 {{ $note->isResolved() ? 'opacity-50' : '' }}">
+                    <div class="avatar-sm flex-shrink-0">
+                        <span class="avatar-title {{ $note->isResolved() ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} rounded-circle fs-14 fw-bold">
+                            {{ strtoupper(substr($note->requestedBy?->name ?? '?', 0, 1)) }}
+                        </span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <span class="fw-semibold fs-13">{{ $note->requestedBy?->name ?? 'Usuario' }}</span>
+                                <span class="text-muted fs-12 ms-2">{{ $note->created_at->format('d/m/Y H:i') }}</span>
+                            </div>
+                            @if ($note->isResolved())
+                                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">
+                                    <i class="ri-check-line me-1"></i>Resuelto por {{ $note->resolvedBy?->name }}
+                                    · {{ $note->resolved_at->format('d/m/Y H:i') }}
+                                </span>
+                            @else
+                                @hasanyrole('admin|orders')
+                                <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
+                                      method="POST">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="ri-check-line me-1"></i>Marcar como resuelta
+                                    </button>
+                                </form>
+                                @endhasanyrole
+                            @endif
+                        </div>
+                        <p class="mb-0 text-body">{{ $note->text }}</p>
+                    </div>
+                </div>
+                @if (! $loop->last)<hr class="my-2">@endif
+                @endforeach
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ── Histórico de Movimientos ── --}}
+@if ($history->count() > 0)
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom">
+                <h5 class="card-title mb-0">
+                    <i class="ri-history-line me-2 text-primary"></i>Histórico de Movimientos
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle table-hover table-centered mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Usuario</th>
+                                <th>Movimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($history as $event)
+                            @php
+                                $iconMap = [
+                                    'create' => ['ri-add-circle-line text-success', 'bg-success-subtle'],
+                                    'update' => ['ri-edit-line text-primary',       'bg-primary-subtle'],
+                                    'delete' => ['ri-delete-bin-line text-danger',  'bg-danger-subtle'],
+                                ];
+                                [$icon, $bgClass] = $iconMap[$event->model_action] ?? ['ri-information-line text-muted', 'bg-light'];
+                            @endphp
+                            <tr>
+                                <td class="text-muted fs-12 text-nowrap">{{ $event->created_at->format('d/m/Y H:i') }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="avatar-xs {{ $bgClass }} rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                            <i class="{{ $icon }} fs-12"></i>
+                                        </div>
+                                        <span class="fs-13">{{ $event->user?->name ?? 'Sistema' }}</span>
+                                    </div>
+                                </td>
+                                <td class="fs-13">{{ $event->data }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ── Observaciones ── --}}
 <div class="row">
     <div class="col-12">
@@ -344,6 +481,82 @@
     </div>
 </div>
 
+{{-- ── Modal: Enviar a Compras ── --}}
+@hasanyrole('admin|orders')
+<div class="modal fade" id="modalSendToPurchasing" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('purchase_requests.send_to_purchasing', $purchaseRequest) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ri-send-plane-2-line me-2 text-primary"></i>Enviar SOLCOM a Compras
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Selecciona el usuario de Compras que se encargará de esta SOLCOM <strong>#{{ $purchaseRequest->folio }}</strong>.
+                        El documento aparecerá en su Pila de SOLCOM.
+                    </p>
+                    <label class="form-label fw-medium">Usuario de Compras <span class="text-danger">*</span></label>
+                    <select name="assigned_to" class="form-select" required>
+                        <option value="">— Selecciona un usuario —</option>
+                        @foreach ($purchasingUsers as $user)
+                            <option value="{{ $user->id }}"
+                                {{ $purchaseRequest->assigned_to == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-send-plane-2-line me-1"></i>Enviar a Compras
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ── Modal: Solicitar Cambios ── --}}
+<div class="modal fade" id="modalRequestChanges" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('purchase_requests.request_changes', $purchaseRequest) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ri-edit-circle-line me-2 text-warning"></i>Solicitar Cambios en SOLCOM #{{ $purchaseRequest->folio }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Describe los cambios que necesitas en esta SOLCOM. El documento regresará al equipo de Almacén
+                        con tu nota para que realicen los ajustes.
+                    </p>
+                    <label class="form-label fw-medium">Descripción del cambio requerido <span class="text-danger">*</span></label>
+                    <textarea name="change_text" rows="4"
+                              class="form-control"
+                              placeholder="Ej. Ajustar cantidades del ítem 3, agregar código de catálogo…"
+                              required maxlength="2000"></textarea>
+                    <div class="form-text text-end"><span id="changeTextCount">0</span>/2000 caracteres</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endhasanyrole
+
 @endsection
 
 @push('styles')
@@ -382,6 +595,17 @@
 
 @push('scripts')
 <script>
+// ── Contador de caracteres en modal solicitar cambios ──────────────────
+(function () {
+    var textarea  = document.querySelector('#modalRequestChanges textarea[name="change_text"]');
+    var counter   = document.getElementById('changeTextCount');
+    if (textarea && counter) {
+        textarea.addEventListener('input', function () {
+            counter.textContent = this.value.length;
+        });
+    }
+}());
+
 (function () {
     var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var tbody     = document.getElementById('solcom_items_tbody');
@@ -604,7 +828,7 @@
         var q = this.value.trim();
         if (q.length < 2) { dropdown.classList.add('d-none'); dropdown.innerHTML = ''; return; }
         debounceTimer = setTimeout(function () {
-            fetch('{{ route('concepts.search') }}?q=' + encodeURIComponent(q), {
+            fetch('{{ route('concepts.search') }}?type=materiales&q=' + encodeURIComponent(q), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(function (r) { return r.json(); })

@@ -45,8 +45,9 @@
 
     $tipoLabel = $purchaseOrder->type === 'materiales_servicios' ? 'Materiales / Servicios' : 'Mantenimiento';
     $totalCubierto = $purchaseOrder->saldo_cubierto;
-    $progressTotal = $purchaseOrder->amount > 0
-        ? min(100, round(($totalCubierto / $purchaseOrder->amount) * 100, 1))
+    $importeTotal  = $purchaseOrder->total_with_iva;
+    $progressTotal = $importeTotal > 0
+        ? min(100, round(($totalCubierto / $importeTotal) * 100, 1))
         : 0;
 @endphp
 
@@ -114,7 +115,7 @@
                     </div>
                     <div class="text-end">
                         <div class="fs-22 fw-semibold text-primary">
-                            {{ $purchaseOrder->currency }} {{ number_format($purchaseOrder->amount, 2) }}
+                            {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
                         <div class="text-muted fs-13">
                             Cubierto: <strong>{{ number_format($totalCubierto, 2) }}</strong>
@@ -136,14 +137,14 @@
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
                         </a>
+                        @else
+                        <span class="badge bg-success-subtle text-success border border-success py-2 px-3 fs-12">
+                            <i class="ri-lock-line me-1"></i>OC Autorizada
+                        </span>
+                        @endif
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
                             <i class="ri-add-line me-1"></i> Agregar condición de pago
                         </button>
-                        @else
-                        <span class="badge bg-success-subtle text-success border border-success py-2 px-3 fs-12">
-                            <i class="ri-lock-line me-1"></i>OC Autorizada — Solo lectura
-                        </span>
-                        @endif
                         @endhasanyrole
                     </div>
                 </div>
@@ -275,14 +276,20 @@
 
                 {{-- Tabla de totales --}}
                 <div class="d-flex justify-content-end px-3 py-2 border-top">
-                    <table class="table table-sm mb-0" style="width:280px;">
+                    <table class="table table-sm mb-0" style="width:300px;">
                         <tbody>
                             <tr>
                                 <td class="text-muted fs-12">Subtotal</td>
                                 <td class="text-end fw-medium" id="oc_subtotal">${{ number_format($purchaseOrder->subtotal, 2) }}</td>
                             </tr>
                             <tr>
-                                <td class="text-muted fs-12">IVA (16%)</td>
+                                <td class="text-muted fs-12" id="oc_iva_label">
+                                    @if (is_null($purchaseOrder->tax_rate))
+                                        Impuesto (Exento)
+                                    @else
+                                        IVA ({{ rtrim(rtrim(number_format((float)$purchaseOrder->tax_rate, 2), '0'), '.') }}%)
+                                    @endif
+                                </td>
                                 <td class="text-end fw-medium" id="oc_iva">${{ number_format($purchaseOrder->iva, 2) }}</td>
                             </tr>
                             <tr class="border-top">
@@ -415,7 +422,13 @@
             $isComplete  = $milestone->is_complete;
             $hasInvoice  = $milestone->invoices->isNotEmpty();
             $progressClass = $isComplete ? 'bg-success' : ($percent >= 50 ? 'bg-warning' : 'bg-danger');
-            $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];
+            $tipoHitoMap = [
+                'anticipo' => 'Anticipo',
+                'regular'  => 'Pago Regular',
+                'contado'  => 'Contado',
+                'credito'  => 'Crédito',
+            ];
+            $tipoCondicionMap = ['contado' => 'Contado', 'credito' => 'Crédito'];
             $tipoValorMap = ['fijo' => 'Monto Fijo', 'porcentaje' => 'Porcentaje'];
 
             $today      = \Carbon\Carbon::today();
@@ -497,8 +510,13 @@
                         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ $semDotColor }};flex-shrink:0;"></span>
                         <span class="fw-semibold fs-14">Hito #{{ $milestone->id }}</span>
                         <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11">
-                            {{ $tipoHitoMap[$milestone->type] ?? $milestone->type }}
+                            {{ $tipoCondicionMap[$milestone->payment_condition ?? 'credito'] ?? ($tipoHitoMap[$milestone->type] ?? $milestone->type) }}
                         </span>
+                        @if ($milestone->is_advance)
+                        <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-11">
+                            <i class="ri-bank-line me-1"></i>Anticipo
+                        </span>
+                        @endif
                         <span class="badge {{ $semBadge }} py-1 px-2 fs-11">
                             <i class="{{ $semIcon }} me-1"></i>{{ $semLabel }}
                         </span>
@@ -520,8 +538,15 @@
                                 </button>
                             </form>
                         @else
+                            {{-- Tiene pagos: solo edición parcial de fechas permitida --}}
+                            <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
+                                    title="Editar fechas del hito (tiene pagos: solo fechas editables)"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalEditMilestone{{ $milestone->id }}">
+                                <i class="ri-edit-line fs-13"></i>
+                            </button>
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
-                                    title="No se puede editar: el hito tiene pagos registrados" disabled>
+                                    title="No se puede eliminar: el hito tiene pagos registrados" disabled>
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
@@ -613,7 +638,10 @@
                                     <tr>
                                         <th>Folio</th>
                                         <th>Monto</th>
-                                        <th>Fecha</th>
+                                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                        <th>Fecha Factura</th>
+                                        @endif
+                                        <th>Fecha Pago</th>
                                         <th>Estatus</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -647,6 +675,11 @@
                                         <tr>
                                             <td class="fw-medium">{{ $payment->folio }}</td>
                                             <td>{{ number_format($payment->amount, 2) }}</td>
+                                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                            <td>
+                                                {{ $payment->invoice_date ? $payment->invoice_date->format('d/m/Y') : '—' }}
+                                            </td>
+                                            @endif
                                             <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                             <td>
                                                 <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
@@ -685,6 +718,18 @@
                                                             @endhasanyrole
                                                         @endif
                                                     @endforeach
+
+                                                    {{-- Contrarecibo PDF (solo hitos crédito) --}}
+                                                    @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                                    @hasanyrole('admin|payments|orders')
+                                                    <a href="{{ route('payments.contrarecibo', $payment) }}"
+                                                       target="_blank"
+                                                       class="btn btn-xs btn-soft-secondary"
+                                                       title="Descargar contrarecibo PDF">
+                                                        <i class="ri-file-download-line"></i> Contrarecibo
+                                                    </a>
+                                                    @endhasanyrole
+                                                    @endif
 
                                                     {{-- Eliminar (solo admin|payments) --}}
                                                     @hasanyrole('admin|payments')
@@ -891,30 +936,53 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        @if ($milestone->payments->count() > 0)
+                        <div class="alert alert-warning py-2 fs-13 mb-3">
+                            <i class="ri-alert-line me-1"></i>
+                            Este hito tiene <strong>{{ $milestone->payments->count() }} pago(s)</strong> registrados.
+                            Solo se puede modificar las fechas y condiciones. El valor no es editable.
+                        </div>
+                        @endif
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-medium">Tipo <span class="text-danger">*</span></label>
-                                <select class="form-select" name="type" required>
-                                    <option value="anticipo"  {{ $milestone->type === 'anticipo'  ? 'selected' : '' }}>Anticipo (Contado)</option>
-                                    <option value="regular"   {{ $milestone->type === 'regular'   ? 'selected' : '' }}>Pago regular</option>
+                                <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
+                                <select class="form-select" name="payment_condition" required>
+                                    <option value="contado" {{ ($milestone->payment_condition ?? 'credito') === 'contado' ? 'selected' : '' }}>Contado</option>
+                                    <option value="credito" {{ ($milestone->payment_condition ?? 'credito') === 'credito' ? 'selected' : '' }}>Crédito</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Tipo de valor <span class="text-danger">*</span></label>
-                                <select class="form-select" name="value_type" required>
+                                <select class="form-select" name="value_type" required
+                                        {{ $milestone->payments->count() > 0 ? 'disabled' : '' }}>
                                     <option value="fijo"       {{ $milestone->value_type === 'fijo'       ? 'selected' : '' }}>Fijo</option>
                                     <option value="porcentaje" {{ $milestone->value_type === 'porcentaje' ? 'selected' : '' }}>Porcentaje</option>
                                 </select>
+                                @if ($milestone->payments->count() > 0)
+                                <input type="hidden" name="value_type" value="{{ $milestone->value_type }}">
+                                @endif
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0.01" class="form-control"
-                                       name="value" value="{{ $milestone->value }}" required>
+                                       name="value" value="{{ $milestone->value }}" required
+                                       {{ $milestone->payments->count() > 0 ? 'readonly' : '' }}>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha vencimiento</label>
                                 <input type="date" class="form-control"
                                        name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="is_advance" value="1"
+                                           id="is_advance_edit_{{ $milestone->id }}"
+                                           {{ $milestone->is_advance ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-medium" for="is_advance_edit_{{ $milestone->id }}">
+                                        <i class="ri-bank-line me-1 text-warning"></i>Esto es un anticipo
+                                    </label>
+                                </div>
+                                <div class="form-text">Marca si este hito corresponde a un pago anticipado (antes de la entrega).</div>
                             </div>
                         </div>
                     </div>
@@ -940,7 +1008,13 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="alert alert-info py-2 fs-13">
+                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                        <div class="alert alert-info py-2 fs-13 mb-3">
+                            <i class="ri-bank-line me-1"></i>
+                            <strong>Hito Crédito:</strong> registra la fecha de factura del proveedor y la fecha en que se programará el pago.
+                        </div>
+                        @endif
+                        <div class="alert alert-light border py-2 fs-13 mb-3">
                             Saldo pendiente del hito: <strong>{{ $purchaseOrder->currency }} {{ number_format($pendiente, 2) }}</strong>
                         </div>
                         <div class="row g-3">
@@ -954,11 +1028,30 @@
                                 <input type="number" step="0.01" min="0.01" max="{{ $pendiente }}"
                                        class="form-control" name="amount" required>
                             </div>
+                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    Fecha de factura <span class="text-danger">*</span>
+                                    <small class="text-muted fw-normal">(cuando la recibe el proveedor)</small>
+                                </label>
+                                <input type="date" class="form-control" name="invoice_date"
+                                       value="{{ date('Y-m-d') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    Fecha de pago programada <span class="text-danger">*</span>
+                                    <small class="text-muted fw-normal">(cuando se liquidará)</small>
+                                </label>
+                                <input type="date" class="form-control" name="payment_date"
+                                       value="{{ date('Y-m-d') }}" required>
+                            </div>
+                            @else
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha de pago <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control" name="payment_date"
                                        value="{{ date('Y-m-d') }}" required>
                             </div>
+                            @endif
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
                                 <select class="form-select" name="status" required>
@@ -967,7 +1060,7 @@
                                     <option value="pagado">Pagado</option>
                                 </select>
                             </div>
-                            <div class="col-12">
+                            <div class="col-{{ ($milestone->payment_condition ?? 'credito') === 'credito' ? '12' : 'md-6' }}">
                                 <label class="form-label fw-medium">Número de referencia</label>
                                 <input type="text" class="form-control" name="reference_number"
                                        placeholder="Ej. transferencia bancaria, cheque...">
@@ -1076,7 +1169,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
-@if ($purchaseOrder->status !== 'autorizada')
+@hasanyrole('admin|orders')
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1092,10 +1185,10 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-medium">Tipo <span class="text-danger">*</span></label>
-                            <select class="form-select" name="type" required>
-                                <option value="anticipo">Anticipo (Contado)</option>
-                                <option value="regular" selected>Pago regular</option>
+                            <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
+                            <select class="form-select" name="payment_condition" required>
+                                <option value="credito" selected>Crédito</option>
+                                <option value="contado">Contado</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -1117,6 +1210,16 @@
                             <label class="form-label fw-medium">Fecha vencimiento</label>
                             <input type="date" class="form-control" name="due_date">
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_advance" value="1"
+                                       id="is_advance_create">
+                                <label class="form-check-label fw-medium" for="is_advance_create">
+                                    <i class="ri-bank-line me-1 text-warning"></i>Esto es un anticipo
+                                </label>
+                            </div>
+                            <div class="form-text">Marca si este hito corresponde a un pago anticipado (antes de la entrega).</div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1129,7 +1232,7 @@
         </div>
     </div>
 </div>
-@endif
+@endhasanyrole
 
 @push('styles')
 <style>
@@ -1193,6 +1296,14 @@
         var el = function (id) { return document.getElementById(id); };
         if (data.subtotal !== undefined && el('oc_subtotal')) el('oc_subtotal').textContent = '$' + fmtMoney(data.subtotal);
         if (data.iva      !== undefined && el('oc_iva'))      el('oc_iva').textContent      = '$' + fmtMoney(data.iva);
+        // Actualizar label de impuesto si el servidor devuelve tax_rate
+        if (data.tax_rate !== undefined && el('oc_iva_label')) {
+            if (data.tax_rate === null) {
+                el('oc_iva_label').textContent = 'Impuesto (Exento)';
+            } else {
+                el('oc_iva_label').textContent = 'IVA (' + parseFloat(data.tax_rate) + '%)';
+            }
+        }
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
     }
@@ -1359,7 +1470,7 @@
             var q = this.value.trim();
             if (q.length < 2) { searchDropdown.classList.add('d-none'); return; }
             searchTimer = setTimeout(function () {
-                fetch('{{ route("concepts.search") }}' + '?q=' + encodeURIComponent(q), {
+                fetch('{{ route("concepts.search") }}' + '?type={{ $purchaseOrder->type === "mantenimiento" ? "mantenimiento" : "materiales" }}&q=' + encodeURIComponent(q), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
                 })
                 .then(function (r) { return r.json(); })

@@ -63,9 +63,8 @@
                 </a>
             </li>
 
-            <li class="menu-title">Compras</li>
+            <li class="menu-title">Almacén</li>
 
-            @hasanyrole('admin|orders')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
                    href="{{ route('material_requests.index') }}">
@@ -76,12 +75,43 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
+                   href="{{ route('warehouse.solmat_pile') }}">
+                    <span class="nav-icon">
+                        <i class="ri-inbox-2-line"></i>
+                    </span>
+                    <span class="nav-text">Pila SOLMAT (Almacén)</span>
+                </a>
+            </li>
+
+            <li class="menu-title">Compras</li>
+
+            @hasanyrole('admin|orders')
+            <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
                    href="{{ route('purchase_requests.index') }}">
                     <span class="nav-icon">
                         <i class="ri-shopping-cart-2-line"></i>
                     </span>
                     <span class="nav-text">Solicitudes de Compra</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
+                   href="{{ route('purchasing.solcom_pile') }}">
+                    <span class="nav-icon">
+                        <i class="ri-stack-line"></i>
+                    </span>
+                    <span class="nav-text">Pila SOLCOM (Compras)</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchasing.workload') ? 'active' : '' }}"
+                   href="{{ route('purchasing.workload') }}">
+                    <span class="nav-icon">
+                        <i class="ri-bar-chart-grouped-line"></i>
+                    </span>
+                    <span class="nav-text">Carga de Trabajo</span>
                 </a>
             </li>
             @endhasanyrole
@@ -98,6 +128,9 @@
             </li>
             @endhasanyrole
 
+            @hasanyrole('admin|payments')
+            <li class="menu-title">Pagos</li>
+
             @hasanyrole('admin|payments|orders')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
@@ -110,9 +143,6 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|payments')
-            <li class="menu-title">Pagos</li>
-
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('payments.index') ? 'active' : '' }}"
                    href="{{ route('payments.index') }}">
@@ -122,17 +152,36 @@
                     <span class="nav-text">Autorización de Pagos</span>
                 </a>
             </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
+                   href="{{ route('payments.alta_facturas') }}">
+                    <span class="nav-icon">
+                        <i class="ri-upload-2-line"></i>
+                    </span>
+                    <span class="nav-text">Alta de Facturas</span>
+                </a>
+            </li>
             @endhasanyrole
 
             @role('admin')
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="{{ route('concepts.index') }}">
+                <a class="nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">
                     <span class="nav-icon">
                         <i class="ri-pages-line"></i>
                     </span>
                     <span class="nav-text">Conceptos</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-folder-3-line"></i>
+                    </span>
+                    <span class="nav-text">Categorías de Conceptos</span>
                 </a>
             </li>
 

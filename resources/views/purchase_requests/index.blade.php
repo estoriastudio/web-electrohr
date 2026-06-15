@@ -63,6 +63,8 @@
                             <option value="">Todos los estados</option>
                             <option value="pending"   {{ $status === 'pending'   ? 'selected' : '' }}>Pendiente</option>
                             <option value="linked"    {{ $status === 'linked'    ? 'selected' : '' }}>Ligado</option>
+                            <option value="sent_to_purchasing" {{ $status === 'sent_to_purchasing' ? 'selected' : '' }}>En Compras</option>
+                            <option value="changes_requested" {{ $status === 'changes_requested' ? 'selected' : '' }}>Cambios Solicitados</option>
                             <option value="completed" {{ $status === 'completed' ? 'selected' : '' }}>Finalizado</option>
                         </select>
                     </div>
@@ -95,9 +97,11 @@
                         <tbody>
                             @php
                                 $statusMap = [
-                                    'pending'   => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-                                    'linked'    => ['label' => 'Ligado',     'class' => 'bg-info-subtle text-info'],
-                                    'completed' => ['label' => 'Finalizado', 'class' => 'bg-success-subtle text-success'],
+                                    'pending'           => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
+                                    'linked'            => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
+                                    'sent_to_purchasing'=> ['label' => 'En Compras',         'class' => 'bg-primary-subtle text-primary'],
+                                    'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
+                                    'completed'         => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
                                 ];
                             @endphp
                             @forelse ($purchaseRequests as $pr)
@@ -205,7 +209,8 @@
                         <div class="col-md-4">
                             <label class="form-label">Folio <span class="text-danger">*</span></label>
                             <input type="number" name="folio" class="form-control @error('folio') is-invalid @enderror"
-                                   value="{{ old('folio', $nextFolio) }}" required min="1">
+                                   value="{{ old('folio', $nextFolio) }}" required min="18000" readonly
+                                   style="background-color: #f8f9fa;">
                             @error('folio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-8">
@@ -278,6 +283,22 @@
                                    class="form-control @error('need_date') is-invalid @enderror"
                                    value="{{ old('need_date') }}" required>
                             @error('need_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        {{-- Comprador asignado --}}
+                        <div class="col-12">
+                            <label class="form-label">Comprador Asignado</label>
+                            <select name="assigned_to" id="prAssignedTo"
+                                    class="form-select @error('assigned_to') is-invalid @enderror">
+                                <option value="">— Sin asignar —</option>
+                                @foreach ($purchasingUsers as $pu)
+                                    <option value="{{ $pu->id }}" {{ old('assigned_to') == $pu->id ? 'selected' : '' }}>
+                                        {{ $pu->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text" id="prAssignedToHint"></div>
+                            @error('assigned_to') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                     </div>
 
@@ -396,6 +417,20 @@ document.getElementById('btnSearchSolmat').addEventListener('click', function ()
             }
 
             badgeEl.classList.remove('d-none');
+
+            // Precargar comprador sugerido
+            const assignedSel  = document.getElementById('prAssignedTo');
+            const assignedHint = document.getElementById('prAssignedToHint');
+            if (data.suggested_buyer_id && assignedSel) {
+                assignedSel.value = data.suggested_buyer_id;
+                if (assignedHint) {
+                    assignedHint.innerHTML =
+                        '<i class="ri-user-received-line me-1 text-success"></i>'
+                        + 'Sugerido por categoría de conceptos: <strong>' + data.suggested_buyer_name + '</strong>';
+                }
+            } else if (assignedHint) {
+                assignedHint.textContent = '';
+            }
         })
         .catch(err => {
             msgEl.textContent = err.error ?? 'No se encontró la SOLMAT.';

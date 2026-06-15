@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
 
 use Illuminate\Http\Request;
@@ -67,7 +68,8 @@ class PurchaseOrderMilestoneController extends Controller
     {
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
-            'type'              => 'required|in:anticipo,regular',
+            'payment_condition' => 'required|in:contado,credito',
+            'is_advance'        => 'boolean',
             'value_type'        => 'required|in:fijo,porcentaje',
             'value'             => 'required|numeric|min:0.01',
             'invoice_date'      => 'nullable|date',
@@ -75,6 +77,8 @@ class PurchaseOrderMilestoneController extends Controller
         ]);
 
         $validated['covered_amount'] = 0;
+        $validated['is_advance']     = $request->boolean('is_advance');
+        $validated['type']           = 'regular'; // campo legacy, valor fijo
 
         $order = PurchaseOrderMilestone::create($validated);
 
@@ -103,28 +107,55 @@ class PurchaseOrderMilestoneController extends Controller
 
     public function update(Request $request, PurchaseOrderMilestone $purchaseOrderMilestone): RedirectResponse
     {
-        if ($purchaseOrderMilestone->payments()->count() > 0) {
-            return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
-                ->with('error', 'No se puede editar un hito que ya tiene pagos registrados.');
-        }
-
         $validated = $request->validate([
-            'type'         => 'required|in:anticipo,regular',
-            'value_type'   => 'required|in:fijo,porcentaje',
-            'value'        => 'required|numeric|min:0.01',
-            'invoice_date' => 'nullable|date',
-            'due_date'     => 'nullable|date',
+            'payment_condition' => 'required|in:contado,credito',
+            'is_advance'        => 'boolean',
+            'value_type'        => 'required|in:fijo,porcentaje',
+            'value'             => 'required|numeric|min:0.01',
+            'invoice_date'      => 'nullable|date',
+            'due_date'          => 'nullable|date',
         ]);
+
+        $validated['is_advance'] = $request->boolean('is_advance');
+        $validated['type']       = $purchaseOrderMilestone->type; // preservar valor legacy existente
+
+        // Capturar valores anteriores para el log de auditoría
+        $before = [
+            'type'              => $purchaseOrderMilestone->type,
+            'payment_condition' => $purchaseOrderMilestone->payment_condition,
+            'is_advance'        => $purchaseOrderMilestone->is_advance,
+            'value_type'        => $purchaseOrderMilestone->value_type,
+            'value'             => (float) $purchaseOrderMilestone->value,
+            'due_date'          => $purchaseOrderMilestone->due_date?->format('d/m/Y'),
+        ];
 
         $purchaseOrderMilestone->update($validated);
 
-        // Notificación
+        // Construir resumen de cambios para auditoría
+        $changes = [];
+        if ($before['due_date'] !== $purchaseOrderMilestone->fresh()->due_date?->format('d/m/Y')) {
+            $changes[] = 'vencimiento: ' . ($before['due_date'] ?? 'sin fecha') . ' → ' . ($purchaseOrderMilestone->due_date?->format('d/m/Y') ?? 'sin fecha');
+        }
+        if ($before['value'] !== (float) $validated['value']) {
+            $changes[] = 'valor: ' . $before['value'] . ' → ' . $validated['value'];
+        }
+        if ($before['payment_condition'] !== $validated['payment_condition']) {
+            $changes[] = 'condición: ' . $before['payment_condition'] . ' → ' . $validated['payment_condition'];
+        }
+        if ($before['is_advance'] !== $validated['is_advance']) {
+            $changes[] = 'anticipo: ' . ($before['is_advance'] ? 'sí' : 'no') . ' → ' . ($validated['is_advance'] ? 'sí' : 'no');
+        }
+
+        $ocFolio = $purchaseOrderMilestone->purchaseOrder?->folio ?? $purchaseOrderMilestone->purchase_order_id;
+        $summary = count($changes) > 0 ? ' (' . implode('; ', $changes) . ')' : '';
+
+        // Notificación de auditoría
         $this->notification->send([
             'type'         => 'PurchaseOrderMilestone',
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $purchaseOrderMilestone->id,
-            'data'         => 'actualizó un hito de la orden de compra #' . $purchaseOrderMilestone->purchase_order_id,
+            'data'         => "actualizó el Hito #{$purchaseOrderMilestone->id} de OC #{$ocFolio}{$summary}.",
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
@@ -154,5 +185,29 @@ class PurchaseOrderMilestoneController extends Controller
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Hito eliminado.');
+    }
+
+    /**
+     * Devuelve los hitos de una OC en formato JSON (para AJAX en Alta de Facturas).
+     */
+    public function forOrder(PurchaseOrder $purchaseOrder): \Illuminate\Http\JsonResponse
+    {
+        $milestones = $purchaseOrder->milestones()
+            ->select('id', 'purchase_order_id', 'payment_condition', 'value_type', 'value', 'covered_amount', 'due_date', 'is_advance')
+            ->get()
+            ->map(function ($m) {
+                return [
+                    'id'               => $m->id,
+                    'payment_condition'=> $m->payment_condition ?? 'credito',
+                    'value_type'       => $m->value_type,
+                    'value'            => $m->value,
+                    'effective_amount' => $m->effective_amount,
+                    'covered_amount'   => $m->covered_amount,
+                    'due_date'         => $m->due_date ? $m->due_date->format('d/m/Y') : null,
+                    'is_advance'       => $m->is_advance,
+                ];
+            });
+
+        return response()->json($milestones);
     }
 }

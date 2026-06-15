@@ -53,13 +53,21 @@
                         {{-- Categoría --}}
                         <div class="col-md-6">
                             <label class="form-label">Categoría de Suministros <span class="text-danger">*</span></label>
-                            <input type="text" name="supply_category"
-                                   class="form-control @error('supply_category') is-invalid @enderror"
-                                   value="{{ old('supply_category', $materialRequest->supply_category) }}" required>
-                            @error('supply_category') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <select name="concept_category_id"
+                                    class="form-select @error('concept_category_id') is-invalid @enderror"
+                                    required>
+                                <option value="">— Selecciona una categoría —</option>
+                                @foreach ($categories as $cat)
+                                    <option value="{{ $cat->id }}"
+                                            {{ old('concept_category_id', $materialRequest->concept_category_id) == $cat->id ? 'selected' : '' }}>
+                                        {{ $cat->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('concept_category_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
-                        {{-- Proyecto / Obra --}}
+                        {{-- Proyecto / Obras --}}
                         <div class="col-md-6">
                             <label class="form-label">Proyecto <span class="text-danger">*</span></label>
                             <select name="project_id" id="editMrProjectId"
@@ -75,19 +83,18 @@
                             @error('project_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Obra <span class="text-danger">*</span></label>
-                            <select name="project_work_id" id="editMrProjectWorkId"
-                                    class="form-select @error('project_work_id') is-invalid @enderror" required>
-                                <option value="{{ $materialRequest->project_work_id }}">
-                                    {{ $materialRequest->projectWork?->name ?? '— Selecciona obra —' }}
-                                </option>
+                            <label class="form-label">Obras <span class="text-danger">*</span></label>
+                            <select name="project_work_ids[]" id="editMrProjectWorkId"
+                                    class="form-select @error('project_work_ids') is-invalid @enderror"
+                                    multiple required>
                             </select>
-                            @error('project_work_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            @error('project_work_ids') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">Selecciona una o más obras vinculadas.</div>
                         </div>
 
-                        {{-- Zona y Dirección --}}
+                        {{-- Ubicación y Dirección --}}
                         <div class="col-md-6">
-                            <label class="form-label">Zona <span class="text-danger">*</span></label>
+                            <label class="form-label">Ubicación <span class="text-danger">*</span></label>
                             <input type="text" name="zone"
                                    class="form-control @error('zone') is-invalid @enderror"
                                    value="{{ old('zone', $materialRequest->zone) }}" required>
@@ -138,32 +145,56 @@
 @push('scripts')
 <script>
 (function () {
-    const projectSel  = document.getElementById('editMrProjectId');
-    const workSel     = document.getElementById('editMrProjectWorkId');
-    const currentWork = {{ $materialRequest->project_work_id ?? 'null' }};
+    const projectSel    = document.getElementById('editMrProjectId');
+    const workSel       = document.getElementById('editMrProjectWorkId');
+    const currentWorks  = @json($materialRequest->projectWorks->pluck('id'));
+    let workChoices     = null;
 
-    function loadWorks(projectId, selectValue) {
-        if (!projectId) return;
-        fetch(`/proyectos/${projectId}/obras-json`)
-            .then(r => r.json())
-            .then(works => {
-                workSel.innerHTML = '<option value="">— Selecciona obra —</option>';
-                works.forEach(w => {
-                    const opt = document.createElement('option');
-                    opt.value = w.id;
-                    opt.textContent = w.name;
-                    if (w.id == selectValue) opt.selected = true;
-                    workSel.appendChild(opt);
-                });
+    function initChoices(selected) {
+        if (workChoices) { workChoices.destroy(); workChoices = null; }
+        workChoices = new Choices(workSel, {
+            searchEnabled: true,
+            searchPlaceholderValue: 'Buscar obra…',
+            itemSelectText: '',
+            noResultsText: 'Sin resultados',
+            noChoicesText: 'Sin obras disponibles',
+            removeItemButton: true,
+            placeholder: true,
+            placeholderValue: '— Selecciona una o más obras —',
+        });
+        // Pre-seleccionar obras actuales
+        if (selected && selected.length) {
+            workChoices.setChoiceByValue(selected.map(String));
+        }
+    }
+
+    function loadWorks(projectId, selected) {
+        if (!projectId) { workSel.innerHTML = ''; if (workChoices) { workChoices.destroy(); workChoices = null; } return; }
+        fetch('/proyectos/' + projectId + '/obras-json', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(works => {
+            workSel.innerHTML = '';
+            works.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w.id;
+                opt.textContent = w.name;
+                workSel.appendChild(opt);
             });
+            initChoices(selected);
+        })
+        .catch(function () {
+            workSel.innerHTML = '<option value="">Error al cargar obras</option>';
+        });
     }
 
     // Cargar obras del proyecto actual al iniciar
-    loadWorks(projectSel.value, currentWork);
+    loadWorks(projectSel.value, currentWorks);
 
     projectSel.addEventListener('change', function () {
-        loadWorks(this.value, null);
+        loadWorks(this.value, []);
     });
-})();
+}());
 </script>
 @endpush
