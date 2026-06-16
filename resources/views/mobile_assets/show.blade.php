@@ -107,7 +107,7 @@
             <span class="badge {{ $statusBadge['class'] }} fs-12">{{ $statusBadge['label'] }}</span>
         </div>
     </div>
-    @role('admin|orders')
+    @role('admin|Moviles')
     <a href="{{ route('mobile_assets.edit', $mobileAsset) }}" class="btn btn-primary btn-sm">
         <i class="ri-edit-line me-1"></i> Editar bien
     </a>
@@ -145,7 +145,7 @@
                                            class="btn btn-sm btn-light" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @role('admin|orders')
+                                        @role('admin|Moviles')
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -163,7 +163,7 @@
                                         <a href="#" target="_blank" class="btn btn-sm btn-light photo-view-btn" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @role('admin|orders')
+                                        @role('admin|Moviles')
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -177,7 +177,7 @@
                             @endif
 
                             {{-- Dropzone (visible si no hay foto; oculto si ya hay) --}}
-                            @role('admin|orders')
+                            @role('admin|Moviles')
                             <div class="photo-dz-zone {{ $photoUrl ? 'd-none' : '' }}"
                                  id="dropzone-slot-{{ $slot }}"
                                  data-slot="{{ $slot }}"
@@ -218,7 +218,7 @@
                                 <th>Documento</th>
                                 <th>Vencimiento</th>
                                 <th>Archivo</th>
-                                @role('admin|orders')
+                                @role('admin|Moviles')
                                 <th>Actualizar</th>
                                 @endrole
                             </tr>
@@ -264,7 +264,7 @@
                                             <span class="text-muted fs-12">Sin archivo</span>
                                         @endif
                                     </td>
-                                    @role('admin|orders')
+                                    @role('admin|Moviles')
                                     <td>
                                         <button type="button" class="btn btn-soft-primary btn-sm"
                                                 data-bs-toggle="modal"
@@ -294,7 +294,7 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-file-list-3-line me-1 text-muted"></i> Bitácora de Mantenimiento
                 </h5>
-                @role('admin|orders')
+                @role('admin|Moviles')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalAddLog">
                     <i class="ri-add-line me-1"></i> Registrar
@@ -311,7 +311,7 @@
                                 <th>Próximo</th>
                                 <th>Evidencia</th>
                                 <th>Notas</th>
-                                @role('admin|orders')
+                                @role('admin|Moviles')
                                 <th></th>
                                 @endrole
                             </tr>
@@ -346,7 +346,7 @@
                                     <td class="fs-12 text-muted" style="max-width: 200px; white-space: normal;">
                                         {{ $log->notes ? \Illuminate\Support\Str::limit($log->notes, 80) : '—' }}
                                     </td>
-                                    @role('admin|orders')
+                                    @role('admin|Moviles')
                                     <td>
                                         <form action="{{ route('maintenance_logs.destroy', [$mobileAsset, $log]) }}"
                                               method="POST"
@@ -459,7 +459,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODALES — Documentos (uno por tipo)
 ══════════════════════════════════════════════════════════════════ --}}
-@role('admin|orders')
+@role('admin|Moviles')
 @foreach ($applicableDocTypes as $dt)
     @php
         $docRecord = $mobileAsset->documents->firstWhere('document_type', $dt);

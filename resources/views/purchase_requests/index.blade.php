@@ -39,11 +39,13 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Compra</h4>
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solcom')
+                @can('create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreatePR">
                     <i class="ri-add-line me-1"></i> Nueva SOLCOM
                 </button>
+                @endcan
                 @endhasanyrole
             </div>
 
@@ -129,18 +131,22 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @hasanyrole('admin|orders')
-                                            <a href="{{ route('purchase_requests.edit', $pr) }}"
-                                               class="btn btn-soft-primary btn-sm" title="Editar">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('purchase_requests.destroy', $pr) }}" method="POST"
-                                                  onsubmit="return confirm('¿Eliminar SOLCOM #{{ $pr->folio }}?')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
+                                            @hasanyrole('admin|Solcom')
+                                            @can('update')
+                                                <a href="{{ route('purchase_requests.edit', $pr) }}"
+                                                   class="btn btn-soft-primary btn-sm" title="Editar">
+                                                    <i class="ri-edit-line"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete')
+                                                <form action="{{ route('purchase_requests.destroy', $pr) }}" method="POST"
+                                                      onsubmit="return confirm('¿Eliminar SOLCOM #{{ $pr->folio }}?')">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                             @endhasanyrole
                                         </div>
                                     </td>
@@ -167,6 +173,8 @@
 </div>
 
 {{-- MODAL — Nueva SOLCOM --}}
+@hasanyrole('admin|Solcom')
+@can('create')
 <div class="modal fade" id="modalCreatePR" tabindex="-1" aria-labelledby="modalCreatePRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
@@ -335,11 +343,22 @@
         </div>
     </div>
 </div>
+@endcan
+@endhasanyrole
 
 @endsection
 
 @push('scripts')
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    var projectSelect = document.getElementById('prProjectId');
+    var workSelectEl = document.getElementById('prProjectWorkId');
+    var btnSearch = document.getElementById('btnSearchSolmat');
+
+    if (!projectSelect || !workSelectEl || !btnSearch) {
+        return;
+    }
+
 // ── Cascade proyecto → obras ──────────────────────────────────────────────
 function loadWorks(projectId, workSelect, selectValue) {
     if (!projectId) {
@@ -362,12 +381,12 @@ function loadWorks(projectId, workSelect, selectValue) {
         .catch(() => { workSelect.innerHTML = '<option value="">— Error —</option>'; });
 }
 
-document.getElementById('prProjectId').addEventListener('change', function () {
-    loadWorks(this.value, document.getElementById('prProjectWorkId'), null);
+projectSelect.addEventListener('change', function () {
+    loadWorks(this.value, workSelectEl, null);
 });
 
 // ── Búsqueda de SOLMAT por folio ──────────────────────────────────────────
-document.getElementById('btnSearchSolmat').addEventListener('click', function () {
+btnSearch.addEventListener('click', function () {
     const folio   = document.getElementById('solmatFolioInput').value.trim();
     const msgEl   = document.getElementById('solmatSearchMsg');
     const badgeEl = document.getElementById('solmatLinkedBadge');
@@ -438,10 +457,14 @@ document.getElementById('btnSearchSolmat').addEventListener('click', function ()
             document.getElementById('materialRequestId').value = '';
         });
 });
+});
 
 @if ($errors->any())
     document.addEventListener('DOMContentLoaded', () => {
-        new bootstrap.Modal(document.getElementById('modalCreatePR')).show();
+        var modalEl = document.getElementById('modalCreatePR');
+        if (modalEl) {
+            new bootstrap.Modal(modalEl).show();
+        }
     });
 @endif
 </script>

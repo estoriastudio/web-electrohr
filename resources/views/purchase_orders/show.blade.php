@@ -132,7 +132,7 @@
                            class="btn btn-sm btn-outline-danger" target="_blank">
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Orden de compra')
                         @if ($purchaseOrder->status !== 'autorizada')
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
@@ -162,7 +162,7 @@
                     <i class="ri-list-check me-1 text-primary"></i> Conceptos
                     <span id="oc_items_badge" class="badge bg-primary-subtle text-primary ms-1 fs-12">{{ $purchaseOrder->items->count() }}</span>
                 </h5>
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Orden de compra')
                 @if ($purchaseOrder->status !== 'autorizada')
                 <button type="button" class="btn btn-sm btn-primary" id="btn_toggle_add_concept">
                     <i class="ri-add-line me-1"></i> Agregar concepto
@@ -197,7 +197,7 @@
                                     <td>{{ $item->description }}</td>
                                     <td class="fs-12">{{ $item->unit }}</td>
                                     <td class="text-end" style="min-width:120px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <input type="number" step="0.01" min="0"
                                                class="form-control form-control-sm text-end oc-qty-input"
@@ -214,7 +214,7 @@
                                         @endhasanyrole
                                     </td>
                                     <td class="text-end" style="min-width:140px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;">
                                             <span class="input-group-text py-0 px-2">$</span>
@@ -236,7 +236,7 @@
                                         ${{ number_format($item->total, 2) }}
                                     </td>
                                     <td style="min-width:150px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <input type="text" maxlength="80"
                                                class="form-control form-control-sm oc-delivery-input"
@@ -253,7 +253,7 @@
                                     </td>
                                     @if (!$ocLocked)
                                     <td>
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         <button type="button" class="btn btn-soft-danger btn-sm oc-item-delete"
                                                 data-item-id="{{ $item->id }}" title="Eliminar">
                                             <i class="ri-delete-bin-line"></i>
@@ -301,7 +301,7 @@
                 </div>
 
                 {{-- Panel agregar concepto --}}
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Orden de compra')
                 @if ($purchaseOrder->status !== 'autorizada')
                 <div id="oc_add_panel" class="border-top px-3 py-3" style="display:none;">
                     <p class="text-muted fs-12 fw-medium mb-2">
@@ -522,7 +522,7 @@
                         </span>
                     </div>
                     <div class="d-flex gap-1">
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Orden de compra')
                         @if ($milestone->payments->count() === 0)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -612,7 +612,7 @@
                 <div class="card-body pt-0">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="fw-semibold text-muted text-uppercase fs-11">Pagos ({{ $milestone->payments->count() }})</small>
-                        @hasanyrole('admin|payments')
+                        @hasanyrole('admin|Pagos')
                         @if (!$isComplete)
                             @if ($purchaseOrder->status === 'autorizada')
                                 <button type="button" class="btn btn-xs btn-primary btn-sm"
@@ -703,7 +703,7 @@
                                                             </form>
                                                             @endrole
                                                         @else
-                                                            @hasanyrole('admin|payments')
+                                                            @hasanyrole('admin|Pagos')
                                                             <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                 @csrf @method('PATCH')
                                                                 <input type="hidden" name="status" value="{{ $newStatus }}">
@@ -721,7 +721,7 @@
 
                                                     {{-- Contrarecibo PDF (solo hitos crédito) --}}
                                                     @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                                                    @hasanyrole('admin|payments|orders')
+                                                    @hasanyrole('admin|Pagos|Orden de compra')
                                                     <a href="{{ route('payments.contrarecibo', $payment) }}"
                                                        target="_blank"
                                                        class="btn btn-xs btn-soft-secondary"
@@ -731,8 +731,31 @@
                                                     @endhasanyrole
                                                     @endif
 
-                                                    {{-- Eliminar (solo admin|payments) --}}
-                                                    @hasanyrole('admin|payments')
+                                                    {{-- Comprobante SPEI (subir/ver) --}}
+                                                    @hasanyrole('admin|Pagos')
+                                                    <button type="button"
+                                                            class="btn btn-xs {{ $payment->spei_receipt_path ? 'btn-soft-primary' : 'btn-soft-warning' }}"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#modalSpeiReceipt{{ $payment->id }}"
+                                                            title="{{ $payment->spei_receipt_path ? 'Reemplazar comprobante SPEI' : 'Subir comprobante SPEI' }}">
+                                                        <i class="ri-file-upload-line"></i>
+                                                        {{ $payment->spei_receipt_path ? 'SPEI' : 'Subir SPEI' }}
+                                                    </button>
+                                                    @endhasanyrole
+
+                                                    @if ($payment->spei_receipt_path)
+                                                    @hasanyrole('admin|Pagos|Orden de compra')
+                                                    <a href="{{ route('payments.spei_receipt.download', $payment) }}"
+                                                       target="_blank"
+                                                       class="btn btn-xs btn-soft-success"
+                                                       title="Ver comprobante SPEI">
+                                                        <i class="ri-attachment-2"></i>
+                                                    </a>
+                                                    @endhasanyrole
+                                                    @endif
+
+                                                    {{-- Eliminar (solo admin|Pagos) --}}
+                                                    @hasanyrole('admin|Pagos')
                                                     <form action="{{ route('payments.destroy', $payment) }}" method="POST"
                                                           onsubmit="return confirm('¿Eliminar este pago?')">
                                                         @csrf @method('DELETE')
@@ -748,6 +771,56 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        @hasanyrole('admin|Pagos')
+                        @foreach ($milestone->payments as $payment)
+                        <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
+                                        @csrf @method('PATCH')
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">
+                                                <i class="ri-bank-card-line me-1"></i>
+                                                {{ $payment->spei_receipt_path ? 'Reemplazar' : 'Subir' }} comprobante SPEI — Pago {{ $payment->folio }}
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            @if ($payment->spei_receipt_path)
+                                            <div class="alert alert-light border py-2 fs-13 mb-3">
+                                                Comprobante actual:
+                                                <a href="{{ route('payments.spei_receipt.download', $payment) }}" target="_blank" class="fw-semibold">
+                                                    {{ $payment->spei_receipt_name ?? 'Ver archivo' }}
+                                                </a>
+                                            </div>
+                                            @endif
+                                            <div class="mb-0">
+                                                <label class="form-label fw-medium">
+                                                    Archivo comprobante SPEI <span class="text-danger">*</span>
+                                                    <small class="text-muted fw-normal">(PDF, JPG, PNG, WEBP - máx. 10MB)</small>
+                                                </label>
+                                                <input type="file"
+                                                       name="spei_receipt_file"
+                                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
+                                                       accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                       required>
+                                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="ri-upload-2-line me-1"></i>
+                                                {{ $payment->spei_receipt_path ? 'Reemplazar archivo' : 'Subir archivo' }}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                        @endhasanyrole
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
@@ -777,7 +850,7 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
-                @hasanyrole('admin|payments')
+                @hasanyrole('admin|Pagos')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
@@ -827,7 +900,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
-                                            @hasanyrole('admin|payments')
+                                            @hasanyrole('admin|Pagos')
                                             <a href="{{ route('invoices.download', $invoice) }}"
                                                target="_blank"
                                                class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
@@ -897,7 +970,7 @@
                     <p class="text-muted fs-13 mb-3" id="oc_obs_empty">Sin observaciones registradas.</p>
                 @endforelse
             </div>
-            @hasanyrole('admin|orders')
+            @hasanyrole('admin|Orden de compra')
             <div class="card-footer bg-transparent">
                 <form action="{{ route('purchase_orders.notes.store', $purchaseOrder) }}" method="POST">
                     @csrf
@@ -1000,7 +1073,7 @@
     <div class="modal fade" id="modalCreatePayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <form action="{{ route('payments.store') }}" method="POST">
+                <form action="{{ route('payments.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="milestone_id" value="{{ $milestone->id }}">
                     <div class="modal-header">
@@ -1064,6 +1137,17 @@
                                 <label class="form-label fw-medium">Número de referencia</label>
                                 <input type="text" class="form-control" name="reference_number"
                                        placeholder="Ej. transferencia bancaria, cheque...">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    Comprobante SPEI (Opcional)
+                                    <small class="text-muted fw-normal">PDF, JPG, PNG, WEBP - máx. 10MB</small>
+                                </label>
+                                <input type="file"
+                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
+                                       name="spei_receipt_file"
+                                       accept=".pdf,.jpg,.jpeg,.png,.webp">
+                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
@@ -1169,7 +1253,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
-@hasanyrole('admin|orders')
+@hasanyrole('admin|Orden de compra')
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

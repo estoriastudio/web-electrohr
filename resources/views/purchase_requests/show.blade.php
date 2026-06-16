@@ -73,7 +73,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
 
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Solcom')
                         <a href="{{ route('purchase_requests.edit', $purchaseRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
@@ -191,7 +191,7 @@
                                     <td>{{ $item->unit }}</td>
                                     <td class="text-end text-muted fs-13">{{ (int) $item->requested_quantity }}</td>
                                     <td style="min-width:170px">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Solcom')
                                         <div class="input-group">
                                             <button type="button" class="btn btn-light border solcom-qty-minus px-3" title="Restar">
                                                 <i class="ri-subtract-line"></i>
@@ -213,7 +213,7 @@
                                         @endhasanyrole
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Solcom')
                                         <form action="{{ route('purchase_requests.items.destroy', [$purchaseRequest, $item]) }}"
                                               method="POST"
                                               class="solcom-delete-form">
@@ -238,7 +238,7 @@
                 </div>
 
                 {{-- ── Panel Agregar Concepto ── 
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solcom')
                 <div class="border-top px-3 py-3" id="solcom_add_panel">
 
                     {{-- Estado A: Búsqueda 
@@ -358,7 +358,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @hasanyrole('admin|orders')
+                                @hasanyrole('admin|Solcom')
                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -460,7 +460,7 @@
                     <p class="text-muted fs-13 mb-3">Sin observaciones registradas.</p>
                 @endforelse
 
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solcom')
                 <form action="{{ route('purchase_requests.notes.store', $purchaseRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -482,7 +482,7 @@
 </div>
 
 {{-- ── Modal: Enviar a Compras ── --}}
-@hasanyrole('admin|orders')
+@hasanyrole('admin|Solcom')
 <div class="modal fade" id="modalSendToPurchasing" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -784,7 +784,7 @@
     var stateSearch   = document.getElementById('solcom_state_search');
     var stateSelected = document.getElementById('solcom_state_selected');
 
-    if (!stateSearch) return; // sin permiso admin|orders
+    if (!stateSearch) return; // sin permiso admin|Solcom
 
     var searchInput  = document.getElementById('solcom_search_input');
     var dropdown     = document.getElementById('solcom_search_dropdown');

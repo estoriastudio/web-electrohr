@@ -112,8 +112,8 @@
                                 @endrole
                             @endif
 
-                            {{-- Marcar como pagado: admin|payments --}}
-                            @hasanyrole('admin|payments')
+                            {{-- Marcar como pagado: admin|Pagos --}}
+                            @hasanyrole('admin|Pagos')
                             @if (in_array($payment->status, ['por_autorizar', 'autorizado']))
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')

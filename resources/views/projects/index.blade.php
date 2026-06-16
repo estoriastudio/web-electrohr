@@ -34,6 +34,8 @@
                 <div>
                     <h4 class="card-title mb-0">Listado de proyectos</h4>
                 </div>
+                @hasanyrole('admin|Proyectos')
+                @can('create')
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-soft-success"
                             data-bs-toggle="modal" data-bs-target="#modalImportProjects">
@@ -44,6 +46,8 @@
                         <i class="ri-add-line me-1"></i> Nuevo Proyecto
                     </button>
                 </div>
+                @endcan
+                @endhasanyrole
             </div>
 
             {{-- Barra de búsqueda --}}
@@ -73,6 +77,7 @@
                                 <th>Nombre del Cliente</th>
                                 <th class="text-nowrap"># Obras</th>
                                 <th class="text-nowrap">Valor de proyecto</th>
+                                <th class="text-nowrap">Docs</th>
                                 <th class="text-nowrap">Estatus</th>
                                 <th class="text-nowrap">Acciones</th>
                             </tr>
@@ -118,6 +123,26 @@
                                         </span>
                                     </td>
                                     <td>
+                                        {{-- Dots semáforo de documentación del proyecto --}}
+                                        @php
+                                            $docLabels = \App\Models\ProjectDocument::TYPES;
+                                        @endphp
+                                        <div class="d-flex gap-1 align-items-center">
+                                            @foreach ($docLabels as $dt => $dtLabel)
+                                                @php
+                                                    $docRecord = $project->documents->firstWhere('document_type', $dt);
+                                                    $hasFile   = $docRecord && $docRecord->file_path;
+                                                @endphp
+                                                <span class="rounded-circle d-inline-block"
+                                                      style="width: 10px; height: 10px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }}; cursor: default;"
+                                                      data-bs-toggle="tooltip"
+                                                      data-bs-placement="top"
+                                                      title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </td>
+                                    <td>
                                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                                     </td>
                                     <td>
@@ -126,27 +151,31 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            <button type="button"
-                                                    class="btn btn-soft-primary btn-sm btn-edit-project"
-                                                    title="Editar"
-                                                    data-id="{{ $project->id }}"
-                                                    data-name="{{ $project->name }}"
-                                                    data-client="{{ $project->client_name }}"
-                                                    data-city="{{ $project->city }}"
-                                                    data-state="{{ $project->state }}"
-                                                    data-status="{{ $project->status }}"
-                                                    data-bs-toggle="modal" data-bs-target="#modalEditProject">
-                                                <i class="ri-edit-line"></i>
-                                            </button>
-                                            <form action="{{ route('projects.destroy', $project) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('¿Eliminar este proyecto y todas sus obras?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
+                                            @can('update')
+                                                <button type="button"
+                                                        class="btn btn-soft-primary btn-sm btn-edit-project"
+                                                        title="Editar"
+                                                        data-id="{{ $project->id }}"
+                                                        data-name="{{ $project->name }}"
+                                                        data-client="{{ $project->client_name }}"
+                                                        data-city="{{ $project->city }}"
+                                                        data-state="{{ $project->state }}"
+                                                        data-status="{{ $project->status }}"
+                                                        data-bs-toggle="modal" data-bs-target="#modalEditProject">
+                                                    <i class="ri-edit-line"></i>
                                                 </button>
-                                            </form>
+                                            @endcan
+                                            @can('delete')
+                                                <form action="{{ route('projects.destroy', $project) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('¿Eliminar este proyecto y todas sus obras?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -175,6 +204,8 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Nuevo Proyecto
 ══════════════════════════════════════════════════════════════════ --}}
+@hasanyrole('admin|Proyectos')
+@can('create')
 <div class="modal fade" id="modalCreateProject" tabindex="-1" aria-labelledby="modalCreateProjectLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -224,11 +255,14 @@
         </div>
     </div>
 </div>
+@endcan
+@endhasanyrole
 
 
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Editar Proyecto
 ══════════════════════════════════════════════════════════════════ --}}
+@can('update')
 <div class="modal fade" id="modalEditProject" tabindex="-1" aria-labelledby="modalEditProjectLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -278,6 +312,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @endsection
 
@@ -346,6 +381,11 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Tooltips en dots de documentación
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+    });
+
     document.querySelectorAll('.btn-edit-project').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var id     = this.dataset.id;

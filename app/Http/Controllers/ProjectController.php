@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectWork;
+use App\Models\ProjectDocument;
 use App\Imports\ProjectImport;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
 
@@ -22,6 +24,7 @@ class ProjectController extends Controller
 
         $projects = Project::query()
             ->withCount('works')
+            ->with('documents')
             ->addSelect([
                 'project_value' => ProjectWork::query()
                     ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0)')
@@ -73,11 +76,14 @@ class ProjectController extends Controller
                 ->value('total')
         );
         $project->loadCount('works');
-        $project->load(['works' => function ($q) {
-            $q->withCount('purchaseOrders');
-        }]);
+        $project->load([
+            'works'     => fn ($q) => $q->withCount('purchaseOrders'),
+            'documents',
+        ]);
 
-        return view('projects.show', compact('project'));
+        $docTypes = ProjectDocument::TYPES;
+
+        return view('projects.show', compact('project', 'docTypes'));
     }
 
     public function edit(Project $project): View
@@ -135,6 +141,36 @@ class ProjectController extends Controller
             ->get(['id', 'name']);
 
         return response()->json($works);
+    }
+
+    public function uploadDocument(Request $request, Project $project, string $docType): RedirectResponse
+    {
+        if (! array_key_exists($docType, ProjectDocument::TYPES)) {
+            abort(404);
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
+        ]);
+
+        $doc = $project->documents()->firstOrNew(['document_type' => $docType]);
+
+        if ($doc->file_path) {
+            Storage::disk('s3')->delete($doc->file_path);
+        }
+
+        $uploadedFile = $request->file('file');
+        $extension    = $uploadedFile->getClientOriginalExtension();
+        $s3Path       = 'projects/' . $project->id . '/docs/' . $docType . '_' . time() . '.' . $extension;
+
+        Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
+
+        $doc->file_path   = $s3Path;
+        $doc->uploaded_at = now()->toDateString();
+        $doc->save();
+
+        return redirect()->route('projects.show', $project)
+            ->with('success', 'Documento actualizado correctamente.');
     }
 
     public function import(Request $request): RedirectResponse

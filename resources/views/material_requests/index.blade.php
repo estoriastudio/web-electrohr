@@ -39,11 +39,13 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Material</h4>
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solmat')
+                @can('create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateMR">
                     <i class="ri-add-line me-1"></i> Nueva SOLMAT
                 </button>
+                @endcan
                 @endhasanyrole
             </div>
 
@@ -122,18 +124,22 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @hasanyrole('admin|orders')
-                                            <a href="{{ route('material_requests.edit', $mr) }}"
-                                               class="btn btn-soft-primary btn-sm" title="Editar">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('material_requests.destroy', $mr) }}" method="POST"
-                                                  onsubmit="return confirm('¿Eliminar SOLMAT #{{ $mr->folio }}?')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
+                                            @hasanyrole('admin|Solmat')
+                                            @can('update')
+                                                <a href="{{ route('material_requests.edit', $mr) }}"
+                                                   class="btn btn-soft-primary btn-sm" title="Editar">
+                                                    <i class="ri-edit-line"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete')
+                                                <form action="{{ route('material_requests.destroy', $mr) }}" method="POST"
+                                                      onsubmit="return confirm('¿Eliminar SOLMAT #{{ $mr->folio }}?')">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                             @endhasanyrole
                                         </div>
                                     </td>
@@ -160,6 +166,8 @@
 </div>
 
 {{-- MODAL — Nueva SOLMAT --}}
+@hasanyrole('admin|Solmat')
+@can('create')
 <div class="modal fade" id="modalCreateMR" tabindex="-1" aria-labelledby="modalCreateMRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -189,7 +197,7 @@
                         </div>
 
                         {{-- Proyecto / Obras --}}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="form-label">Proyecto <span class="text-danger">*</span></label>
                             <select name="project_id" id="mrProjectId"
                                     class="form-control @error('project_id') is-invalid @enderror" required>
@@ -202,7 +210,7 @@
                             </select>
                             @error('project_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="form-label">Obras <span class="text-danger">*</span></label>
                             <select name="project_work_ids[]" id="mrProjectWorkId"
                                     class="form-select @error('project_work_ids') is-invalid @enderror"
@@ -213,13 +221,25 @@
                         </div>
 
                         {{-- Ubicación y Dirección --}}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="form-label">Ubicación <span class="text-danger">*</span></label>
-                            <input type="text" name="zone" class="form-control @error('zone') is-invalid @enderror"
-                                   value="{{ old('zone') }}" required>
+                            <div class="d-flex gap-2 mb-2">
+                                <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                    <input class="form-check-input" type="checkbox" role="switch"
+                                           id="mrLocationSwitch" name="location_type" value="electrohr"
+                                           {{ old('location_type') === 'electrohr' ? 'checked' : '' }}>
+                                    <label class="form-check-label text-nowrap" for="mrLocationSwitch" id="mrLocationLabel">
+                                        {{ old('location_type') === 'electrohr' ? 'Electro HR' : 'Sitio' }}
+                                    </label>
+                                </div>
+                            </div>
+                            <input type="text" name="zone" id="mrZone"
+                                   class="form-control @error('zone') is-invalid @enderror"
+                                   value="{{ old('zone') }}" required
+                                   placeholder="Nombre o pega un enlace de Google Maps…">
                             @error('zone') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="form-label">Dirección de entrega <span class="text-danger">*</span></label>
                             <input type="text" name="delivery_address"
                                    class="form-control @error('delivery_address') is-invalid @enderror"
@@ -272,6 +292,8 @@
         </div>
     </div>
 </div>
+@endcan
+@endhasanyrole
 
 @endsection
 
@@ -279,6 +301,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var modalEl        = document.getElementById('modalCreateMR');
+    if (!modalEl) {
+        return;
+    }
+
     var projectSelect  = document.getElementById('mrProjectId');
     var workSelect     = document.getElementById('mrProjectWorkId');
     var categorySelect = document.getElementById('mrCategoryId');
@@ -312,6 +338,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (categoryChoices) { categoryChoices.destroy(); categoryChoices = null; }
         if (workChoices)     { workChoices.destroy();     workChoices     = null; }
     });
+
+    // ── Switch Electro HR / Sitio ───────────────────────────────────────────
+    var locationSwitch = document.getElementById('mrLocationSwitch');
+    var locationLabel  = document.getElementById('mrLocationLabel');
+    function updateLocationLabel() {
+        locationLabel.textContent = locationSwitch.checked ? 'Electro HR' : 'Sitio';
+    }
+    locationSwitch.addEventListener('change', updateLocationLabel);
 
     // ── Cargar obras cuando cambia el proyecto ──────────────────────────────
     var workChoices = null;
@@ -357,7 +391,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @if ($errors->any())
     document.addEventListener('DOMContentLoaded', function () {
-        new bootstrap.Modal(document.getElementById('modalCreateMR')).show();
+        var modalEl = document.getElementById('modalCreateMR');
+        if (modalEl) {
+            new bootstrap.Modal(modalEl).show();
+        }
     });
 @endif
 </script>

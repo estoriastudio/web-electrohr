@@ -42,10 +42,12 @@
                     <h4 class="card-title mb-0">Listado de órdenes de compra</h4>
                 </div>
                 <div>
-                    @hasanyrole('admin|orders')
+                    @hasanyrole('admin|Orden de compra')
+                    @can('create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
                     </a>
+                    @endcan
                     @endhasanyrole
                 </div>
             </div>

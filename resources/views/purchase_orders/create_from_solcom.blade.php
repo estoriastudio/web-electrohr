@@ -228,6 +228,16 @@
                         </div>
 
                         <div class="col-md-4">
+                            <label for="attorney_name" class="form-label fw-medium">Apoderado</label>
+                            <input type="text" maxlength="255"
+                                   class="form-control @error('attorney_name') is-invalid @enderror"
+                                   id="attorney_name" name="attorney_name"
+                                   value="{{ old('attorney_name') }}"
+                                   placeholder="Nombre del apoderado">
+                            @error('attorney_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-4">
                             <label for="supplier_signatory" class="form-label fw-medium">Aceptación del Proveedor</label>
                             <input type="text" maxlength="255"
                                    class="form-control @error('supplier_signatory') is-invalid @enderror"

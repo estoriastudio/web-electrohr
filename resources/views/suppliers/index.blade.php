@@ -37,7 +37,8 @@
                 <div>
                     <h4 class="card-title mb-0">Listado de proveedores</h4>
                 </div>
-                @role('admin|orders')
+                @hasanyrole('admin|Orden de compra')
+                @can('create')
                 <div class="d-flex gap-2">
                     {{-- Importar --}}
                     <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -56,7 +57,8 @@
                         <i class="ri-add-line me-1"></i> Crear nuevo proveedor
                     </button>
                 </div>
-                @endrole
+                @endcan
+                @endhasanyrole
             </div>
 
             {{-- Barra de búsqueda --}}
@@ -141,21 +143,23 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @role('admin|orders')
-                                            <a href="{{ route('suppliers.edit', $supplier) }}"
-                                               class="btn btn-soft-primary btn-sm" title="Editar">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('suppliers.destroy', $supplier) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('¿Eliminar este proveedor?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
-                                            @endrole
+                                            @can('update')
+                                                <a href="{{ route('suppliers.edit', $supplier) }}"
+                                                   class="btn btn-soft-primary btn-sm" title="Editar">
+                                                    <i class="ri-edit-line"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete')
+                                                <form action="{{ route('suppliers.destroy', $supplier) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('¿Eliminar este proveedor?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -184,6 +188,8 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Crear nuevo proveedor
 ══════════════════════════════════════════════════════════════════ --}}
+@hasanyrole('admin|Orden de compra')
+@can('create')
 <div class="modal fade" id="modalCreateSupplier" tabindex="-1" aria-labelledby="modalCreateSupplierLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -258,6 +264,8 @@
         </div>
     </div>
 </div>
+@endcan
+@endhasanyrole
 
 
 {{-- ══════════════════════════════════════════════════════════════

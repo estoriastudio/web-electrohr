@@ -123,6 +123,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
             ->name('projects.works_json');
 
+        Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
+            ->name('projects.document.upload');
+
         Route::post('/proyectos/import', [ProjectController::class, 'import'])
             ->name('projects.import');
 
@@ -272,6 +275,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Contrarecibo PDF — accesible para admin, payments y orders
         Route::middleware('role:admin|payments|orders')->group(function () {
             Route::get('/pagos/{payment}/contrarecibo', [PaymentController::class, 'contrarecibo'])->name('payments.contrarecibo');
+            Route::get('/pagos/{payment}/comprobante-spei', [PaymentController::class, 'downloadSpeiReceipt'])->name('payments.spei_receipt.download');
         });
 
         // AJAX: hitos de una OC (para Alta de Facturas)

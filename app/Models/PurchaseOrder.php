@@ -30,6 +30,7 @@ class PurchaseOrder extends Model
         'recurrence_end_date',
         'observations',
         'elaborated_by',
+        'attorney_name',
         'supplier_signatory',
         'authorized_signatory',
     ];

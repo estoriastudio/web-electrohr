@@ -15,6 +15,8 @@ class Payment extends Model
         'invoice_date',
         'status',
         'reference_number',
+        'spei_receipt_path',
+        'spei_receipt_name',
     ];
 
     protected $casts = [

@@ -49,7 +49,8 @@
             @endforeach
         </ul>
 
-        @role('admin|orders')
+        @hasanyrole('admin|Moviles')
+        @can('create')
         <div class="d-flex gap-2 flex-shrink-0">
             <a href="{{ route('mobile_assets.export') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="ri-download-2-line me-1"></i> Exportar
@@ -59,7 +60,8 @@
                 <i class="ri-add-line me-1"></i> Nuevo bien
             </button>
         </div>
-        @endrole
+        @endcan
+        @endhasanyrole
     </div>
 
     {{-- Barra de búsqueda y filtro semáforo --}}
@@ -205,21 +207,25 @@
                                 <a href="{{ route('mobile_assets.show', $asset) }}" class="link-primary fw-medium fs-13">
                                     Ver perfil <i class="ri-arrow-right-line align-middle"></i>
                                 </a>
-                                @role('admin|orders')
+                                @hasanyrole('admin|Moviles')
                                 <div class="d-flex gap-1">
-                                    <a href="{{ route('mobile_assets.edit', $asset) }}"
-                                       class="btn btn-soft-primary btn-sm" title="Editar">
-                                        <i class="ri-edit-line"></i>
-                                    </a>
-                                    <form action="{{ route('mobile_assets.destroy', $asset) }}" method="POST"
-                                          onsubmit="return confirm('¿Eliminar {{ addslashes($asset->name) }}? Esta acción no se puede deshacer.')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                            <i class="ri-delete-bin-line"></i>
-                                        </button>
-                                    </form>
+                                    @can('update')
+                                        <a href="{{ route('mobile_assets.edit', $asset) }}"
+                                           class="btn btn-soft-primary btn-sm" title="Editar">
+                                            <i class="ri-edit-line"></i>
+                                        </a>
+                                    @endcan
+                                    @can('delete')
+                                        <form action="{{ route('mobile_assets.destroy', $asset) }}" method="POST"
+                                              onsubmit="return confirm('¿Eliminar {{ addslashes($asset->name) }}? Esta acción no se puede deshacer.')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        </form>
+                                    @endcan
                                 </div>
-                                @endrole
+                                @endhasanyrole
                             </div>
                         </div>
                     </div>
@@ -238,7 +244,8 @@
 {{-- ══════════════════════════════════════════════════════════
      MODAL — Crear nuevo bien móvil
 ══════════════════════════════════════════════════════════════ --}}
-@role('admin|orders')
+@hasanyrole('admin|Moviles')
+@can('create')
 <div class="modal fade" id="modalCreateAsset" tabindex="-1" aria-labelledby="modalCreateAssetLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -347,7 +354,8 @@
         </div>
     </div>
 </div>
-@endrole
+@endcan
+@endhasanyrole
 
 @endsection
 

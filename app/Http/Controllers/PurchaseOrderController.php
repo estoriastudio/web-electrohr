@@ -116,6 +116,7 @@ class PurchaseOrderController extends Controller
             'recurrence_type'      => 'required|in:unico,recurrente',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
             'elaborated_by'        => 'nullable|string|max:255',
+            'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
         ];
@@ -239,6 +240,7 @@ class PurchaseOrderController extends Controller
             'recurrence_frequency' => null,
             'recurrence_end_date'  => null,
             'elaborated_by'        => $parent->elaborated_by,
+            'attorney_name'        => $parent->attorney_name,
             'supplier_signatory'   => $parent->supplier_signatory,
             'authorized_signatory' => $parent->authorized_signatory,
         ];
@@ -311,6 +313,7 @@ class PurchaseOrderController extends Controller
             'status'               => 'required|in:emitida,pendiente,autorizada',
             'recurrence_type'      => 'required|in:unico,recurrente',
             'elaborated_by'        => 'nullable|string|max:255',
+            'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
         ];

@@ -31,7 +31,8 @@
                 </a>
             </li>
 
-            @role('admin|orders')
+            @hasanyrole('admin|Orden de compra')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('suppliers.index') }}">
                     <span class="nav-icon">
@@ -40,8 +41,11 @@
                     <span class="nav-text">Proveedores</span>
                 </a>
             </li>
-            @endrole
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Moviles')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('mobile_assets.index') }}">
                     <span class="nav-icon">
@@ -50,7 +54,11 @@
                     <span class="nav-text">Bienes Móviles</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Proyectos')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
                     <span class="nav-icon">
@@ -62,7 +70,11 @@
                     @endif
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Solmat')
+            @can('read')
             <li class="menu-title">Almacén</li>
 
             <li class="nav-item">
@@ -74,6 +86,11 @@
                     <span class="nav-text">Solicitudes de Material</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solmat')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
                    href="{{ route('warehouse.solmat_pile') }}">
@@ -83,10 +100,17 @@
                     <span class="nav-text">Pila SOLMAT</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Solcom|Orden de compra')
+            @can('read')
             <li class="menu-title">Compras</li>
+            @endcan
+            @endhasanyrole
 
-            @hasanyrole('admin|orders')
+            @hasanyrole('admin|Solcom')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
                    href="{{ route('purchase_requests.index') }}">
@@ -96,6 +120,11 @@
                     <span class="nav-text">Solicitudes de Compra</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
                    href="{{ route('purchasing.solcom_pile') }}">
@@ -105,6 +134,11 @@
                     <span class="nav-text">Pila SOLCOM</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.workload') ? 'active' : '' }}"
                    href="{{ route('purchasing.workload') }}">
@@ -114,9 +148,11 @@
                     <span class="nav-text">Carga de Trabajo</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|payments|orders')
+            @hasanyrole('admin|Pagos|Orden de compra')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
                    href="{{ route('purchase_orders.index') }}">
@@ -126,12 +162,14 @@
                     <span class="nav-text">Órdenes de Compra</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|payments')
+            @hasanyrole('admin|Pagos')
+            @can('read')
             <li class="menu-title">Pagos</li>
 
-            @hasanyrole('admin|payments|orders')
+            @hasanyrole('admin|Pagos|Orden de compra')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                    href="{{ route('milestones.index') }}">
@@ -162,6 +200,7 @@
                     <span class="nav-text">Alta de Facturas</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
             @role('admin')

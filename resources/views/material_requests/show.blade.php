@@ -73,7 +73,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Solmat')
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
@@ -211,7 +211,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Solmat')
                                         <form action="{{ route('material_requests.items.destroy', [$materialRequest, $item]) }}"
                                               method="POST"
                                               class="solmat-delete-form">
@@ -236,7 +236,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @hasanyrole('admin|orders')
+            @hasanyrole('admin|Solmat')
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
                 {{-- Estado A: Búsqueda --}}
@@ -348,7 +348,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solmat')
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
