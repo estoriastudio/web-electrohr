@@ -24,8 +24,8 @@ class AdminController extends Controller
         $urgencyValues      = [];
         $top5Urgencias      = collect();
 
-        // ── Bloque pagos (admin + payments) ───────────────────────────
-        if ($user->hasAnyRole(['admin', 'payments'])) {
+        // ── Bloque pagos (admin + Pagos) ──────────────────────────────
+        if ($user->hasAnyRole(['admin', 'Pagos'])) {
             $totalPendientePago = (float) Payment::where('status', 'autorizado')->sum('amount');
             $totalPorAutorizar  = (float) Payment::where('status', 'por_autorizar')->sum('amount');
 
@@ -58,8 +58,8 @@ class AdminController extends Controller
                 ->get();
         }
 
-        // ── Bloque órdenes (admin + orders) ───────────────────────────
-        if ($user->hasAnyRole(['admin', 'orders'])) {
+        // ── Bloque órdenes (admin + Orden de compra) ──────────────────
+        if ($user->hasAnyRole(['admin', 'Orden de compra'])) {
             $urgencyData = [
                 'Vencido'      => 0,
                 'Esta semana'  => 0,

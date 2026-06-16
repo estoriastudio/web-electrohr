@@ -24,7 +24,7 @@ class ConceptCategoryController extends Controller
             ->orderBy('name')
             ->get();
 
-        $purchasingUsers = User::role(['admin', 'orders'])->orderBy('name')->get();
+        $purchasingUsers = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
 
         return view('concept_categories.index', compact('categories', 'type', 'purchasingUsers'));
     }
