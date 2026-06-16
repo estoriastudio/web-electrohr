@@ -40,7 +40,7 @@ class PurchaseRequestController extends Controller
         $purchaseRequests = $query->paginate(15)->withQueryString();
         $nextFolio        = max((PurchaseRequest::max('folio') ?? 17999), 17999) + 1;
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
-        $purchasingUsers  = User::role(['admin', 'orders'])->orderBy('name')->get();
+        $purchasingUsers  = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
 
         return view('purchase_requests.index', compact('purchaseRequests', 'nextFolio', 'projects', 'search', 'status', 'purchasingUsers'));
     }
@@ -137,7 +137,7 @@ class PurchaseRequestController extends Controller
                                        ->orderBy('created_at')
                                        ->get();
 
-        $purchasingUsers = User::role('orders')->orderBy('name')->get();
+        $purchasingUsers = User::role('Orden de compra')->orderBy('name')->get();
 
         return view('purchase_requests.show', compact('purchaseRequest', 'history', 'purchasingUsers'));
     }
@@ -409,8 +409,8 @@ class PurchaseRequestController extends Controller
     // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
     public function workload(): \Illuminate\View\View
     {
-        // Usuarios con rol orders o admin que pueden recibir SOLCOMs
-        $ordersUsers = User::role(['admin', 'orders'])->orderBy('name')->get();
+        // Usuarios con rol Solcom o admin que pueden recibir SOLCOMs
+        $ordersUsers = User::role(['admin', 'Solcom'])->orderBy('name')->get();
 
         // SOLCOMs pendientes (sent_to_purchasing) agrupadas por assigned_to
         $pendingCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
