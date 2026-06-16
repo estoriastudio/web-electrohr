@@ -45,8 +45,9 @@
 
     $tipoLabel = $purchaseOrder->type === 'materiales_servicios' ? 'Materiales / Servicios' : 'Mantenimiento';
     $totalCubierto = $purchaseOrder->saldo_cubierto;
-    $progressTotal = $purchaseOrder->amount > 0
-        ? min(100, round(($totalCubierto / $purchaseOrder->amount) * 100, 1))
+    $importeTotal  = $purchaseOrder->total_with_iva;
+    $progressTotal = $importeTotal > 0
+        ? min(100, round(($totalCubierto / $importeTotal) * 100, 1))
         : 0;
 @endphp
 
@@ -114,7 +115,7 @@
                     </div>
                     <div class="text-end">
                         <div class="fs-22 fw-semibold text-primary">
-                            {{ $purchaseOrder->currency }} {{ number_format($purchaseOrder->amount, 2) }}
+                            {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
                         <div class="text-muted fs-13">
                             Cubierto: <strong>{{ number_format($totalCubierto, 2) }}</strong>
@@ -131,19 +132,19 @@
                            class="btn btn-sm btn-outline-danger" target="_blank">
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Orden de compra')
                         @if ($purchaseOrder->status !== 'autorizada')
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
                         </a>
+                        @else
+                        <span class="badge bg-success-subtle text-success border border-success py-2 px-3 fs-12">
+                            <i class="ri-lock-line me-1"></i>OC Autorizada
+                        </span>
+                        @endif
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
                             <i class="ri-add-line me-1"></i> Agregar condición de pago
                         </button>
-                        @else
-                        <span class="badge bg-success-subtle text-success border border-success py-2 px-3 fs-12">
-                            <i class="ri-lock-line me-1"></i>OC Autorizada — Solo lectura
-                        </span>
-                        @endif
                         @endhasanyrole
                     </div>
                 </div>
@@ -161,7 +162,7 @@
                     <i class="ri-list-check me-1 text-primary"></i> Conceptos
                     <span id="oc_items_badge" class="badge bg-primary-subtle text-primary ms-1 fs-12">{{ $purchaseOrder->items->count() }}</span>
                 </h5>
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Orden de compra')
                 @if ($purchaseOrder->status !== 'autorizada')
                 <button type="button" class="btn btn-sm btn-primary" id="btn_toggle_add_concept">
                     <i class="ri-add-line me-1"></i> Agregar concepto
@@ -196,7 +197,7 @@
                                     <td>{{ $item->description }}</td>
                                     <td class="fs-12">{{ $item->unit }}</td>
                                     <td class="text-end" style="min-width:120px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <input type="number" step="0.01" min="0"
                                                class="form-control form-control-sm text-end oc-qty-input"
@@ -213,7 +214,7 @@
                                         @endhasanyrole
                                     </td>
                                     <td class="text-end" style="min-width:140px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;">
                                             <span class="input-group-text py-0 px-2">$</span>
@@ -235,7 +236,7 @@
                                         ${{ number_format($item->total, 2) }}
                                     </td>
                                     <td style="min-width:150px;">
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
                                         <input type="text" maxlength="80"
                                                class="form-control form-control-sm oc-delivery-input"
@@ -252,7 +253,7 @@
                                     </td>
                                     @if (!$ocLocked)
                                     <td>
-                                        @hasanyrole('admin|orders')
+                                        @hasanyrole('admin|Orden de compra')
                                         <button type="button" class="btn btn-soft-danger btn-sm oc-item-delete"
                                                 data-item-id="{{ $item->id }}" title="Eliminar">
                                             <i class="ri-delete-bin-line"></i>
@@ -275,14 +276,20 @@
 
                 {{-- Tabla de totales --}}
                 <div class="d-flex justify-content-end px-3 py-2 border-top">
-                    <table class="table table-sm mb-0" style="width:280px;">
+                    <table class="table table-sm mb-0" style="width:300px;">
                         <tbody>
                             <tr>
                                 <td class="text-muted fs-12">Subtotal</td>
                                 <td class="text-end fw-medium" id="oc_subtotal">${{ number_format($purchaseOrder->subtotal, 2) }}</td>
                             </tr>
                             <tr>
-                                <td class="text-muted fs-12">IVA (16%)</td>
+                                <td class="text-muted fs-12" id="oc_iva_label">
+                                    @if (is_null($purchaseOrder->tax_rate))
+                                        Impuesto (Exento)
+                                    @else
+                                        IVA ({{ rtrim(rtrim(number_format((float)$purchaseOrder->tax_rate, 2), '0'), '.') }}%)
+                                    @endif
+                                </td>
                                 <td class="text-end fw-medium" id="oc_iva">${{ number_format($purchaseOrder->iva, 2) }}</td>
                             </tr>
                             <tr class="border-top">
@@ -294,7 +301,7 @@
                 </div>
 
                 {{-- Panel agregar concepto --}}
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Orden de compra')
                 @if ($purchaseOrder->status !== 'autorizada')
                 <div id="oc_add_panel" class="border-top px-3 py-3" style="display:none;">
                     <p class="text-muted fs-12 fw-medium mb-2">
@@ -415,7 +422,13 @@
             $isComplete  = $milestone->is_complete;
             $hasInvoice  = $milestone->invoices->isNotEmpty();
             $progressClass = $isComplete ? 'bg-success' : ($percent >= 50 ? 'bg-warning' : 'bg-danger');
-            $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];
+            $tipoHitoMap = [
+                'anticipo' => 'Anticipo',
+                'regular'  => 'Pago Regular',
+                'contado'  => 'Contado',
+                'credito'  => 'Crédito',
+            ];
+            $tipoCondicionMap = ['contado' => 'Contado', 'credito' => 'Crédito'];
             $tipoValorMap = ['fijo' => 'Monto Fijo', 'porcentaje' => 'Porcentaje'];
 
             $today      = \Carbon\Carbon::today();
@@ -497,14 +510,19 @@
                         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ $semDotColor }};flex-shrink:0;"></span>
                         <span class="fw-semibold fs-14">Hito #{{ $milestone->id }}</span>
                         <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11">
-                            {{ $tipoHitoMap[$milestone->type] ?? $milestone->type }}
+                            {{ $tipoCondicionMap[$milestone->payment_condition ?? 'credito'] ?? ($tipoHitoMap[$milestone->type] ?? $milestone->type) }}
                         </span>
+                        @if ($milestone->is_advance)
+                        <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-11">
+                            <i class="ri-bank-line me-1"></i>Anticipo
+                        </span>
+                        @endif
                         <span class="badge {{ $semBadge }} py-1 px-2 fs-11">
                             <i class="{{ $semIcon }} me-1"></i>{{ $semLabel }}
                         </span>
                     </div>
                     <div class="d-flex gap-1">
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Orden de compra')
                         @if ($milestone->payments->count() === 0)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -520,8 +538,15 @@
                                 </button>
                             </form>
                         @else
+                            {{-- Tiene pagos: solo edición parcial de fechas permitida --}}
+                            <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
+                                    title="Editar fechas del hito (tiene pagos: solo fechas editables)"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalEditMilestone{{ $milestone->id }}">
+                                <i class="ri-edit-line fs-13"></i>
+                            </button>
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
-                                    title="No se puede editar: el hito tiene pagos registrados" disabled>
+                                    title="No se puede eliminar: el hito tiene pagos registrados" disabled>
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
@@ -587,7 +612,7 @@
                 <div class="card-body pt-0">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="fw-semibold text-muted text-uppercase fs-11">Pagos ({{ $milestone->payments->count() }})</small>
-                        @hasanyrole('admin|payments')
+                        @hasanyrole('admin|Pagos')
                         @if (!$isComplete)
                             @if ($purchaseOrder->status === 'autorizada')
                                 <button type="button" class="btn btn-xs btn-primary btn-sm"
@@ -613,7 +638,10 @@
                                     <tr>
                                         <th>Folio</th>
                                         <th>Monto</th>
-                                        <th>Fecha</th>
+                                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                        <th>Fecha Factura</th>
+                                        @endif
+                                        <th>Fecha Pago</th>
                                         <th>Estatus</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -647,6 +675,11 @@
                                         <tr>
                                             <td class="fw-medium">{{ $payment->folio }}</td>
                                             <td>{{ number_format($payment->amount, 2) }}</td>
+                                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                            <td>
+                                                {{ $payment->invoice_date ? $payment->invoice_date->format('d/m/Y') : '—' }}
+                                            </td>
+                                            @endif
                                             <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                             <td>
                                                 <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
@@ -670,7 +703,7 @@
                                                             </form>
                                                             @endrole
                                                         @else
-                                                            @hasanyrole('admin|payments')
+                                                            @hasanyrole('admin|Pagos')
                                                             <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                 @csrf @method('PATCH')
                                                                 <input type="hidden" name="status" value="{{ $newStatus }}">
@@ -686,8 +719,43 @@
                                                         @endif
                                                     @endforeach
 
-                                                    {{-- Eliminar (solo admin|payments) --}}
-                                                    @hasanyrole('admin|payments')
+                                                    {{-- Contrarecibo PDF (solo hitos crédito) --}}
+                                                    @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                                    @hasanyrole('admin|Pagos|Orden de compra')
+                                                    <a href="{{ route('payments.contrarecibo', $payment) }}"
+                                                       target="_blank"
+                                                       class="btn btn-xs btn-soft-secondary"
+                                                       title="Descargar contrarecibo PDF">
+                                                        <i class="ri-file-download-line"></i> Contrarecibo
+                                                    </a>
+                                                    @endhasanyrole
+                                                    @endif
+
+                                                    {{-- Comprobante SPEI (subir/ver) --}}
+                                                    @hasanyrole('admin|Pagos')
+                                                    <button type="button"
+                                                            class="btn btn-xs {{ $payment->spei_receipt_path ? 'btn-soft-primary' : 'btn-soft-warning' }}"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#modalSpeiReceipt{{ $payment->id }}"
+                                                            title="{{ $payment->spei_receipt_path ? 'Reemplazar comprobante SPEI' : 'Subir comprobante SPEI' }}">
+                                                        <i class="ri-file-upload-line"></i>
+                                                        {{ $payment->spei_receipt_path ? 'SPEI' : 'Subir SPEI' }}
+                                                    </button>
+                                                    @endhasanyrole
+
+                                                    @if ($payment->spei_receipt_path)
+                                                    @hasanyrole('admin|Pagos|Orden de compra')
+                                                    <a href="{{ route('payments.spei_receipt.download', $payment) }}"
+                                                       target="_blank"
+                                                       class="btn btn-xs btn-soft-success"
+                                                       title="Ver comprobante SPEI">
+                                                        <i class="ri-attachment-2"></i>
+                                                    </a>
+                                                    @endhasanyrole
+                                                    @endif
+
+                                                    {{-- Eliminar (solo admin|Pagos) --}}
+                                                    @hasanyrole('admin|Pagos')
                                                     <form action="{{ route('payments.destroy', $payment) }}" method="POST"
                                                           onsubmit="return confirm('¿Eliminar este pago?')">
                                                         @csrf @method('DELETE')
@@ -703,6 +771,56 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        @hasanyrole('admin|Pagos')
+                        @foreach ($milestone->payments as $payment)
+                        <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
+                                        @csrf @method('PATCH')
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">
+                                                <i class="ri-bank-card-line me-1"></i>
+                                                {{ $payment->spei_receipt_path ? 'Reemplazar' : 'Subir' }} comprobante SPEI — Pago {{ $payment->folio }}
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            @if ($payment->spei_receipt_path)
+                                            <div class="alert alert-light border py-2 fs-13 mb-3">
+                                                Comprobante actual:
+                                                <a href="{{ route('payments.spei_receipt.download', $payment) }}" target="_blank" class="fw-semibold">
+                                                    {{ $payment->spei_receipt_name ?? 'Ver archivo' }}
+                                                </a>
+                                            </div>
+                                            @endif
+                                            <div class="mb-0">
+                                                <label class="form-label fw-medium">
+                                                    Archivo comprobante SPEI <span class="text-danger">*</span>
+                                                    <small class="text-muted fw-normal">(PDF, JPG, PNG, WEBP - máx. 10MB)</small>
+                                                </label>
+                                                <input type="file"
+                                                       name="spei_receipt_file"
+                                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
+                                                       accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                       required>
+                                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="ri-upload-2-line me-1"></i>
+                                                {{ $payment->spei_receipt_path ? 'Reemplazar archivo' : 'Subir archivo' }}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                        @endhasanyrole
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
@@ -732,7 +850,7 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
-                @hasanyrole('admin|payments')
+                @hasanyrole('admin|Pagos')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
@@ -782,7 +900,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
-                                            @hasanyrole('admin|payments')
+                                            @hasanyrole('admin|Pagos')
                                             <a href="{{ route('invoices.download', $invoice) }}"
                                                target="_blank"
                                                class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
@@ -852,7 +970,7 @@
                     <p class="text-muted fs-13 mb-3" id="oc_obs_empty">Sin observaciones registradas.</p>
                 @endforelse
             </div>
-            @hasanyrole('admin|orders')
+            @hasanyrole('admin|Orden de compra')
             <div class="card-footer bg-transparent">
                 <form action="{{ route('purchase_orders.notes.store', $purchaseOrder) }}" method="POST">
                     @csrf
@@ -891,30 +1009,53 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        @if ($milestone->payments->count() > 0)
+                        <div class="alert alert-warning py-2 fs-13 mb-3">
+                            <i class="ri-alert-line me-1"></i>
+                            Este hito tiene <strong>{{ $milestone->payments->count() }} pago(s)</strong> registrados.
+                            Solo se puede modificar las fechas y condiciones. El valor no es editable.
+                        </div>
+                        @endif
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-medium">Tipo <span class="text-danger">*</span></label>
-                                <select class="form-select" name="type" required>
-                                    <option value="anticipo"  {{ $milestone->type === 'anticipo'  ? 'selected' : '' }}>Anticipo (Contado)</option>
-                                    <option value="regular"   {{ $milestone->type === 'regular'   ? 'selected' : '' }}>Pago regular</option>
+                                <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
+                                <select class="form-select" name="payment_condition" required>
+                                    <option value="contado" {{ ($milestone->payment_condition ?? 'credito') === 'contado' ? 'selected' : '' }}>Contado</option>
+                                    <option value="credito" {{ ($milestone->payment_condition ?? 'credito') === 'credito' ? 'selected' : '' }}>Crédito</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Tipo de valor <span class="text-danger">*</span></label>
-                                <select class="form-select" name="value_type" required>
+                                <select class="form-select" name="value_type" required
+                                        {{ $milestone->payments->count() > 0 ? 'disabled' : '' }}>
                                     <option value="fijo"       {{ $milestone->value_type === 'fijo'       ? 'selected' : '' }}>Fijo</option>
                                     <option value="porcentaje" {{ $milestone->value_type === 'porcentaje' ? 'selected' : '' }}>Porcentaje</option>
                                 </select>
+                                @if ($milestone->payments->count() > 0)
+                                <input type="hidden" name="value_type" value="{{ $milestone->value_type }}">
+                                @endif
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0.01" class="form-control"
-                                       name="value" value="{{ $milestone->value }}" required>
+                                       name="value" value="{{ $milestone->value }}" required
+                                       {{ $milestone->payments->count() > 0 ? 'readonly' : '' }}>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha vencimiento</label>
                                 <input type="date" class="form-control"
                                        name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="is_advance" value="1"
+                                           id="is_advance_edit_{{ $milestone->id }}"
+                                           {{ $milestone->is_advance ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-medium" for="is_advance_edit_{{ $milestone->id }}">
+                                        <i class="ri-bank-line me-1 text-warning"></i>Esto es un anticipo
+                                    </label>
+                                </div>
+                                <div class="form-text">Marca si este hito corresponde a un pago anticipado (antes de la entrega).</div>
                             </div>
                         </div>
                     </div>
@@ -932,7 +1073,7 @@
     <div class="modal fade" id="modalCreatePayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <form action="{{ route('payments.store') }}" method="POST">
+                <form action="{{ route('payments.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="milestone_id" value="{{ $milestone->id }}">
                     <div class="modal-header">
@@ -940,7 +1081,13 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="alert alert-info py-2 fs-13">
+                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                        <div class="alert alert-info py-2 fs-13 mb-3">
+                            <i class="ri-bank-line me-1"></i>
+                            <strong>Hito Crédito:</strong> registra la fecha de factura del proveedor y la fecha en que se programará el pago.
+                        </div>
+                        @endif
+                        <div class="alert alert-light border py-2 fs-13 mb-3">
                             Saldo pendiente del hito: <strong>{{ $purchaseOrder->currency }} {{ number_format($pendiente, 2) }}</strong>
                         </div>
                         <div class="row g-3">
@@ -954,11 +1101,30 @@
                                 <input type="number" step="0.01" min="0.01" max="{{ $pendiente }}"
                                        class="form-control" name="amount" required>
                             </div>
+                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    Fecha de factura <span class="text-danger">*</span>
+                                    <small class="text-muted fw-normal">(cuando la recibe el proveedor)</small>
+                                </label>
+                                <input type="date" class="form-control" name="invoice_date"
+                                       value="{{ date('Y-m-d') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    Fecha de pago programada <span class="text-danger">*</span>
+                                    <small class="text-muted fw-normal">(cuando se liquidará)</small>
+                                </label>
+                                <input type="date" class="form-control" name="payment_date"
+                                       value="{{ date('Y-m-d') }}" required>
+                            </div>
+                            @else
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha de pago <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control" name="payment_date"
                                        value="{{ date('Y-m-d') }}" required>
                             </div>
+                            @endif
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
                                 <select class="form-select" name="status" required>
@@ -967,10 +1133,21 @@
                                     <option value="pagado">Pagado</option>
                                 </select>
                             </div>
-                            <div class="col-12">
+                            <div class="col-{{ ($milestone->payment_condition ?? 'credito') === 'credito' ? '12' : 'md-6' }}">
                                 <label class="form-label fw-medium">Número de referencia</label>
                                 <input type="text" class="form-control" name="reference_number"
                                        placeholder="Ej. transferencia bancaria, cheque...">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    Comprobante SPEI (Opcional)
+                                    <small class="text-muted fw-normal">PDF, JPG, PNG, WEBP - máx. 10MB</small>
+                                </label>
+                                <input type="file"
+                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
+                                       name="spei_receipt_file"
+                                       accept=".pdf,.jpg,.jpeg,.png,.webp">
+                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
@@ -1076,7 +1253,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
-@if ($purchaseOrder->status !== 'autorizada')
+@hasanyrole('admin|Orden de compra')
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1092,10 +1269,10 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-medium">Tipo <span class="text-danger">*</span></label>
-                            <select class="form-select" name="type" required>
-                                <option value="anticipo">Anticipo (Contado)</option>
-                                <option value="regular" selected>Pago regular</option>
+                            <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
+                            <select class="form-select" name="payment_condition" required>
+                                <option value="credito" selected>Crédito</option>
+                                <option value="contado">Contado</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -1117,6 +1294,16 @@
                             <label class="form-label fw-medium">Fecha vencimiento</label>
                             <input type="date" class="form-control" name="due_date">
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_advance" value="1"
+                                       id="is_advance_create">
+                                <label class="form-check-label fw-medium" for="is_advance_create">
+                                    <i class="ri-bank-line me-1 text-warning"></i>Esto es un anticipo
+                                </label>
+                            </div>
+                            <div class="form-text">Marca si este hito corresponde a un pago anticipado (antes de la entrega).</div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1129,7 +1316,7 @@
         </div>
     </div>
 </div>
-@endif
+@endhasanyrole
 
 @push('styles')
 <style>
@@ -1193,6 +1380,14 @@
         var el = function (id) { return document.getElementById(id); };
         if (data.subtotal !== undefined && el('oc_subtotal')) el('oc_subtotal').textContent = '$' + fmtMoney(data.subtotal);
         if (data.iva      !== undefined && el('oc_iva'))      el('oc_iva').textContent      = '$' + fmtMoney(data.iva);
+        // Actualizar label de impuesto si el servidor devuelve tax_rate
+        if (data.tax_rate !== undefined && el('oc_iva_label')) {
+            if (data.tax_rate === null) {
+                el('oc_iva_label').textContent = 'Impuesto (Exento)';
+            } else {
+                el('oc_iva_label').textContent = 'IVA (' + parseFloat(data.tax_rate) + '%)';
+            }
+        }
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
     }
@@ -1359,7 +1554,7 @@
             var q = this.value.trim();
             if (q.length < 2) { searchDropdown.classList.add('d-none'); return; }
             searchTimer = setTimeout(function () {
-                fetch('{{ route("concepts.search") }}' + '?q=' + encodeURIComponent(q), {
+                fetch('{{ route("concepts.search") }}' + '?type={{ $purchaseOrder->type === "mantenimiento" ? "mantenimiento" : "materiales" }}&q=' + encodeURIComponent(q), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
                 })
                 .then(function (r) { return r.json(); })

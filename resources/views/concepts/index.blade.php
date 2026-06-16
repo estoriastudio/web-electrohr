@@ -53,30 +53,73 @@
                 </div>
             </div>
 
+            {{-- Tabs de tipo --}}
+            <div class="card-body border-bottom py-0 px-0">
+                <ul class="nav nav-tabs nav-tabs-custom px-3" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === '' ? 'active' : '' }}"
+                           href="{{ route('concepts.index', array_filter(['search' => $search, 'status' => $status, 'category' => $category])) }}">
+                            Todos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === 'materiales' ? 'active' : '' }}"
+                           href="{{ route('concepts.index', array_filter(['search' => $search, 'status' => $status, 'type' => 'materiales', 'category' => $category])) }}">
+                            <i class="ri-box-3-line me-1"></i> Materiales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === 'mantenimiento' ? 'active' : '' }}"
+                           href="{{ route('concepts.index', array_filter(['search' => $search, 'status' => $status, 'type' => 'mantenimiento', 'category' => $category])) }}">
+                            <i class="ri-tools-line me-1"></i> Mantenimiento
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
             {{-- Barra de búsqueda y filtros --}}
             <div class="card-body border-bottom py-3">
-                <form method="GET" action="{{ route('concepts.index') }}" class="d-flex gap-2 flex-wrap">
-                    <div class="input-group input-group-sm flex-grow-1">
-                        <span class="input-group-text bg-light">
-                            <i class="ri-search-line text-muted"></i>
-                        </span>
-                        <input type="text" name="search" value="{{ $search }}"
-                               class="form-control"
-                               placeholder="Buscar por código o descripción…"
-                               autocomplete="off">
-                        @if ($search)
-                            <a href="{{ route('concepts.index', array_filter(['status' => $status])) }}"
-                               class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                <form method="GET" action="{{ route('concepts.index') }}" class="row g-2 align-items-end">
+                    @if($type)<input type="hidden" name="type" value="{{ $type }}">@endif
+                    <div class="col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light">
+                                <i class="ri-search-line text-muted"></i>
+                            </span>
+                            <input type="text" name="search" value="{{ $search }}"
+                                   class="form-control"
+                                   placeholder="Buscar por código o descripción…"
+                                   autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="category" class="form-select form-select-sm">
+                            <option value="">Todas las categorías</option>
+                            @foreach($categories as $cat)
+                                @if(!$type || $cat->type === $type)
+                                    <option value="{{ $cat->id }}" @selected($category == $cat->id)>
+                                        {{ $cat->name }} ({{ $cat->type === 'materiales' ? 'Mat.' : 'Mant.' }})
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">Todos los estados</option>
+                            <option value="active"   @selected($status === 'active')>Activo</option>
+                            <option value="inactive" @selected($status === 'inactive')>Inactivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex gap-1">
+                        <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
+                        @if($search || $status || $category)
+                            <a href="{{ route('concepts.index', array_filter(['type' => $type])) }}"
+                               class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif
                     </div>
-                    <select name="status" class="form-select form-select-sm" style="width:160px">
-                        <option value="">Todos los estados</option>
-                        <option value="active"   @selected($status === 'active')>Activo</option>
-                        <option value="inactive" @selected($status === 'inactive')>Inactivo</option>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-primary">Buscar</button>
                 </form>
             </div>
 
@@ -89,6 +132,8 @@
                                 <th>Descripción</th>
                                 <th>Unidad</th>
                                 <th class="text-end">Precio Unitario</th>
+                                <th>Categoría</th>
+                                <th>Tipo</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -104,6 +149,23 @@
                                             ${{ number_format($concept->unit_price, 2) }}
                                         @else
                                             <span class="text-muted">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($concept->category)
+                                            <span class="fw-medium">{{ $concept->category->name }}</span>
+                                            @if($concept->subcategory)
+                                                <br><span class="text-muted fs-12">{{ $concept->subcategory->name }}</span>
+                                            @endif
+                                        @else
+                                            <span class="text-muted fs-12">Sin categoría</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($concept->type === 'materiales')
+                                            <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">Materiales</span>
+                                        @else
+                                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Mantenimiento</span>
                                         @endif
                                     </td>
                                     <td>
@@ -123,7 +185,10 @@
                                                     data-description="{{ $concept->description }}"
                                                     data-unit="{{ $concept->unit }}"
                                                     data-unit-price="{{ $concept->unit_price }}"
-                                                    data-status="{{ $concept->status }}">
+                                                    data-status="{{ $concept->status }}"
+                                                    data-type="{{ $concept->type }}"
+                                                    data-category-id="{{ $concept->concept_category_id }}"
+                                                    data-subcategory-id="{{ $concept->concept_subcategory_id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
                                             <form action="{{ route('concepts.destroy', $concept) }}"
@@ -140,7 +205,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         <i class="ri-pages-line fs-24 d-block mb-1 opacity-50"></i>
                                         No hay conceptos registrados.
                                     </td>
@@ -246,6 +311,42 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-6">
+                            <label for="create_type" class="form-label fw-medium">
+                                Tipo <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @error('type') is-invalid @enderror"
+                                    id="create_type" name="type" required>
+                                <option value="materiales" @selected(old('type', $type ?: 'materiales') === 'materiales')>Materiales</option>
+                                <option value="mantenimiento" @selected(old('type', $type) === 'mantenimiento')>Mantenimiento</option>
+                            </select>
+                            @error('type')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_category" class="form-label fw-medium">Categoría</label>
+                            <select class="form-select @error('concept_category_id') is-invalid @enderror"
+                                    id="create_category" name="concept_category_id">
+                                <option value="">— Sin categoría —</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}"
+                                            data-type="{{ $cat->type }}"
+                                            @selected(old('concept_category_id') == $cat->id)>
+                                        {{ $cat->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('concept_category_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_subcategory" class="form-label fw-medium">Subcategoría</label>
+                            <select class="form-select" id="create_subcategory" name="concept_subcategory_id">
+                                <option value="">— Sin subcategoría —</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -321,6 +422,30 @@
                             <select class="form-select" id="edit_status" name="status" required>
                                 <option value="active">Activo</option>
                                 <option value="inactive">Inactivo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_type" class="form-label fw-medium">
+                                Tipo <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="edit_type" name="type" required>
+                                <option value="materiales">Materiales</option>
+                                <option value="mantenimiento">Mantenimiento</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_category" class="form-label fw-medium">Categoría</label>
+                            <select class="form-select" id="edit_category" name="concept_category_id">
+                                <option value="">— Sin categoría —</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}" data-type="{{ $cat->type }}">{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_subcategory" class="form-label fw-medium">Subcategoría</label>
+                            <select class="form-select" id="edit_subcategory" name="concept_subcategory_id">
+                                <option value="">— Sin subcategoría —</option>
                             </select>
                         </div>
                     </div>
@@ -401,14 +526,90 @@
 
 @push('scripts')
 <script>
+// ── Carga dinámica de subcategorías ───────────────────────────────────────────
+function loadSubcategories(categoryId, selectEl, preselectId) {
+    selectEl.innerHTML = '<option value="">— Sin subcategoría —</option>';
+    if (!categoryId) return;
+
+    fetch('/categorias-conceptos/' + categoryId + '/subcategorias-json', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (subs) {
+        subs.forEach(function (s) {
+            var opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            if (preselectId && String(s.id) === String(preselectId)) opt.selected = true;
+            selectEl.appendChild(opt);
+        });
+    });
+}
+
+// ── Modal Crear: cascada tipo → categoría ────────────────────────────────────
+var createType     = document.getElementById('create_type');
+var createCategory = document.getElementById('create_category');
+var createSubcat   = document.getElementById('create_subcategory');
+
+function filterCategoriesByType(typeVal, categorySelect) {
+    Array.from(categorySelect.options).forEach(function (opt) {
+        if (!opt.value) return;
+        opt.hidden = typeVal ? opt.dataset.type !== typeVal : false;
+    });
+    if (categorySelect.selectedOptions[0] && categorySelect.selectedOptions[0].hidden) {
+        categorySelect.value = '';
+        loadSubcategories('', createSubcat, null);
+    }
+}
+
+if (createType) {
+    createType.addEventListener('change', function () {
+        filterCategoriesByType(this.value, createCategory);
+    });
+    filterCategoriesByType(createType.value, createCategory);
+}
+
+if (createCategory) {
+    createCategory.addEventListener('change', function () {
+        loadSubcategories(this.value, createSubcat, null);
+    });
+}
+
+// ── Modal Editar ─────────────────────────────────────────────────────────────
+var editType     = document.getElementById('edit_type');
+var editCategory = document.getElementById('edit_category');
+var editSubcat   = document.getElementById('edit_subcategory');
+
+if (editType) {
+    editType.addEventListener('change', function () {
+        filterCategoriesByTypeEdit(this.value);
+    });
+}
+
+function filterCategoriesByTypeEdit(typeVal) {
+    Array.from(editCategory.options).forEach(function (opt) {
+        if (!opt.value) return;
+        opt.hidden = typeVal ? opt.dataset.type !== typeVal : false;
+    });
+}
+
+if (editCategory) {
+    editCategory.addEventListener('change', function () {
+        loadSubcategories(this.value, editSubcat, null);
+    });
+}
+
 document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
     btn.addEventListener('click', function () {
-        var id          = this.dataset.id;
-        var code        = this.dataset.code;
-        var description = this.dataset.description;
-        var unit        = this.dataset.unit;
-        var unitPrice   = this.dataset.unitPrice;
-        var status      = this.dataset.status;
+        var id            = this.dataset.id;
+        var code          = this.dataset.code;
+        var description   = this.dataset.description;
+        var unit          = this.dataset.unit;
+        var unitPrice     = this.dataset.unitPrice;
+        var status        = this.dataset.status;
+        var type          = this.dataset.type;
+        var categoryId    = this.dataset.categoryId;
+        var subcategoryId = this.dataset.subcategoryId;
 
         var form = document.getElementById('formEditConcept');
         form.action = '/conceptos/' + id;
@@ -418,6 +619,11 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         document.getElementById('edit_unit').value        = unit;
         document.getElementById('edit_unit_price').value  = unitPrice;
         document.getElementById('edit_status').value      = status;
+        editType.value = type || 'materiales';
+
+        filterCategoriesByTypeEdit(editType.value);
+        editCategory.value = categoryId || '';
+        loadSubcategories(categoryId, editSubcat, subcategoryId);
 
         var modal = new bootstrap.Modal(document.getElementById('modalEditConcept'));
         modal.show();

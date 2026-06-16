@@ -12,6 +12,8 @@ class PurchaseOrderMilestone extends Model
     protected $fillable = [
         'purchase_order_id',
         'type',
+        'payment_condition',
+        'is_advance',
         'value_type',
         'value',
         'covered_amount',
@@ -20,10 +22,11 @@ class PurchaseOrderMilestone extends Model
     ];
 
     protected $casts = [
-        'value'          => 'decimal:2',
-        'covered_amount' => 'decimal:2',
-        'invoice_date'   => 'date',
-        'due_date'       => 'date',
+        'value'             => 'decimal:2',
+        'covered_amount'    => 'decimal:2',
+        'invoice_date'      => 'date',
+        'due_date'          => 'date',
+        'is_advance'        => 'boolean',
     ];
 
     public function purchaseOrder(): BelongsTo

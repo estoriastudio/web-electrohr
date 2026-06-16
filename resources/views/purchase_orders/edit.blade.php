@@ -104,21 +104,19 @@
                             @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
-                        {{-- Importe --}}
+                        {{-- Impuesto --}}
+                        @php
+                            $currentTaxRate = old('tax_rate', is_null($purchaseOrder->tax_rate) ? 'exempt' : (string)(int)$purchaseOrder->tax_rate);
+                        @endphp
                         <div class="col-md-4">
-                            <label for="amount" class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
-                            @php $hasMillestones = $purchaseOrder->milestones()->count() > 0; @endphp
-                            <input type="number" step="0.01" min="0"
-                                   class="form-control @error('amount') is-invalid @enderror"
-                                   id="amount" name="amount"
-                                   value="{{ old('amount', $purchaseOrder->amount) }}"
-                                   {{ $hasMillestones ? 'readonly' : '' }} required>
-                            @if ($hasMillestones)
-                                <div class="form-text text-warning">
-                                    <i class="ri-lock-line me-1"></i>El importe no puede modificarse porque la OC ya tiene hitos configurados.
-                                </div>
-                            @endif
-                            @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="tax_rate" class="form-label fw-medium">Incluye impuesto <span class="text-danger">*</span></label>
+                            <select class="form-select @error('tax_rate') is-invalid @enderror" id="tax_rate" name="tax_rate" required>
+                                <option value="16"    {{ $currentTaxRate === '16'    ? 'selected' : '' }}>IVA 16% (predeterminado)</option>
+                                <option value="8"     {{ $currentTaxRate === '8'     ? 'selected' : '' }}>IVA 8%</option>
+                                <option value="0"     {{ $currentTaxRate === '0'     ? 'selected' : '' }}>0%</option>
+                                <option value="exempt" {{ $currentTaxRate === 'exempt' ? 'selected' : '' }}>Exento de impuesto</option>
+                            </select>
+                            @error('tax_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Estatus --}}

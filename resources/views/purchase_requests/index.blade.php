@@ -39,11 +39,13 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Compra</h4>
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solcom')
+                @can('create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreatePR">
                     <i class="ri-add-line me-1"></i> Nueva SOLCOM
                 </button>
+                @endcan
                 @endhasanyrole
             </div>
 
@@ -63,6 +65,8 @@
                             <option value="">Todos los estados</option>
                             <option value="pending"   {{ $status === 'pending'   ? 'selected' : '' }}>Pendiente</option>
                             <option value="linked"    {{ $status === 'linked'    ? 'selected' : '' }}>Ligado</option>
+                            <option value="sent_to_purchasing" {{ $status === 'sent_to_purchasing' ? 'selected' : '' }}>En Compras</option>
+                            <option value="changes_requested" {{ $status === 'changes_requested' ? 'selected' : '' }}>Cambios Solicitados</option>
                             <option value="completed" {{ $status === 'completed' ? 'selected' : '' }}>Finalizado</option>
                         </select>
                     </div>
@@ -95,9 +99,11 @@
                         <tbody>
                             @php
                                 $statusMap = [
-                                    'pending'   => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-                                    'linked'    => ['label' => 'Ligado',     'class' => 'bg-info-subtle text-info'],
-                                    'completed' => ['label' => 'Finalizado', 'class' => 'bg-success-subtle text-success'],
+                                    'pending'           => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
+                                    'linked'            => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
+                                    'sent_to_purchasing'=> ['label' => 'En Compras',         'class' => 'bg-primary-subtle text-primary'],
+                                    'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
+                                    'completed'         => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
                                 ];
                             @endphp
                             @forelse ($purchaseRequests as $pr)
@@ -125,18 +131,22 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @hasanyrole('admin|orders')
-                                            <a href="{{ route('purchase_requests.edit', $pr) }}"
-                                               class="btn btn-soft-primary btn-sm" title="Editar">
-                                                <i class="ri-edit-line"></i>
-                                            </a>
-                                            <form action="{{ route('purchase_requests.destroy', $pr) }}" method="POST"
-                                                  onsubmit="return confirm('¿Eliminar SOLCOM #{{ $pr->folio }}?')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
+                                            @hasanyrole('admin|Solcom')
+                                            @can('update')
+                                                <a href="{{ route('purchase_requests.edit', $pr) }}"
+                                                   class="btn btn-soft-primary btn-sm" title="Editar">
+                                                    <i class="ri-edit-line"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete')
+                                                <form action="{{ route('purchase_requests.destroy', $pr) }}" method="POST"
+                                                      onsubmit="return confirm('¿Eliminar SOLCOM #{{ $pr->folio }}?')">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                             @endhasanyrole
                                         </div>
                                     </td>
@@ -163,6 +173,8 @@
 </div>
 
 {{-- MODAL — Nueva SOLCOM --}}
+@hasanyrole('admin|Solcom')
+@can('create')
 <div class="modal fade" id="modalCreatePR" tabindex="-1" aria-labelledby="modalCreatePRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
@@ -205,7 +217,8 @@
                         <div class="col-md-4">
                             <label class="form-label">Folio <span class="text-danger">*</span></label>
                             <input type="number" name="folio" class="form-control @error('folio') is-invalid @enderror"
-                                   value="{{ old('folio', $nextFolio) }}" required min="1">
+                                   value="{{ old('folio', $nextFolio) }}" required min="18000" readonly
+                                   style="background-color: #f8f9fa;">
                             @error('folio') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-8">
@@ -279,6 +292,22 @@
                                    value="{{ old('need_date') }}" required>
                             @error('need_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
+
+                        {{-- Comprador asignado --}}
+                        <div class="col-12">
+                            <label class="form-label">Comprador Asignado</label>
+                            <select name="assigned_to" id="prAssignedTo"
+                                    class="form-select @error('assigned_to') is-invalid @enderror">
+                                <option value="">— Sin asignar —</option>
+                                @foreach ($purchasingUsers as $pu)
+                                    <option value="{{ $pu->id }}" {{ old('assigned_to') == $pu->id ? 'selected' : '' }}>
+                                        {{ $pu->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text" id="prAssignedToHint"></div>
+                            @error('assigned_to') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
                     </div>
 
                     {{-- Preview de conceptos de SOLMAT (informativo) --}}
@@ -314,11 +343,22 @@
         </div>
     </div>
 </div>
+@endcan
+@endhasanyrole
 
 @endsection
 
 @push('scripts')
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    var projectSelect = document.getElementById('prProjectId');
+    var workSelectEl = document.getElementById('prProjectWorkId');
+    var btnSearch = document.getElementById('btnSearchSolmat');
+
+    if (!projectSelect || !workSelectEl || !btnSearch) {
+        return;
+    }
+
 // ── Cascade proyecto → obras ──────────────────────────────────────────────
 function loadWorks(projectId, workSelect, selectValue) {
     if (!projectId) {
@@ -341,12 +381,12 @@ function loadWorks(projectId, workSelect, selectValue) {
         .catch(() => { workSelect.innerHTML = '<option value="">— Error —</option>'; });
 }
 
-document.getElementById('prProjectId').addEventListener('change', function () {
-    loadWorks(this.value, document.getElementById('prProjectWorkId'), null);
+projectSelect.addEventListener('change', function () {
+    loadWorks(this.value, workSelectEl, null);
 });
 
 // ── Búsqueda de SOLMAT por folio ──────────────────────────────────────────
-document.getElementById('btnSearchSolmat').addEventListener('click', function () {
+btnSearch.addEventListener('click', function () {
     const folio   = document.getElementById('solmatFolioInput').value.trim();
     const msgEl   = document.getElementById('solmatSearchMsg');
     const badgeEl = document.getElementById('solmatLinkedBadge');
@@ -396,6 +436,20 @@ document.getElementById('btnSearchSolmat').addEventListener('click', function ()
             }
 
             badgeEl.classList.remove('d-none');
+
+            // Precargar comprador sugerido
+            const assignedSel  = document.getElementById('prAssignedTo');
+            const assignedHint = document.getElementById('prAssignedToHint');
+            if (data.suggested_buyer_id && assignedSel) {
+                assignedSel.value = data.suggested_buyer_id;
+                if (assignedHint) {
+                    assignedHint.innerHTML =
+                        '<i class="ri-user-received-line me-1 text-success"></i>'
+                        + 'Sugerido por categoría de conceptos: <strong>' + data.suggested_buyer_name + '</strong>';
+                }
+            } else if (assignedHint) {
+                assignedHint.textContent = '';
+            }
         })
         .catch(err => {
             msgEl.textContent = err.error ?? 'No se encontró la SOLMAT.';
@@ -403,10 +457,14 @@ document.getElementById('btnSearchSolmat').addEventListener('click', function ()
             document.getElementById('materialRequestId').value = '';
         });
 });
+});
 
 @if ($errors->any())
     document.addEventListener('DOMContentLoaded', () => {
-        new bootstrap.Modal(document.getElementById('modalCreatePR')).show();
+        var modalEl = document.getElementById('modalCreatePR');
+        if (modalEl) {
+            new bootstrap.Modal(modalEl).show();
+        }
     });
 @endif
 </script>

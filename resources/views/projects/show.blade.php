@@ -51,6 +51,10 @@
                     <div class="fw-semibold fs-18 text-primary">{{ $project->works_count }}</div>
                     <div class="text-muted fs-12">Obras</div>
                 </div>
+                <div class="text-center">
+                    <div class="fw-semibold fs-18 text-primary">$ {{ number_format((float) ($project->project_value ?? 0), 2) }}</div>
+                    <div class="text-muted fs-12">Valor</div>
+                </div>
                 <span class="badge {{ $ps['class'] }} py-1 px-3 fs-12">{{ $ps['label'] }}</span>
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateWork">
@@ -60,6 +64,116 @@
         </div>
     </div>
 </div>
+
+
+{{-- ══════════════════════════════════════════════════════════════
+     CHECKLIST DOCUMENTAL DEL PROYECTO
+══════════════════════════════════════════════════════════════════ --}}
+<div class="card mb-3">
+    <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="ri-file-shield-2-line me-1 text-muted"></i> Documentación del Proyecto
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 table-centered">
+                <thead class="bg-light-subtle">
+                    <tr>
+                        <th style="width: 18px;"></th>
+                        <th>Documento</th>
+                        <th>Fecha subida</th>
+                        <th>Archivo</th>
+                        @role('admin|Proyectos')
+                        <th>Acción</th>
+                        @endrole
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($docTypes as $dt => $dtLabel)
+                        @php
+                            $docRecord = $project->documents->firstWhere('document_type', $dt);
+                            $hasFile   = $docRecord && $docRecord->file_path;
+                        @endphp
+                        <tr>
+                            <td>
+                                <span class="rounded-circle d-inline-block"
+                                      style="width: 12px; height: 12px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }};"
+                                      title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
+                                </span>
+                            </td>
+                            <td class="fw-medium fs-14">{{ $dtLabel }}</td>
+                            <td class="text-muted fs-12">
+                                {{ $docRecord && $docRecord->uploaded_at ? $docRecord->uploaded_at->format('d/m/Y') : '—' }}
+                            </td>
+                            <td>
+                                @if ($hasFile)
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('s3')->url($docRecord->file_path) }}"
+                                       target="_blank" class="btn btn-light btn-sm" title="Ver documento">
+                                        <i class="ri-file-download-line"></i>
+                                    </a>
+                                @else
+                                    <span class="text-muted fs-12">Sin archivo</span>
+                                @endif
+                            </td>
+                            @role('admin|Proyectos')
+                            <td>
+                                <button type="button"
+                                        class="btn btn-soft-primary btn-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalProjectDoc_{{ $dt }}">
+                                    <i class="ri-upload-2-line me-1"></i>
+                                    {{ $hasFile ? 'Reemplazar' : 'Subir' }}
+                                </button>
+                            </td>
+                            @endrole
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{-- ── Modales de subida (uno por tipo de documento) ─────────────────── --}}
+@role('admin|Proyectos')
+@foreach ($docTypes as $dt => $dtLabel)
+    @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
+    <div class="modal fade" id="modalProjectDoc_{{ $dt }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('projects.document.upload', [$project, $dt]) }}"
+                      method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="ri-file-add-line me-1"></i> {{ $dtLabel }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label fw-medium">
+                            Archivo <span class="text-danger">*</span>
+                            <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 10 MB)</span>
+                        </label>
+                        <input type="file" name="file" class="form-control"
+                               accept=".pdf,.jpg,.jpeg,.png" required>
+                        @if ($docRecord && $docRecord->file_path)
+                            <div class="form-text">Ya existe un archivo. Sube uno nuevo para reemplazarlo.</div>
+                        @endif
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ri-save-line me-1"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endforeach
+@endrole
 
 
 {{-- ══════════════════════════════════════════════════════════════

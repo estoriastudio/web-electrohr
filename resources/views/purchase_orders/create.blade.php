@@ -221,21 +221,23 @@
                     <div class="col-md-4">
                         <label for="currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
                         <select class="form-select @error('currency') is-invalid @enderror" id="currency" name="currency" required>
-                            <option value="MXN" {{ old('currency', 'MXN') === 'MXN' ? 'selected' : '' }}>MXN — Peso Mexicano</option>
-                            <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD — Dólar</option>
-                            <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR — Euro</option>
+                            <option value="MXN" {{ old('currency', 'MXN') === 'MXN' ? 'selected' : '' }}>MXN &mdash; Peso Mexicano</option>
+                            <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD &mdash; Dólar</option>
+                            <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR &mdash; Euro</option>
                         </select>
                         @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    {{-- Importe --}}
+                    {{-- Impuesto --}}
                     <div class="col-md-4">
-                        <label for="amount" class="form-label fw-medium">Importe <span class="text-muted fs-12">(auto si hay conceptos)</span></label>
-                        <input type="number" step="0.01" min="0"
-                               class="form-control @error('amount') is-invalid @enderror"
-                               id="amount" name="amount" value="{{ old('amount', '') }}"
-                               placeholder="0.00">
-                        @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label for="tax_rate" class="form-label fw-medium">Incluye impuesto <span class="text-danger">*</span></label>
+                        <select class="form-select @error('tax_rate') is-invalid @enderror" id="tax_rate" name="tax_rate" required>
+                            <option value="16"    {{ old('tax_rate', '16') === '16'    ? 'selected' : '' }}>IVA 16% (predeterminado)</option>
+                            <option value="8"     {{ old('tax_rate') === '8'     ? 'selected' : '' }}>IVA 8%</option>
+                            <option value="0"     {{ old('tax_rate') === '0'     ? 'selected' : '' }}>0%</option>
+                            <option value="exempt" {{ old('tax_rate') === 'exempt' ? 'selected' : '' }}>Exento de impuesto</option>
+                        </select>
+                        @error('tax_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
                     {{-- Estatus --}}
@@ -312,6 +314,16 @@
                                id="elaborated_by" name="elaborated_by"
                                value="{{ old('elaborated_by', auth()->user()->name) }}">
                         @error('elaborated_by')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="attorney_name" class="form-label fw-medium">Apoderado</label>
+                        <input type="text" maxlength="255"
+                               class="form-control @error('attorney_name') is-invalid @enderror"
+                               id="attorney_name" name="attorney_name"
+                               value="{{ old('attorney_name') }}"
+                               placeholder="Nombre del apoderado">
+                        @error('attorney_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">

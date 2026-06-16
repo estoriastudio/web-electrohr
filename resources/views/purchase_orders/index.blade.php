@@ -42,10 +42,12 @@
                     <h4 class="card-title mb-0">Listado de órdenes de compra</h4>
                 </div>
                 <div>
-                    @hasanyrole('admin|orders')
+                    @hasanyrole('admin|Orden de compra')
+                    @can('create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
                     </a>
+                    @endcan
                     @endhasanyrole
                 </div>
             </div>
@@ -157,7 +159,7 @@
                                     <td>
                                         <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $order->currency }}</span>
                                     </td>
-                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->amount, 2) }}</td>
+                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->total_with_iva, 2) }}</td>
                                     <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
                                     <td>
                                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>

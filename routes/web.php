@@ -7,6 +7,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierContactController;
 use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\MobileAssetController;
+use App\Http\Controllers\MaintenanceLogController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\ConceptCategoryController;
 
 use App\Http\Controllers\PaymentController;
 
@@ -60,6 +62,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'parameters' => ['proveedores' => 'supplier', 'contactos' => 'contact'],
             ])->only(['store', 'update', 'destroy']);
 
+            Route::get('proveedores/{supplier}/contacto-principal', [SupplierContactController::class, 'primaryJson'])
+                 ->name('supplier_contacts.primary_json');
+
             Route::resource('proveedores.sucursales', SupplierLocationController::class, [
                 'names' => [
                     'store'   => 'supplier_locations.store',
@@ -84,6 +89,24 @@ Route::namespace('App\Http\Controllers')->group(function () {
             'parameters' => ['bienes-mobiles' => 'mobile_asset'],
         ]);
 
+        // Fotos del bien móvil (upload individual por slot)
+        Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
+             ->name('mobile_assets.photo.upload')
+             ->where('slot', '[123]');
+        Route::delete('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'deletePhoto'])
+             ->name('mobile_assets.photo.delete')
+             ->where('slot', '[123]');
+
+        // Checklist documental del bien móvil
+        Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
+             ->name('mobile_assets.document.update');
+
+        // Bitácora de mantenimiento
+        Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
+             ->name('maintenance_logs.store');
+        Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
+             ->name('maintenance_logs.destroy');
+
         Route::resource('/proyectos', ProjectController::class, [
             'names' => [
                 'index'   => 'projects.index',
@@ -99,6 +122,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
             ->name('projects.works_json');
+
+        Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
+            ->name('projects.document.upload');
 
         Route::post('/proyectos/import', [ProjectController::class, 'import'])
             ->name('projects.import');
@@ -119,6 +145,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|orders
         Route::middleware('role:admin|orders')->group(function () {
             Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
+            Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         });
 
         // Conceptos (catálogo) — CRUD solo admin
@@ -133,6 +160,16 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['conceptos' => 'concept'],
             ])->only(['index', 'store', 'update', 'destroy']);
+
+            // Categorías de Conceptos
+            Route::get('/categorias-conceptos', [ConceptCategoryController::class, 'index'])->name('concept_categories.index');
+            Route::post('/categorias-conceptos', [ConceptCategoryController::class, 'store'])->name('concept_categories.store');
+            Route::put('/categorias-conceptos/{conceptCategory}', [ConceptCategoryController::class, 'update'])->name('concept_categories.update');
+            Route::delete('/categorias-conceptos/{conceptCategory}', [ConceptCategoryController::class, 'destroy'])->name('concept_categories.destroy');
+            Route::put('/categorias-conceptos/{conceptCategory}/compradores', [ConceptCategoryController::class, 'syncUsers'])->name('concept_categories.sync_users');
+            Route::post('/categorias-conceptos/{conceptCategory}/subcategorias', [ConceptCategoryController::class, 'storeSubcategory'])->name('concept_categories.subcategories.store');
+            Route::put('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'updateSubcategory'])->name('concept_categories.subcategories.update');
+            Route::delete('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'destroySubcategory'])->name('concept_categories.subcategories.destroy');
         });
 
         // Usuarios (gestión) y Roles
@@ -171,6 +208,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Órdenes de Compra — escritura: admin, orders
         Route::middleware('role:admin|orders')->group(function () {
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
+            Route::get('/ordenes-de-compra/crear-desde/{purchaseRequest}', [PurchaseOrderController::class, 'createFromSolcom'])->name('purchase_orders.create_from_solcom');
             Route::post('/ordenes-de-compra', [PurchaseOrderController::class, 'store'])->name('purchase_orders.store');
             Route::get('/ordenes-de-compra/{purchase_order}/edit', [PurchaseOrderController::class, 'edit'])->name('purchase_orders.edit');
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
@@ -228,9 +266,21 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // Facturas de Órdenes de Compra
         Route::middleware('role:admin|payments')->group(function () {
+            Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
+        });
+
+        // Contrarecibo PDF — accesible para admin, payments y orders
+        Route::middleware('role:admin|payments|orders')->group(function () {
+            Route::get('/pagos/{payment}/contrarecibo', [PaymentController::class, 'contrarecibo'])->name('payments.contrarecibo');
+            Route::get('/pagos/{payment}/comprobante-spei', [PaymentController::class, 'downloadSpeiReceipt'])->name('payments.spei_receipt.download');
+        });
+
+        // AJAX: hitos de una OC (para Alta de Facturas)
+        Route::middleware('role:admin|payments')->group(function () {
+            Route::get('/ordenes-de-compra/{purchaseOrder}/hitos-json', [PurchaseOrderMilestoneController::class, 'forOrder'])->name('milestones.for_order');
         });
 
         // ── SOLMAT (Solicitudes de Material) ──────────────────────────────────
@@ -267,6 +317,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/solicitudes-material/{materialRequest}/pdf',
                        [MaterialRequestController::class, 'downloadPdf'])
                  ->name('material_requests.pdf');
+
+            Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse',
+                        [MaterialRequestController::class, 'sendToWarehouse'])
+                 ->name('material_requests.send_to_warehouse');
         });
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
@@ -313,6 +367,38 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/solicitudes-compra/{purchaseRequest}/pdf',
                        [PurchaseRequestController::class, 'downloadPdf'])
                  ->name('purchase_requests.pdf');
+
+            // ── Flujo de trabajo SOLCOM ───────────────────────────────────────
+            Route::post('/solicitudes-compra/{purchaseRequest}/send-to-purchasing',
+                        [PurchaseRequestController::class, 'sendToPurchasing'])
+                 ->name('purchase_requests.send_to_purchasing');
+
+            Route::post('/solicitudes-compra/{purchaseRequest}/request-changes',
+                        [PurchaseRequestController::class, 'requestChanges'])
+                 ->name('purchase_requests.request_changes');
+
+            Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/resolve',
+                        [PurchaseRequestController::class, 'resolveChangeNote'])
+                 ->name('purchase_requests.change_notes.resolve');
+
+            // ── Pila SOLCOM (vista de Compras por usuario) ───────────────────
+            Route::get('/compras/pila-solcom',
+                       [PurchaseRequestController::class, 'purchasingPile'])
+                 ->name('purchasing.solcom_pile');
+
+            // ── Carga de Trabajo SOLCOM ──────────────────────────────────────
+            Route::get('/compras/carga-de-trabajo',
+                       [PurchaseRequestController::class, 'workload'])
+                 ->name('purchasing.workload');
+
+            // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────
+            Route::get('/almacen/pila-solmat',
+                       [PurchaseRequestController::class, 'solmatPile'])
+                 ->name('warehouse.solmat_pile');
+
+            Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom',
+                       [PurchaseRequestController::class, 'createFromSolmat'])
+                 ->name('purchase_requests.create_from_solmat');
         });
     });
 });

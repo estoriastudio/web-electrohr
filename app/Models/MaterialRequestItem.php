@@ -14,6 +14,7 @@ class MaterialRequestItem extends Model
         'description',
         'unit',
         'quantity',
+        'file_path',
     ];
 
     public function materialRequest(): BelongsTo

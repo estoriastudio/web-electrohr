@@ -31,7 +31,8 @@
                 </a>
             </li>
 
-            @role('admin|orders')
+            @hasanyrole('admin|Orden de compra')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('suppliers.index') }}">
                     <span class="nav-icon">
@@ -40,8 +41,11 @@
                     <span class="nav-text">Proveedores</span>
                 </a>
             </li>
-            @endrole
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Moviles')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('mobile_assets.index') }}">
                     <span class="nav-icon">
@@ -50,7 +54,11 @@
                     <span class="nav-text">Bienes Móviles</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
 
+            @hasanyrole('admin|Proyectos')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
                     <span class="nav-icon">
@@ -62,10 +70,13 @@
                     @endif
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
 
-            <li class="menu-title">Compras</li>
+            @hasanyrole('admin|Solmat')
+            @can('read')
+            <li class="menu-title">Almacén</li>
 
-            @hasanyrole('admin|orders')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
                    href="{{ route('material_requests.index') }}">
@@ -75,6 +86,31 @@
                     <span class="nav-text">Solicitudes de Material</span>
                 </a>
             </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solmat')
+            @can('read')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
+                   href="{{ route('warehouse.solmat_pile') }}">
+                    <span class="nav-icon">
+                        <i class="ri-inbox-2-line"></i>
+                    </span>
+                    <span class="nav-text">Pila SOLMAT</span>
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom|Orden de compra')
+            @can('read')
+            <li class="menu-title">Compras</li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
                    href="{{ route('purchase_requests.index') }}">
@@ -84,9 +120,39 @@
                     <span class="nav-text">Solicitudes de Compra</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|payments|orders')
+            @hasanyrole('admin|Solcom')
+            @can('read')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
+                   href="{{ route('purchasing.solcom_pile') }}">
+                    <span class="nav-icon">
+                        <i class="ri-stack-line"></i>
+                    </span>
+                    <span class="nav-text">Pila SOLCOM</span>
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom')
+            @can('read')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchasing.workload') ? 'active' : '' }}"
+                   href="{{ route('purchasing.workload') }}">
+                    <span class="nav-icon">
+                        <i class="ri-bar-chart-grouped-line"></i>
+                    </span>
+                    <span class="nav-text">Carga de Trabajo</span>
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Pagos|Orden de compra')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
                    href="{{ route('purchase_orders.index') }}">
@@ -96,9 +162,14 @@
                     <span class="nav-text">Órdenes de Compra</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|payments|orders')
+            @hasanyrole('admin|Pagos')
+            @can('read')
+            <li class="menu-title">Pagos</li>
+
+            @hasanyrole('admin|Pagos|Orden de compra')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                    href="{{ route('milestones.index') }}">
@@ -110,9 +181,6 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|payments')
-            <li class="menu-title">Pagos</li>
-
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('payments.index') ? 'active' : '' }}"
                    href="{{ route('payments.index') }}">
@@ -122,19 +190,41 @@
                     <span class="nav-text">Autorización de Pagos</span>
                 </a>
             </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
+                   href="{{ route('payments.alta_facturas') }}">
+                    <span class="nav-icon">
+                        <i class="ri-upload-2-line"></i>
+                    </span>
+                    <span class="nav-text">Alta de Facturas</span>
+                </a>
+            </li>
+            @endcan
             @endhasanyrole
 
             @role('admin')
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="{{ route('concepts.index') }}">
+                <a class="nav-link menu-arrow {{ request()->routeIs('concepts.*') || request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="#sidebarConcepts" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarConcepts">
                     <span class="nav-icon">
                         <i class="ri-pages-line"></i>
                     </span>
-                    <span class="nav-text">Conceptos</span>
+                    <span class="nav-text"> Suministros </span>
                 </a>
+                <div class="collapse" id="sidebarConcepts">
+                    <ul class="nav sub-navbar-nav">
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">Conceptos</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">Familias</a>
+                        </li>
+                    </ul>
+                </div>
             </li>
+            
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('usuarios.index') }}">

@@ -6,11 +6,13 @@ use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
 use App\Models\Payment;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Storage;
 
 use Carbon\Carbon;
 
@@ -120,8 +122,10 @@ class PaymentController extends Controller
             'folio'            => 'nullable|string|max:100',
             'amount'           => 'required|numeric|min:0.01',
             'payment_date'     => 'required|date',
+            'invoice_date'     => 'nullable|date',
             'status'           => 'required|in:por_autorizar,autorizado,pagado',
             'reference_number' => 'nullable|string|max:255',
+            'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
         $milestone = PurchaseOrderMilestone::findOrFail($validated['milestone_id']);
@@ -140,6 +144,18 @@ class PaymentController extends Controller
 
         if (empty($validated['folio'])) {
             $validated['folio'] = strtoupper('PAY-' . random_int(10000, 99999));
+        }
+
+        if ($request->hasFile('spei_receipt_file')) {
+            $file = $request->file('spei_receipt_file');
+            $fileName = 'SPEI-' . ($validated['folio'] ?? strtoupper('PAY-' . random_int(10000, 99999))) . '-' . time() . '.' . $file->getClientOriginalExtension();
+            $storageDir = 'payments/spei/' . $validated['milestone_id'];
+            $s3Path = $storageDir . '/' . $fileName;
+
+            Storage::disk('s3')->put($s3Path, file_get_contents($file));
+
+            $validated['spei_receipt_path'] = $s3Path;
+            $validated['spei_receipt_name'] = $fileName;
         }
 
         $payment = Payment::create($validated);
@@ -174,8 +190,51 @@ class PaymentController extends Controller
     public function update(Request $request, Payment $payment): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:por_autorizar,autorizado,pagado,rechazado',
+            'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado',
+            'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
+
+        $milestone = $payment->milestone()->firstOrFail();
+        $orderId   = $milestone->purchase_order_id;
+
+        $hasStatusChange = array_key_exists('status', $validated) && !is_null($validated['status']);
+        $hasSpeiFile = $request->hasFile('spei_receipt_file');
+
+        if (!$hasStatusChange && !$hasSpeiFile) {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('error', 'No se enviaron cambios para actualizar el pago.');
+        }
+
+        if ($hasSpeiFile) {
+            $file = $request->file('spei_receipt_file');
+            $fileName = 'SPEI-' . $payment->folio . '-' . time() . '.' . $file->getClientOriginalExtension();
+            $storageDir = 'payments/spei/' . $payment->milestone_id;
+            $s3Path = $storageDir . '/' . $fileName;
+
+            if ($payment->spei_receipt_path && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+                Storage::disk('s3')->delete($payment->spei_receipt_path);
+            }
+
+            Storage::disk('s3')->put($s3Path, file_get_contents($file));
+
+            $payment->spei_receipt_path = $s3Path;
+            $payment->spei_receipt_name = $fileName;
+        }
+
+        if (!$hasStatusChange) {
+            $payment->save();
+
+            $this->notification->send([
+                'type'         => 'Payment',
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $payment->id,
+                'data'         => 'subió/actualizó el comprobante SPEI del pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
+            ]);
+
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('success', 'Comprobante SPEI actualizado correctamente.');
+        }
 
         $previousStatus = $payment->status;
         $newStatus      = $validated['status'];
@@ -191,15 +250,13 @@ class PaymentController extends Controller
             default         => [],
         };
 
-        $milestone = $payment->milestone()->firstOrFail();
-        $orderId   = $milestone->purchase_order_id;
-
         if (!in_array($newStatus, $allowed)) {
             return redirect()->route('purchase_orders.show', $orderId)
                 ->with('error', 'Transición de estatus no permitida.');
         }
 
-        $payment->update(['status' => $newStatus]);
+        $payment->status = $newStatus;
+        $payment->save();
 
         // Ajustar saldo cubierto del hito según transición
         if ($previousStatus !== 'pagado' && $newStatus === 'pagado') {
@@ -226,6 +283,10 @@ class PaymentController extends Controller
         $milestone = $payment->milestone;
         $orderId   = $milestone->purchase_order_id;
 
+        if ($payment->spei_receipt_path && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+            Storage::disk('s3')->delete($payment->spei_receipt_path);
+        }
+
         if ($payment->status === 'pagado') {
             $milestone->decrement('covered_amount', $payment->amount);
         }
@@ -243,5 +304,59 @@ class PaymentController extends Controller
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Pago eliminado.');
+    }
+
+    /**
+     * Descargar o visualizar comprobante SPEI asociado al pago.
+     */
+    public function downloadSpeiReceipt(Payment $payment)
+    {
+        if (!$payment->spei_receipt_path || !Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+            abort(404, 'Comprobante SPEI no encontrado.');
+        }
+
+        return redirect()->away(Storage::disk('s3')->url($payment->spei_receipt_path));
+    }
+
+    /**
+     * Genera y descarga el PDF de contrarecibo de un pago (solo hitos crédito).
+     */
+    public function contrarecibo(Payment $payment)
+    {
+        $payment->load([
+            'milestone.purchaseOrder.supplier',
+            'milestone.purchaseOrder.projectRelation',
+        ]);
+
+        $milestone     = $payment->milestone;
+        $purchaseOrder = $milestone->purchaseOrder;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('payments.contrarecibo_pdf', compact('payment', 'milestone', 'purchaseOrder'));
+        $pdf->setPaper('letter', 'portrait');
+
+        $fileName = 'contrarecibo-' . $payment->folio . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    /**
+     * Vista de Alta de Facturas (acceso rápido para perfil payments).
+     */
+    public function altaFacturas(Request $request): \Illuminate\View\View
+    {
+        $search = trim($request->input('search', ''));
+
+        $orders = PurchaseOrder::with(['supplier', 'milestones', 'invoices'])
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('supplier', function ($s) use ($search) {
+                    $s->where('rfc_name', 'like', '%' . $search . '%')
+                      ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                })->orWhere('folio', 'like', '%' . $search . '%');
+            })
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('payments.alta_facturas', compact('orders', 'search'));
     }
 }

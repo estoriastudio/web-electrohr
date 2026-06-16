@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@php use Illuminate\Support\Facades\Storage; @endphp
+
 @section('page_title', 'SOLMAT #' . $materialRequest->folio)
 
 @section('breadcrumbs')
@@ -26,9 +28,10 @@
 
 @php
     $statusMap = [
-        'pending'   => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-        'linked'    => ['label' => 'Ligado',     'class' => 'bg-info-subtle text-info'],
-        'completed' => ['label' => 'Finalizado', 'class' => 'bg-success-subtle text-success'],
+        'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
+        'sent_to_warehouse' => ['label' => 'Enviado a Almacén', 'class' => 'bg-secondary-subtle text-secondary'],
+        'linked'            => ['label' => 'Ligado',            'class' => 'bg-info-subtle text-info'],
+        'completed'         => ['label' => 'Finalizado',        'class' => 'bg-success-subtle text-success'],
     ];
     $s = $statusMap[$materialRequest->status] ?? ['label' => $materialRequest->status, 'class' => 'bg-secondary-subtle text-secondary'];
 @endphp
@@ -70,11 +73,20 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @hasanyrole('admin|orders')
+                        @hasanyrole('admin|Solmat')
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
+                        @if ($materialRequest->status === 'pending')
+                        <form action="{{ route('material_requests.send_to_warehouse', $materialRequest) }}"
+                              method="POST" onsubmit="return confirm('¿Enviar SOLMAT #{{ $materialRequest->folio }} a Almacén?')">
+                            @csrf
+                            <button type="submit" class="btn btn-warning btn-sm">
+                                <i class="ri-send-plane-2-line me-1"></i>Enviar a Almacén
+                            </button>
+                        </form>
+                        @endif
                         @endhasanyrole
                         <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
@@ -100,11 +112,17 @@
                         <p class="fw-semibold mb-0">{{ $materialRequest->project?->name ?? '—' }}</p>
                     </div>
                     <div class="col-sm-6">
-                        <p class="text-muted fs-12 mb-1">Obra</p>
-                        <p class="fw-semibold mb-0">{{ $materialRequest->projectWork?->name ?? '—' }}</p>
+                        <p class="text-muted fs-12 mb-1">Obras</p>
+                        <div class="d-flex flex-wrap gap-1">
+                            @forelse ($materialRequest->projectWorks as $pw)
+                                <span class="badge bg-info-subtle text-info border py-1 px-2">{{ $pw->name }}</span>
+                            @empty
+                                <span class="text-muted">—</span>
+                            @endforelse
+                        </div>
                     </div>
                     <div class="col-sm-6">
-                        <p class="text-muted fs-12 mb-1">Zona</p>
+                        <p class="text-muted fs-12 mb-1">Ubicación</p>
                         <p class="fw-semibold mb-0">{{ $materialRequest->zone }}</p>
                     </div>
                     <div class="col-sm-6">
@@ -113,7 +131,9 @@
                     </div>
                     <div class="col-sm-6">
                         <p class="text-muted fs-12 mb-1">Categoría de Suministros</p>
-                        <p class="fw-semibold mb-0">{{ $materialRequest->supply_category }}</p>
+                        <p class="fw-semibold mb-0">
+                            {{ $materialRequest->conceptCategory?->name ?? $materialRequest->supply_category ?? '—' }}
+                        </p>
                     </div>
                     <div class="col-sm-6">
                         <p class="text-muted fs-12 mb-1">Solicitud Elaborada Por</p>
@@ -166,6 +186,7 @@
                                 <th>Descripción</th>
                                 <th>Unidad</th>
                                 <th class="text-end">Cantidad</th>
+                                <th>Especificaciones</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -178,7 +199,19 @@
                                     <td>{{ $item->unit }}</td>
                                     <td class="text-end">{{ (int) $item->quantity }}</td>
                                     <td>
-                                        @hasanyrole('admin|orders')
+                                        @if ($item->file_path)
+                                            <a href="{{ Storage::url($item->file_path) }}"
+                                               target="_blank"
+                                               class="btn btn-light btn-sm"
+                                               title="Descargar especificaciones">
+                                                <i class="ri-file-download-line"></i>
+                                            </a>
+                                        @else
+                                            <span class="text-muted fs-12">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @hasanyrole('admin|Solmat')
                                         <form action="{{ route('material_requests.items.destroy', [$materialRequest, $item]) }}"
                                               method="POST"
                                               class="solmat-delete-form">
@@ -192,7 +225,7 @@
                                 </tr>
                             @empty
                                 <tr id="solmat_empty_row">
-                                    <td colspan="6" class="text-center text-muted py-3">
+                                    <td colspan="7" class="text-center text-muted py-3">
                                         Sin conceptos registrados.
                                     </td>
                                 </tr>
@@ -203,7 +236,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @hasanyrole('admin|orders')
+            @hasanyrole('admin|Solmat')
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
                 {{-- Estado A: Búsqueda --}}
@@ -257,6 +290,19 @@
                            step="1"
                            min="1"
                            inputmode="numeric">
+
+                    <div class="mb-3">
+                        <label for="solmat_spec_file" class="form-label fw-medium">
+                            <i class="ri-attachment-2 me-1 text-muted"></i>Especificaciones técnicas
+                            <span class="text-muted fw-normal fs-12">(opcional)</span>
+                        </label>
+                        <input type="file"
+                               id="solmat_spec_file"
+                               class="form-control"
+                               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                        <div class="form-text">PDF, Word, Excel o imagen. Máx. 10 MB.</div>
+                    </div>
+
                     <div id="solmat_add_error" class="text-danger fs-12 mb-2 d-none"></div>
                     <div class="d-grid">
                         <button type="button" id="solmat_btn_add" class="btn btn-primary btn-lg">
@@ -302,7 +348,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @hasanyrole('admin|orders')
+                @hasanyrole('admin|Solmat')
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -341,7 +387,7 @@
     var csrfMeta  = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.content : '';
     var storeUrl  = '{{ route('material_requests.items.store', $materialRequest) }}';
-    var searchUrl = '{{ route('concepts.search') }}';
+    var searchUrl = '{!! route('concepts.search') !!}?type=materiales{!! $materialRequest->concept_category_id ? "&concept_category_id=" . (int) $materialRequest->concept_category_id : "" !!}';
 
     // ── Referencias al DOM ────────────────────────────────────────
     var countBadge    = document.getElementById('solmat_items_count');
@@ -416,7 +462,7 @@
             return;
         }
         debounceTimer = setTimeout(function () {
-            fetch(searchUrl + '?q=' + encodeURIComponent(q), {
+            fetch(searchUrl + '&q=' + encodeURIComponent(q), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(function (r) { return r.json(); })
@@ -495,6 +541,11 @@
         fd.append('unit',        selectedConcept.unit);
         fd.append('quantity',    Math.round(qty));
 
+        var specFileInput = document.getElementById('solmat_spec_file');
+        if (specFileInput && specFileInput.files.length > 0) {
+            fd.append('spec_file', specFileInput.files[0]);
+        }
+
         fetch(storeUrl, {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
@@ -543,6 +594,11 @@
             + '<td>' + escHtml(item.unit) + '</td>'
             + '<td class="text-end">' + qtyF + '</td>'
             + '<td>'
+            + (item.file_url
+                ? '<a href="' + escHtml(item.file_url) + '" target="_blank" class="btn btn-light btn-sm" title="Descargar especificaciones"><i class="ri-file-download-line"></i></a>'
+                : '<span class="text-muted fs-12">—</span>')
+            + '</td>'
+            + '<td>'
             + '<form method="POST" action="' + storeUrl + '/' + escHtml(item.id) + '" class="solmat-delete-form">'
             + '<input type="hidden" name="_token" value="' + escHtml(csrfToken) + '">'
             + '<input type="hidden" name="_method" value="DELETE">'
@@ -585,7 +641,7 @@
                     var emptyTr = document.createElement('tr');
                     emptyTr.id = 'solmat_empty_row';
                     emptyTr.innerHTML =
-                        '<td colspan="6" class="text-center text-muted py-3">Sin conceptos registrados.</td>';
+                        '<td colspan="7" class="text-center text-muted py-3">Sin conceptos registrados.</td>';
                     tbody.appendChild(emptyTr);
                 }
             }, 280);

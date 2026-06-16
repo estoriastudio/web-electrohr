@@ -22,6 +22,7 @@ class PurchaseOrder extends Model
         'site',
         'currency',
         'amount',
+        'tax_rate',
         'status',
         'recurrence_type',
         'recurrence_frequency',
@@ -29,12 +30,14 @@ class PurchaseOrder extends Model
         'recurrence_end_date',
         'observations',
         'elaborated_by',
+        'attorney_name',
         'supplier_signatory',
         'authorized_signatory',
     ];
 
     protected $casts = [
         'amount'                => 'decimal:2',
+        'tax_rate'              => 'decimal:2',
         'recurrence_start_date' => 'date',
         'recurrence_end_date'   => 'date',
         'observations'          => 'array',
@@ -115,12 +118,24 @@ class PurchaseOrder extends Model
 
     public function getIvaAttribute(): float
     {
-        return round($this->subtotal * 0.16, 2);
+        return $this->getTaxAmountAttribute();
+    }
+
+    public function getTaxAmountAttribute(): float
+    {
+        $rate = (float) ($this->tax_rate ?? 0);
+        return round($this->subtotal * ($rate / 100), 2);
     }
 
     public function getTotalWithIvaAttribute(): float
     {
-        return round($this->subtotal * 1.16, 2);
+        return $this->getTotalWithTaxAttribute();
+    }
+
+    public function getTotalWithTaxAttribute(): float
+    {
+        $rate = (float) ($this->tax_rate ?? 0);
+        return round($this->subtotal * (1 + $rate / 100), 2);
     }
 
     /**
@@ -132,7 +147,8 @@ class PurchaseOrder extends Model
         $subtotal = (float) $this->items()->sum(\DB::raw('quantity * unit_price'));
 
         if ($subtotal > 0) {
-            $this->update(['amount' => round($subtotal * 1.16, 2)]);
+            $rate = (float) ($this->tax_rate ?? 0);
+            $this->update(['amount' => round($subtotal * (1 + $rate / 100), 2)]);
         }
     }
 }

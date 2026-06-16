@@ -35,7 +35,7 @@ class PurchaseOrderController extends Controller
         $tipo    = $request->input('tipo', '');
         $sortDue = $request->input('sort_due', '');
 
-        $orders = PurchaseOrder::with('supplier')
+        $orders = PurchaseOrder::with(['supplier', 'items'])
             ->withCount(['milestones', 'children'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -86,6 +86,24 @@ class PurchaseOrderController extends Controller
         ));
     }
 
+    /**
+     * Abre el formulario de nueva OC pre-vinculando una SOLCOM.
+     * Equivalente a "crear SOLCOM desde SOLMAT" pero para OC desde SOLCOM.
+     */
+    public function createFromSolcom(PurchaseRequest $purchaseRequest): View
+    {
+        $purchaseRequest->load(['project', 'projectWork', 'items.concept']);
+
+        $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
+        $projects              = Project::where('status', 'active')->orderBy('name')->get();
+        $nextFolio             = (PurchaseOrder::max('folio') ?? 0) + 1;
+        $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
+
+        return view('purchase_orders.create_from_solcom', compact(
+            'purchaseRequest', 'suppliers', 'projects', 'nextFolio', 'authorizedSignatories'
+        ));
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $rules = [
@@ -93,11 +111,12 @@ class PurchaseOrderController extends Controller
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
-            'amount'               => 'nullable|numeric|min:0',
+            'tax_rate'             => 'required|in:0,8,16,exempt',
             'status'               => 'required|in:emitida,pendiente,autorizada',
             'recurrence_type'      => 'required|in:unico,recurrente',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
             'elaborated_by'        => 'nullable|string|max:255',
+            'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
         ];
@@ -132,13 +151,16 @@ class PurchaseOrderController extends Controller
             $validated['mobile_asset_id'] = null;
         }
 
-        // Auto-rellenar elaborated_by con el usuario autenticado si no se indicó
+        // Normalizar tax_rate: 'exempt' → 0 para almacenar, flag aparte no needed (0% y exento son 0 en cálculo)
+        // Guardamos el valor como decimal: exempt se almacena como null para distinguirlo visualmente
+        $validated['tax_rate'] = $validated['tax_rate'] === 'exempt' ? null : (float) $validated['tax_rate'];
+
         if (empty($validated['elaborated_by'])) {
             $validated['elaborated_by'] = Auth::user()->name;
         }
 
-        // Si no viene amount, poner 0 por defecto (se calculará desde ítems)
-        $validated['amount'] = $validated['amount'] ?? 0;
+        // amount siempre parte en 0; se recalculará cuando se agreguen conceptos
+        $validated['amount'] = 0;
 
         $order = PurchaseOrder::create($validated);
 
@@ -161,6 +183,9 @@ class PurchaseOrderController extends Controller
 
                 // Recalcular amount a partir de los ítems copiados
                 $order->recalculateAmount();
+
+                // Marcar la SOLCOM como completada para que salga de la Pila SOLCOM
+                $pr->update(['status' => 'completed']);
             }
         }
 
@@ -215,6 +240,7 @@ class PurchaseOrderController extends Controller
             'recurrence_frequency' => null,
             'recurrence_end_date'  => null,
             'elaborated_by'        => $parent->elaborated_by,
+            'attorney_name'        => $parent->attorney_name,
             'supplier_signatory'   => $parent->supplier_signatory,
             'authorized_signatory' => $parent->authorized_signatory,
         ];
@@ -283,10 +309,11 @@ class PurchaseOrderController extends Controller
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
-            'amount'               => 'required|numeric|min:0',
+            'tax_rate'             => 'required|in:0,8,16,exempt',
             'status'               => 'required|in:emitida,pendiente,autorizada',
             'recurrence_type'      => 'required|in:unico,recurrente',
             'elaborated_by'        => 'nullable|string|max:255',
+            'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
         ];
@@ -312,6 +339,12 @@ class PurchaseOrderController extends Controller
             $validated['status'] = 'pendiente';
         }
 
+        // Normalizar tax_rate
+        $validated['tax_rate'] = ($validated['tax_rate'] ?? '16') === 'exempt' ? null : (float) ($validated['tax_rate'] ?? 16);
+
+        // Recalcular amount desde los ítems actuales (no viene del form)
+        unset($validated['amount']);
+
         if ($request->type === 'mantenimiento') {
             $validated['project_id']      = null;
             $validated['project_work_id'] = null;
@@ -327,15 +360,10 @@ class PurchaseOrderController extends Controller
             $validated['recurrence_end_date']   = null;
         }
 
-        // Proteger importe si la OC ya tiene hitos configurados y no tiene ítems
-        if ($purchaseOrder->milestones()->count() > 0
-            && $purchaseOrder->items()->count() === 0
-            && (float) $request->input('amount') !== (float) $purchaseOrder->amount) {
-            return redirect()->back()->withInput()
-                ->withErrors(['amount' => 'No se puede modificar el importe de una orden de compra que ya tiene hitos configurados.']);
-        }
-
         $purchaseOrder->update($validated);
+
+        // Recalcular amount a partir de los ítems con la nueva tax_rate
+        $purchaseOrder->recalculateAmount();
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -427,6 +455,7 @@ class PurchaseOrderController extends Controller
                 'iva'            => $purchaseOrder->iva,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
+                'tax_rate'       => $purchaseOrder->tax_rate,
             ]);
         }
 
@@ -458,6 +487,7 @@ class PurchaseOrderController extends Controller
                 'iva'            => $purchaseOrder->iva,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
+                'tax_rate'       => $purchaseOrder->tax_rate,
             ]);
         }
 
@@ -477,6 +507,7 @@ class PurchaseOrderController extends Controller
                 'iva'            => $purchaseOrder->iva,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
+                'tax_rate'       => $purchaseOrder->tax_rate,
             ]);
         }
 

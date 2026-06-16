@@ -12,13 +12,17 @@ class Payment extends Model
         'folio',
         'amount',
         'payment_date',
+        'invoice_date',
         'status',
         'reference_number',
+        'spei_receipt_path',
+        'spei_receipt_name',
     ];
 
     protected $casts = [
         'amount'       => 'decimal:2',
         'payment_date' => 'date',
+        'invoice_date' => 'date',
     ];
 
     public function milestone(): BelongsTo
