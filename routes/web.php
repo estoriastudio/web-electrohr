@@ -7,6 +7,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierContactController;
 use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\MobileAssetController;
+use App\Http\Controllers\MaintenanceLogController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
@@ -87,6 +88,24 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ],
             'parameters' => ['bienes-mobiles' => 'mobile_asset'],
         ]);
+
+        // Fotos del bien móvil (upload individual por slot)
+        Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
+             ->name('mobile_assets.photo.upload')
+             ->where('slot', '[123]');
+        Route::delete('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'deletePhoto'])
+             ->name('mobile_assets.photo.delete')
+             ->where('slot', '[123]');
+
+        // Checklist documental del bien móvil
+        Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
+             ->name('mobile_assets.document.update');
+
+        // Bitácora de mantenimiento
+        Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
+             ->name('maintenance_logs.store');
+        Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
+             ->name('maintenance_logs.destroy');
 
         Route::resource('/proyectos', ProjectController::class, [
             'names' => [

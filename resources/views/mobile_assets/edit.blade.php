@@ -46,7 +46,7 @@
                     <div class="row g-3">
 
                         <div class="col-md-6">
-                            <label for="folio" class="form-label fw-medium">Folio</label>
+                            <label for="folio" class="form-label fw-medium">Número Económico</label>
                             <input type="text"
                                    class="form-control @error('folio') is-invalid @enderror"
                                    id="folio" name="folio"
@@ -83,6 +83,62 @@
                         </div>
 
                         <div class="col-md-6">
+                            <label for="model" class="form-label fw-medium">Modelo</label>
+                            <input type="text"
+                                   class="form-control @error('model') is-invalid @enderror"
+                                   id="model" name="model"
+                                   value="{{ old('model', $mobileAsset->model) }}">
+                            @error('model')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="year" class="form-label fw-medium">Año</label>
+                            <input type="text"
+                                   class="form-control @error('year') is-invalid @enderror"
+                                   id="year" name="year"
+                                   value="{{ old('year', $mobileAsset->year) }}"
+                                   placeholder="2024">
+                            @error('year')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="color" class="form-label fw-medium">Color</label>
+                            <input type="text"
+                                   class="form-control @error('color') is-invalid @enderror"
+                                   id="color" name="color"
+                                   value="{{ old('color', $mobileAsset->color) }}">
+                            @error('color')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="serial" class="form-label fw-medium">Serie / NIV</label>
+                            <input type="text"
+                                   class="form-control @error('serial') is-invalid @enderror"
+                                   id="serial" name="serial"
+                                   value="{{ old('serial', $mobileAsset->serial) }}">
+                            @error('serial')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="operator" class="form-label fw-medium">Operador</label>
+                            <input type="text"
+                                   class="form-control @error('operator') is-invalid @enderror"
+                                   id="operator" name="operator"
+                                   value="{{ old('operator', $mobileAsset->operator) }}">
+                            @error('operator')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
                             <label for="asset_function" class="form-label fw-medium">Función</label>
                             <input type="text"
                                    class="form-control @error('asset_function') is-invalid @enderror"
@@ -95,22 +151,22 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label for="type" class="form-label fw-medium">Tipo de maquinaria</label>
+                            <label for="type" class="form-label fw-medium">Tipo de bien</label>
                             <select class="form-select @error('type') is-invalid @enderror"
                                     id="type" name="type">
                                 <option value="">— Seleccionar —</option>
-                                <option value="movil"        {{ old('type', $mobileAsset->type) === 'movil'        ? 'selected' : '' }}>Móvil</option>
-                                <option value="maquinaria"   {{ old('type', $mobileAsset->type) === 'maquinaria'   ? 'selected' : '' }}>Maquinaria</option>
-                                <option value="equipo_menor" {{ old('type', $mobileAsset->type) === 'equipo_menor' ? 'selected' : '' }}>Equipo menor</option>
+                                <option value="parque_vehicular"  {{ old('type', $mobileAsset->type) === 'parque_vehicular'  ? 'selected' : '' }}>Parque Vehicular</option>
+                                <option value="maquinaria_pesada" {{ old('type', $mobileAsset->type) === 'maquinaria_pesada' ? 'selected' : '' }}>Maquinaria Pesada</option>
+                                <option value="semiremolque"      {{ old('type', $mobileAsset->type) === 'semiremolque'      ? 'selected' : '' }}>SemiRemolque</option>
                             </select>
                             @error('type')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
 
-                        {{-- Placas — solo visible cuando tipo = movil --}}
+                        {{-- Placas — solo para parque vehicular --}}
                         <div class="col-md-6" id="platesField"
-                             style="{{ old('type', $mobileAsset->type) === 'movil' ? '' : 'display:none;' }}">
+                             style="{{ old('type', $mobileAsset->type) === 'parque_vehicular' ? '' : 'display:none;' }}">
                             <label for="plates" class="form-label fw-medium">Placas</label>
                             <input type="text"
                                    class="form-control @error('plates') is-invalid @enderror"
@@ -141,8 +197,10 @@
                 <div class="card-body">
                     <select class="form-select @error('status') is-invalid @enderror"
                             id="status" name="status">
-                        <option value="active"   {{ old('status', $mobileAsset->status) === 'active'   ? 'selected' : '' }}>Activo</option>
-                        <option value="inactive" {{ old('status', $mobileAsset->status) === 'inactive' ? 'selected' : '' }}>Inactivo</option>
+                        <option value="activo"     {{ old('status', $mobileAsset->status) === 'activo'     ? 'selected' : '' }}>Activo</option>
+                        <option value="vendido"    {{ old('status', $mobileAsset->status) === 'vendido'    ? 'selected' : '' }}>Vendido</option>
+                        <option value="obsoleto"   {{ old('status', $mobileAsset->status) === 'obsoleto'   ? 'selected' : '' }}>Obsoleto</option>
+                        <option value="reparacion" {{ old('status', $mobileAsset->status) === 'reparacion' ? 'selected' : '' }}>En reparación</option>
                     </select>
                     @error('status')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -175,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const platesField = document.getElementById('platesField');
 
     function togglePlates() {
-        if (typeSelect.value === 'movil') {
+        if (typeSelect.value === 'parque_vehicular') {
             platesField.style.display = '';
         } else {
             platesField.style.display = 'none';

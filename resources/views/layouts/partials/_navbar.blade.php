@@ -80,7 +80,7 @@
                     <span class="nav-icon">
                         <i class="ri-inbox-2-line"></i>
                     </span>
-                    <span class="nav-text">Pila SOLMAT (Almacén)</span>
+                    <span class="nav-text">Pila SOLMAT</span>
                 </a>
             </li>
 
@@ -102,7 +102,7 @@
                     <span class="nav-icon">
                         <i class="ri-stack-line"></i>
                     </span>
-                    <span class="nav-text">Pila SOLCOM (Compras)</span>
+                    <span class="nav-text">Pila SOLCOM</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -168,22 +168,24 @@
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">
+                <a class="nav-link menu-arrow {{ request()->routeIs('concepts.*') || request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="#sidebarConcepts" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarConcepts">
                     <span class="nav-icon">
                         <i class="ri-pages-line"></i>
                     </span>
-                    <span class="nav-text">Conceptos</span>
+                    <span class="nav-text"> Suministros </span>
                 </a>
+                <div class="collapse" id="sidebarConcepts">
+                    <ul class="nav sub-navbar-nav">
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">Conceptos</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">Familias</a>
+                        </li>
+                    </ul>
+                </div>
             </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-folder-3-line"></i>
-                    </span>
-                    <span class="nav-text">Categorías de Conceptos</span>
-                </a>
-            </li>
+            
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('usuarios.index') }}">
