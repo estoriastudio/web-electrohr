@@ -22,7 +22,16 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         // Crear los roles y asignarles todos los permisos
-        $roles = ['admin', 'payments', 'orders'];
+        $roles = [
+            'admin',
+            'Orden de compra',
+            'Solcom',
+            'Solmat',
+            'Pagos',
+            'Proyectos',
+            'Moviles',
+            'Recepción',
+        ];
 
         foreach ($roles as $roleName) {
             $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);

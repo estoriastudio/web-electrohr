@@ -57,7 +57,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Proyectos')
+            @hasanyrole('admin|Proyectos|Solmat')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
@@ -109,7 +109,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solcom')
+            @hasanyrole('admin|Solcom|Orden de compra')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
@@ -123,7 +123,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solcom')
+            @hasanyrole('admin|Solcom|Orden de compra')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
@@ -137,7 +137,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solcom')
+            @hasanyrole('admin|Orden de compra')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.workload') ? 'active' : '' }}"
@@ -165,11 +165,11 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Pagos')
+            @hasanyrole('admin|Pagos|Orden de compra')
             @can('read')
             <li class="menu-title">Pagos</li>
 
-            @hasanyrole('admin|Pagos|Orden de compra')
+            @hasanyrole('admin|Pagos')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                    href="{{ route('milestones.index') }}">
@@ -191,6 +191,20 @@
                 </a>
             </li>
 
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
+                   href="{{ route('payments.alta_facturas') }}">
+                    <span class="nav-icon">
+                        <i class="ri-upload-2-line"></i>
+                    </span>
+                    <span class="nav-text">Alta de Facturas</span>
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('Recepción')
+            @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
                    href="{{ route('payments.alta_facturas') }}">

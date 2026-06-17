@@ -36,7 +36,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
-        Route::middleware('role:admin|orders')->group(function () {
+        Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
             Route::resource('/proveedores', SupplierController::class, [
@@ -75,75 +75,81 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ])->only(['store', 'update', 'destroy']);
         });
 
-        Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
-        Route::resource('/bienes-mobiles', MobileAssetController::class, [
-            'names' => [
-                'index'   => 'mobile_assets.index',
-                'create'  => 'mobile_assets.create',
-                'store'   => 'mobile_assets.store',
-                'show'    => 'mobile_assets.show',
-                'edit'    => 'mobile_assets.edit',
-                'update'  => 'mobile_assets.update',
-                'destroy' => 'mobile_assets.destroy',
-            ],
-            'parameters' => ['bienes-mobiles' => 'mobile_asset'],
-        ]);
+        // Bienes Móviles
+        Route::middleware('role:admin|Moviles')->group(function () {
+            Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
+            Route::resource('/bienes-mobiles', MobileAssetController::class, [
+                'names' => [
+                    'index'   => 'mobile_assets.index',
+                    'create'  => 'mobile_assets.create',
+                    'store'   => 'mobile_assets.store',
+                    'show'    => 'mobile_assets.show',
+                    'edit'    => 'mobile_assets.edit',
+                    'update'  => 'mobile_assets.update',
+                    'destroy' => 'mobile_assets.destroy',
+                ],
+                'parameters' => ['bienes-mobiles' => 'mobile_asset'],
+            ]);
 
-        // Fotos del bien móvil (upload individual por slot)
-        Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
-             ->name('mobile_assets.photo.upload')
-             ->where('slot', '[123]');
-        Route::delete('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'deletePhoto'])
-             ->name('mobile_assets.photo.delete')
-             ->where('slot', '[123]');
+            // Fotos del bien móvil (upload individual por slot)
+            Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
+                 ->name('mobile_assets.photo.upload')
+                 ->where('slot', '[123]');
+            Route::delete('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'deletePhoto'])
+                 ->name('mobile_assets.photo.delete')
+                 ->where('slot', '[123]');
 
-        // Checklist documental del bien móvil
-        Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
-             ->name('mobile_assets.document.update');
+            // Checklist documental del bien móvil
+            Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
+                 ->name('mobile_assets.document.update');
 
-        // Bitácora de mantenimiento
-        Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
-             ->name('maintenance_logs.store');
-        Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
-             ->name('maintenance_logs.destroy');
+            // Bitácora de mantenimiento
+            Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
+                 ->name('maintenance_logs.store');
+            Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
+                 ->name('maintenance_logs.destroy');
+        });
 
-        Route::resource('/proyectos', ProjectController::class, [
-            'names' => [
-                'index'   => 'projects.index',
-                'create'  => 'projects.create',
-                'store'   => 'projects.store',
-                'show'    => 'projects.show',
-                'edit'    => 'projects.edit',
-                'update'  => 'projects.update',
-                'destroy' => 'projects.destroy',
-            ],
-            'parameters' => ['proyectos' => 'project'],
-        ]);
+        // Proyectos
+        Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
+            Route::resource('/proyectos', ProjectController::class, [
+                'names' => [
+                    'index'   => 'projects.index',
+                    'create'  => 'projects.create',
+                    'store'   => 'projects.store',
+                    'show'    => 'projects.show',
+                    'edit'    => 'projects.edit',
+                    'update'  => 'projects.update',
+                    'destroy' => 'projects.destroy',
+                ],
+                'parameters' => ['proyectos' => 'project'],
+            ]);
 
-        Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
-            ->name('projects.works_json');
+            Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
+                ->name('projects.works_json');
 
-        Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
-            ->name('projects.document.upload');
+            Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
+                ->name('projects.document.upload');
 
-        Route::post('/proyectos/import', [ProjectController::class, 'import'])
-            ->name('projects.import');
+            Route::post('/proyectos/import', [ProjectController::class, 'import'])
+                ->name('projects.import');
 
-        Route::resource('/obras', ProjectWorkController::class, [
-            'names' => [
-                'index'   => 'project_works.index',
-                'create'  => 'project_works.create',
-                'store'   => 'project_works.store',
-                'show'    => 'project_works.show',
-                'edit'    => 'project_works.edit',
-                'update'  => 'project_works.update',
-                'destroy' => 'project_works.destroy',
-            ],
-            'parameters' => ['obras' => 'project_work'],
-        ]);
+            Route::resource('/obras', ProjectWorkController::class, [
+                'names' => [
+                    'index'   => 'project_works.index',
+                    'create'  => 'project_works.create',
+                    'store'   => 'project_works.store',
+                    'show'    => 'project_works.show',
+                    'edit'    => 'project_works.edit',
+                    'update'  => 'project_works.update',
+                    'destroy' => 'project_works.destroy',
+                ],
+                'parameters' => ['obras' => 'project_work'],
+            ]);
+        });
 
-        // Conceptos (catálogo) — búsqueda JSON accesible a admin|orders
-        Route::middleware('role:admin|orders')->group(function () {
+        // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
+        Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
             Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         });
@@ -197,16 +203,16 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Admin + Payments + Orders ─────────────────────────────────────────
 
-        // Órdenes de Compra — lectura: admin, payments, orders
-        Route::middleware('role:admin|payments|orders')->group(function () {
+        // Órdenes de Compra — lectura: admin, Pagos, Orden de compra
+        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
             Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
         });
 
-        // Órdenes de Compra — escritura: admin, orders
-        Route::middleware('role:admin|orders')->group(function () {
+        // Órdenes de Compra — escritura: admin, Orden de compra
+        Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/crear-desde/{purchaseRequest}', [PurchaseOrderController::class, 'createFromSolcom'])->name('purchase_orders.create_from_solcom');
             Route::post('/ordenes-de-compra', [PurchaseOrderController::class, 'store'])->name('purchase_orders.store');
@@ -222,14 +228,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/notes', [PurchaseOrderController::class, 'storeObservation'])->name('purchase_orders.notes.store');
         });
 
-        // Hitos — lectura: admin, payments, orders
-        Route::middleware('role:admin|payments|orders')->group(function () {
+        // Hitos — lectura: admin, Pagos
+        Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/hitos', [PurchaseOrderMilestoneController::class, 'index'])->name('milestones.index');
             Route::get('/hitos/{purchaseOrderMilestone}', [PurchaseOrderMilestoneController::class, 'show'])->name('milestones.show');
         });
 
-        // Hitos — escritura: admin, orders
-        Route::middleware('role:admin|orders')->group(function () {
+        // Hitos — escritura: admin, Pagos
+        Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/hitos/create', [PurchaseOrderMilestoneController::class, 'create'])->name('milestones.create');
             Route::post('/hitos', [PurchaseOrderMilestoneController::class, 'store'])->name('milestones.store');
             Route::get('/hitos/{purchaseOrderMilestone}/edit', [PurchaseOrderMilestoneController::class, 'edit'])->name('milestones.edit');
@@ -241,7 +247,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Admin + Payments ──────────────────────────────────────────────────
 
         // Pagos
-        Route::middleware('role:admin|payments')->group(function () {
+        Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
                 'create'  => 'payments.create',
@@ -265,26 +271,26 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Facturas de Órdenes de Compra
-        Route::middleware('role:admin|payments')->group(function () {
+        Route::middleware('role:admin|Pagos|Recepción')->group(function () {
             Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
         });
 
-        // Contrarecibo PDF — accesible para admin, payments y orders
-        Route::middleware('role:admin|payments|orders')->group(function () {
+        // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra
+        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::get('/pagos/{payment}/contrarecibo', [PaymentController::class, 'contrarecibo'])->name('payments.contrarecibo');
             Route::get('/pagos/{payment}/comprobante-spei', [PaymentController::class, 'downloadSpeiReceipt'])->name('payments.spei_receipt.download');
         });
 
         // AJAX: hitos de una OC (para Alta de Facturas)
-        Route::middleware('role:admin|payments')->group(function () {
+        Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/ordenes-de-compra/{purchaseOrder}/hitos-json', [PurchaseOrderMilestoneController::class, 'forOrder'])->name('milestones.for_order');
         });
 
         // ── SOLMAT (Solicitudes de Material) ──────────────────────────────────
-        Route::middleware('role:admin|orders')->group(function () {
+        Route::middleware('role:admin|Solmat')->group(function () {
             // AJAX lookup (debe ir antes del resource para evitar conflicto con {material_request})
             Route::get('/solicitudes-material/buscar', [MaterialRequestController::class, 'jsonByFolio'])
                  ->name('material_requests.lookup');
@@ -324,7 +330,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
-        Route::middleware('role:admin|orders')->group(function () {
+        Route::middleware('role:admin|Solcom|Orden de compra')->group(function () {
             // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
             Route::get('/solicitudes-compra/buscar-por-folio',
                        [PurchaseRequestController::class, 'itemsJsonByFolio'])
@@ -386,12 +392,18 @@ Route::namespace('App\Http\Controllers')->group(function () {
                        [PurchaseRequestController::class, 'purchasingPile'])
                  ->name('purchasing.solcom_pile');
 
-            // ── Carga de Trabajo SOLCOM ──────────────────────────────────────
+        });
+
+        // ── Carga de Trabajo SOLCOM (solo Orden de compra) ─────────────────
+        Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/compras/carga-de-trabajo',
                        [PurchaseRequestController::class, 'workload'])
                  ->name('purchasing.workload');
 
-            // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────
+        });
+
+        // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
+        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
             Route::get('/almacen/pila-solmat',
                        [PurchaseRequestController::class, 'solmatPile'])
                  ->name('warehouse.solmat_pile');
