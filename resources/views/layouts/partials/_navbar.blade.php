@@ -217,7 +217,7 @@
             @endcan
             @endhasanyrole
 
-            @role('admin')
+            @role('admin|Solmat')
             <li class="menu-title">Configuración</li>
 
             <li class="nav-item">
@@ -239,7 +239,7 @@
                 </div>
             </li>
             
-
+            @role('admin')
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('usuarios.index') }}">
                     <span class="nav-icon">
@@ -248,7 +248,7 @@
                     <span class="nav-text">Usuarios</span>
                 </a>
             </li>
-
+            
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('notifications.index') }}">
                     <span class="nav-icon">
@@ -258,6 +258,7 @@
                     <span class="badge bg-danger badge-pill text-end">Hot</span>
                 </a>
             </li>
+            @endrole
             @endrole
         </ul>
     </div>

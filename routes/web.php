@@ -154,7 +154,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
 
         // Conceptos (catálogo) — CRUD solo admin
-        Route::middleware('role:admin')->group(function () {
+        Route::middleware('role:admin|Solmat')->group(function () {
             Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
             Route::resource('/conceptos', ConceptController::class, [
                 'names' => [
