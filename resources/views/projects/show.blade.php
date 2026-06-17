@@ -17,6 +17,18 @@
     </div>
 @endif
 
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="fw-semibold mb-1">No se pudo guardar la obra. Revisa los campos marcados.</div>
+        <ul class="mb-0 ps-3">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 {{-- ══════════════════════════════════════════════════════════════
      BARRA DE INFORMACIÓN DEL PROYECTO
 ══════════════════════════════════════════════════════════════════ --}}
@@ -410,4 +422,17 @@
 @endsection
 
 @push('scripts')
+    @if ($errors->any())
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalElement = document.getElementById('modalCreateWork');
+                if (!modalElement || typeof bootstrap === 'undefined') {
+                    return;
+                }
+
+                var modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+                modalInstance.show();
+            });
+        </script>
+    @endif
 @endpush

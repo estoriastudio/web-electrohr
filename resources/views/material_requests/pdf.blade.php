@@ -87,13 +87,13 @@
         </td>
     </tr>
 
-    <!-- FILA 4: Ubicación -->
+    <!-- FILA 4: Zona -->
     <tr>
         <td style="padding: 0;">
             <table width="100%" cellpadding="5" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #000; margin-top: -1px;">
                 <tr>
                     <td style="border: 1px solid #000; padding: 5px 8px;">
-                        <strong>Ubicación:</strong> {{ $zona }}
+                        <strong>Zona:</strong> {{ $zona }}
                     </td>
                 </tr>
             </table>
