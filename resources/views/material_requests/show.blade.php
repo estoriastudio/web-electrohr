@@ -387,7 +387,7 @@
     var csrfMeta  = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.content : '';
     var storeUrl  = '{{ route('material_requests.items.store', $materialRequest) }}';
-    var searchUrl = '{!! route('concepts.search') !!}?type=materiales{!! $materialRequest->concept_category_id ? "&concept_category_id=" . (int) $materialRequest->concept_category_id : "" !!}';
+    var searchUrl = '{{ route('concepts.search') }}?type=materiales';
 
     // ── Referencias al DOM ────────────────────────────────────────
     var countBadge    = document.getElementById('solmat_items_count');

@@ -91,11 +91,6 @@ class ConceptController extends Controller
         $type     = $request->input('type', '');
         $category = $request->input('concept_category_id', $request->input('category_id', $request->input('category', '')));
 
-        // Si se especifica tipo pero no categoría, no devolver resultados
-        if ($type && ! $category) {
-            return response()->json([]);
-        }
-
         $concepts = Concept::where('status', 'active')
             ->when($type,     fn ($q2) => $q2->where('type', $type))
             ->when($category, fn ($q2) => $q2->where('concept_category_id', $category))
