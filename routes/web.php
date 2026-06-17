@@ -149,10 +149,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
-        Route::middleware('role:admin|Orden de compra')->group(function () {
-            Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
-            Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
-        });
+        Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
+        Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
+
 
         // Conceptos (catálogo) — CRUD solo admin
         Route::middleware('role:admin')->group(function () {
