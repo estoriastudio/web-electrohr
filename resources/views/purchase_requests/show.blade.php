@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@php use Illuminate\Support\Facades\Storage; @endphp
+
 @section('page_title', 'SOLCOM #' . $purchaseRequest->folio)
 
 @section('breadcrumbs')
@@ -148,8 +150,6 @@
                         </p>
                     </div>
                     @endif
-                        <p class="fw-semibold mb-0">{{ $purchaseRequest->requestedBy?->name ?? '—' }}</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -174,6 +174,11 @@
                                 <th class="text-muted fs-12">#</th>
                                 <th>Código</th>
                                 <th>Descripción</th>
+                                <th class="text-center" style="min-width: 130px;">
+                                    <span data-bs-toggle="tooltip"
+                                          data-bs-placement="top"
+                                          title="Documento de Especificaciones Técnicas">E.T</span>
+                                </th>
                                 <th>Unidad</th>
                                 <th class="text-end text-muted fs-12">Solicitada</th>
                                 <th class="text-primary fs-12">
@@ -188,6 +193,28 @@
                                     <td class="solcom-row-num text-muted fs-12">{{ $index + 1 }}</td>
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                     <td>{{ $item->description }}</td>
+                                    <td class="text-center">
+                                        @if ($item->file_path)
+                                            <a href="{{ Storage::url($item->file_path) }}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-placement="top"
+                                               title="Ver Documento"
+                                               aria-label="Ver Documento">
+                                                <i class="ri-file-3-line"></i>
+                                                <span>E.T.</span>
+                                            </a>
+                                        @else
+                                            <span class="badge bg-light text-muted border d-inline-flex align-items-center gap-1 opacity-75"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-placement="top"
+                                                  title="Sin Especificaciones Técnicas">
+                                                <i class="ri-file-3-line"></i>
+                                                <span>Sin E.T.</span>
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td>{{ $item->unit }}</td>
                                     <td class="text-end text-muted fs-13">{{ (int) $item->requested_quantity }}</td>
                                     <td style="min-width:170px">
@@ -227,7 +254,7 @@
                                 </tr>
                             @empty
                                 <tr id="solcom_empty_row">
-                                    <td colspan="7" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         <i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>
                                         Sin conceptos registrados.
                                     </td>
@@ -236,90 +263,6 @@
                         </tbody>
                     </table>
                 </div>
-
-                {{-- ── Panel Agregar Concepto ── 
-                @hasanyrole('admin|Solcom')
-                <div class="border-top px-3 py-3" id="solcom_add_panel">
-
-                    {{-- Estado A: Búsqueda 
-                    <div id="solcom_state_search">
-                        <p class="text-muted fs-12 mb-2 fw-medium">
-                            <i class="ri-add-circle-line me-1 text-primary"></i>Agregar concepto
-                        </p>
-                        <div class="position-relative">
-                            <div class="input-group input-group-lg">
-                                <span class="input-group-text bg-light border-end-0">
-                                    <i class="ri-search-line text-muted"></i>
-                                </span>
-                                <input type="text"
-                                       id="solcom_search_input"
-                                       class="form-control border-start-0 ps-0"
-                                       placeholder="Buscar por código o descripción…"
-                                       autocomplete="off"
-                                       inputmode="text">
-                            </div>
-                            <ul id="solcom_search_dropdown"
-                                class="list-group position-absolute w-100 shadow d-none"
-                                style="top:100%;left:0;max-height:280px;overflow-y:auto;z-index:1050"></ul>
-                        </div>
-                    </div>
-
-                    {{-- Estado B: Concepto seleccionado + cantidades 
-                    <div id="solcom_state_selected" class="d-none">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="text-success fs-13 fw-medium">
-                                <i class="ri-checkbox-circle-line me-1"></i>Concepto seleccionado
-                            </span>
-                            <button type="button" id="solcom_btn_change"
-                                    class="btn btn-link btn-sm p-0 text-muted text-decoration-none">
-                                <i class="ri-close-line me-1"></i>Cambiar
-                            </button>
-                        </div>
-
-                        <div class="rounded-2 border bg-primary-subtle p-3 mb-3">
-                            <p class="fw-bold mb-1 fs-15" id="solcom_preview_code"></p>
-                            <p class="mb-2 text-body-secondary lh-sm" id="solcom_preview_desc"></p>
-                            <span class="badge bg-white text-dark border" id="solcom_preview_unit"></span>
-                        </div>
-
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                <label class="form-label fs-12 text-muted fw-medium mb-1">
-                                    Cant. Solicitada <span class="text-danger">*</span>
-                                </label>
-                                <input type="number"
-                                       id="solcom_req_qty"
-                                       class="form-control form-control-lg text-center"
-                                       placeholder="0"
-                                       step="1"
-                                       min="1"
-                                       inputmode="numeric">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label fs-12 fw-medium mb-1">
-                                    <i class="ri-pencil-line me-1 text-primary"></i>Cant. a Comprar
-                                </label>
-                                <input type="number"
-                                       id="solcom_pur_qty"
-                                       class="form-control form-control-lg text-center"
-                                       placeholder="0"
-                                       step="1"
-                                       min="0"
-                                       inputmode="numeric">
-                            </div>
-                        </div>
-
-                        <div id="solcom_add_error" class="text-danger fs-12 mb-2 d-none"></div>
-                        <div class="d-grid">
-                            <button type="button" id="solcom_btn_add" class="btn btn-primary btn-lg">
-                                <i class="ri-add-line me-1"></i>Agregar a la solicitud
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-                @endhasanyrole
-                --}}
             </div>
         </div>
     </div>
@@ -607,6 +550,18 @@
 }());
 
 (function () {
+    function initTooltips(scope) {
+        if (!window.bootstrap || !window.bootstrap.Tooltip) return;
+
+        var elements = (scope || document).querySelectorAll('[data-bs-toggle="tooltip"]');
+        elements.forEach(function (element) {
+            if (window.bootstrap.Tooltip.getInstance(element)) return;
+            new window.bootstrap.Tooltip(element);
+        });
+    }
+
+    initTooltips(document);
+
     var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var tbody     = document.getElementById('solcom_items_tbody');
     var badge     = document.getElementById('solcom_items_count');
@@ -767,7 +722,7 @@
                     var emptyTr = document.createElement('tr');
                     emptyTr.id = 'solcom_empty_row';
                     emptyTr.innerHTML =
-                        '<td colspan="7" class="text-center text-muted py-4">'
+                        '<td colspan="8" class="text-center text-muted py-4">'
                         + '<i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>'
                         + 'Sin conceptos registrados.</td>';
                     tbody.appendChild(emptyTr);
@@ -951,6 +906,11 @@
             '<td class="solcom-row-num text-muted fs-12">' + num + '</td>'
             + '<td><span class="fw-semibold">' + escHtml(item.code) + '</span></td>'
             + '<td>' + escHtml(item.description) + '</td>'
+            + '<td class="text-center">'
+            +   (item.file_url
+                ? '<a href="' + escHtml(item.file_url) + '" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Documento de Especificaciones Técnicas" aria-label="Documento de Especificaciones Técnicas"><i class="ri-file-3-line"></i><span>E.T.</span></a>'
+                : '<span class="badge bg-light text-muted border d-inline-flex align-items-center gap-1 opacity-75" data-bs-toggle="tooltip" data-bs-placement="top" title="Documento de Especificaciones Técnicas"><i class="ri-file-3-line"></i><span>Sin E.T.</span></span>')
+            + '</td>'
             + '<td>' + escHtml(item.unit) + '</td>'
             + '<td class="text-end text-muted fs-13">' + Math.round(parseFloat(item.requested_quantity)) + '</td>'
             + '<td style="min-width:170px">'
@@ -982,6 +942,7 @@
         }, 50);
 
         tbody.appendChild(tr);
+        initTooltips(tr);
     }
 
 }());

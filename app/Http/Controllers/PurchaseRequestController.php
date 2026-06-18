@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestController extends Controller
 {
@@ -85,6 +86,7 @@ class PurchaseRequestController extends Controller
                         'unit'                => $item->unit,
                         'requested_quantity'  => $item->quantity,
                         'purchase_quantity'   => $item->quantity,
+                        'file_path'           => $item->file_path,
                     ]);
                 }
 
@@ -216,6 +218,8 @@ class PurchaseRequestController extends Controller
                 'unit'               => $item->unit,
                 'requested_quantity' => $item->requested_quantity,
                 'purchase_quantity'  => $item->purchase_quantity,
+                'file_path'          => $item->file_path,
+                'file_url'           => $item->file_path ? Storage::url($item->file_path) : null,
             ]);
         }
 

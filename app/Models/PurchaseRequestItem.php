@@ -15,6 +15,7 @@ class PurchaseRequestItem extends Model
         'unit',
         'requested_quantity',
         'purchase_quantity',
+        'file_path',
     ];
 
     public function purchaseRequest(): BelongsTo
