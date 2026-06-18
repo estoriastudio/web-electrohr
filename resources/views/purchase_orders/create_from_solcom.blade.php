@@ -68,7 +68,7 @@
                             <input type="number" min="1"
                                    class="form-control @error('folio') is-invalid @enderror"
                                    id="folio" name="folio"
-                                   value="{{ old('folio', $nextFolio) }}" required readonly
+                                   value="{{ old('folio', $nextFolio) }}" required min="25000" readonly
                                    style="background-color:#f8f9fa;">
                             @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>

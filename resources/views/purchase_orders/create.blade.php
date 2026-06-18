@@ -98,7 +98,7 @@
                         <label for="folio" class="form-label fw-medium">Folio OC <span class="text-danger">*</span></label>
                         <input type="number" min="1"
                                class="form-control @error('folio') is-invalid @enderror"
-                               id="folio" name="folio" value="{{ old('folio', $nextFolio) }}" required>
+                               id="folio" name="folio" value="{{ old('folio', $nextFolio) }}" required min="25000">
                         @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 

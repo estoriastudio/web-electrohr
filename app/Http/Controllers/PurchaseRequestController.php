@@ -219,7 +219,7 @@ class PurchaseRequestController extends Controller
                 'requested_quantity' => $item->requested_quantity,
                 'purchase_quantity'  => $item->purchase_quantity,
                 'file_path'          => $item->file_path,
-                'file_url'           => $item->file_path ? Storage::url($item->file_path) : null,
+                'file_url'           => $item->file_path ? Storage::disk('s3')->url($item->file_path) : null,
             ]);
         }
 

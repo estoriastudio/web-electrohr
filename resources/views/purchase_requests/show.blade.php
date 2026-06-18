@@ -195,7 +195,7 @@
                                     <td>{{ $item->description }}</td>
                                     <td class="text-center">
                                         @if ($item->file_path)
-                                            <a href="{{ Storage::url($item->file_path) }}"
+                                            <a href="{{ Storage::disk('s3')->url($item->file_path) }}"
                                                target="_blank"
                                                class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
                                                data-bs-toggle="tooltip"

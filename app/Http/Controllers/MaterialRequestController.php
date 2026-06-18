@@ -181,7 +181,7 @@ class MaterialRequestController extends Controller
         $data['material_request_id'] = $materialRequest->id;
 
         if ($request->hasFile('spec_file')) {
-            $path = $request->file('spec_file')->store('solmat_specs', 'public');
+            $path = $request->file('spec_file')->store('solmat_specs', 's3');
             $data['file_path'] = $path;
         }
 
@@ -195,7 +195,7 @@ class MaterialRequestController extends Controller
                 'unit'        => $item->unit,
                 'quantity'    => $item->quantity,
                 'file_path'   => $item->file_path,
-                'file_url'    => $item->file_path ? Storage::url($item->file_path) : null,
+                'file_url'    => $item->file_path ? Storage::disk('s3')->url($item->file_path) : null,
             ]);
         }
 
@@ -206,7 +206,7 @@ class MaterialRequestController extends Controller
     public function destroyItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
         if ($item->file_path) {
-            Storage::disk('public')->delete($item->file_path);
+            Storage::disk('s3')->delete($item->file_path);
         }
 
         $item->delete();
