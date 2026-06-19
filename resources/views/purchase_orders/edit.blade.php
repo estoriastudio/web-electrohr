@@ -132,21 +132,29 @@
 
                         {{-- Recurrencia --}}
                         <div class="col-12">
+                            <input type="hidden" name="recurrence_type" value="{{ old('recurrence_type', $purchaseOrder->recurrence_type) }}">
+                            <input type="hidden" name="recurrence_frequency" value="{{ old('recurrence_frequency', $purchaseOrder->recurrence_frequency) }}">
+                            <input type="hidden" name="recurrence_start_date" value="{{ old('recurrence_start_date', $purchaseOrder->recurrence_start_date?->format('Y-m-d')) }}">
+                            <input type="hidden" name="recurrence_end_date" value="{{ old('recurrence_end_date', $purchaseOrder->recurrence_end_date?->format('Y-m-d')) }}">
+
                             <label class="form-label fw-medium">Recurrencia <span class="text-danger">*</span></label>
                             <div class="d-flex gap-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="recurrence_type"
                                            id="rec_unico" value="unico"
-                                           {{ old('recurrence_type', $purchaseOrder->recurrence_type) === 'unico' ? 'checked' : '' }}>
+                                           {{ old('recurrence_type', $purchaseOrder->recurrence_type) === 'unico' ? 'checked' : '' }} disabled>
                                     <label class="form-check-label" for="rec_unico">Pago único</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="recurrence_type"
                                            id="rec_recurrente" value="recurrente"
-                                           {{ old('recurrence_type', $purchaseOrder->recurrence_type) === 'recurrente' ? 'checked' : '' }}>
+                                           {{ old('recurrence_type', $purchaseOrder->recurrence_type) === 'recurrente' ? 'checked' : '' }} disabled>
                                     <label class="form-check-label" for="rec_recurrente">Pago recurrente</label>
                                 </div>
                             </div>
+                            <small class="text-muted d-block mt-1">
+                                La recurrencia no se puede modificar una vez creada la orden de compra.
+                            </small>
                         </div>
 
                         {{-- Campos de recurrencia --}}
@@ -155,7 +163,7 @@
                                 <div class="col-md-4">
                                     <label for="recurrence_frequency" class="form-label fw-medium">Frecuencia <span class="text-danger">*</span></label>
                                     <select class="form-select @error('recurrence_frequency') is-invalid @enderror"
-                                            id="recurrence_frequency" name="recurrence_frequency">
+                                            id="recurrence_frequency" name="recurrence_frequency" disabled>
                                         <option value="">Seleccionar...</option>
                                         <option value="semanal"   {{ old('recurrence_frequency', $purchaseOrder->recurrence_frequency) === 'semanal'   ? 'selected' : '' }}>Semanal</option>
                                         <option value="quincenal" {{ old('recurrence_frequency', $purchaseOrder->recurrence_frequency) === 'quincenal' ? 'selected' : '' }}>Quincenal</option>
@@ -167,14 +175,14 @@
                                     <label for="recurrence_start_date" class="form-label fw-medium">Fecha inicio <span class="text-danger">*</span></label>
                                     <input type="date" class="form-control @error('recurrence_start_date') is-invalid @enderror"
                                            id="recurrence_start_date" name="recurrence_start_date"
-                                           value="{{ old('recurrence_start_date', $purchaseOrder->recurrence_start_date?->format('Y-m-d')) }}">
+                                           value="{{ old('recurrence_start_date', $purchaseOrder->recurrence_start_date?->format('Y-m-d')) }}" disabled>
                                     @error('recurrence_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label for="recurrence_end_date" class="form-label fw-medium">Fecha fin</label>
                                     <input type="date" class="form-control @error('recurrence_end_date') is-invalid @enderror"
                                            id="recurrence_end_date" name="recurrence_end_date"
-                                           value="{{ old('recurrence_end_date', $purchaseOrder->recurrence_end_date?->format('Y-m-d')) }}">
+                                           value="{{ old('recurrence_end_date', $purchaseOrder->recurrence_end_date?->format('Y-m-d')) }}" disabled>
                                     @error('recurrence_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                             </div>
@@ -243,7 +251,6 @@ $(function () {
     });
 
     $('#type').on('change', toggleProyectoObra);
-    $('input[name="recurrence_type"]').on('change', toggleRecurrencia);
 
     toggleProyectoObra();
     toggleRecurrencia();

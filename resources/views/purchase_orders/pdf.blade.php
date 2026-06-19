@@ -38,6 +38,11 @@
     $decimales = str_pad((int) round(($totalAmt - $enteros) * 100), 2, '0', STR_PAD_LEFT);
     $letras    = numToWordsPDF($enteros) . ' ' . $currency . ' CON ' . $decimales . '/100';
 
+    $solmatRequester = $po->purchaseRequest?->materialRequest?->requestedBy?->name
+        ?? $po->purchaseRequest?->materialRequest?->requested_by
+        ?? $po->elaborated_by
+        ?? '—';
+
     $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];
 @endphp
 <!DOCTYPE html>
@@ -139,7 +144,7 @@
                     </td>
                     <!-- Columna derecha: solicitante + contacto -->
                     <td width="45%" style="padding: 8px; vertical-align: top; border: 1px solid #999;">
-                        <strong>Solicita:</strong> {{ $po->elaborated_by ?? '—' }}<br><br>
+                        <strong>Solicita:</strong> {{ $solmatRequester }}<br><br>
                         <strong>{{ $po->supplier->rfc_name ?? $po->supplier->commercial_name ?? '—' }}</strong><br>
                         {{ $po->supplier->address ?? '' }}<br>
                         @if($po->supplier->phone ?? $po->supplier->cellphone ?? '')TEL. {{ $po->supplier->phone ?? $po->supplier->cellphone }}<br>@endif

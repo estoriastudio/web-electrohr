@@ -111,6 +111,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Proyectos
+        Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
+
         Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
                 'names' => [
@@ -124,9 +126,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['proyectos' => 'project'],
             ]);
-
-            Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])
-                ->name('projects.works_json');
 
             Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
                 ->name('projects.document.upload');

@@ -549,7 +549,7 @@ class PurchaseOrderController extends Controller
             'supplier',
             'items.concept',
             'milestones',
-            'purchaseRequest',
+            'purchaseRequest.materialRequest.requestedBy',
         ]);
 
         $pdf = Pdf::loadView('purchase_orders.pdf', compact('purchaseOrder'))

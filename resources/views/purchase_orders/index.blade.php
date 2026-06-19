@@ -217,6 +217,17 @@
                                                class="btn btn-soft-secondary btn-sm" title="Descargar PDF" target="_blank">
                                                 <i class="ri-file-pdf-2-line"></i>
                                             </a>
+                                            @can('delete')
+                                                <form action="{{ route('purchase_orders.destroy', $order) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('¿Seguro que deseas eliminar esta orden de compra? Esta acción no se puede deshacer.');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar orden">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
