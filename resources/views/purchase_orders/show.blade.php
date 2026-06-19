@@ -218,8 +218,8 @@
                                         @if (!$ocLocked)
                                         <div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;">
                                             <span class="input-group-text py-0 px-2">$</span>
-                                            <input type="number" step="0.01" min="0"
-                                                   class="form-control form-control-sm text-end oc-qty-input"
+                                              <input type="text" inputmode="decimal" autocomplete="off"
+                                                  class="form-control form-control-sm text-end oc-qty-input oc-price-input"
                                                    value="{{ $item->unit_price }}"
                                                    data-item-id="{{ $item->id }}"
                                                    data-field="unit_price"
@@ -1358,6 +1358,32 @@
     // ── Helpers ──────────────────────────────────────────────────────────
     function fmtMoney(n) { return parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
+    function parsePrice(val) {
+        var clean = String(val == null ? '' : val).replace(/,/g, '').trim();
+        if (clean === '') return NaN;
+        return parseFloat(clean);
+    }
+
+    function fmtPriceInput(n) {
+        var num = Number(n);
+        if (!isFinite(num)) return '';
+        return num.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function formatPriceInput(input) {
+        if (!input || input.dataset.field !== 'unit_price') return;
+        var n = parsePrice(input.value);
+        input.value = isNaN(n) ? '' : fmtPriceInput(n);
+    }
+
+    function unformatPriceInput(input) {
+        if (!input || input.dataset.field !== 'unit_price') return;
+        input.value = String(input.value || '').replace(/,/g, '');
+    }
+
     function escHtml(str) {
         var d = document.createElement('div');
         d.appendChild(document.createTextNode(str != null ? String(str) : ''));
@@ -1416,17 +1442,19 @@
     }
 
     // ── Guardar cantidad/precio inline ───────────────────────────────────
-    var saveTimers = {};
-
-    function debounceSave(input) {
-        clearTimeout(saveTimers[input.dataset.itemId + input.dataset.field]);
-        saveTimers[input.dataset.itemId + input.dataset.field] = setTimeout(function () { saveField(input); }, 600);
-    }
-
     function saveField(input) {
-        var val = parseFloat(input.value);
-        if (isNaN(val) || val < 0) { input.value = input.dataset.original; return; }
-        if (Math.abs(val - parseFloat(input.dataset.original)) < 0.0001) return;
+        var val = input.dataset.field === 'unit_price'
+            ? parsePrice(input.value)
+            : parseFloat(input.value);
+        if (isNaN(val) || val < 0) {
+            input.value = input.dataset.original;
+            formatPriceInput(input);
+            return;
+        }
+        if (Math.abs(val - parseFloat(input.dataset.original)) < 0.0001) {
+            formatPriceInput(input);
+            return;
+        }
 
         var itemId = input.dataset.itemId;
         var field  = input.dataset.field;
@@ -1441,13 +1469,14 @@
         .then(function (data) {
             input.dataset.original = val;
             input.disabled = false;
+            formatPriceInput(input);
             input.classList.add('is-saved');
             setTimeout(function () { input.classList.remove('is-saved'); }, 1200);
             // actualizar importe de la fila
             var row = input.closest('tr.oc-item-row');
             if (row) {
                 var qty   = parseFloat(row.querySelector('[data-field="quantity"]')?.value || 0);
-                var price = parseFloat(row.querySelector('[data-field="unit_price"]')?.value || 0);
+                var price = parsePrice(row.querySelector('[data-field="unit_price"]')?.value || 0);
                 var imp   = row.querySelector('.oc-importe');
                 if (imp) imp.textContent = '$' + fmtMoney(qty * price);
             }
@@ -1457,6 +1486,7 @@
         .catch(function () {
             input.value = input.dataset.original;
             input.disabled = false;
+            formatPriceInput(input);
             input.classList.add('is-error');
             setTimeout(function () { input.classList.remove('is-error'); }, 2000);
             Toastify({ text: 'Error al guardar. Intenta de nuevo.', duration: 3000, gravity: 'bottom', position: 'right', className: 'bg-danger', stopOnFocus: false }).showToast();
@@ -1464,7 +1494,6 @@
     }
 
     // Guardar fecha entrega
-    var deliveryTimers = {};
     function saveDelivery(input) {
         var val  = input.value.trim();
         var orig = input.dataset.original || '';
@@ -1492,9 +1521,10 @@
     }
 
     if (tbody) {
-        tbody.addEventListener('input', function (e) {
-            var qi = e.target.closest('.oc-qty-input');
-            if (qi) debounceSave(qi);
+        tbody.querySelectorAll('.oc-price-input').forEach(formatPriceInput);
+        tbody.addEventListener('focusin', function (e) {
+            var pi = e.target.closest('.oc-price-input');
+            if (pi) unformatPriceInput(pi);
         });
         tbody.addEventListener('blur', function (e) {
             var qi = e.target.closest('.oc-qty-input');
@@ -1655,11 +1685,12 @@
                 + '<td>' + escHtml(data.description || '') + '</td>'
                 + '<td class="fs-12">' + escHtml(data.unit || '') + '</td>'
                 + '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(String(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(String(data.quantity)) + '"></td>'
-                + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end oc-qty-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
+                + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm text-end oc-qty-input oc-price-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
                 + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
                 + '<td><input type="text" maxlength="80" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_date || '') + '" placeholder="Ej. 4 SEMANAS"></td>'
                 + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>';
             tbody.appendChild(tr);
+            formatPriceInput(tr.querySelector('.oc-price-input'));
             updateBadge();
             updateTotals(data);
             Toastify({ text: 'Concepto agregado', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();

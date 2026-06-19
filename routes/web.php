@@ -233,7 +233,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Hitos — escritura: admin, Pagos
-        Route::middleware('role:admin|Pagos')->group(function () {
+        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
             Route::get('/hitos/create', [PurchaseOrderMilestoneController::class, 'create'])->name('milestones.create');
             Route::post('/hitos', [PurchaseOrderMilestoneController::class, 'store'])->name('milestones.store');
             Route::get('/hitos/{purchaseOrderMilestone}/edit', [PurchaseOrderMilestoneController::class, 'edit'])->name('milestones.edit');
