@@ -78,6 +78,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Bienes Móviles
         Route::middleware('role:admin|Moviles')->group(function () {
             Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
+            Route::post('bienes-mobiles/import', [MobileAssetController::class, 'import'])->name('mobile_assets.import');
             Route::resource('/bienes-mobiles', MobileAssetController::class, [
                 'names' => [
                     'index'   => 'mobile_assets.index',

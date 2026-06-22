@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Exports\MobileAssetExport;
+use App\Imports\MobileAssetImport;
 use App\Models\MobileAsset;
 use App\Models\MobileAssetDocument;
-use App\Models\MaintenanceLog;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -322,5 +323,22 @@ class MobileAssetController extends Controller
     public function export()
     {
         return Excel::download(new MobileAssetExport, 'bienes-mobiles.xlsx');
+    }
+
+    /**
+     * Import mobile assets from Excel.
+     */
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        DB::connection()->disableQueryLog();
+
+        Excel::import(new MobileAssetImport, $request->file('file'));
+
+        return redirect()->route('mobile_assets.index')
+            ->with('success', 'Bienes móviles importados correctamente.');
     }
 }

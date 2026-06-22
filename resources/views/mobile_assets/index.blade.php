@@ -52,6 +52,10 @@
         @hasanyrole('admin|Moviles')
         @can('create')
         <div class="d-flex gap-2 flex-shrink-0">
+            <button type="button" class="btn btn-sm btn-soft-success"
+                    data-bs-toggle="modal" data-bs-target="#modalImportAssets">
+                <i class="ri-upload-2-line me-1"></i> Importar
+            </button>
             <a href="{{ route('mobile_assets.export') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="ri-download-2-line me-1"></i> Exportar
             </a>
@@ -113,10 +117,10 @@
             ];
 
             $trafficColors = [
-                'green'  => ['bg' => 'bg-success', 'title' => 'Vigente'],
-                'yellow' => ['bg' => 'bg-warning',  'title' => 'Por vencer'],
-                'red'    => ['bg' => 'bg-danger',   'title' => 'Vencido'],
-                'gray'   => ['bg' => 'bg-secondary opacity-50', 'title' => 'Pendiente'],
+                'green'  => ['bg' => 'bg-success', 'title' => 'Doc. Vigente'],
+                'yellow' => ['bg' => 'bg-warning',  'title' => 'Doc. Por vencer'],
+                'red'    => ['bg' => 'bg-danger',   'title' => 'Doc. Vencido'],
+                'gray'   => ['bg' => 'bg-secondary opacity-50', 'title' => 'Doc. Pendientes'],
             ];
 
             $docLabels = \App\Models\MobileAssetDocument::labelsEs();
@@ -357,6 +361,57 @@
 @endcan
 @endhasanyrole
 
+{{-- ══════════════════════════════════════════════════════════
+     MODAL — Importación masiva de bienes móviles
+══════════════════════════════════════════════════════════════ --}}
+@hasanyrole('admin|Moviles')
+@can('create')
+<div class="modal fade" id="modalImportAssets" tabindex="-1" aria-labelledby="modalImportAssetsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('mobile_assets.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalImportAssetsLabel">
+                        <i class="ri-upload-2-line me-1"></i> Importar Bienes Móviles
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-2">
+                        El archivo debe incluir encabezados. Columnas sugeridas:
+                    </p>
+                    <ul class="text-muted fs-12 mb-3 ps-3">
+                        <li>nombre_de_maquinaria o nombre</li>
+                        <li>numero_economico o folio</li>
+                        <li>marca, modelo, anio, serie_niv, color, operador</li>
+                        <li>funcion, tipo, placas, estatus</li>
+                    </ul>
+                    <div class="mb-0">
+                        <label for="import_mobile_assets_file" class="form-label fw-medium">
+                            Archivo Excel <span class="text-danger">*</span>
+                        </label>
+                        <input type="file"
+                               class="form-control @error('file') is-invalid @enderror"
+                               id="import_mobile_assets_file" name="file"
+                               accept=".xlsx,.xls,.csv" required>
+                        <div class="form-text">Formatos permitidos: .xlsx, .xls, .csv. Tamaño máximo 10 MB.</div>
+                        @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success" id="btnImportAssetsSubmit">
+                        <i class="ri-upload-2-line me-1"></i> Importar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endcan
+@endhasanyrole
+
 @endsection
 
 @push('scripts')
@@ -381,9 +436,23 @@
         togglePlates();
     }
 
+    var importForm = document.querySelector('#modalImportAssets form');
+    var importBtn = document.getElementById('btnImportAssetsSubmit');
+
+    if (importForm && importBtn) {
+        importForm.addEventListener('submit', function () {
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Importando...';
+        });
+    }
+
     @if ($errors->any())
-    var modal = new bootstrap.Modal(document.getElementById('modalCreateAsset'));
-    if (modal) modal.show();
+    var modalId = @json($errors->has('file') ? 'modalImportAssets' : 'modalCreateAsset');
+    var modalEl = document.getElementById(modalId);
+    if (modalEl) {
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
     @endif
 })();
 </script>
