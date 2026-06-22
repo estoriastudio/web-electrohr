@@ -23,7 +23,7 @@
 
 {{-- Referencia SOLCOM --}}
 <div class="alert alert-info d-flex align-items-center gap-3 mb-4 py-2">
-    <i class="ri-links-line fs-20 flex-shrink-0 text-info"></i>
+    <i class="ri-links-line fs-20 text-info"></i>
     <div>
         <p class="mb-0 fw-semibold fs-13">
             Generando Orden de Compra a partir de

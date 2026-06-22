@@ -14,7 +14,11 @@
     $fechaNecesidad = $pr->need_date?->format('d/m/Y') ?? '—';
     $descripcion    = $pr->short_description ?? '—';
     $items          = $pr->items;
-    $elaboradaPor   = $pr->requestedBy?->name ?? '—';
+    $elaboradaPor   = $pr->materialRequest?->requestedBy?->name
+                        ?? $pr->materialRequest?->requested_by
+                        ?? $pr->elaborated_by
+                        ?? '—';
+                    
     $obsArray       = is_array($pr->observations) ? $pr->observations : [];
     $obsTexto       = implode(' | ', array_column($obsArray, 'text'));
 @endphp

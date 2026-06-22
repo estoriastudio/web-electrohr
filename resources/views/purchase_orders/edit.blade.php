@@ -188,6 +188,57 @@
                             </div>
                         </div>
 
+                        {{-- Firmas / Datos administrativos --}}
+                        <div class="col-12">
+                            <hr class="my-1">
+                            <p class="text-muted fs-12 mb-2"><i class="ri-pen-nib-line me-1"></i>Campos de firma para el PDF</p>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="elaborated_by" class="form-label fw-medium">Elabora Orden</label>
+                            <input type="text" maxlength="255"
+                                   class="form-control @error('elaborated_by') is-invalid @enderror"
+                                   id="elaborated_by" name="elaborated_by"
+                                   value="{{ old('elaborated_by', $purchaseOrder->elaborated_by ?? auth()->user()->name) }}"
+                                   placeholder="Nombre de quien elabora la orden">
+                            @error('elaborated_by')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="attorney_name" class="form-label fw-medium">Apoderado</label>
+                            <input type="text" maxlength="255"
+                                   class="form-control @error('attorney_name') is-invalid @enderror"
+                                   id="attorney_name" name="attorney_name"
+                                   value="{{ old('attorney_name', $purchaseOrder->attorney_name) }}"
+                                   placeholder="Nombre del apoderado">
+                            @error('attorney_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="supplier_signatory" class="form-label fw-medium">Aceptación del Proveedor</label>
+                            <input type="text" maxlength="255"
+                                   class="form-control @error('supplier_signatory') is-invalid @enderror"
+                                   id="supplier_signatory" name="supplier_signatory"
+                                   value="{{ old('supplier_signatory', $purchaseOrder->supplier_signatory) }}"
+                                   placeholder="Se cargará al seleccionar proveedor">
+                            @error('supplier_signatory')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="authorized_signatory" class="form-label fw-medium">Autorización de Pedido</label>
+                            <select class="form-select @error('authorized_signatory') is-invalid @enderror"
+                                    id="authorized_signatory" name="authorized_signatory">
+                                <option value="">Seleccionar autorizador...</option>
+                                @foreach ($authorizedSignatories as $sig)
+                                    <option value="{{ $sig }}"
+                                        {{ old('authorized_signatory', $purchaseOrder->authorized_signatory) === $sig ? 'selected' : '' }}>
+                                        {{ $sig }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('authorized_signatory')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-end gap-2">
@@ -211,6 +262,8 @@
 $(function () {
     var projectSelect = document.getElementById('project_id');
     var siteSelect    = document.getElementById('project_work_id');
+    var supplierSelect = document.getElementById('supplier_id');
+    var supplierSignatoryInput = document.getElementById('supplier_signatory');
 
     function toggleProyectoObra() {
         if ($('#type').val() === 'materiales_servicios') {
@@ -249,6 +302,25 @@ $(function () {
             });
         });
     });
+
+    // Al cambiar proveedor, autocompletar contacto principal solo si el campo está vacío.
+    if (supplierSelect && supplierSignatoryInput) {
+        supplierSelect.addEventListener('change', function () {
+            var supplierId = this.value;
+            if (!supplierId || supplierSignatoryInput.value.trim() !== '') return;
+
+            fetch('/proveedores/' + supplierId + '/contacto-principal', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.name && supplierSignatoryInput.value.trim() === '') {
+                    supplierSignatoryInput.value = data.name;
+                }
+            })
+            .catch(function () {});
+        });
+    }
 
     $('#type').on('change', toggleProyectoObra);
 

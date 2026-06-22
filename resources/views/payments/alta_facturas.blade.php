@@ -247,6 +247,8 @@ document.addEventListener('DOMContentLoaded', function () {
             let html = '<div class="row g-2">';
             data.forEach(function(m) {
                 const condLabel = m.payment_condition === 'contado' ? 'Contado' : 'Crédito';
+                const hitoLabel = m.position ? 'Hito #' + m.position : 'Hito #' + m.id;
+                const conceptLabel = m.concept ? m.concept : condLabel;
                 html += `
                     <div class="col-md-6">
                         <div class="form-check">
@@ -254,8 +256,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                    name="milestone_ids[]" value="${m.id}"
                                    id="alta_milestone_${m.id}">
                             <label class="form-check-label fs-13" for="alta_milestone_${m.id}">
-                                <strong>Hito #${m.id}</strong>
-                                <span class="text-muted">— ${condLabel} · ${currency} ${parseFloat(m.effective_amount).toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
+                                <strong>${hitoLabel}</strong>
+                                <span class="text-muted">— ${conceptLabel} · ${currency} ${parseFloat(m.effective_amount).toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
                             </label>
                         </div>
                     </div>`;

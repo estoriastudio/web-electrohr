@@ -387,7 +387,7 @@
     var csrfMeta  = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.content : '';
     var storeUrl  = '{{ route('material_requests.items.store', $materialRequest) }}';
-    var searchUrl = '{{ route('concepts.search') }}?type=materiales';
+    var searchUrl = '{{ route('concepts.search') }}?type=materiales&paginated=1&per_page=50';
 
     // ── Referencias al DOM ────────────────────────────────────────
     var countBadge    = document.getElementById('solmat_items_count');
@@ -409,6 +409,12 @@
 
     var selectedConcept = null;
     var debounceTimer;
+    var currentQuery = '';
+    var currentPage = 1;
+    var hasMoreResults = false;
+    var isLoadingMore = false;
+    var displayedResults = 0;
+    var totalResults = 0;
 
     // ── Escape HTML seguro ────────────────────────────────────────
     function escHtml(str) {
@@ -430,6 +436,12 @@
     function showSearch() {
         selectedConcept    = null;
         searchInput.value  = '';
+        currentQuery = '';
+        currentPage = 1;
+        hasMoreResults = false;
+        isLoadingMore = false;
+        displayedResults = 0;
+        totalResults = 0;
         dropdown.innerHTML = '';
         dropdown.classList.add('d-none');
         if (qtyInput)  qtyInput.value = '';
@@ -452,57 +464,150 @@
         qtyInput.focus();
     }
 
+    function renderConceptOption(c) {
+        var li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action py-3 px-3';
+        li.style.cursor = 'pointer';
+        li.innerHTML =
+            '<div class="d-flex justify-content-between align-items-start gap-2">'
+            + '<div class="flex-grow-1 overflow-hidden">'
+            + '<span class="fw-bold d-block">' + escHtml(c.code) + '</span>'
+            + '<span class="text-muted fs-13 d-block text-truncate">' + escHtml(c.description) + '</span>'
+            + '</div>'
+            + '<span class="badge bg-light text-dark border flex-shrink-0 align-self-center">'
+            + escHtml(c.unit) + '</span>'
+            + '</div>';
+
+        li.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            dropdown.classList.add('d-none');
+            showSelected(c);
+        });
+
+        return li;
+    }
+
+    function renderLoadMoreButton() {
+        var more = document.createElement('li');
+        more.className = 'list-group-item text-center py-2';
+        more.innerHTML =
+            '<button type="button" id="solmat_btn_load_more" class="btn btn-link btn-sm text-decoration-none">'
+            + '<i class="ri-arrow-down-s-line me-1"></i>Cargar más resultados'
+            + '</button>';
+        dropdown.appendChild(more);
+
+        var loadBtn = document.getElementById('solmat_btn_load_more');
+        if (!loadBtn) return;
+
+        loadBtn.addEventListener('click', function () {
+            if (isLoadingMore || !hasMoreResults) return;
+            fetchConcepts(currentQuery, currentPage + 1, true);
+        });
+    }
+
+    function renderResultIndicator() {
+        var indicator = document.createElement('li');
+        indicator.className = 'list-group-item bg-light-subtle text-muted fs-12 py-2 px-3';
+        indicator.id = 'solmat_results_indicator';
+        indicator.innerHTML =
+            '<i class="ri-filter-3-line me-1"></i>'
+            + 'Mostrando <strong>' + displayedResults + '</strong> de <strong>' + totalResults + '</strong> resultado(s)';
+        dropdown.appendChild(indicator);
+    }
+
+    function fetchConcepts(q, page, append) {
+        if (!q || q.length < 1) {
+            dropdown.classList.add('d-none');
+            dropdown.innerHTML = '';
+            return;
+        }
+
+        isLoadingMore = true;
+
+        fetch(searchUrl + '&q=' + encodeURIComponent(q) + '&page=' + encodeURIComponent(page), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (payload) {
+            var data = Array.isArray(payload) ? payload : (payload.data || []);
+            var meta = payload.meta || null;
+
+            if (!append) {
+                dropdown.innerHTML = '';
+            } else {
+                var prevMore = document.getElementById('solmat_btn_load_more');
+                if (prevMore && prevMore.parentElement && prevMore.parentElement.parentElement) {
+                    prevMore.parentElement.parentElement.remove();
+                }
+                var prevIndicator = document.getElementById('solmat_results_indicator');
+                if (prevIndicator && prevIndicator.parentElement) {
+                    prevIndicator.parentElement.removeChild(prevIndicator);
+                }
+            }
+
+            if (!append && data.length === 0) {
+                dropdown.innerHTML =
+                    '<li class="list-group-item text-center text-muted py-3 fs-13">'
+                    + '<i class="ri-search-line me-1"></i>Sin resultados para «' + escHtml(q) + '»</li>';
+                dropdown.classList.remove('d-none');
+                currentPage = 1;
+                hasMoreResults = false;
+                displayedResults = 0;
+                totalResults = 0;
+                return;
+            }
+
+            data.forEach(function (c) {
+                dropdown.appendChild(renderConceptOption(c));
+            });
+
+            currentPage = page;
+            hasMoreResults = meta ? !!meta.has_more : false;
+            displayedResults = append ? (displayedResults + data.length) : data.length;
+            totalResults = meta && typeof meta.total === 'number' ? meta.total : displayedResults;
+
+            renderResultIndicator();
+
+            if (hasMoreResults) {
+                renderLoadMoreButton();
+            }
+
+            dropdown.classList.remove('d-none');
+        })
+        .catch(function () {
+            if (!append) {
+                dropdown.innerHTML =
+                    '<li class="list-group-item text-danger py-2 px-3 fs-13">'
+                    + '<i class="ri-error-warning-line me-1"></i>Error al buscar. Intenta de nuevo.</li>';
+                dropdown.classList.remove('d-none');
+            }
+        })
+        .finally(function () {
+            isLoadingMore = false;
+        });
+    }
+
     // ── Búsqueda con debounce ─────────────────────────────────────
     searchInput.addEventListener('input', function () {
         clearTimeout(debounceTimer);
         var q = this.value.trim();
-        if (q.length < 2) {
+        if (q.length < 1) {
+            currentQuery = '';
+            currentPage = 1;
+            hasMoreResults = false;
+            displayedResults = 0;
+            totalResults = 0;
             dropdown.classList.add('d-none');
             dropdown.innerHTML = '';
             return;
         }
         debounceTimer = setTimeout(function () {
-            fetch(searchUrl + '&q=' + encodeURIComponent(q), {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                dropdown.innerHTML = '';
-                if (!data.length) {
-                    dropdown.innerHTML =
-                        '<li class="list-group-item text-center text-muted py-3 fs-13">'
-                        + '<i class="ri-search-line me-1"></i>Sin resultados para «' + escHtml(q) + '»</li>';
-                } else {
-                    data.forEach(function (c) {
-                        var li = document.createElement('li');
-                        li.className = 'list-group-item list-group-item-action py-3 px-3';
-                        li.style.cursor = 'pointer';
-                        li.innerHTML =
-                            '<div class="d-flex justify-content-between align-items-start gap-2">'
-                            + '<div class="flex-grow-1 overflow-hidden">'
-                            + '<span class="fw-bold d-block">' + escHtml(c.code) + '</span>'
-                            + '<span class="text-muted fs-13 d-block text-truncate">' + escHtml(c.description) + '</span>'
-                            + '</div>'
-                            + '<span class="badge bg-light text-dark border flex-shrink-0 align-self-center">'
-                            + escHtml(c.unit) + '</span>'
-                            + '</div>';
-                        // pointerdown evita que el input pierda foco antes del click en móvil
-                        li.addEventListener('pointerdown', function (e) {
-                            e.preventDefault();
-                            dropdown.classList.add('d-none');
-                            showSelected(c);
-                        });
-                        dropdown.appendChild(li);
-                    });
-                }
-                dropdown.classList.remove('d-none');
-            })
-            .catch(function () {
-                dropdown.innerHTML =
-                    '<li class="list-group-item text-danger py-2 px-3 fs-13">'
-                    + '<i class="ri-error-warning-line me-1"></i>Error al buscar. Intenta de nuevo.</li>';
-                dropdown.classList.remove('d-none');
-            });
+            currentQuery = q;
+            currentPage = 1;
+            hasMoreResults = false;
+            displayedResults = 0;
+            totalResults = 0;
+            fetchConcepts(q, 1, false);
         }, 300);
     });
 

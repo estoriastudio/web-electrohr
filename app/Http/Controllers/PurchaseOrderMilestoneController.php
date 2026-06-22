@@ -68,6 +68,7 @@ class PurchaseOrderMilestoneController extends Controller
     {
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
+            'concept'           => 'nullable|string|max:255',
             'payment_condition' => 'required|in:contado,credito',
             'is_advance'        => 'boolean',
             'value_type'        => 'required|in:fijo,porcentaje',
@@ -75,6 +76,12 @@ class PurchaseOrderMilestoneController extends Controller
             'invoice_date'      => 'nullable|date',
             'due_date'          => 'nullable|date',
         ]);
+
+        $purchaseOrder = PurchaseOrder::findOrFail((int) $validated['purchase_order_id']);
+        if ($purchaseOrder->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+        }
 
         $validated['covered_amount'] = 0;
         $validated['is_advance']     = $request->boolean('is_advance');
@@ -108,6 +115,7 @@ class PurchaseOrderMilestoneController extends Controller
     public function update(Request $request, PurchaseOrderMilestone $purchaseOrderMilestone): RedirectResponse
     {
         $validated = $request->validate([
+            'concept'           => 'nullable|string|max:255',
             'payment_condition' => 'required|in:contado,credito',
             'is_advance'        => 'boolean',
             'value_type'        => 'required|in:fijo,porcentaje',
@@ -115,6 +123,12 @@ class PurchaseOrderMilestoneController extends Controller
             'invoice_date'      => 'nullable|date',
             'due_date'          => 'nullable|date',
         ]);
+
+        $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
+        if ($purchaseOrder?->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+            return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
+                ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+        }
 
         $validated['is_advance'] = $request->boolean('is_advance');
         $validated['type']       = $purchaseOrderMilestone->type; // preservar valor legacy existente
@@ -167,6 +181,12 @@ class PurchaseOrderMilestoneController extends Controller
         $milestoneId = $purchaseOrderMilestone->id;
         $orderId     = $purchaseOrderMilestone->purchase_order_id;
 
+        $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
+        if ($purchaseOrder?->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+        }
+
         if ($purchaseOrderMilestone->payments()->count() > 0) {
             return redirect()->route('purchase_orders.show', $orderId)
                 ->with('error', 'No se puede eliminar un hito que ya tiene pagos registrados.');
@@ -193,11 +213,15 @@ class PurchaseOrderMilestoneController extends Controller
     public function forOrder(PurchaseOrder $purchaseOrder): \Illuminate\Http\JsonResponse
     {
         $milestones = $purchaseOrder->milestones()
-            ->select('id', 'purchase_order_id', 'payment_condition', 'value_type', 'value', 'covered_amount', 'due_date', 'is_advance')
+            ->select('id', 'purchase_order_id', 'concept', 'payment_condition', 'value_type', 'value', 'covered_amount', 'due_date', 'is_advance')
+            ->orderBy('id')
             ->get()
-            ->map(function ($m) {
+            ->values()
+            ->map(function ($m, $index) {
                 return [
                     'id'               => $m->id,
+                    'position'         => $index + 1,
+                    'concept'          => $m->concept,
                     'payment_condition'=> $m->payment_condition ?? 'credito',
                     'value_type'       => $m->value_type,
                     'value'            => $m->value,

@@ -138,8 +138,11 @@
                     </div>
                     <div class="col-sm-6 col-md-4">
                         <p class="text-muted fs-12 mb-1">Solicitud Elaborada Por</p>
-                        <p class="fw-semibold mb-0">{{ $purchaseRequest->requestedBy?->name ?? '—' }}</p>
+                        <p class="fw-semibold mb-0">{{ $solmatRequester }}</p>
                     </div>
+
+                    
+
                     @if ($purchaseRequest->assignedTo)
                     <div class="col-sm-6 col-md-4">
                         <p class="text-muted fs-12 mb-1">Asignado a Compras</p>

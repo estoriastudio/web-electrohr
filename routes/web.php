@@ -206,6 +206,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
+        });
+
+        // PDF de OC — incluye Solmat para descarga desde trazabilidad
+        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
             Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
         });
 
@@ -269,7 +273,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Facturas de Órdenes de Compra
-        Route::middleware('role:admin|Pagos|Recepción')->group(function () {
+        Route::middleware('role:admin|Pagos|Recepción|Orden de compra')->group(function () {
             Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
@@ -283,7 +287,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // AJAX: hitos de una OC (para Alta de Facturas)
-        Route::middleware('role:admin|Pagos')->group(function () {
+        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra/{purchaseOrder}/hitos-json', [PurchaseOrderMilestoneController::class, 'forOrder'])->name('milestones.for_order');
         });
 
@@ -298,13 +302,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     'index'   => 'material_requests.index',
                     'create'  => 'material_requests.create',
                     'store'   => 'material_requests.store',
-                    'show'    => 'material_requests.show',
                     'edit'    => 'material_requests.edit',
                     'update'  => 'material_requests.update',
                     'destroy' => 'material_requests.destroy',
                 ],
                 'parameters' => ['solicitudes-material' => 'materialRequest'],
-            ]);
+            ])->except(['show']);
 
             Route::post('/solicitudes-material/{materialRequest}/items',
                         [MaterialRequestController::class, 'storeItem'])
@@ -402,6 +405,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
         Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+            Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
+                 ->name('material_requests.show');
+
             Route::get('/almacen/pila-solmat',
                        [PurchaseRequestController::class, 'solmatPile'])
                  ->name('warehouse.solmat_pile');

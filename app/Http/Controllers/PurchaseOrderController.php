@@ -3,14 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 /* Modelos */
 use App\Models\MobileAsset;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
-use App\Models\PurchaseRequestItem;
 use App\Models\Supplier;
 use App\Models\Project;
 
@@ -28,6 +26,16 @@ use App\Services\NotificationService;
 class PurchaseOrderController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
+
+    private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
+    {
+        if ($purchaseOrder->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'Solo admin puede editar una OC autorizada.');
+        }
+
+        return null;
+    }
 
     public function index(Request $request): View
     {
@@ -294,8 +302,12 @@ class PurchaseOrderController extends Controller
         return view('purchase_orders.show', compact('purchaseOrder'));
     }
 
-    public function edit(PurchaseOrder $purchaseOrder): View
+    public function edit(PurchaseOrder $purchaseOrder): View|RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
@@ -305,6 +317,10 @@ class PurchaseOrderController extends Controller
 
     public function update(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
         $rules = [
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
             'supplier_id'          => 'required|exists:suppliers,id',
@@ -404,6 +420,10 @@ class PurchaseOrderController extends Controller
 
     public function destroy(PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
         $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -427,6 +447,14 @@ class PurchaseOrderController extends Controller
 
     public function storeItem(Request $request, PurchaseOrder $purchaseOrder): JsonResponse|RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => 'Solo admin puede editar una OC autorizada.'], 403);
+            }
+
+            return $redirect;
+        }
+
         $data = $request->validate([
             'concept_id'    => 'nullable|exists:concepts,id',
             'description'   => 'required|string|max:500',
@@ -465,6 +493,14 @@ class PurchaseOrderController extends Controller
 
     public function updateItem(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderItem $item): JsonResponse|RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => 'Solo admin puede editar una OC autorizada.'], 403);
+            }
+
+            return $redirect;
+        }
+
         $data = $request->validate([
             'quantity'      => 'sometimes|numeric|min:0.01',
             'unit_price'    => 'sometimes|numeric|min:0',
@@ -496,6 +532,14 @@ class PurchaseOrderController extends Controller
 
     public function destroyItem(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderItem $item): JsonResponse|RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => 'Solo admin puede editar una OC autorizada.'], 403);
+            }
+
+            return $redirect;
+        }
+
         $item->delete();
         $purchaseOrder->recalculateAmount();
 
@@ -521,6 +565,10 @@ class PurchaseOrderController extends Controller
 
     public function storeObservation(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
         $data = $request->validate([
             'text' => 'required|string|max:1000',
         ]);

@@ -5,6 +5,9 @@
     $mapOcs       = $firstSolcom ? $firstSolcom->purchaseOrders : collect();
     $firstOc      = $mapOcs->first();
     $extraOcs     = max(0, $mapOcs->count() - 1);
+
+    $user = auth()->user();
+    $canOpenOcShow = $user && $user->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
 @endphp
 
 <div class="d-flex align-items-start" style="gap:0;">
@@ -45,7 +48,8 @@
 
     {{-- Nodo OC --}}
     <div class="d-flex flex-column align-items-center text-center" style="min-width:54px;">
-        <a href="{{ route('purchase_orders.show', $firstOc) }}"
+        <a href="{{ $canOpenOcShow ? route('purchase_orders.show', $firstOc) : route('purchase_orders.pdf', $firstOc) }}"
+           target="{{ $canOpenOcShow ? '_self' : '_blank' }}"
            class="text-decoration-none d-flex flex-column align-items-center" style="gap:4px;">
             <div style="width:28px;height:28px;border-radius:50%;border:2px solid #0d6efd;background:#e8f0ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <i class="ri-file-list-3-line" style="font-size:12px;color:#0d6efd;"></i>

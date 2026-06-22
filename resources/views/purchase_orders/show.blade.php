@@ -49,6 +49,11 @@
     $progressTotal = $importeTotal > 0
         ? min(100, round(($totalCubierto / $importeTotal) * 100, 1))
         : 0;
+
+    $isAdmin = auth()->user()?->hasRole('admin') ?? false;
+    $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
+    $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
+    $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
 @endphp
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
@@ -133,7 +138,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         @hasanyrole('admin|Orden de compra')
-                        @if ($purchaseOrder->status !== 'autorizada')
+                        @if ($canModifyPurchaseOrder)
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
                         </a>
@@ -163,7 +168,7 @@
                     <span id="oc_items_badge" class="badge bg-primary-subtle text-primary ms-1 fs-12">{{ $purchaseOrder->items->count() }}</span>
                 </h5>
                 @hasanyrole('admin|Orden de compra')
-                @if ($purchaseOrder->status !== 'autorizada')
+                @if ($canModifyPurchaseOrder)
                 <button type="button" class="btn btn-sm btn-primary" id="btn_toggle_add_concept">
                     <i class="ri-add-line me-1"></i> Agregar concepto
                 </button>
@@ -172,7 +177,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    @php $ocLocked = $purchaseOrder->status === 'autorizada'; @endphp
+                    @php $ocLocked = $purchaseOrder->status === 'autorizada' && !$isAdmin; @endphp
 
                     <table class="table align-middle table-hover mb-0">
                         <thead class="bg-light-subtle">
@@ -302,7 +307,7 @@
 
                 {{-- Panel agregar concepto --}}
                 @hasanyrole('admin|Orden de compra')
-                @if ($purchaseOrder->status !== 'autorizada')
+                @if ($canModifyPurchaseOrder)
                 <div id="oc_add_panel" class="border-top px-3 py-3" style="display:none;">
                     <p class="text-muted fs-12 fw-medium mb-2">
                         <i class="ri-add-circle-line me-1 text-primary"></i>Nuevo concepto
@@ -416,8 +421,9 @@
 {{-- ── HITOS (CONDICIONES DE PAGO) ── --}}
 <div class="row" id="hitos-container">
 
-    @forelse ($purchaseOrder->milestones as $milestone)
+    @forelse ($orderedMilestones as $milestone)
         @php
+            $milestonePosition = $loop->iteration;
             $percent     = $milestone->progress_percent;
             $isComplete  = $milestone->is_complete;
             $hasInvoice  = $milestone->invoices->isNotEmpty();
@@ -508,7 +514,7 @@
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         {{-- Indicador semáforo --}}
                         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ $semDotColor }};flex-shrink:0;"></span>
-                        <span class="fw-semibold fs-14">Hito #{{ $milestone->id }}</span>
+                        <span class="fw-semibold fs-14">Hito #{{ $milestonePosition }}</span>
                         <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11">
                             {{ $tipoCondicionMap[$milestone->payment_condition ?? 'credito'] ?? ($tipoHitoMap[$milestone->type] ?? $milestone->type) }}
                         </span>
@@ -523,6 +529,7 @@
                     </div>
                     <div class="d-flex gap-1">
                         @hasanyrole('admin|Orden de compra')
+                        @if ($canModifyPurchaseOrder)
                         @if ($milestone->payments->count() === 0)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -550,6 +557,12 @@
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
+                        @else
+                            <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
+                                    title="OC autorizada: solo admin puede editar" disabled>
+                                <i class="ri-lock-line fs-13"></i>
+                            </button>
+                        @endif
                         @endhasanyrole
                     </div>
                 </div>
@@ -557,14 +570,21 @@
                 <div class="card-body pb-2">
                     {{-- Info principal --}}
                     <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted fs-12">Concepto:</span>
+                        <span class="fs-12 fw-medium text-end">{{ $milestone->concept ?: '—' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted fs-12">Tipo valor:</span>
                         <span class="fs-12 fw-medium">{{ $tipoValorMap[$milestone->value_type] ?? $milestone->value_type }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted fs-12">Valor:</span>
-                        <span class="fs-12 fw-semibold">
+                        <span class="fs-12 fw-semibold text-end">
                             @if ($milestone->value_type === 'porcentaje')
                                 {{ $milestone->value }}%
+                                <span class="d-block fs-11 text-muted fw-medium">
+                                    = {{ $purchaseOrder->currency }} {{ number_format($milestone->effective_amount, 2) }}
+                                </span>
                             @else
                                 {{ $purchaseOrder->currency }} {{ number_format($milestone->value, 2) }}
                             @endif
@@ -892,7 +912,7 @@
                                     <td>
                                         @forelse ($invoice->milestones as $im)
                                             <span class="badge bg-info-subtle text-info py-1 px-2 fs-11 me-1">
-                                                Hito #{{ $im->id }}
+                                                Hito #{{ $milestonePositionMap[$im->id] ?? $im->id }}
                                             </span>
                                         @empty
                                             <span class="text-muted fs-12">—</span>
@@ -971,6 +991,7 @@
                 @endforelse
             </div>
             @hasanyrole('admin|Orden de compra')
+            @if ($canModifyPurchaseOrder)
             <div class="card-footer bg-transparent">
                 <form action="{{ route('purchase_orders.notes.store', $purchaseOrder) }}" method="POST">
                     @csrf
@@ -987,14 +1008,16 @@
                     </div>
                 </form>
             </div>
+            @endif
             @endhasanyrole
         </div>
     </div>
 </div>
 
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
-@foreach ($purchaseOrder->milestones as $milestone)
+@foreach ($orderedMilestones as $milestone)
     @php
+        $milestonePosition = $loop->iteration;
         $pendiente = max(0, $milestone->effective_amount - (float)$milestone->covered_amount);
     @endphp
 
@@ -1005,7 +1028,7 @@
                 <form action="{{ route('milestones.update', $milestone) }}" method="POST">
                     @csrf @method('PUT')
                     <div class="modal-header">
-                        <h5 class="modal-title"><i class="ri-edit-line me-1"></i> Editar Hito #{{ $milestone->id }}</h5>
+                        <h5 class="modal-title"><i class="ri-edit-line me-1"></i> Editar Hito #{{ $milestonePosition }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -1013,10 +1036,16 @@
                         <div class="alert alert-warning py-2 fs-13 mb-3">
                             <i class="ri-alert-line me-1"></i>
                             Este hito tiene <strong>{{ $milestone->payments->count() }} pago(s)</strong> registrados.
-                            Solo se puede modificar las fechas y condiciones. El valor no es editable.
+                            Solo se puede modificar el concepto, fechas y condiciones. El valor no es editable.
                         </div>
                         @endif
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-medium">Concepto</label>
+                                <input type="text" class="form-control"
+                                       name="concept" value="{{ $milestone->concept }}"
+                                       maxlength="255" placeholder="Ej. Anticipo de fabricación">
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
                                 <select class="form-select" name="payment_condition" required>
@@ -1077,7 +1106,7 @@
                     @csrf
                     <input type="hidden" name="milestone_id" value="{{ $milestone->id }}">
                     <div class="modal-header">
-                        <h5 class="modal-title"><i class="ri-money-dollar-circle-line me-1"></i> Nuevo Pago — Hito #{{ $milestone->id }}</h5>
+                        <h5 class="modal-title"><i class="ri-money-dollar-circle-line me-1"></i> Nuevo Pago — Hito #{{ $milestonePosition }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -1217,16 +1246,16 @@
                                 <label class="form-label fw-medium">Hitos relacionados</label>
                                 <div class="border rounded p-3 bg-light">
                                     <div class="row g-2">
-                                        @foreach ($purchaseOrder->milestones as $m)
+                                        @foreach ($orderedMilestones as $m)
                                             <div class="col-md-6">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox"
                                                            name="milestone_ids[]" value="{{ $m->id }}"
                                                            id="inv_milestone_{{ $m->id }}">
                                                     <label class="form-check-label fs-13" for="inv_milestone_{{ $m->id }}">
-                                                        <strong>Hito #{{ $m->id }}</strong>
+                                                        <strong>Hito #{{ $loop->iteration }}</strong>
                                                         <span class="text-muted">
-                                                            — {{ $m->type === 'anticipo' ? 'Anticipo' : 'Regular' }}
+                                                            — {{ $m->concept ?: ($m->type === 'anticipo' ? 'Anticipo' : 'Regular') }}
                                                             · {{ $purchaseOrder->currency }} {{ number_format($m->effective_amount, 2) }}
                                                         </span>
                                                     </label>
@@ -1254,6 +1283,7 @@
 
 {{-- MODAL Crear Hito --}}
 @hasanyrole('admin|Orden de compra')
+@if ($canModifyPurchaseOrder)
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1268,6 +1298,12 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Concepto</label>
+                            <input type="text" class="form-control"
+                                   name="concept" maxlength="255"
+                                   placeholder="Ej. Anticipo de fabricación">
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Condición de pago <span class="text-danger">*</span></label>
                             <select class="form-select" name="payment_condition" required>
@@ -1316,6 +1352,7 @@
         </div>
     </div>
 </div>
+@endif
 @endhasanyrole
 
 @push('styles')
@@ -1750,7 +1787,7 @@
 
 $(function () {
     // Abrir modal de hito si hay errores de validación relacionados
-    @if ($errors->hasBag('default') && old('purchase_order_id') && $purchaseOrder->status !== 'autorizada')
+    @if ($errors->hasBag('default') && old('purchase_order_id') && $canModifyPurchaseOrder)
         var modal = new bootstrap.Modal(document.getElementById('modalCreateMilestone'));
         modal.show();
     @endif

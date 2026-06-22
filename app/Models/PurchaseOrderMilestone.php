@@ -12,6 +12,7 @@ class PurchaseOrderMilestone extends Model
     protected $fillable = [
         'purchase_order_id',
         'type',
+        'concept',
         'payment_condition',
         'is_advance',
         'value_type',

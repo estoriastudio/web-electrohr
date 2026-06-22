@@ -87,22 +87,82 @@ class ConceptController extends Controller
 
     public function search(Request $request): JsonResponse
     {
-        $q        = $request->input('q', '');
+        $q        = trim((string) $request->input('q', ''));
         $type     = $request->input('type', '');
         $category = $request->input('concept_category_id', $request->input('category_id', $request->input('category', '')));
+        $limit    = max(20, min((int) $request->input('limit', 300), 1000));
+        $perPage  = max(10, min((int) $request->input('per_page', 50), 200));
+        $paginated = $request->boolean('paginated');
+        $tokens   = collect(preg_split('/\s+/', mb_strtolower($q), -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn ($t) => trim($t))
+            ->filter()
+            ->values();
 
-        $concepts = Concept::where('status', 'active')
+        $query = Concept::query()
+            ->where('status', 'active')
             ->when($type,     fn ($q2) => $q2->where('type', $type))
             ->when($category, fn ($q2) => $q2->where('concept_category_id', $category))
-            ->where(function ($query) use ($q) {
-                $query->where('code', 'like', "%{$q}%")
-                      ->orWhere('description', 'like', "%{$q}%");
-            })
-            ->orderBy('code')
-            ->limit(20)
-            ->get(['id', 'code', 'description', 'unit', 'unit_price']);
+            ->when($q !== '', function ($query) use ($q, $tokens) {
+                $query->where(function ($group) use ($q, $tokens) {
+                    // Filtro base por texto completo
+                    $group->where('code', 'like', "%{$q}%")
+                          ->orWhere('description', 'like', "%{$q}%");
 
-        return response()->json($concepts);
+                    // Doble filtro: por cada token, buscar en código/descripcion
+                    if ($tokens->isNotEmpty()) {
+                        $group->orWhere(function ($tokenGroup) use ($tokens) {
+                            foreach ($tokens as $token) {
+                                $tokenGroup->where(function ($tokenMatch) use ($token) {
+                                    $tokenMatch->whereRaw('LOWER(code) like ?', ["%{$token}%"])
+                                               ->orWhereRaw('LOWER(description) like ?', ["%{$token}%"]);
+                                });
+                            }
+                        });
+                    }
+                });
+            })
+            ->when($q !== '', function ($query) use ($q) {
+                $query->orderByRaw(
+                    "CASE
+                        WHEN LOWER(description) LIKE ? THEN 0
+                        WHEN LOWER(code) LIKE ? THEN 1
+                        WHEN LOWER(description) LIKE ? THEN 2
+                        WHEN LOWER(code) LIKE ? THEN 3
+                        ELSE 4
+                    END",
+                    [mb_strtolower($q) . '%', mb_strtolower($q) . '%', '%' . mb_strtolower($q) . '%', '%' . mb_strtolower($q) . '%']
+                );
+            })
+            ->orderBy('description')
+            ->orderBy('code');
+
+        // Compatibilidad: modo anterior (array simple, sin metadatos)
+        if (! $paginated) {
+            $concepts = $query
+                ->limit($limit)
+                ->get(['id', 'code', 'description', 'unit', 'unit_price']);
+
+            return response()->json($concepts);
+        }
+
+        // Modo paginado para catálogos grandes en autocompletes.
+        $result = $query->paginate(
+            $perPage,
+            ['id', 'code', 'description', 'unit', 'unit_price'],
+            'page',
+            (int) $request->input('page', 1)
+        );
+
+        return response()->json([
+            'data' => $result->items(),
+            'meta' => [
+                'current_page' => $result->currentPage(),
+                'last_page'    => $result->lastPage(),
+                'per_page'     => $result->perPage(),
+                'total'        => $result->total(),
+                'has_more'     => $result->hasMorePages(),
+            ],
+        ]);
     }
 
     public function import(Request $request): RedirectResponse

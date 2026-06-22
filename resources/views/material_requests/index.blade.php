@@ -82,7 +82,7 @@
 
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                    <table class="table align-middle table-hover table-centered mb-0 solmat-list-table">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
@@ -109,11 +109,28 @@
                             @forelse ($materialRequests as $mr)
                                 @php $s = $statusMap[$mr->status] ?? ['label' => $mr->status, 'class' => 'bg-secondary-subtle text-secondary']; @endphp
                                 <tr>
-                                    <td><span class="fw-semibold">{{ $mr->folio }}</span></td>
-                                    <td>{{ $mr->code ?? '—' }}</td>
+                                    <td>
+                                        <div class="fw-semibold">#{{ $mr->folio }}</div>
+                                        <small class="text-muted">{{ $mr->need_date?->format('d/m/Y') ?: '—' }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
+                                    </td>
                                     <td>{{ $mr->project?->name ?? '—' }}</td>
-                                    <td>{{ $mr->projectWorks->pluck('name')->implode(', ') ?: '—' }}</td>
-                                    <td>{{ $mr->zone }}</td>
+                                    <td>
+                                        @php $works = $mr->projectWorks; @endphp
+                                        @if ($works->isNotEmpty())
+                                            @foreach ($works->take(2) as $w)
+                                                <span class="badge bg-info-subtle text-info border me-1">{{ $w->name }}</span>
+                                            @endforeach
+                                            @if ($works->count() > 2)
+                                                <span class="badge bg-light text-dark border">+{{ $works->count() - 2 }}</span>
+                                            @endif
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-wrap" style="max-width: 200px;">{{ $mr->zone }}</td>
                                     <td>{{ $mr->request_date?->format('d/m/Y') }}</td>
                                     <td>{{ $mr->supply_category }}</td>
                                     <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
@@ -222,16 +239,20 @@
 
                         {{-- Ubicación y Dirección --}}
                         <div class="col-md-12">
-                            <label class="form-label">Ubicación <span class="text-danger">*</span></label>
-                            <div class="d-flex gap-2 mb-2">
-                                <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
-                                    <input class="form-check-input" type="checkbox" role="switch"
-                                           id="mrLocationSwitch" name="location_type" value="electrohr"
-                                           {{ old('location_type') === 'electrohr' ? 'checked' : '' }}>
-                                    <label class="form-check-label text-nowrap" for="mrLocationSwitch" id="mrLocationLabel">
-                                        {{ old('location_type') === 'electrohr' ? 'Electro HR' : 'Sitio' }}
-                                    </label>
-                                </div>
+                            <label class="form-label">Ubicación <span class="text-danger">*</span></label><br>
+                            <input type="hidden" name="location_type" id="mrLocationType"
+                                   value="{{ old('location_type', 'sitio') }}">
+                            <div class="location-round-selector mb-2" role="group" aria-label="Tipo de ubicación">
+                                <button type="button"
+                                        class="location-round-option {{ old('location_type', 'sitio') !== 'electrohr' ? 'is-active' : '' }}"
+                                        data-value="sitio" id="mrLocationOptionSitio">
+                                    Sitio
+                                </button>
+                                <button type="button"
+                                        class="location-round-option {{ old('location_type') === 'electrohr' ? 'is-active' : '' }}"
+                                        data-value="electrohr" id="mrLocationOptionElectrohr">
+                                    Electro HR
+                                </button>
                             </div>
                             <input type="text" name="zone" id="mrZone"
                                    class="form-control @error('zone') is-invalid @enderror"
@@ -298,6 +319,36 @@
 @endsection
 
 @push('scripts')
+<style>
+.solmat-list-table thead th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+}
+.solmat-list-table tbody td {
+    font-size: 13px;
+    white-space: nowrap;
+}
+.location-round-selector {
+    display: inline-flex;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--bs-body-bg);
+}
+.location-round-option {
+    border: 0;
+    background: transparent;
+    padding: .35rem .85rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+}
+.location-round-option.is-active {
+    background: var(--bs-primary);
+    color: #fff;
+}
+</style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var modalEl        = document.getElementById('modalCreateMR');
@@ -339,13 +390,22 @@ document.addEventListener('DOMContentLoaded', function () {
         if (workChoices)     { workChoices.destroy();     workChoices     = null; }
     });
 
-    // ── Switch Electro HR / Sitio ───────────────────────────────────────────
-    var locationSwitch = document.getElementById('mrLocationSwitch');
-    var locationLabel  = document.getElementById('mrLocationLabel');
-    function updateLocationLabel() {
-        locationLabel.textContent = locationSwitch.checked ? 'Electro HR' : 'Sitio';
+    // ── Selector redondo Electro HR / Sitio ─────────────────────────────────
+    var locationTypeInput = document.getElementById('mrLocationType');
+    var locationButtons = modalEl.querySelectorAll('.location-round-option');
+    function setLocationType(type) {
+        if (!locationTypeInput) return;
+        locationTypeInput.value = type;
+        locationButtons.forEach(function (btn) {
+            btn.classList.toggle('is-active', btn.getAttribute('data-value') === type);
+        });
     }
-    locationSwitch.addEventListener('change', updateLocationLabel);
+    locationButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            setLocationType(btn.getAttribute('data-value'));
+        });
+    });
+    setLocationType(locationTypeInput ? locationTypeInput.value : 'sitio');
 
     // ── Cargar obras cuando cambia el proyecto ──────────────────────────────
     var workChoices = null;

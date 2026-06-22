@@ -1,7 +1,7 @@
 @php
     $po         = $purchaseOrder;
     $items      = $po->items;
-    $milestones = $po->milestones;
+    $milestones = $po->milestones->sortBy('id')->values();
 
     $logoPath = public_path('assets/images/logo-dark.png');
     $logoData = file_exists($logoPath)
@@ -244,7 +244,7 @@
                         <strong>Condiciones de Pago:</strong>
                         @if($milestones->count() > 0)
                             @foreach($milestones as $m)
-                                {{ $tipoHitoMap[$m->type] ?? $m->type }}: {{ $m->value_type === 'porcentaje' ? $m->value.'%' : '$ '.number_format($m->value,2) }} — Importe: $ {{ number_format($m->effective_amount,2) }}{{ $m->due_date ? ' — Vence: '.$m->due_date->format('d/m/Y') : '' }}@if(!$loop->last); @endif
+                                H{{ $loop->iteration }}: {{ $m->concept ?: ($tipoHitoMap[$m->type] ?? $m->type) }} — {{ $m->value_type === 'porcentaje' ? $m->value.'% ($ '.number_format($m->effective_amount,2).')' : '$ '.number_format($m->value,2) }}{{ $m->due_date ? ' — Vence: '.$m->due_date->format('d/m/Y') : '' }}<br>
                             @endforeach
                         @else
                             —

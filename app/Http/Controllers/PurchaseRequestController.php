@@ -141,7 +141,12 @@ class PurchaseRequestController extends Controller
 
         $purchasingUsers = User::role('Orden de compra')->orderBy('name')->get();
 
-        return view('purchase_requests.show', compact('purchaseRequest', 'history', 'purchasingUsers'));
+        $solmatRequester = $purchaseRequest->materialRequest?->requestedBy?->name
+            ?? $purchaseRequest->materialRequest?->requested_by
+            ?? $purchaseRequest->elaborated_by
+            ?? '—';
+
+        return view('purchase_requests.show', compact('purchaseRequest', 'history', 'purchasingUsers', 'solmatRequester'));
     }
 
     public function edit(PurchaseRequest $purchaseRequest)
@@ -413,18 +418,20 @@ class PurchaseRequestController extends Controller
     // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
     public function workload(): \Illuminate\View\View
     {
-        // Usuarios con rol Solcom o admin que pueden recibir SOLCOMs
-        $ordersUsers = User::role(['admin', 'Solcom'])->orderBy('name')->get();
+        // Solo usuarios con rol "Orden de compra"
+        $ordersUsers = User::role('Orden de compra')->orderBy('name')->get();
+        $ordersUserIds = $ordersUsers->pluck('id');
 
         // SOLCOMs pendientes (sent_to_purchasing) agrupadas por assigned_to
         $pendingCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
             ->where('status', 'sent_to_purchasing')
+            ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
 
         // Conteos adicionales por usuario (histórico)
         $allCounts = PurchaseRequest::selectRaw('assigned_to, status, count(*) as total')
-            ->whereNotNull('assigned_to')
+            ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to', 'status')
             ->get()
             ->groupBy('assigned_to');
@@ -437,7 +444,7 @@ class PurchaseRequestController extends Controller
         // Listado detallado de SOLCOMs pendientes por usuario para el drill-down
         $pendingByUser = PurchaseRequest::with(['project', 'projectWork'])
             ->where('status', 'sent_to_purchasing')
-            ->whereNotNull('assigned_to')
+            ->whereIn('assigned_to', $ordersUserIds)
             ->orderByDesc('folio')
             ->get()
             ->groupBy('assigned_to');
