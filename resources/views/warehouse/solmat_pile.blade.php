@@ -57,7 +57,7 @@
 
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                    <table class="table align-middle table-hover table-centered mb-0">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
@@ -81,13 +81,13 @@
                                         </a>
                                     </td>
                                     <td>{{ $mr->project?->name ?? '—' }}</td>
-                                    <td>
-                                        <div class="d-flex flex-wrap gap-1" style="max-width:180px;">
+                                    <td class="w-25">
+                                        <div class="d-flex flex-wrap gap-1" style="max-width:260px; white-space:normal;">
                                             @foreach ($mr->projectWorks->take(2) as $pw)
-                                                <span class="badge bg-info-subtle text-info border py-1 px-2 fs-12">{{ $pw->name }}</span>
+                                                <span class="badge bg-info-subtle text-info border py-1 px-2 fs-12" style="text-align: left; white-space:initial;">{{ $pw->name }}</span>
                                             @endforeach
                                             @if ($mr->projectWorks->count() > 2)
-                                                <span class="badge bg-secondary-subtle text-secondary border py-1 px-2 fs-12">
+                                                <span class="badge bg-secondary-subtle text-secondary border py-1 px-2 fs-12" style="text-align: left; white-space:initial;">
                                                     +{{ $mr->projectWorks->count() - 2 }} más
                                                 </span>
                                             @endif
