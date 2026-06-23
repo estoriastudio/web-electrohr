@@ -123,21 +123,27 @@
                                         </span>
                                     </td>
                                     <td>
-                                        {{-- Dots semáforo de documentación del proyecto --}}
                                         @php
-                                            $docLabels = \App\Models\ProjectDocument::TYPES;
+                                            $categories = \App\Models\ProjectDocument::CATEGORIES;
                                         @endphp
-                                        <div class="d-flex gap-1 align-items-center">
-                                            @foreach ($docLabels as $dt => $dtLabel)
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            @foreach ($categories as $catKey => $category)
                                                 @php
-                                                    $docRecord = $project->documents->firstWhere('document_type', $dt);
-                                                    $hasFile   = $docRecord && $docRecord->file_path;
+                                                    $catKeys     = array_keys($category['docs']);
+                                                    $catTotal    = count($catKeys);
+                                                    $catUploaded = $project->documents
+                                                        ->whereIn('document_type', $catKeys)
+                                                        ->whereNotNull('file_path')
+                                                        ->count();
+                                                    $badgeClass  = $catUploaded === $catTotal
+                                                        ? 'bg-success-subtle text-success'
+                                                        : ($catUploaded > 0 ? 'bg-warning-subtle text-warning' : 'bg-secondary-subtle text-secondary');
                                                 @endphp
-                                                <span class="rounded-circle d-inline-block"
-                                                      style="width: 10px; height: 10px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }}; cursor: default;"
+                                                <span class="badge {{ $badgeClass }} py-1 px-2 fs-11"
                                                       data-bs-toggle="tooltip"
                                                       data-bs-placement="top"
-                                                      title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
+                                                      title="{{ $category['label'] }}: {{ $catUploaded }}/{{ $catTotal }} documentos">
+                                                    {{ $catUploaded }}/{{ $catTotal }}
                                                 </span>
                                             @endforeach
                                         </div>
