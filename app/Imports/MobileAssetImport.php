@@ -33,9 +33,10 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
             'brand' => $this->value($row, ['marca', 'brand']),
             'model' => $this->value($row, ['modelo', 'model']),
             'year' => $this->normalizeYear($this->value($row, ['anio', 'ano', 'year'])),
-            'serial' => $this->value($row, ['serie_niv', 'serie', 'serial', 'niv']),
+            // En el layout de flota, MOTOR se usa como identificador único (VIN/serie).
+            'serial' => $this->value($row, ['serie_niv', 'serie', 'serial', 'niv', 'motor']),
             'color' => $this->value($row, ['color']),
-            'operator' => $this->value($row, ['operador', 'operator']),
+            'operator' => $this->value($row, ['operador', 'operator', 'nombreoperador']),
             'asset_function' => $this->value($row, ['funcion', 'funcion_del_bien', 'asset_function']),
             'type' => $type,
             'plates' => $this->value($row, ['placas', 'plates']),
@@ -56,9 +57,9 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
             $asset = MobileAsset::where('serial', $payload['serial'])->first();
         }
 
-        if (! $asset) {
-            $asset = MobileAsset::where('name', $payload['name'])
-                ->where('type', $type)
+        if (! $asset && ! empty($payload['plates']) && $type === 'parque_vehicular') {
+            $asset = MobileAsset::where('plates', $payload['plates'])
+                ->where('type', 'parque_vehicular')
                 ->first();
         }
 
@@ -133,6 +134,10 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
         }
 
         $trimmed = trim($raw);
+
+        if ($trimmed === '0' || $trimmed === '0000') {
+            return null;
+        }
 
         if (preg_match('/^\d{4}$/', $trimmed) === 1) {
             return $trimmed;
