@@ -38,7 +38,7 @@
 <div class="card">
     <div class="card-header border-bottom d-flex align-items-center">
         {{-- Pestañas --}}
-        <ul class="nav nav-tabs card-header-tabs flex-grow-1 me-3" role="tablist">
+        <ul class="nav nav-tabs card-header-tabs grow me-3" role="tablist">
             @foreach ($tabs as $tabKey => $tabData)
                 <li class="nav-item" role="presentation">
                     <a class="nav-link {{ $type === $tabKey ? 'active' : '' }}"
@@ -51,7 +51,7 @@
 
         @hasanyrole('admin|Moviles')
         @can('create')
-        <div class="d-flex gap-2 flex-shrink-0">
+        <div class="d-flex gap-2 ms-auto">
             <button type="button" class="btn btn-sm btn-soft-success"
                     data-bs-toggle="modal" data-bs-target="#modalImportAssets">
                 <i class="ri-upload-2-line me-1"></i> Importar
@@ -77,7 +77,7 @@
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                     <input type="text" name="search" value="{{ $search }}"
-                           class="form-control" placeholder="Buscar por nombre, n° económico, marca, modelo…"
+                           class="form-control" placeholder="Buscar por nombre, folio, marca o modelo…"
                            autocomplete="off">
                     @if ($search)
                         <a href="{{ route('mobile_assets.index', ['type' => $type]) }}"
@@ -86,6 +86,7 @@
                         </a>
                     @endif
                 </div>
+                <div class="form-text">Puedes buscar directamente por folio.</div>
             </div>
 
             <div class="col-md-4 col-sm-7">
@@ -169,17 +170,31 @@
 
                             {{-- Cuerpo --}}
                             <div class="card-body pb-2">
+                                @if ($asset->folio)
+                                    <div class="mb-1">
+                                        <span class="badge bg-dark text-white fs-11 px-2 py-1">
+                                            # {{ $asset->folio }}
+                                        </span>
+                                    </div>
+                                @endif
                                 <a href="{{ route('mobile_assets.show', $asset) }}"
-                                   class="text-dark fw-semibold fs-15 text-decoration-none d-block mb-1">
+                                   class="text-dark fw-bold fs-16 text-decoration-none d-block mb-1 lh-sm">
                                     {{ $asset->name }}
                                 </a>
                                 <p class="text-muted mb-0 fs-12">
-                                    @if ($asset->folio)
-                                        <span class="me-2"><i class="ri-hashtag text-primary"></i>{{ $asset->folio }}</span>
-                                    @endif
                                     @if ($asset->brand)<span class="me-2">{{ $asset->brand }}</span>@endif
                                     @if ($asset->year)<span>{{ $asset->year }}</span>@endif
                                 </p>
+                                @if ($asset->plates || $asset->milage)
+                                    <p class="text-muted mb-0 fs-12 mt-1">
+                                        @if ($asset->plates)
+                                            <span class="me-2"><i class="ri-car-line me-1"></i>Placas: {{ $asset->plates }}</span>
+                                        @endif
+                                        @if ($asset->milage)
+                                            <span><i class="ri-speed-up-line me-1"></i>{{ number_format($asset->milage) }} Km</span>
+                                        @endif
+                                    </p>
+                                @endif
                                 @if ($asset->operator)
                                     <p class="text-muted mb-0 fs-12 mt-1">
                                         <i class="ri-user-line me-1"></i>{{ $asset->operator }}
@@ -275,12 +290,39 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label for="create_folio" class="form-label fw-medium">Número Económico</label>
+                            <label for="create_folio" class="form-label fw-medium">Folio / Número Económico</label>
                             <input type="text" id="create_folio" name="folio"
                                    class="form-control @error('folio') is-invalid @enderror"
-                                   value="{{ old('folio') }}" placeholder="Ej. BM-001">
+                                value="{{ old('folio') }}" placeholder="Ej. MOV-001">
                             @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+
+                           <div class="col-md-6">
+                            <label for="create_policy" class="form-label fw-medium">Póliza</label>
+                            <input type="text" id="create_policy" name="policy"
+                                class="form-control @error('policy') is-invalid @enderror"
+                                value="{{ old('policy') }}"
+                                placeholder="Ej. POL-12345">
+                            @error('policy')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                           </div>
+
+                           <div class="col-md-6">
+                            <label for="create_card_number" class="form-label fw-medium">No. Tarjeta</label>
+                            <input type="text" id="create_card_number" name="card_number"
+                                class="form-control @error('card_number') is-invalid @enderror"
+                                value="{{ old('card_number') }}"
+                                placeholder="Ej. 12345678">
+                            @error('card_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                           </div>
+
+                           <div class="col-md-6">
+                            <label for="create_milage" class="form-label fw-medium">Kilometraje</label>
+                            <input type="text" id="create_milage" name="milage"
+                                class="form-control @error('milage') is-invalid @enderror"
+                                value="{{ old('milage') }}"
+                                placeholder="Ej. 120000">
+                            @error('milage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                           </div>
 
                         <div class="col-md-6">
                             <label for="create_brand" class="form-label fw-medium">Marca</label>
@@ -382,8 +424,9 @@
                         El archivo debe incluir encabezados. Columnas sugeridas:
                     </p>
                     <ul class="text-muted fs-12 mb-3 ps-3">
+                        <li>movil o folio</li>
                         <li>nombre_de_maquinaria o nombre</li>
-                        <li>numero_economico o folio</li>
+                        <li>poliza, notarjeta, km</li>
                         <li>marca, modelo, anio, serie_niv, color, operador</li>
                         <li>funcion, tipo, placas, estatus</li>
                     </ul>

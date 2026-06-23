@@ -181,6 +181,11 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <form action="{{ route('projects.document.upload', [$project, $dt]) }}"
+                          class="js-multipart-upload-form"
+                          data-chunk-init-url="{{ route('projects.document.chunk.init', [$project, $dt]) }}"
+                          data-chunk-upload-url="{{ route('projects.document.chunk.upload', [$project, $dt]) }}"
+                          data-chunk-finalize-url="{{ route('projects.document.chunk.finalize', [$project, $dt]) }}"
+                          data-chunk-abort-url="{{ route('projects.document.chunk.abort', [$project, $dt]) }}"
                           method="POST" enctype="multipart/form-data">
                         @csrf
                         <div class="modal-header">
@@ -194,10 +199,19 @@
                         <div class="modal-body">
                             <label class="form-label fw-medium">
                                 Archivo <span class="text-danger">*</span>
-                                <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 100 MB)</span>
+                                <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 100 MB, carga por partes)</span>
                             </label>
                             <input type="file" name="file" class="form-control"
                                    accept=".pdf,.jpg,.jpeg,.png" required>
+                            <div class="progress mt-3 js-upload-progress-wrap d-none" style="height: 8px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated js-upload-progress"
+                                     role="progressbar"
+                                     style="width: 0%;"
+                                     aria-valuenow="0"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100"></div>
+                            </div>
+                            <div class="form-text mt-2 js-upload-status text-muted d-none"></div>
                             @if ($docRecord && $docRecord->file_path)
                                 <div class="form-text">Ya existe un archivo. Sube uno nuevo para reemplazarlo.</div>
                             @endif
@@ -453,6 +467,176 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            var csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            function setUploadStatus(form, message, isError) {
+                var statusEl = form.querySelector('.js-upload-status');
+                if (!statusEl) return;
+                statusEl.classList.remove('d-none', 'text-muted', 'text-danger', 'text-success');
+                statusEl.classList.add(isError ? 'text-danger' : 'text-muted');
+                statusEl.textContent = message;
+            }
+
+            function setUploadProgress(form, percent) {
+                var wrap = form.querySelector('.js-upload-progress-wrap');
+                var bar = form.querySelector('.js-upload-progress');
+                if (!wrap || !bar) return;
+                wrap.classList.remove('d-none');
+                bar.style.width = percent + '%';
+                bar.setAttribute('aria-valuenow', String(percent));
+            }
+
+            async function postJson(url, payload) {
+                var response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                    credentials: 'same-origin',
+                });
+
+                var data = null;
+                try {
+                    data = await response.json();
+                } catch (err) {
+                    data = null;
+                }
+
+                if (!response.ok) {
+                    var errorMessage = data?.message || 'No se pudo completar la operación.';
+                    throw new Error(errorMessage);
+                }
+
+                return data || {};
+            }
+
+            async function postChunk(url, formData) {
+                var response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: formData,
+                    credentials: 'same-origin',
+                });
+
+                var data = null;
+                try {
+                    data = await response.json();
+                } catch (err) {
+                    data = null;
+                }
+
+                if (!response.ok) {
+                    var errorMessage = data?.message || 'No se pudo subir un chunk.';
+                    throw new Error(errorMessage);
+                }
+
+                return data || {};
+            }
+
+            document.querySelectorAll('.js-multipart-upload-form').forEach(function (form) {
+                form.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
+                    if (form.dataset.uploading === '1') {
+                        return;
+                    }
+
+                    var fileInput = form.querySelector('input[name="file"]');
+                    var submitBtn = form.querySelector('button[type="submit"]');
+                    var file = fileInput?.files?.[0];
+
+                    if (!file) {
+                        setUploadStatus(form, 'Selecciona un archivo para continuar.', true);
+                        return;
+                    }
+
+                    var uploadId = null;
+                    form.dataset.uploading = '1';
+                    submitBtn.disabled = true;
+
+                    try {
+                        setUploadProgress(form, 1);
+                        setUploadStatus(form, 'Iniciando carga por lotes...', false);
+
+                        var initData = await postJson(form.dataset.chunkInitUrl, {
+                            filename: file.name,
+                            size: file.size,
+                        });
+
+                        uploadId = initData.upload_id;
+                        var chunkSize = initData.chunk_size || (5 * 1024 * 1024);
+                        var maxParallel = initData.max_parallel || 3;
+                        var totalParts = Math.ceil(file.size / chunkSize);
+                        var uploadedBytes = 0;
+                        var nextPartNumber = 1;
+                        async function uploadWorker() {
+                            while (true) {
+                                var partNumber = nextPartNumber;
+                                nextPartNumber += 1;
+
+                                if (partNumber > totalParts) {
+                                    return;
+                                }
+
+                                var start = (partNumber - 1) * chunkSize;
+                                var end = Math.min(start + chunkSize, file.size);
+                                var chunk = file.slice(start, end);
+
+                                var chunkPayload = new FormData();
+                                chunkPayload.append('upload_id', uploadId);
+                                chunkPayload.append('chunk_number', String(partNumber - 1));
+                                chunkPayload.append('chunk', chunk, 'chunk_' + (partNumber - 1));
+
+                                await postChunk(form.dataset.chunkUploadUrl, chunkPayload);
+
+                                uploadedBytes += chunk.size;
+                                var progress = Math.min(99, Math.round((uploadedBytes / file.size) * 100));
+                                setUploadProgress(form, progress);
+                                setUploadStatus(form, 'Subiendo: ' + progress + '%', false);
+                            }
+                        }
+
+                        var workers = [];
+                        var workerCount = Math.min(maxParallel, totalParts);
+                        for (var i = 0; i < workerCount; i++) {
+                            workers.push(uploadWorker());
+                        }
+
+                        await Promise.all(workers);
+
+                        setUploadStatus(form, 'Finalizando carga...', false);
+
+                        await postJson(form.dataset.chunkFinalizeUrl, {
+                            upload_id: uploadId,
+                        });
+
+                        setUploadProgress(form, 100);
+                        setUploadStatus(form, 'Documento subido correctamente. Actualizando vista...', false);
+                        window.location.reload();
+                    } catch (error) {
+                        if (uploadId) {
+                            try {
+                                await postJson(form.dataset.chunkAbortUrl, {
+                                    upload_id: uploadId,
+                                });
+                            } catch (abortError) {
+                                // Si falla el abort, no bloqueamos al usuario.
+                            }
+                        }
+
+                        setUploadStatus(form, error.message || 'No se pudo subir el documento.', true);
+                        submitBtn.disabled = false;
+                        form.dataset.uploading = '0';
+                    }
+                });
+            });
+
             // Rotar chevron al expandir/colapsar cada categoría
             document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function (trigger) {
                 var target = trigger.getAttribute('data-bs-target');

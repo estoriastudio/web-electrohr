@@ -18,7 +18,7 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
     public function model(array $row): ?MobileAsset
     {
         $name = $this->value($row, ['nombre_de_maquinaria', 'nombre', 'name']);
-        $folio = $this->value($row, ['numero_economico', 'n_economico', 'folio', 'numero']);
+        $folio = $this->value($row, ['movil', 'numero_economico', 'n_economico', 'folio', 'numero']);
 
         if ($name === null && $folio === null) {
             return null;
@@ -30,6 +30,9 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
         $payload = [
             'name' => $name ?? ($folio ?: 'Sin nombre'),
             'folio' => $folio,
+            'policy' => $this->value($row, ['poliza', 'policy']),
+            'card_number' => $this->value($row, ['notarjeta', 'no_tarjeta', 'card_number']),
+            'milage' => $this->value($row, ['km', 'kilometraje', 'milage']),
             'brand' => $this->value($row, ['marca', 'brand']),
             'model' => $this->value($row, ['modelo', 'model']),
             'year' => $this->normalizeYear($this->value($row, ['anio', 'ano', 'year'])),
@@ -49,12 +52,12 @@ class MobileAssetImport implements ToModel, WithHeadingRow, WithChunkReading, Sk
 
         $asset = null;
 
-        if (! empty($folio)) {
-            $asset = MobileAsset::where('folio', $folio)->first();
+        if (! empty($payload['serial'])) {
+            $asset = MobileAsset::where('serial', $payload['serial'])->first();
         }
 
-        if (! $asset && ! empty($payload['serial'])) {
-            $asset = MobileAsset::where('serial', $payload['serial'])->first();
+        if (! $asset && ! empty($folio)) {
+            $asset = MobileAsset::where('folio', $folio)->first();
         }
 
         if (! $asset && ! empty($payload['plates']) && $type === 'parque_vehicular') {

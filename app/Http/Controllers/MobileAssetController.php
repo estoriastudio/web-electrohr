@@ -71,6 +71,9 @@ class MobileAssetController extends Controller
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'folio'          => 'nullable|string|max:100',
+            'policy'         => 'nullable|string|max:100',
+            'card_number'    => 'nullable|string|max:100',
+            'milage'         => 'nullable|string|max:50',
             'brand'          => 'nullable|string|max:255',
             'model'          => 'nullable|string|max:255',
             'year'           => 'nullable|string|max:10',
@@ -141,6 +144,9 @@ class MobileAssetController extends Controller
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'folio'          => 'nullable|string|max:100',
+            'policy'         => 'nullable|string|max:100',
+            'card_number'    => 'nullable|string|max:100',
+            'milage'         => 'nullable|string|max:50',
             'brand'          => 'nullable|string|max:255',
             'model'          => 'nullable|string|max:255',
             'year'           => 'nullable|string|max:10',

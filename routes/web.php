@@ -131,6 +131,15 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
                 ->name('projects.document.upload');
 
+            Route::post('/proyectos/{project}/documentos/{docType}/chunk/init', [ProjectController::class, 'initChunkUpload'])
+                ->name('projects.document.chunk.init');
+            Route::post('/proyectos/{project}/documentos/{docType}/chunk/upload', [ProjectController::class, 'uploadChunk'])
+                ->name('projects.document.chunk.upload');
+            Route::post('/proyectos/{project}/documentos/{docType}/chunk/finalize', [ProjectController::class, 'finalizeChunkUpload'])
+                ->name('projects.document.chunk.finalize');
+            Route::post('/proyectos/{project}/documentos/{docType}/chunk/abort', [ProjectController::class, 'abortChunkUpload'])
+                ->name('projects.document.chunk.abort');
+
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');
 

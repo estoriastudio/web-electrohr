@@ -11,6 +11,9 @@ class MobileAsset extends Model
     protected $fillable = [
         'name',
         'folio',
+        'policy',
+        'card_number',
+        'milage',
         'brand',
         'model',
         'year',

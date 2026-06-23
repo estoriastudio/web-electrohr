@@ -388,6 +388,15 @@
                     <dt class="col-sm-5 text-muted fw-normal">Número Económico</dt>
                     <dd class="col-sm-7 fw-medium">{{ $mobileAsset->folio ?? '—' }}</dd>
 
+                    <dt class="col-sm-5 text-muted fw-normal">Póliza</dt>
+                    <dd class="col-sm-7">{{ $mobileAsset->policy ?? '—' }}</dd>
+
+                    <dt class="col-sm-5 text-muted fw-normal">No. Tarjeta</dt>
+                    <dd class="col-sm-7">{{ $mobileAsset->card_number ?? '—' }}</dd>
+
+                    <dt class="col-sm-5 text-muted fw-normal">Kilometraje</dt>
+                    <dd class="col-sm-7">{{ $mobileAsset->milage ?? '—' }}</dd>
+
                     <dt class="col-sm-5 text-muted fw-normal">Nombre</dt>
                     <dd class="col-sm-7 fw-medium">{{ $mobileAsset->name }}</dd>
 
@@ -439,7 +448,7 @@
                         $ds = $docRecord ? $docRecord->status : 'gray';
                     @endphp
                     <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="traffic-dot traffic-{{ $ds }} flex-shrink-0"></span>
+                        <span class="traffic-dot traffic-{{ $ds }} shrink-0"></span>
                         <span class="fs-13 {{ $ds === 'red' ? 'text-danger fw-semibold' : ($ds === 'yellow' ? 'text-warning fw-semibold' : 'text-muted') }}">
                             {{ $docLabels[$dt] ?? $dt }}
                         </span>

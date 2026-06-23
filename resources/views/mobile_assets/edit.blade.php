@@ -46,13 +46,49 @@
                     <div class="row g-3">
 
                         <div class="col-md-6">
-                            <label for="folio" class="form-label fw-medium">Número Económico</label>
+                            <label for="folio" class="form-label fw-medium">Folio / Número Económico</label>
                             <input type="text"
                                    class="form-control @error('folio') is-invalid @enderror"
                                    id="folio" name="folio"
                                    value="{{ old('folio', $mobileAsset->folio) }}"
-                                   placeholder="Ej. BM-0001">
+                                   placeholder="Ej. MOV-001">
                             @error('folio')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="policy" class="form-label fw-medium">Póliza</label>
+                            <input type="text"
+                                   class="form-control @error('policy') is-invalid @enderror"
+                                   id="policy" name="policy"
+                                   value="{{ old('policy', $mobileAsset->policy) }}"
+                                   placeholder="Ej. POL-12345">
+                            @error('policy')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="card_number" class="form-label fw-medium">No. Tarjeta</label>
+                            <input type="text"
+                                   class="form-control @error('card_number') is-invalid @enderror"
+                                   id="card_number" name="card_number"
+                                   value="{{ old('card_number', $mobileAsset->card_number) }}"
+                                   placeholder="Ej. 12345678">
+                            @error('card_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="milage" class="form-label fw-medium">Kilometraje</label>
+                            <input type="text"
+                                   class="form-control @error('milage') is-invalid @enderror"
+                                   id="milage" name="milage"
+                                   value="{{ old('milage', $mobileAsset->milage) }}"
+                                   placeholder="Ej. 120000">
+                            @error('milage')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
