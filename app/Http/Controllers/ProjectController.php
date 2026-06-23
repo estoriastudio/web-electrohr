@@ -81,9 +81,9 @@ class ProjectController extends Controller
             'documents',
         ]);
 
-        $docTypes = ProjectDocument::TYPES;
+        $docCategories = ProjectDocument::CATEGORIES;
 
-        return view('projects.show', compact('project', 'docTypes'));
+        return view('projects.show', compact('project', 'docCategories'));
     }
 
     public function edit(Project $project): View
@@ -145,12 +145,12 @@ class ProjectController extends Controller
 
     public function uploadDocument(Request $request, Project $project, string $docType): RedirectResponse
     {
-        if (! array_key_exists($docType, ProjectDocument::TYPES)) {
+        if (! array_key_exists($docType, ProjectDocument::allDocTypes())) {
             abort(404);
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:102400',
         ]);
 
         $doc = $project->documents()->firstOrNew(['document_type' => $docType]);

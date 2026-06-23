@@ -26,8 +26,9 @@ class Project extends Model
     public function hasAllDocuments(): bool
     {
         $uploaded = $this->documents->whereNotNull('file_path')->pluck('document_type')->toArray();
+        $required = array_keys(ProjectDocument::allDocTypes());
 
-        return count(array_diff(array_keys(ProjectDocument::TYPES), $uploaded)) === 0;
+        return count(array_diff($required, $uploaded)) === 0;
     }
 
     /**

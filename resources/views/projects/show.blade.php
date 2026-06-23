@@ -102,44 +102,69 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($docTypes as $dt => $dtLabel)
+                    @foreach ($docCategories as $catKey => $category)
                         @php
-                            $docRecord = $project->documents->firstWhere('document_type', $dt);
-                            $hasFile   = $docRecord && $docRecord->file_path;
+                            $docsUploaded = $project->documents->whereIn('document_type', array_keys($category['docs']))->whereNotNull('file_path')->count();
+                            $docsTotal    = count($category['docs']);
                         @endphp
-                        <tr>
-                            <td>
-                                <span class="rounded-circle d-inline-block"
-                                      style="width: 12px; height: 12px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }};"
-                                      title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
-                                </span>
-                            </td>
-                            <td class="fw-medium fs-14">{{ $dtLabel }}</td>
-                            <td class="text-muted fs-12">
-                                {{ $docRecord && $docRecord->uploaded_at ? $docRecord->uploaded_at->format('d/m/Y') : '—' }}
-                            </td>
-                            <td>
-                                @if ($hasFile)
-                                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('s3')->url($docRecord->file_path) }}"
-                                       target="_blank" class="btn btn-light btn-sm" title="Ver documento">
-                                        <i class="ri-file-download-line"></i>
-                                    </a>
-                                @else
-                                    <span class="text-muted fs-12">Sin archivo</span>
-                                @endif
-                            </td>
+                        {{-- Fila de encabezado de categoría (colapsable) --}}
+                        <tr class="table-light"
+                            style="cursor: pointer;"
+                            data-bs-toggle="collapse"
+                            data-bs-target=".doc-group-{{ $catKey }}"
+                            aria-expanded="false">
                             @role('admin|Proyectos')
-                            <td>
-                                <button type="button"
-                                        class="btn btn-soft-primary btn-sm"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#modalProjectDoc_{{ $dt }}">
-                                    <i class="ri-upload-2-line me-1"></i>
-                                    {{ $hasFile ? 'Reemplazar' : 'Subir' }}
-                                </button>
-                            </td>
+                            <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
+                            @else
+                            <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                             @endrole
+                                <i class="ri-folder-2-line me-1"></i>{{ $category['label'] }}
+                                <span class="badge bg-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }}-subtle text-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }} ms-2 fw-normal">
+                                    {{ $docsUploaded }}/{{ $docsTotal }}
+                                </span>
+                                <i class="ri-arrow-down-s-line float-end me-2 category-chevron"></i>
+                            </td>
                         </tr>
+                        {{-- Filas de documentos dentro de la categoría --}}
+                        @foreach ($category['docs'] as $dt => $dtLabel)
+                            @php
+                                $docRecord = $project->documents->firstWhere('document_type', $dt);
+                                $hasFile   = $docRecord && $docRecord->file_path;
+                            @endphp
+                            <tr class="collapse doc-group-{{ $catKey }}">
+                                <td class="ps-4">
+                                    <span class="rounded-circle d-inline-block"
+                                          style="width: 12px; height: 12px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }};"
+                                          title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
+                                    </span>
+                                </td>
+                                <td class="fw-medium fs-14">{{ $dtLabel }}</td>
+                                <td class="text-muted fs-12">
+                                    {{ $docRecord && $docRecord->uploaded_at ? $docRecord->uploaded_at->format('d/m/Y') : '—' }}
+                                </td>
+                                <td>
+                                    @if ($hasFile)
+                                        <a href="{{ \Illuminate\Support\Facades\Storage::disk('s3')->url($docRecord->file_path) }}"
+                                           target="_blank" class="btn btn-light btn-sm" title="Ver documento">
+                                            <i class="ri-file-download-line"></i>
+                                        </a>
+                                    @else
+                                        <span class="text-muted fs-12">Sin archivo</span>
+                                    @endif
+                                </td>
+                                @role('admin|Proyectos')
+                                <td>
+                                    <button type="button"
+                                            class="btn btn-soft-primary btn-sm"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#modalProjectDoc_{{ $dt }}">
+                                        <i class="ri-upload-2-line me-1"></i>
+                                        {{ $hasFile ? 'Reemplazar' : 'Subir' }}
+                                    </button>
+                                </td>
+                                @endrole
+                            </tr>
+                        @endforeach
                     @endforeach
                 </tbody>
             </table>
@@ -149,41 +174,45 @@
 
 {{-- ── Modales de subida (uno por tipo de documento) ─────────────────── --}}
 @role('admin|Proyectos')
-@foreach ($docTypes as $dt => $dtLabel)
-    @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
-    <div class="modal fade" id="modalProjectDoc_{{ $dt }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form action="{{ route('projects.document.upload', [$project, $dt]) }}"
-                      method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="ri-file-add-line me-1"></i> {{ $dtLabel }}
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <label class="form-label fw-medium">
-                            Archivo <span class="text-danger">*</span>
-                            <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 10 MB)</span>
-                        </label>
-                        <input type="file" name="file" class="form-control"
-                               accept=".pdf,.jpg,.jpeg,.png" required>
-                        @if ($docRecord && $docRecord->file_path)
-                            <div class="form-text">Ya existe un archivo. Sube uno nuevo para reemplazarlo.</div>
-                        @endif
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="ri-save-line me-1"></i> Guardar
-                        </button>
-                    </div>
-                </form>
+@foreach ($docCategories as $catKey => $category)
+    @foreach ($category['docs'] as $dt => $dtLabel)
+        @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
+        <div class="modal fade" id="modalProjectDoc_{{ $dt }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form action="{{ route('projects.document.upload', [$project, $dt]) }}"
+                          method="POST" enctype="multipart/form-data">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="ri-file-add-line me-1"></i>
+                                <span class="text-muted fw-normal fs-13">{{ $category['label'] }} /</span>
+                                {{ $dtLabel }}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label fw-medium">
+                                Archivo <span class="text-danger">*</span>
+                                <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 100 MB)</span>
+                            </label>
+                            <input type="file" name="file" class="form-control"
+                                   accept=".pdf,.jpg,.jpeg,.png" required>
+                            @if ($docRecord && $docRecord->file_path)
+                                <div class="form-text">Ya existe un archivo. Sube uno nuevo para reemplazarlo.</div>
+                            @endif
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="ri-save-line me-1"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
+    @endforeach
 @endforeach
 @endrole
 
@@ -422,6 +451,24 @@
 @endsection
 
 @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Rotar chevron al expandir/colapsar cada categoría
+            document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function (trigger) {
+                var target = trigger.getAttribute('data-bs-target');
+                var firstRow = document.querySelector(target);
+                if (!firstRow) return;
+
+                firstRow.addEventListener('show.bs.collapse', function () {
+                    trigger.querySelector('.category-chevron').style.transform = 'rotate(180deg)';
+                });
+                firstRow.addEventListener('hide.bs.collapse', function () {
+                    trigger.querySelector('.category-chevron').style.transform = 'rotate(0deg)';
+                });
+            });
+        });
+    </script>
+
     @if ($errors->any())
         <script>
             document.addEventListener('DOMContentLoaded', function () {
