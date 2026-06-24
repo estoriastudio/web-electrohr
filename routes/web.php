@@ -238,6 +238,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'destroyItem'])->name('purchase_orders.items.destroy');
             // Observaciones
             Route::post('/ordenes-de-compra/{purchase_order}/notes', [PurchaseOrderController::class, 'storeObservation'])->name('purchase_orders.notes.store');
+            Route::patch('/ordenes-de-compra/{purchase_order}/notes/{noteIndex}', [PurchaseOrderController::class, 'updateObservation'])->name('purchase_orders.notes.update');
+            Route::delete('/ordenes-de-compra/{purchase_order}/notes/{noteIndex}', [PurchaseOrderController::class, 'destroyObservation'])->name('purchase_orders.notes.destroy');
         });
 
         // Hitos — lectura: admin, Pagos
@@ -331,6 +333,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                         [MaterialRequestController::class, 'storeObservation'])
                  ->name('material_requests.notes.store');
 
+              Route::patch('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
+                        [MaterialRequestController::class, 'updateObservation'])
+                  ->name('material_requests.notes.update');
+
+              Route::delete('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
+                         [MaterialRequestController::class, 'destroyObservation'])
+                  ->name('material_requests.notes.destroy');
+
             Route::get('/solicitudes-material/{materialRequest}/pdf',
                        [MaterialRequestController::class, 'downloadPdf'])
                  ->name('material_requests.pdf');
@@ -375,6 +385,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/solicitudes-compra/{purchaseRequest}/notes',
                         [PurchaseRequestController::class, 'storeObservation'])
                  ->name('purchase_requests.notes.store');
+
+              Route::patch('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
+                        [PurchaseRequestController::class, 'updateObservation'])
+                  ->name('purchase_requests.notes.update');
+
+              Route::delete('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
+                         [PurchaseRequestController::class, 'destroyObservation'])
+                  ->name('purchase_requests.notes.destroy');
 
             // JSON de ítems para precarga en modal de creación de OC
             Route::get('/solicitudes-compra/{purchaseRequest}/items-json',

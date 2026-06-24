@@ -239,6 +239,44 @@ class MaterialRequestController extends Controller
                          ->with('success', 'Observación agregada.');
     }
 
+    public function updateObservation(Request $request, MaterialRequest $materialRequest, int $noteIndex)
+    {
+        $data = $request->validate([
+            'text' => 'required|string|max:1000',
+        ]);
+
+        $observations = $materialRequest->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('material_requests.show', $materialRequest)
+                             ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        $observations[$noteIndex]['text'] = $data['text'];
+        $observations[$noteIndex]['updated_at'] = now()->toDateTimeString();
+
+        $materialRequest->update(['observations' => $observations]);
+
+        return redirect()->route('material_requests.show', $materialRequest)
+                         ->with('success', 'Observación actualizada.');
+    }
+
+    public function destroyObservation(MaterialRequest $materialRequest, int $noteIndex)
+    {
+        $observations = $materialRequest->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('material_requests.show', $materialRequest)
+                             ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        unset($observations[$noteIndex]);
+        $materialRequest->update(['observations' => array_values($observations)]);
+
+        return redirect()->route('material_requests.show', $materialRequest)
+                         ->with('success', 'Observación eliminada.');
+    }
+
     public function sendToWarehouse(MaterialRequest $materialRequest)
     {
         $materialRequest->update(['status' => 'sent_to_warehouse']);
