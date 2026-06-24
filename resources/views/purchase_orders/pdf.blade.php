@@ -61,11 +61,16 @@
         tr { page-break-inside: auto; page-break-after: auto; }
         .section { width: 100%; border-collapse: collapse; border-color: #999; }
         .section-joined { margin-top: -1px; }
+        .concept-table { font-size: 10px; line-height: 1.25; }
         .concept-table thead { display: table-header-group; }
         .concept-table tfoot { display: table-row-group; }
         .concept-table tbody tr { page-break-inside: avoid; }
         .concept-table td, .concept-table th { word-break: break-word; }
         .avoid-break { page-break-inside: avoid; }
+        .terms-signatures {
+            page-break-inside: avoid;
+            break-inside: avoid-page;
+        }
     </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 11px; color: #000;">
@@ -213,103 +218,105 @@
     </table>
 </div>
 
-<!-- FILA 6: Moneda, importe con letra, condiciones de pago, observaciones -->
-<table width="100%" cellpadding="6" cellspacing="0" border="1" class="section avoid-break" style="margin-top: 10px;">
-    <tr>
-        <td style="border: 1px solid #999; padding: 8px; line-height: 1.6;">
-            <strong>Moneda:</strong> {{ $currency }}<br>
-            <strong>Importe con Letra:</strong> {{ $letras }}<br>
-            <strong>Condiciones de Pago:</strong>
-            @if($milestones->count() > 0)
-                @foreach($milestones as $m)
-                    H{{ $loop->iteration }}: {{ $m->concept ?: ($tipoHitoMap[$m->type] ?? $m->type) }} — {{ $m->value_type === 'porcentaje' ? $m->value.'% ($ '.number_format($m->effective_amount,2).')' : '$ '.number_format($m->value,2) }}{{ $m->due_date ? ' — Vence: '.$m->due_date->format('d/m/Y') : '' }}<br>
-                @endforeach
-            @else
-                —
-            @endif
-            <br><br>
-            <strong>Observaciones:</strong>
+<div class="terms-signatures">
+    <!-- FILA 6: Moneda, importe con letra, condiciones de pago, observaciones -->
+    <table width="100%" cellpadding="6" cellspacing="0" border="1" class="section" style="margin-top: 10px;">
+        <tr>
+            <td style="border: 1px solid #999; padding: 8px; line-height: 1.6;">
+                <strong>Moneda:</strong> {{ $currency }}<br>
+                <strong>Importe con Letra:</strong> {{ $letras }}<br>
+                <strong>Condiciones de Pago:</strong>
+                @if($milestones->count() > 0)
+                    @foreach($milestones as $m)
+                        H{{ $loop->iteration }}: {{ $m->concept ?: ($tipoHitoMap[$m->type] ?? $m->type) }} — {{ $m->value_type === 'porcentaje' ? $m->value.'% ($ '.number_format($m->effective_amount,2).')' : '$ '.number_format($m->value,2) }}{{ $m->due_date ? ' — Vence: '.$m->due_date->format('d/m/Y') : '' }}<br>
+                    @endforeach
+                @else
+                    —
+                @endif
+                <br><br>
+                <strong>Observaciones:</strong>
 
-            @if($po->observations && count($po->observations) > 0)
-                @foreach($po->observations as $note){{ $note['user_name'] ?? '' }}: {{ $note['text'] ?? '' }}
-                    @if(!$loop->last) | @endif
-                @endforeach
-            @else
-                Sin observaciones.
-            @endif
-        </td>
-    </tr>
-</table>
+                @if($po->observations && count($po->observations) > 0)
+                    @foreach($po->observations as $note){{ $note['user_name'] ?? '' }}: {{ $note['text'] ?? '' }}
+                        @if(!$loop->last) | @endif
+                    @endforeach
+                @else
+                    Sin observaciones.
+                @endif
+            </td>
+        </tr>
+    </table>
 
-<!-- ESPACIO -->
-<div class="avoid-break" style="height: 20px;"></div>
+    <!-- ESPACIO -->
+    <div style="height: 20px;"></div>
 
-<!-- FILA 7: Firmas -->
-<table width="100%" cellpadding="10" cellspacing="0" border="1" class="section avoid-break">
-    <tr>
-        <!-- Firma 1 -->
-        <td width="33%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                    <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
-                        Elabora Orden
-                    </td>
-                </tr>
-                <!-- Área de firma (espacio en blanco o imagen) -->
-                <tr>
-                    <td style="height: 50px; text-align: center; vertical-align: bottom;">
-                        <!-- Firma digital o espacio vacío -->
-                        &nbsp;
-                    </td>
-                </tr>
-                <tr>
-                    <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
-                        <strong>{{ $po->elaborated_by ?? '___________________' }}</strong>
-                    </td>
-                </tr>
-            </table>
-        </td>
-        <!-- Firma 2 -->
-        <td width="34%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                    <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
-                        Aceptación del Proveedor
-                    </td>
-                </tr>
-                <tr>
-                    <td style="height: 50px; text-align: center; vertical-align: bottom;">
-                        &nbsp;
-                    </td>
-                </tr>
-                <tr>
-                    <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
-                        <strong>{{ $po->supplier_signatory ?? '___________________' }}</strong>
-                    </td>
-                </tr>
-            </table>
-        </td>
-        <!-- Firma 3 -->
-        <td width="33%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                    <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
-                        Autorización de Pedido
-                    </td>
-                </tr>
-                <tr>
-                    <td style="height: 50px; text-align: center; vertical-align: bottom;">
-                        &nbsp;
-                    </td>
-                </tr>
-                <tr>
-                    <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
-                        <strong>{{ $po->authorized_signatory ?? '___________________' }}</strong>
-                    </td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
+    <!-- FILA 7: Firmas -->
+    <table width="100%" cellpadding="10" cellspacing="0" border="1" class="section">
+        <tr>
+            <!-- Firma 1 -->
+            <td width="33%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
+                            Elabora Orden
+                        </td>
+                    </tr>
+                    <!-- Área de firma (espacio en blanco o imagen) -->
+                    <tr>
+                        <td style="height: 50px; text-align: center; vertical-align: bottom;">
+                            <!-- Firma digital o espacio vacío -->
+                            &nbsp;
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
+                            <strong>{{ $po->elaborated_by ?? '___________________' }}</strong>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <!-- Firma 2 -->
+            <td width="34%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
+                            Aceptación del Proveedor
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="height: 50px; text-align: center; vertical-align: bottom;">
+                            &nbsp;
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
+                            <strong>{{ $po->supplier_signatory ?? '___________________' }}</strong>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <!-- Firma 3 -->
+            <td width="33%" style="border: 1px solid #999; padding: 10px; text-align: center; vertical-align: bottom;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td style="text-align: center; padding-bottom: 5px; font-size: 10px; color: #555;">
+                            Autorización de Pedido
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="height: 50px; text-align: center; vertical-align: bottom;">
+                            &nbsp;
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border-top: 1px solid #000; padding-top: 5px; text-align: center; font-size: 10px;">
+                            <strong>{{ $po->authorized_signatory ?? '___________________' }}</strong>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</div>
 </body>
 </html>
