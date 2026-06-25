@@ -970,7 +970,7 @@
                 <h5 class="card-title mb-0"><i class="ri-chat-3-line me-1 text-primary"></i> Observaciones</h5>
             </div>
             <div class="card-body" id="oc_obs_container">
-                @forelse ($purchaseOrder->observations ?? [] as $note)
+                @forelse ($purchaseOrder->observations ?? [] as $noteIndex => $note)
                     <div class="d-flex gap-3 mb-3">
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
@@ -978,11 +978,50 @@
                             </span>
                         </div>
                         <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
-                                <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
+                                    @hasanyrole('admin|Orden de compra')
+                                    @if ($canModifyPurchaseOrder)
+                                    <button type="button"
+                                            class="btn btn-link btn-sm p-0 text-decoration-none"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#oc_note_edit_{{ $noteIndex }}"
+                                            aria-expanded="false"
+                                            aria-controls="oc_note_edit_{{ $noteIndex }}">
+                                        Editar
+                                    </button>
+                                    <form action="{{ route('purchase_orders.notes.destroy', [$purchaseOrder, $noteIndex]) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('¿Eliminar esta observación?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-link btn-sm p-0 text-danger text-decoration-none">
+                                            Eliminar
+                                        </button>
+                                    </form>
+                                    @endif
+                                    @endhasanyrole
+                                </div>
                             </div>
                             <p class="mb-0 text-body-secondary fs-13">{{ $note['text'] }}</p>
+
+                            @hasanyrole('admin|Orden de compra')
+                            @if ($canModifyPurchaseOrder)
+                            <div class="collapse mt-2" id="oc_note_edit_{{ $noteIndex }}">
+                                <form action="{{ route('purchase_orders.notes.update', [$purchaseOrder, $noteIndex]) }}" method="POST">
+                                    @csrf
+                                    @method('PATCH')
+                                    <div class="input-group input-group-sm">
+                                        <textarea name="text" rows="2" class="form-control" required>{{ $note['text'] }}</textarea>
+                                        <button type="submit" class="btn btn-primary">Guardar</button>
+                                    </div>
+                                </form>
+                            </div>
+                            @endif
+                            @endhasanyrole
                         </div>
                     </div>
                     <hr class="my-2">

@@ -327,7 +327,7 @@
             </div>
             <div class="card-body">
                 {{-- Lista de notas --}}
-                @forelse ($materialRequest->observations ?? [] as $note)
+                @forelse ($materialRequest->observations ?? [] as $noteIndex => $note)
                     <div class="d-flex gap-3 mb-3">
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
@@ -335,11 +335,46 @@
                             </span>
                         </div>
                         <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
-                                <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
+                                    @hasanyrole('admin|Solmat')
+                                    <button type="button"
+                                            class="btn btn-link btn-sm p-0 text-decoration-none"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#solmat_note_edit_{{ $noteIndex }}"
+                                            aria-expanded="false"
+                                            aria-controls="solmat_note_edit_{{ $noteIndex }}">
+                                        Editar
+                                    </button>
+                                    <form action="{{ route('material_requests.notes.destroy', [$materialRequest, $noteIndex]) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('¿Eliminar esta observación?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-link btn-sm p-0 text-danger text-decoration-none">
+                                            Eliminar
+                                        </button>
+                                    </form>
+                                    @endhasanyrole
+                                </div>
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
+
+                            @hasanyrole('admin|Solmat')
+                            <div class="collapse mt-2" id="solmat_note_edit_{{ $noteIndex }}">
+                                <form action="{{ route('material_requests.notes.update', [$materialRequest, $noteIndex]) }}" method="POST">
+                                    @csrf
+                                    @method('PATCH')
+                                    <div class="input-group input-group-sm">
+                                        <textarea name="text" rows="2" class="form-control" required>{{ $note['text'] }}</textarea>
+                                        <button type="submit" class="btn btn-primary">Guardar</button>
+                                    </div>
+                                </form>
+                            </div>
+                            @endhasanyrole
                         </div>
                     </div>
                     <hr class="my-2">

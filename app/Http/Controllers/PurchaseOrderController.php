@@ -587,6 +587,52 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Observación agregada.');
     }
 
+    public function updateObservation(Request $request, PurchaseOrder $purchaseOrder, int $noteIndex): RedirectResponse
+    {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
+        $data = $request->validate([
+            'text' => 'required|string|max:1000',
+        ]);
+
+        $observations = $purchaseOrder->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        $observations[$noteIndex]['text'] = $data['text'];
+        $observations[$noteIndex]['updated_at'] = now()->toDateTimeString();
+
+        $purchaseOrder->update(['observations' => $observations]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Observación actualizada.');
+    }
+
+    public function destroyObservation(PurchaseOrder $purchaseOrder, int $noteIndex): RedirectResponse
+    {
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+            return $redirect;
+        }
+
+        $observations = $purchaseOrder->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        unset($observations[$noteIndex]);
+        $purchaseOrder->update(['observations' => array_values($observations)]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Observación eliminada.');
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // PDF
     // ──────────────────────────────────────────────────────────────────────────

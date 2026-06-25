@@ -282,6 +282,44 @@ class PurchaseRequestController extends Controller
                          ->with('success', 'Observación agregada.');
     }
 
+    public function updateObservation(Request $request, PurchaseRequest $purchaseRequest, int $noteIndex)
+    {
+        $data = $request->validate([
+            'text' => 'required|string|max:1000',
+        ]);
+
+        $observations = $purchaseRequest->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                             ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        $observations[$noteIndex]['text'] = $data['text'];
+        $observations[$noteIndex]['updated_at'] = now()->toDateTimeString();
+
+        $purchaseRequest->update(['observations' => $observations]);
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+                         ->with('success', 'Observación actualizada.');
+    }
+
+    public function destroyObservation(PurchaseRequest $purchaseRequest, int $noteIndex)
+    {
+        $observations = $purchaseRequest->observations ?? [];
+
+        if (!array_key_exists($noteIndex, $observations)) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                             ->with('error', 'La observación no existe o ya fue eliminada.');
+        }
+
+        unset($observations[$noteIndex]);
+        $purchaseRequest->update(['observations' => array_values($observations)]);
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+                         ->with('success', 'Observación eliminada.');
+    }
+
     /**
      * Devuelve los ítems de una SOLCOM en JSON para precarga en el modal de creación de OC.
      */
