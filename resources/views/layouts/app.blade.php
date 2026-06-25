@@ -32,6 +32,47 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <style>
+        .app-list-table thead th {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+        .app-list-table tbody td {
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .hover-marquee {
+            --marquee-width: 210px;
+            max-width: var(--marquee-width);
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .hover-marquee .track {
+            display: inline-flex;
+            gap: 1.5rem;
+            min-width: 100%;
+        }
+        .hover-marquee:not(:hover) .track {
+            display: block;
+        }
+        .hover-marquee:not(:hover) .track span + span {
+            display: none;
+        }
+        .hover-marquee:not(:hover) .track span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hover-marquee:hover .track {
+            animation: table-hover-marquee 9s linear infinite;
+        }
+        @keyframes table-hover-marquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(calc(-50% - 0.75rem)); }
+        }
+    </style>
+
     @stack('styles')
 </head>
 

@@ -83,14 +83,13 @@
 
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
                                 <th>Código</th>
                                 <th>SOLMAT</th>
-                                <th>Proyecto</th>
-                                <th>Obra</th>
+                                <th>Proyecto / Obra</th>
                                 <th>F. Solicitud</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
@@ -121,8 +120,25 @@
                                             <span class="text-muted">—</span>
                                         @endif
                                     </td>
-                                    <td>{{ $pr->project?->name ?? '—' }}</td>
-                                    <td>{{ $pr->projectWork?->name ?? '—' }}</td>
+                                    <td style="max-width: 200px;">
+                                        @php
+                                            $proj = $pr->project?->name ?? null;
+                                            $obra = $pr->projectWork?->name ?? null;
+                                        @endphp
+                                        @if ($proj)
+                                            <div class="hover-marquee" title="{{ $proj }}">
+                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
+                                            </div>
+                                        @endif
+                                        @if ($obra)
+                                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
+                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
+                                            </small>
+                                        @endif
+                                        @if (!$proj && !$obra)
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $pr->request_date?->format('d/m/Y') }}</td>
                                     <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
                                     <td>
@@ -153,7 +169,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td colspan="7" class="text-center text-muted py-4">
                                         No hay solicitudes de compra registradas.
                                     </td>
                                 </tr>

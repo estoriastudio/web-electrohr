@@ -98,7 +98,7 @@
 
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
@@ -148,10 +148,14 @@
                                             $obra = $order->workRelation?->name  ?? $order->site    ?? null;
                                         @endphp
                                         @if ($proj)
-                                            <div class="text-truncate" style="max-width:150px" title="{{ $proj }}">{{ $proj }}</div>
+                                            <div class="hover-marquee" style="--marquee-width:150px;" title="{{ $proj }}">
+                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
+                                            </div>
                                         @endif
                                         @if ($obra)
-                                            <small class="text-muted text-truncate d-block" style="max-width:150px" title="{{ $obra }}">{{ $obra }}</small>
+                                            <small class="text-muted d-block hover-marquee" style="--marquee-width:150px;" title="{{ $obra }}">
+                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
+                                            </small>
                                         @endif
                                         @if (!$proj && !$obra)—@endif
                                     </td>

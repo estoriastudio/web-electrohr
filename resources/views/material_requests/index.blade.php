@@ -82,13 +82,12 @@
 
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle table-hover table-centered mb-0 solmat-list-table">
+                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
                                 <th>Código</th>
-                                <th>Proyecto</th>
-                                <th>Obras</th>
+                                <th>Proyecto / Obras</th>
                                 <th>Ubicación</th>
                                 <th>F. Solicitud</th>
                                 <th>Categoría</th>
@@ -116,17 +115,23 @@
                                     <td>
                                         <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
                                     </td>
-                                    <td>{{ $mr->project?->name ?? '—' }}</td>
-                                    <td>
-                                        @php $works = $mr->projectWorks; @endphp
-                                        @if ($works->isNotEmpty())
-                                            @foreach ($works->take(2) as $w)
-                                                <span class="badge bg-info-subtle text-info border me-1">{{ $w->name }}</span>
-                                            @endforeach
-                                            @if ($works->count() > 2)
-                                                <span class="badge bg-light text-dark border">+{{ $works->count() - 2 }}</span>
-                                            @endif
-                                        @else
+                                    <td style="max-width: 220px;">
+                                        @php
+                                            $proj = $mr->project?->name ?? null;
+                                            $obra = $mr->projectWorks->pluck('name')->implode(' · ');
+                                            $obra = $obra !== '' ? $obra : null;
+                                        @endphp
+                                        @if ($proj)
+                                            <div class="hover-marquee" title="{{ $proj }}">
+                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
+                                            </div>
+                                        @endif
+                                        @if ($obra)
+                                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
+                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
+                                            </small>
+                                        @endif
+                                        @if (!$proj && !$obra)
                                             <span class="text-muted">—</span>
                                         @endif
                                     </td>
@@ -163,7 +168,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         No hay solicitudes de material registradas.
                                     </td>
                                 </tr>
@@ -320,15 +325,6 @@
 
 @push('scripts')
 <style>
-.solmat-list-table thead th {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: .02em;
-}
-.solmat-list-table tbody td {
-    font-size: 13px;
-    white-space: nowrap;
-}
 .location-round-selector {
     display: inline-flex;
     border: 1px solid var(--bs-border-color);
