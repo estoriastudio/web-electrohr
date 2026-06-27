@@ -33,10 +33,40 @@
                 </a>
             </div>
 
-            {{-- Búsqueda --}}
+            {{-- Bandeja + Búsqueda --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('purchasing.solcom_pile') }}" class="row g-2 align-items-end">
-                    <div class="col-md-7">
+                    <div class="col-12">
+                        <label class="form-label form-label-sm mb-2">Bandeja</label>
+                        <ul class="nav nav-tabs nav-justified" role="tablist" aria-label="Bandeja SOLCOM">
+                            <li class="nav-item" role="presentation">
+                                <a href="{{ route('purchasing.solcom_pile', ['section' => 'entrada', 'search' => $search ?: null]) }}"
+                                   class="nav-link {{ ($section ?? 'entrada') === 'entrada' ? 'active' : '' }}">
+                                    <i class="ri-inbox-archive-line me-1"></i>
+                                    Entrada
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary ms-1">{{ $entryCount ?? 0 }}</span>
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a href="{{ route('purchasing.solcom_pile', ['section' => 'salida', 'search' => $search ?: null]) }}"
+                                   class="nav-link {{ ($section ?? '') === 'salida' ? 'active' : '' }}">
+                                    <i class="ri-share-forward-line me-1"></i>
+                                    Con salida
+                                    <span class="badge rounded-pill bg-info-subtle text-info ms-1">{{ $outCount ?? 0 }}</span>
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a href="{{ route('purchasing.solcom_pile', ['section' => 'todas', 'search' => $search ?: null]) }}"
+                                   class="nav-link {{ ($section ?? '') === 'todas' ? 'active' : '' }}">
+                                    <i class="ri-stack-line me-1"></i>
+                                    Todas
+                                    <span class="badge rounded-pill bg-secondary-subtle text-secondary ms-1">{{ ($entryCount ?? 0) + ($outCount ?? 0) }}</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <input type="hidden" name="section" value="{{ $section ?? 'entrada' }}">
+                    <div class="col-md-9">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                             <input type="text" name="search" value="{{ $search }}"
@@ -47,7 +77,7 @@
                     <div class="col-md-3 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
                         @if ($search)
-                            <a href="{{ route('purchasing.solcom_pile') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
+                            <a href="{{ route('purchasing.solcom_pile', ['section' => $section ?? 'entrada']) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif
@@ -66,6 +96,8 @@
                                 <th>Descripción</th>
                                 <th>F. Necesidad</th>
                                 <th>Ítems</th>
+                                <th>OCs Generadas</th>
+                                <th>Últ. salida</th>
                                 <th>Notas Pendientes</th>
                                 <th>Acciones</th>
                             </tr>
@@ -121,6 +153,25 @@
                                         </span>
                                     </td>
                                     <td>
+                                        @if (($pr->purchase_orders_count ?? 0) > 0)
+                                            <span class="badge bg-info-subtle text-info py-1 px-2 fs-12">
+                                                {{ $pr->purchase_orders_count }} OC(s)
+                                            </span>
+                                        @else
+                                            <span class="badge bg-light text-muted border py-1 px-2 fs-12">Sin salida</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if (!empty($pr->purchase_orders_max_created_at))
+                                            @php $lastOut = \Carbon\Carbon::parse($pr->purchase_orders_max_created_at); @endphp
+                                            <span class="fw-medium fs-12" title="{{ $lastOut->format('d/m/Y H:i') }}">
+                                                {{ $lastOut->diffForHumans() }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted fs-12">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         @if ($pendingNotes > 0)
                                             <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
                                                 <i class="ri-edit-circle-line me-1"></i>{{ $pendingNotes }} nota(s)
@@ -149,7 +200,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-5">
+                                    <td colspan="10" class="text-center text-muted py-5">
                                         <i class="ri-stack-line fs-24 d-block mb-2 opacity-50"></i>
                                         No tienes SOLCOM asignadas en este momento.<br>
                                         <small>Las SOLCOM enviadas a tu usuario aparecerán aquí.</small>

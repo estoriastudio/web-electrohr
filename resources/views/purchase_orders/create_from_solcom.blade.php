@@ -35,13 +35,28 @@
             @endif
         </p>
         <p class="mb-0 text-muted fs-12">
-            Los {{ $purchaseRequest->items->count() }} concepto(s) se importarán automáticamente al crear la OC.
+            Puedes elegir que conceptos heredar; por defecto se seleccionan todos.
+        </p>
+    </div>
+</div>
+
+<div class="alert alert-warning d-flex align-items-start gap-2 py-2 mb-3">
+    <i class="ri-git-branch-line fs-18 mt-1 text-warning"></i>
+    <div>
+        <p class="mb-0 fw-semibold fs-13">Bifurcación parcial de SOLCOM</p>
+        <p class="mb-0 text-muted fs-12">
+            Esta OC puede tomar solo una parte de los conceptos para este proveedor. Los conceptos no seleccionados
+            permanecerán disponibles para generar otra OC desde la misma SOLCOM.
         </p>
     </div>
 </div>
 
 <div class="row justify-content-center">
     <div class="col-xl-10">
+        @php
+            $defaultSelectedItems = $purchaseRequest->items->pluck('id')->map(fn($id) => (string) $id)->all();
+            $selectedItems = old('selected_item_ids', $defaultSelectedItems);
+        @endphp
         <div class="card">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h4 class="card-title mb-0">
@@ -267,13 +282,28 @@
                             <h6 class="fw-semibold mb-3">
                                 <i class="ri-list-check me-1 text-primary"></i>
                                 Conceptos a importar
-                                <span class="badge bg-primary-subtle text-primary ms-1">{{ $purchaseRequest->items->count() }}</span>
-                                <small class="text-muted fw-normal fs-12 ms-1">(se copiarán automáticamente al crear)</small>
+                                <span id="selected_items_badge" class="badge bg-primary-subtle text-primary ms-1">{{ count($selectedItems) }}</span>
+                                <small class="text-muted fw-normal fs-12 ms-1">seleccionado(s)</small>
                             </h6>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-light" id="btn_select_all_items">
+                                    <i class="ri-checkbox-multiple-line me-1"></i>Seleccionar todos
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_all_items">
+                                    <i class="ri-checkbox-blank-line me-1"></i>Limpiar selección
+                                </button>
+                                <span class="text-muted fs-12 align-self-center ms-md-auto">
+                                    Subtotal estimado seleccionado: <strong id="selected_items_subtotal">0.00</strong>
+                                </span>
+                            </div>
+                            <div id="selected_items_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                Debes seleccionar al menos un concepto para crear la OC.
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
                                     <thead class="bg-light-subtle">
                                         <tr>
+                                            <th style="width:42px;"></th>
                                             <th>#</th>
                                             <th>Descripción</th>
                                             <th>Unidad</th>
@@ -290,8 +320,17 @@
                                                 $price = (float) ($item->concept?->unit_price ?? 0);
                                                 $total = $qty * $price;
                                                 $subtotal += $total;
+                                                $checked = in_array((string) $item->id, array_map('strval', (array) $selectedItems), true);
                                             @endphp
                                             <tr>
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input js-inherit-item"
+                                                           name="selected_item_ids[]"
+                                                           value="{{ $item->id }}"
+                                                           data-total="{{ number_format($total, 2, '.', '') }}"
+                                                           {{ $checked ? 'checked' : '' }}>
+                                                </td>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
                                                 <td>{{ $item->description }}</td>
                                                 <td>{{ $item->unit }}</td>
@@ -301,7 +340,7 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="6" class="text-center text-muted py-3">
+                                                <td colspan="7" class="text-center text-muted py-3">
                                                     Esta SOLCOM no tiene conceptos registrados.
                                                 </td>
                                             </tr>
@@ -418,6 +457,71 @@
     if (checkedRec && checkedRec.value === 'recurrente') {
         document.getElementById('campos_recurrencia').style.display = '';
     }
+}());
+
+(function () {
+    const checkboxes = Array.from(document.querySelectorAll('.js-inherit-item'));
+    if (!checkboxes.length) return;
+
+    const selectedBadge = document.getElementById('selected_items_badge');
+    const selectedSubtotal = document.getElementById('selected_items_subtotal');
+    const selectedError = document.getElementById('selected_items_error');
+    const btnSelectAll = document.getElementById('btn_select_all_items');
+    const btnClearAll = document.getElementById('btn_clear_all_items');
+    const form = document.querySelector('form[action="{{ route('purchase_orders.store') }}"]');
+
+    function updateSelectedStats() {
+        let selected = 0;
+        let subtotal = 0;
+
+        checkboxes.forEach(function (cb) {
+            if (!cb.checked) return;
+            selected += 1;
+            subtotal += parseFloat(cb.dataset.total || 0);
+        });
+
+        if (selectedBadge) selectedBadge.textContent = String(selected);
+        if (selectedSubtotal) {
+            selectedSubtotal.textContent = subtotal.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
+        if (selectedError) selectedError.classList.toggle('d-none', selected > 0);
+        return selected;
+    }
+
+    checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', updateSelectedStats);
+    });
+
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', function () {
+            checkboxes.forEach(function (cb) { cb.checked = true; });
+            updateSelectedStats();
+        });
+    }
+
+    if (btnClearAll) {
+        btnClearAll.addEventListener('click', function () {
+            checkboxes.forEach(function (cb) { cb.checked = false; });
+            updateSelectedStats();
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            if (updateSelectedStats() > 0) return;
+            e.preventDefault();
+            if (selectedError) {
+                selectedError.classList.remove('d-none');
+                selectedError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    }
+
+    updateSelectedStats();
 }());
 </script>
 @endpush

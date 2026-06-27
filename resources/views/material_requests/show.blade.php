@@ -200,7 +200,7 @@
                                     <td class="text-end">{{ (int) $item->quantity }}</td>
                                     <td>
                                         @if ($item->file_path)
-                                            <a href="{{ Storage::disk('s3')->url($item->file_path) }}"
+                                            <a href="{{ Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30)) }}"
                                                target="_blank"
                                                class="btn btn-light btn-sm"
                                                title="Descargar especificaciones">

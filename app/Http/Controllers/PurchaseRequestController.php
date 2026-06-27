@@ -224,7 +224,9 @@ class PurchaseRequestController extends Controller
                 'requested_quantity' => $item->requested_quantity,
                 'purchase_quantity'  => $item->purchase_quantity,
                 'file_path'          => $item->file_path,
-                'file_url'           => $item->file_path ? Storage::disk('s3')->url($item->file_path) : null,
+                'file_url'           => $item->file_path
+                    ? Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30))
+                    : null,
             ]);
         }
 
@@ -507,12 +509,21 @@ class PurchaseRequestController extends Controller
     // ── Pila SOLCOM (vista de Compras) ──────────────────────────────────────
     public function purchasingPile(Request $request)
     {
-        $search = $request->input('search', '');
+        $search  = $request->input('search', '');
+        $section = $request->input('section', 'entrada'); // entrada | salida | todas
 
         $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'changeNotes'])
+            ->withCount('purchaseOrders')
+            ->withMax('purchaseOrders', 'created_at')
             ->where('status', 'sent_to_purchasing')
             ->where('assigned_to', Auth::id())
             ->orderByDesc('folio');
+
+        if ($section === 'entrada') {
+            $query->doesntHave('purchaseOrders');
+        } elseif ($section === 'salida') {
+            $query->has('purchaseOrders');
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -524,7 +535,19 @@ class PurchaseRequestController extends Controller
 
         $purchaseRequests = $query->paginate(20)->withQueryString();
 
-        return view('purchasing.solcom_pile', compact('purchaseRequests', 'search'));
+        $baseQuery = PurchaseRequest::where('status', 'sent_to_purchasing')
+            ->where('assigned_to', Auth::id());
+
+        $entryCount = (clone $baseQuery)->doesntHave('purchaseOrders')->count();
+        $outCount   = (clone $baseQuery)->has('purchaseOrders')->count();
+
+        return view('purchasing.solcom_pile', compact(
+            'purchaseRequests',
+            'search',
+            'section',
+            'entryCount',
+            'outCount'
+        ));
     }
 
     // ── Solicitar cambios en SOLCOM ──────────────────────────────────────────

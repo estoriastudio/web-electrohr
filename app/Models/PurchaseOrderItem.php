@@ -9,6 +9,7 @@ class PurchaseOrderItem extends Model
 {
     protected $fillable = [
         'purchase_order_id',
+        'purchase_request_item_id',
         'concept_id',
         'description',
         'unit',
@@ -35,5 +36,10 @@ class PurchaseOrderItem extends Model
     public function concept(): BelongsTo
     {
         return $this->belongsTo(Concept::class);
+    }
+
+    public function purchaseRequestItem(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseRequestItem::class);
     }
 }

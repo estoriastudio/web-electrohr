@@ -15,6 +15,7 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /* PDF */
@@ -100,7 +101,7 @@ class PurchaseOrderController extends Controller
      */
     public function createFromSolcom(PurchaseRequest $purchaseRequest): View
     {
-        $purchaseRequest->load(['project', 'projectWork', 'items.concept']);
+        $purchaseRequest->load(['project', 'projectWork', 'items.concept', 'purchaseOrders:id,purchase_request_id,folio']);
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
@@ -132,6 +133,17 @@ class PurchaseOrderController extends Controller
         if ($request->type === 'materiales_servicios') {
             $rules['project_id']      = 'nullable|exists:projects,id';
             $rules['project_work_id'] = 'nullable|exists:project_works,id';
+
+            // Si se crea desde SOLCOM, permitir seleccionar qué conceptos heredar
+            if ($request->filled('purchase_request_id')) {
+                $rules['selected_item_ids'] = ['required', 'array', 'min:1'];
+                $rules['selected_item_ids.*'] = [
+                    'integer',
+                    Rule::exists('purchase_request_items', 'id')->where(function ($q) use ($request) {
+                        $q->where('purchase_request_id', (int) $request->input('purchase_request_id'));
+                    }),
+                ];
+            }
         }
 
         if ($request->type === 'mantenimiento') {
@@ -155,6 +167,7 @@ class PurchaseOrderController extends Controller
             $validated['project_id']          = null;
             $validated['project_work_id']     = null;
             $validated['purchase_request_id'] = null;
+            unset($validated['selected_item_ids']);
         } else {
             $validated['mobile_asset_id'] = null;
         }
@@ -177,9 +190,15 @@ class PurchaseOrderController extends Controller
             $pr = PurchaseRequest::with('items.concept')->find($validated['purchase_request_id']);
 
             if ($pr) {
-                foreach ($pr->items as $item) {
+                $selectedItemIds = collect($validated['selected_item_ids'] ?? [])->map(fn ($id) => (int) $id);
+                $itemsToCopy = $selectedItemIds->isNotEmpty()
+                    ? $pr->items->whereIn('id', $selectedItemIds)->values()
+                    : $pr->items;
+
+                foreach ($itemsToCopy as $item) {
                     PurchaseOrderItem::create([
                         'purchase_order_id' => $order->id,
+                        'purchase_request_item_id' => $item->id,
                         'concept_id'        => $item->concept_id,
                         'description'       => $item->description,
                         'unit'              => $item->unit,
@@ -192,8 +211,11 @@ class PurchaseOrderController extends Controller
                 // Recalcular amount a partir de los ítems copiados
                 $order->recalculateAmount();
 
-                // Marcar la SOLCOM como completada para que salga de la Pila SOLCOM
-                $pr->update(['status' => 'completed']);
+                // Mantener la SOLCOM activa en la Pila de Compras para permitir bifurcaciones.
+                // El cierre de la SOLCOM debe ser explícito y no automático con la primera OC.
+                if ($pr->status !== 'sent_to_purchasing') {
+                    $pr->update(['status' => 'sent_to_purchasing']);
+                }
             }
         }
 
@@ -266,6 +288,7 @@ class PurchaseOrderController extends Controller
             foreach ($parent->items as $item) {
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $child->id,
+                    'purchase_request_item_id' => $item->purchase_request_item_id,
                     'concept_id'        => $item->concept_id,
                     'description'       => $item->description,
                     'unit'              => $item->unit,
@@ -296,7 +319,7 @@ class PurchaseOrderController extends Controller
             'milestones.invoices',
             'invoices.milestones',
             'items.concept',
-            'purchaseRequest',
+            'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
         ]);
 
         return view('purchase_orders.show', compact('purchaseOrder'));

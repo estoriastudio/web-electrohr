@@ -195,7 +195,9 @@ class MaterialRequestController extends Controller
                 'unit'        => $item->unit,
                 'quantity'    => $item->quantity,
                 'file_path'   => $item->file_path,
-                'file_url'    => $item->file_path ? Storage::disk('s3')->url($item->file_path) : null,
+                'file_url'    => $item->file_path
+                    ? Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30))
+                    : null,
             ]);
         }
 

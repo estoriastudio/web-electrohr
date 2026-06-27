@@ -1,6 +1,9 @@
 @php
     $solcom = $purchaseOrder->purchaseRequest ?? null;
     $solmat = $solcom?->materialRequest ?? null;
+    $branchOrders = $solcom
+        ? ($solcom->purchaseOrders ?? collect())->sortBy('folio')->values()
+        : collect();
 @endphp
 
 @if ($solcom)
@@ -35,22 +38,37 @@
             <span class="text-warning fw-medium" style="font-size:10px;white-space:nowrap;">
                 SOLCOM #{{ $solcom->folio ?? $solcom->id }}
             </span>
+            <span class="text-muted" style="font-size:9px;white-space:nowrap;">
+                {{ $branchOrders->count() }} rama(s) OC
+            </span>
         </a>
     </div>
-    {{-- Conector --}}
-    <div style="min-width:24px;height:0;border-top:2px dashed #adb5bd;margin-top:13px;flex-shrink:0;"></div>
 
-    {{-- Nodo OC (destino) --}}
-    <div class="d-flex flex-column align-items-center text-center" style="min-width:48px;">
-        <div class="d-flex flex-column align-items-center" style="gap:4px;">
-            <div class="d-flex align-items-center justify-content-center rounded-circle bg-primary border border-primary border-2"
-                 style="width:28px;height:28px;">
-                <i class="ri-file-list-3-line text-white" style="font-size:12px;"></i>
+    {{-- Rama estilo git: SOLCOM -> múltiples OCs --}}
+    <div class="ms-2" style="min-width:200px;">
+        @forelse ($branchOrders as $branch)
+            @php
+                $isCurrent = (int) $branch->id === (int) $purchaseOrder->id;
+            @endphp
+            <div class="d-flex align-items-center" style="gap:6px;line-height:1.1;">
+                <span class="text-muted" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:11px;">
+                    {{ $loop->last ? '\\-' : '|-' }}
+                </span>
+                @if ($isCurrent)
+                    <span class="badge bg-primary text-white" style="font-size:10px;">
+                        OC #{{ $branch->folio ?? $branch->id }} (actual)
+                    </span>
+                @else
+                    <a href="{{ route('purchase_orders.show', $branch) }}"
+                       class="badge bg-light text-primary border text-decoration-none"
+                       style="font-size:10px;">
+                        OC #{{ $branch->folio ?? $branch->id }}
+                    </a>
+                @endif
             </div>
-            <span class="text-primary fw-semibold" style="font-size:10px;white-space:nowrap;">
-                OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}
-            </span>
-        </div>
+        @empty
+            <span class="text-muted" style="font-size:10px;">Sin ramas OC todavía</span>
+        @endforelse
     </div>
 </div>
 @endif
