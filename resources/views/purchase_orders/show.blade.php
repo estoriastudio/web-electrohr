@@ -815,14 +815,6 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
-                                            @if ($payment->spei_receipt_path)
-                                            <div class="alert alert-light border py-2 fs-13 mb-3">
-                                                Comprobante actual:
-                                                <a href="{{ route('payments.spei_receipt.download', $payment) }}" target="_blank" class="fw-semibold">
-                                                    {{ $payment->spei_receipt_name ?? 'Ver archivo' }}
-                                                </a>
-                                            </div>
-                                            @endif
                                             <div class="mb-0">
                                                 <label class="form-label fw-medium">
                                                     Archivo comprobante SPEI <span class="text-danger">*</span>
