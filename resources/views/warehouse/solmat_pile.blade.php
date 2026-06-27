@@ -61,8 +61,7 @@
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
-                                <th>Proyecto</th>
-                                <th>Obras</th>
+                                <th>Proyecto / Obras</th>
                                 <th>Ubicación</th>
                                 <th>Categoría</th>
                                 <th>F. Solicitud</th>
@@ -80,18 +79,27 @@
                                             #{{ $mr->folio }}
                                         </a>
                                     </td>
-                                    <td>{{ $mr->project?->name ?? '—' }}</td>
-                                    <td class="w-25">
-                                        <div class="d-flex flex-wrap gap-1" style="max-width:260px; white-space:normal;">
-                                            @foreach ($mr->projectWorks->take(2) as $pw)
-                                                <span class="badge bg-info-subtle text-info border py-1 px-2 fs-12" style="text-align: left; white-space:initial;">{{ $pw->name }}</span>
+                                    <td style="max-width:180px">
+                                        @php
+                                            $projectName = $mr->project?->name;
+                                            $works = $mr->projectWorks;
+                                        @endphp
+                                        @if ($projectName)
+                                            <div class="hover-marquee" style="--marquee-width:170px;" title="{{ $projectName }}">
+                                                <span class="track"><span>{{ $projectName }}</span><span aria-hidden="true">{{ $projectName }}</span></span>
+                                            </div>
+                                        @endif
+                                        @if ($works->isNotEmpty())
+                                            @foreach ($works->take(2) as $pw)
+                                                <small class="text-muted d-block hover-marquee" style="--marquee-width:170px;" title="{{ $pw->name }}">
+                                                    <span class="track"><span>{{ $pw->name }}</span><span aria-hidden="true">{{ $pw->name }}</span></span>
+                                                </small>
                                             @endforeach
-                                            @if ($mr->projectWorks->count() > 2)
-                                                <span class="badge bg-secondary-subtle text-secondary border py-1 px-2 fs-12" style="text-align: left; white-space:initial;">
-                                                    +{{ $mr->projectWorks->count() - 2 }} más
-                                                </span>
+                                            @if ($works->count() > 2)
+                                                <small class="text-muted d-block">+{{ $works->count() - 2 }} más</small>
                                             @endif
-                                        </div>
+                                        @endif
+                                        @if (!$projectName && $works->isEmpty())—@endif
                                     </td>
                                     <td>{{ $mr->zone }}</td>
                                     <td>{{ $mr->supply_category }}</td>
@@ -117,7 +125,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-5">
+                                    <td colspan="8" class="text-center text-muted py-5">
                                         <i class="ri-inbox-2-line fs-24 d-block mb-2 opacity-50"></i>
                                         No hay SOLMAT en espera de procesamiento.<br>
                                         <small>Las SOLMAT enviadas a Almacén aparecerán aquí.</small>

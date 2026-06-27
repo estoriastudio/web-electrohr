@@ -62,8 +62,7 @@
                             <tr>
                                 <th>Folio</th>
                                 <th>SOLMAT</th>
-                                <th>Proyecto</th>
-                                <th>Obra</th>
+                                <th>Proyecto / Obra</th>
                                 <th>Descripción</th>
                                 <th>F. Necesidad</th>
                                 <th>Ítems</th>
@@ -93,8 +92,23 @@
                                             <span class="text-muted">—</span>
                                         @endif
                                     </td>
-                                    <td>{{ $pr->project?->name ?? '—' }}</td>
-                                    <td>{{ $pr->projectWork?->name ?? '—' }}</td>
+                                    <td style="max-width:160px">
+                                        @php
+                                            $projectName = $pr->project?->name;
+                                            $workName = $pr->projectWork?->name;
+                                        @endphp
+                                        @if ($projectName)
+                                            <div class="hover-marquee" style="--marquee-width:150px;" title="{{ $projectName }}">
+                                                <span class="track"><span>{{ $projectName }}</span><span aria-hidden="true">{{ $projectName }}</span></span>
+                                            </div>
+                                        @endif
+                                        @if ($workName)
+                                            <small class="text-muted d-block hover-marquee" style="--marquee-width:150px;" title="{{ $workName }}">
+                                                <span class="track"><span>{{ $workName }}</span><span aria-hidden="true">{{ $workName }}</span></span>
+                                            </small>
+                                        @endif
+                                        @if (!$projectName && !$workName)—@endif
+                                    </td>
                                     <td>
                                         <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;display:block;">
                                             {{ $pr->short_description }}
@@ -135,7 +149,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-5">
+                                    <td colspan="8" class="text-center text-muted py-5">
                                         <i class="ri-stack-line fs-24 d-block mb-2 opacity-50"></i>
                                         No tienes SOLCOM asignadas en este momento.<br>
                                         <small>Las SOLCOM enviadas a tu usuario aparecerán aquí.</small>

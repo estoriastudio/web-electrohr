@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 use Carbon\Carbon;
 
@@ -148,13 +149,17 @@ class PaymentController extends Controller
 
         if ($request->hasFile('spei_receipt_file')) {
             $file = $request->file('spei_receipt_file');
-            $fileName = 'SPEI-' . ($validated['folio'] ?? strtoupper('PAY-' . random_int(10000, 99999))) . '-' . time() . '.' . $file->getClientOriginalExtension();
+            $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) ($validated['folio'] ?? ('PAY-' . random_int(10000, 99999)))));
+            $fileName = 'SPEI-' . $safeFolio . '-' . time() . '.' . strtolower($file->getClientOriginalExtension());
             $storageDir = 'payments/spei/' . $validated['milestone_id'];
-            $s3Path = $storageDir . '/' . $fileName;
+            $storedPath = Storage::disk('s3')->putFileAs($storageDir, $file, $fileName);
 
-            Storage::disk('s3')->put($s3Path, file_get_contents($file));
+            if (!$storedPath) {
+                return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
+                    ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
+            }
 
-            $validated['spei_receipt_path'] = $s3Path;
+            $validated['spei_receipt_path'] = $storedPath;
             $validated['spei_receipt_name'] = $fileName;
         }
 
@@ -207,17 +212,23 @@ class PaymentController extends Controller
 
         if ($hasSpeiFile) {
             $file = $request->file('spei_receipt_file');
-            $fileName = 'SPEI-' . $payment->folio . '-' . time() . '.' . $file->getClientOriginalExtension();
+            $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) $payment->folio));
+            $fileName = 'SPEI-' . $safeFolio . '-' . time() . '.' . strtolower($file->getClientOriginalExtension());
             $storageDir = 'payments/spei/' . $payment->milestone_id;
-            $s3Path = $storageDir . '/' . $fileName;
+            $storedPath = Storage::disk('s3')->putFileAs($storageDir, $file, $fileName);
 
-            if ($payment->spei_receipt_path && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
-                Storage::disk('s3')->delete($payment->spei_receipt_path);
+            if (!$storedPath) {
+                return redirect()->route('purchase_orders.show', $orderId)
+                    ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
             }
 
-            Storage::disk('s3')->put($s3Path, file_get_contents($file));
+            $previousSpeiPath = $payment->spei_receipt_path;
 
-            $payment->spei_receipt_path = $s3Path;
+            if ($previousSpeiPath && Storage::disk('s3')->exists($previousSpeiPath)) {
+                Storage::disk('s3')->delete($previousSpeiPath);
+            }
+
+            $payment->spei_receipt_path = $storedPath;
             $payment->spei_receipt_name = $fileName;
         }
 
@@ -309,13 +320,27 @@ class PaymentController extends Controller
     /**
      * Descargar o visualizar comprobante SPEI asociado al pago.
      */
-    public function downloadSpeiReceipt(Payment $payment)
+    public function downloadSpeiReceipt(Request $request, Payment $payment)
     {
-        if (!$payment->spei_receipt_path || !Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+        $disk = Storage::disk('s3');
+
+        if (!$payment->spei_receipt_path || !$disk->exists($payment->spei_receipt_path)) {
             abort(404, 'Comprobante SPEI no encontrado.');
         }
 
-        return redirect()->away(Storage::disk('s3')->url($payment->spei_receipt_path));
+        $downloadName = $payment->spei_receipt_name ?: basename($payment->spei_receipt_path);
+        $downloadName = str_replace('"', '', $downloadName);
+        $disposition = $request->query('disposition') === 'inline' ? 'inline' : 'attachment';
+
+        $url = method_exists($disk, 'temporaryUrl')
+            ? $disk->temporaryUrl(
+                $payment->spei_receipt_path,
+                now()->addMinutes(10),
+                ['ResponseContentDisposition' => $disposition . '; filename="' . $downloadName . '"']
+            )
+            : $disk->url($payment->spei_receipt_path);
+
+        return redirect()->away($url);
     }
 
     /**

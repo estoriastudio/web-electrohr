@@ -759,18 +759,26 @@
                                                             data-bs-target="#modalSpeiReceipt{{ $payment->id }}"
                                                             title="{{ $payment->spei_receipt_path ? 'Reemplazar comprobante SPEI' : 'Subir comprobante SPEI' }}">
                                                         <i class="ri-file-upload-line"></i>
-                                                        {{ $payment->spei_receipt_path ? 'SPEI' : 'Subir SPEI' }}
+                                                        {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI' }}
                                                     </button>
                                                     @endhasanyrole
 
                                                     @if ($payment->spei_receipt_path)
                                                     @hasanyrole('admin|Pagos|Orden de compra')
-                                                    <a href="{{ route('payments.spei_receipt.download', $payment) }}"
-                                                       target="_blank"
-                                                       class="btn btn-xs btn-soft-success"
-                                                       title="Ver comprobante SPEI">
-                                                        <i class="ri-attachment-2"></i>
-                                                    </a>
+                                                    @php
+                                                        $speiExt = strtolower(pathinfo($payment->spei_receipt_name ?: $payment->spei_receipt_path, PATHINFO_EXTENSION));
+                                                        $speiIsImage = in_array($speiExt, ['jpg', 'jpeg', 'png', 'webp'], true);
+                                                    @endphp
+                                                    <button type="button"
+                                                            class="btn btn-xs btn-soft-success js-open-spei-modal"
+                                                            data-spei-preview-url="{{ route('payments.spei_receipt.download', ['payment' => $payment, 'disposition' => 'inline']) }}"
+                                                            data-spei-download-url="{{ route('payments.spei_receipt.download', $payment) }}"
+                                                            data-spei-name="{{ $payment->spei_receipt_name ?: ('SPEI-' . $payment->folio) }}"
+                                                            data-spei-is-image="{{ $speiIsImage ? '1' : '0' }}"
+                                                            title="Ver comprobante SPEI">
+                                                        <i class="ri-eye-line"></i>
+                                                        Ver SPEI
+                                                    </button>
                                                     @endhasanyrole
                                                     @endif
 
@@ -1394,6 +1402,34 @@
 @endif
 @endhasanyrole
 
+{{-- Modal único para visualizar comprobante SPEI --}}
+<div class="modal fade" id="modalViewSpeiReceipt" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewSpeiTitle">
+                    <i class="ri-image-2-line me-1"></i> Comprobante SPEI
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light-subtle">
+                <div id="speiImageWrap" class="text-center d-none">
+                    <img id="speiImagePreview" src="" alt="Comprobante SPEI" class="img-fluid rounded border" style="max-height: 72vh; object-fit: contain;">
+                </div>
+                <div id="speiDocWrap" class="d-none">
+                    <iframe id="speiDocPreview" src="" title="Comprobante SPEI" style="width: 100%; height: 72vh; border: 1px solid var(--bs-border-color); border-radius: .5rem;"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="speiDownloadAction" href="#" target="_blank" class="btn btn-primary">
+                    <i class="ri-download-2-line me-1"></i> Descargar
+                </a>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('styles')
 <style>
 .oc-qty-input,.oc-delivery-input {
@@ -1896,6 +1932,58 @@ $(function () {
 
     // Inicializar
     updateMilestoneValueConstraints();
+
+    // ── Visualización de comprobante SPEI ──
+    var speiModalEl = document.getElementById('modalViewSpeiReceipt');
+    var speiImageWrap = document.getElementById('speiImageWrap');
+    var speiDocWrap = document.getElementById('speiDocWrap');
+    var speiImagePreview = document.getElementById('speiImagePreview');
+    var speiDocPreview = document.getElementById('speiDocPreview');
+    var speiDownloadAction = document.getElementById('speiDownloadAction');
+    var speiTitle = document.getElementById('viewSpeiTitle');
+
+    $(document).on('click', '.js-open-spei-modal', function () {
+        var $btn = $(this);
+        var previewUrl = $btn.data('speiPreviewUrl');
+        var downloadUrl = $btn.data('speiDownloadUrl');
+        var fileName = $btn.data('speiName') || 'Comprobante SPEI';
+        var isImage = String($btn.data('speiIsImage')) === '1';
+
+        if (speiTitle) {
+            speiTitle.innerHTML = '<i class="ri-image-2-line me-1"></i> Comprobante SPEI - ' + fileName;
+        }
+
+        if (speiDownloadAction) {
+            speiDownloadAction.setAttribute('href', downloadUrl || '#');
+        }
+
+        if (isImage) {
+            speiDocWrap.classList.add('d-none');
+            speiImageWrap.classList.remove('d-none');
+            speiImagePreview.setAttribute('src', previewUrl || '');
+            speiDocPreview.setAttribute('src', '');
+        } else {
+            speiImageWrap.classList.add('d-none');
+            speiDocWrap.classList.remove('d-none');
+            speiDocPreview.setAttribute('src', previewUrl || '');
+            speiImagePreview.setAttribute('src', '');
+        }
+
+        if (speiModalEl) {
+            bootstrap.Modal.getOrCreateInstance(speiModalEl).show();
+        }
+    });
+
+    if (speiModalEl) {
+        speiModalEl.addEventListener('hidden.bs.modal', function () {
+            if (speiImagePreview) speiImagePreview.setAttribute('src', '');
+            if (speiDocPreview) speiDocPreview.setAttribute('src', '');
+            if (speiImageWrap) speiImageWrap.classList.add('d-none');
+            if (speiDocWrap) speiDocWrap.classList.add('d-none');
+            if (speiTitle) speiTitle.innerHTML = '<i class="ri-image-2-line me-1"></i> Comprobante SPEI';
+            if (speiDownloadAction) speiDownloadAction.setAttribute('href', '#');
+        });
+    }
 });
 </script>
 @endpush
