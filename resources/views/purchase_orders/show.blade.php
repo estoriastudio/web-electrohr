@@ -54,6 +54,7 @@
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
     $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
+    $minDueDate = now()->format('Y-m-d');
 @endphp
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
@@ -1112,7 +1113,7 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha vencimiento</label>
                                 <input type="date" class="form-control"
-                                       name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}">
+                                       name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}" min="{{ $minDueDate }}">
                             </div>
                             <div class="col-12">
                                 <div class="form-check form-switch">
@@ -1367,7 +1368,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Fecha vencimiento</label>
-                            <input type="date" class="form-control" name="due_date">
+                            <input type="date" class="form-control" name="due_date" min="{{ $minDueDate }}">
                         </div>
                         <div class="col-12">
                             <div class="form-check form-switch">

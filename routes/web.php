@@ -14,6 +14,7 @@ use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\MaterialRequestController;
+use App\Http\Controllers\MaterialVoucherController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\ConceptCategoryController;
@@ -348,6 +349,46 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse',
                         [MaterialRequestController::class, 'sendToWarehouse'])
                  ->name('material_requests.send_to_warehouse');
+        });
+
+        // ── Vales de Material ───────────────────────────────────────────────
+        Route::middleware('role:admin|Pagos|Proveedor')->group(function () {
+            Route::resource('/vales-material', MaterialVoucherController::class, [
+                'names'      => [
+                    'index'   => 'material_vouchers.index',
+                    'create'  => 'material_vouchers.create',
+                    'store'   => 'material_vouchers.store',
+                    'show'    => 'material_vouchers.show',
+                    'edit'    => 'material_vouchers.edit',
+                    'update'  => 'material_vouchers.update',
+                    'destroy' => 'material_vouchers.destroy',
+                ],
+                'parameters' => ['vales-material' => 'materialVoucher'],
+            ]);
+
+            Route::post('/vales-material/{materialVoucher}/items',
+                [MaterialVoucherController::class, 'storeItem'])
+                ->name('material_vouchers.items.store');
+
+            Route::delete('/vales-material/{materialVoucher}/items/{item}',
+                [MaterialVoucherController::class, 'destroyItem'])
+                ->name('material_vouchers.items.destroy');
+
+            Route::post('/vales-material/{materialVoucher}/notes',
+                [MaterialVoucherController::class, 'storeObservation'])
+                ->name('material_vouchers.notes.store');
+
+            Route::post('/vales-material/{materialVoucher}/authorize',
+                [MaterialVoucherController::class, 'authorizeVoucher'])
+                ->name('material_vouchers.authorize');
+
+            Route::patch('/vales-material/{materialVoucher}/status',
+                [MaterialVoucherController::class, 'updateStatus'])
+                ->name('material_vouchers.status.update');
+
+            Route::get('/vales-material/{materialVoucher}/pdf',
+                [MaterialVoucherController::class, 'downloadPdf'])
+                ->name('material_vouchers.pdf');
         });
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────

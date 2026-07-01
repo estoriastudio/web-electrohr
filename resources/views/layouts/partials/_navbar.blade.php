@@ -73,10 +73,11 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solmat')
+            @hasanyrole('admin|Solmat|Pagos|Proveedor')
             @can('read')
             <li class="menu-title">Almacén</li>
 
+            @hasanyrole('admin|Solmat')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
                    href="{{ route('material_requests.index') }}">
@@ -86,6 +87,19 @@
                     <span class="nav-text">Solicitudes de Material</span>
                 </a>
             </li>
+            @endhasanyrole
+
+            @hasanyrole('admin|Solmat|Pagos|Proveedor')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
+                   href="{{ route('material_vouchers.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-receipt-line"></i>
+                    </span>
+                    <span class="nav-text">Vales de Material</span>
+                </a>
+            </li>
+            @endhasanyrole
             @endcan
             @endhasanyrole
 

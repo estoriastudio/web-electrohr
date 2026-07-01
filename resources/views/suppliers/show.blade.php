@@ -181,6 +181,21 @@
                 </div>
             </div>
 
+            {{-- Vales de material --}}
+            <div class="col-sm-6 col-xl-4">
+                <div class="card kpi-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <div class="avatar-sm bg-info bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="ri-receipt-line text-info fs-18"></i>
+                            </div>
+                            <span class="text-muted fs-12 fw-medium">Vales de material</span>
+                        </div>
+                        <h4 class="fw-bold mb-0">{{ $supplier->material_vouchers_count ?? 0 }}</h4>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -229,6 +244,77 @@
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                     </dd>
                 </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     FILA 3B — Vales de material
+══════════════════════════════════════════════════════════════════ --}}
+<div class="row mb-3">
+    <div class="col-xl-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title mb-0">
+                    <i class="ri-receipt-line me-1 text-muted"></i> Vales de material
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th>Folio</th>
+                                <th>Fecha</th>
+                                <th>Estatus</th>
+                                <th>Renglones</th>
+                                <th>Proyecto / Obra</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $voucherStatusMap = [
+                                    'emitido'    => ['label' => 'Emitido', 'class' => 'bg-warning-subtle text-warning'],
+                                    'autorizado' => ['label' => 'Autorizado', 'class' => 'bg-info-subtle text-info'],
+                                    'completado' => ['label' => 'Completado', 'class' => 'bg-primary-subtle text-primary'],
+                                    'facturado'  => ['label' => 'Facturado', 'class' => 'bg-secondary-subtle text-secondary'],
+                                    'pagado'     => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
+                                ];
+                            @endphp
+                            @forelse ($supplier->materialVouchers as $voucher)
+                                @php
+                                    $vs = $voucherStatusMap[$voucher->status] ?? ['label' => $voucher->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                                @endphp
+                                <tr>
+                                    <td class="fw-semibold">{{ $voucher->folio }}</td>
+                                    <td>{{ $voucher->voucher_date?->format('d/m/Y') ?? '—' }}</td>
+                                    <td><span class="badge {{ $vs['class'] }} py-1 px-2 fs-12">{{ $vs['label'] }}</span></td>
+                                    <td>{{ $voucher->items_count }}</td>
+                                    <td>
+                                        <span class="d-block">{{ $voucher->project?->name ?? '—' }}</span>
+                                        @if($voucher->projectWork)
+                                            <small class="text-muted">{{ $voucher->projectWork->name }}</small>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('material_vouchers.show', $voucher) }}" class="btn btn-light btn-sm" title="Ver detalle">
+                                            <i class="ri-eye-line"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="ri-receipt-line fs-24 d-block mb-1 opacity-50"></i>
+                                        Sin vales de material registrados aún.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

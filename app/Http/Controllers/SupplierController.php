@@ -90,9 +90,10 @@ class SupplierController extends Controller
      */
     public function show(Supplier $supplier)
     {
-        $supplier = Supplier::withCount('purchaseOrders')
+        $supplier = Supplier::withCount(['purchaseOrders', 'materialVouchers'])
             ->with([
                 'purchaseOrders' => fn ($q) => $q->withCount('milestones')->orderByDesc('created_at'),
+                'materialVouchers' => fn ($q) => $q->withCount('items')->with(['project', 'projectWork'])->orderByDesc('voucher_date')->orderByDesc('id'),
                 'contacts',
                 'locations',
             ])

@@ -123,6 +123,11 @@ class Supplier extends Model
         return $this->hasMany(PurchaseOrder::class);
     }
 
+    public function materialVouchers()
+    {
+        return $this->hasMany(MaterialVoucher::class);
+    }
+
     public function contacts()
     {
         return $this->hasMany(SupplierContact::class);
