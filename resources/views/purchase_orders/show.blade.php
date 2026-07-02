@@ -902,6 +902,7 @@
                     <table class="table table-sm table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th>Folio</th>
                                 <th>Archivo</th>
                                 <th>Fecha</th>
                                 <th>Moneda</th>
@@ -913,9 +914,16 @@
                         <tbody>
                             @foreach ($purchaseOrder->invoices as $invoice)
                                 <tr>
+                                    <td class="fw-medium fs-12">
+                                        {{ $invoice->folio ?: '—' }}
+                                    </td>
                                     <td>
-                                        <i class="ri-file-pdf-2-line text-danger me-1"></i>
-                                        <span class="fw-medium">{{ $invoice->file_name }}</span>
+                                        @if ($invoice->file_name)
+                                            <i class="ri-file-pdf-2-line text-danger me-1"></i>
+                                            <span class="fw-medium">{{ $invoice->file_name }}</span>
+                                        @else
+                                            <span class="text-muted fs-12">Sin archivo</span>
+                                        @endif
                                     </td>
                                     <td class="text-nowrap fs-12">
                                         {{ $invoice->attached_at->format('d/m/Y H:i') }}
@@ -940,14 +948,16 @@
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
                                             @hasanyrole('admin|Pagos')
+                                            @if ($invoice->file_path)
                                             <a href="{{ route('invoices.download', $invoice) }}"
                                                target="_blank"
                                                class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
                                                title="Ver / Descargar PDF">
                                                 <i class="ri-download-2-line"></i>
                                             </a>
+                                            @endif
                                             <form action="{{ route('invoices.destroy', $invoice) }}" method="POST"
-                                                  onsubmit="return confirm('¿Eliminar la factura {{ $invoice->file_name }}? Esta acción no se puede deshacer.')">
+                                                  onsubmit="return confirm('¿Eliminar la factura {{ $invoice->folio ?: ($invoice->file_name ?: '#' . $invoice->id) }}? Esta acción no se puede deshacer.')">
                                                 @csrf @method('DELETE')
                                                 <button type="submit" class="btn btn-xs btn-soft-danger"
                                                         style="padding: 2px 8px;" title="Eliminar factura">
@@ -962,12 +972,12 @@
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="3" class="text-end fw-semibold fs-13">Total facturado:</td>
+                                <td colspan="4" class="text-end fw-semibold fs-13">Total facturado:</td>
                                 <td class="text-end fw-bold text-primary">
                                     {{ number_format($purchaseOrder->invoices->sum('amount'), 2) }}
                                 </td>
                                 <td colspan="2"></td>
-                            </tr>
+            </tr>
                         </tfoot>
                     </table>
                 </div>
@@ -1269,16 +1279,26 @@
                         {{-- Archivo PDF --}}
                         <div class="col-12">
                             <label class="form-label fw-medium">
-                                Archivo PDF <span class="text-danger">*</span>
-                                <small class="text-muted fw-normal">(máx. 10 MB)</small>
+                                Archivo PDF
+                                <small class="text-muted fw-normal">(opcional, máx. 10 MB)</small>
                             </label>
                             <input type="file" class="form-control @error('pdf_file') is-invalid @enderror"
-                                   name="pdf_file" accept=".pdf" required>
+                                   name="pdf_file" accept=".pdf">
                             <div class="form-text">
-                                El nombre se generará automáticamente:
+                                Si adjuntas un PDF, se guardará como:
                                 <strong>OC{{ $purchaseOrder->id }}-FACT{{ $purchaseOrder->invoices->count() + 1 }}.pdf</strong>
                             </div>
                             @error('pdf_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        {{-- Folio --}}
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Folio de factura</label>
+                            <input type="text" class="form-control @error('folio') is-invalid @enderror"
+                                   name="folio" maxlength="100"
+                                   placeholder="Ej. A-001, FAC-2026-0123">
+                            <div class="form-text">Número de folio fiscal o interno de la factura (opcional).</div>
+                            @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Importe y Moneda --}}

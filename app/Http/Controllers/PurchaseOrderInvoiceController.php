@@ -24,27 +24,34 @@ class PurchaseOrderInvoiceController extends Controller
 
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
+            'folio'             => 'nullable|string|max:100',
             'amount'            => ['required', 'numeric', 'min:0.01', 'max:' . $purchaseOrder->amount],
             'currency'          => 'required|in:MXN,USD,EUR',
             'milestone_ids'     => 'nullable|array',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
-            'pdf_file'          => 'required|file|mimes:pdf|max:10240',
+            'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
         ], [
             'amount.max' => 'El importe no puede exceder el total de la orden de compra (' . number_format($purchaseOrder->amount, 2) . ' ' . $purchaseOrder->currency . ').',
         ]);
 
-        // Generar nombre de archivo: OC{id}-FACT{n+1}
-        $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
-        $fileName      = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '.pdf';
-        $storagePath   = 'invoices/' . $purchaseOrder->id . '/' . $fileName;
+        $fileName    = null;
+        $storagePath = null;
 
-        $request->file('pdf_file')->storeAs(
-            'invoices/' . $purchaseOrder->id,
-            $fileName
-        );
+        if ($request->hasFile('pdf_file')) {
+            // Generar nombre de archivo: OC{id}-FACT{n+1}
+            $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
+            $fileName      = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '.pdf';
+            $storagePath   = 'invoices/' . $purchaseOrder->id . '/' . $fileName;
+
+            $request->file('pdf_file')->storeAs(
+                'invoices/' . $purchaseOrder->id,
+                $fileName
+            );
+        }
 
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $purchaseOrder->id,
+            'folio'             => $validated['folio'] ?? null,
             'file_name'         => $fileName,
             'file_path'         => $storagePath,
             'amount'            => $validated['amount'],
@@ -63,12 +70,12 @@ class PurchaseOrderInvoiceController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'create',
             'model_id'     => $invoice->id,
-            'data'         => 'subió la factura ' . $fileName . ' a la OC #' . $purchaseOrder->id,
+            'data'         => 'registró la factura ' . ($validated['folio'] ?? ($fileName ?? 'sin PDF')) . ' en la OC #' . $purchaseOrder->id,
         ]);
 
         return redirect()
             ->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', 'Factura ' . $fileName . ' registrada correctamente.');
+            ->with('success', 'Factura registrada correctamente.');
     }
 
     /**
@@ -76,7 +83,7 @@ class PurchaseOrderInvoiceController extends Controller
      */
     public function download(PurchaseOrderInvoice $invoice)
     {
-        if (!Storage::exists($invoice->file_path)) {
+        if (!$invoice->file_path || !Storage::exists($invoice->file_path)) {
             abort(404, 'Archivo no encontrado.');
         }
 
@@ -97,7 +104,7 @@ class PurchaseOrderInvoiceController extends Controller
         $purchaseOrderId = $invoice->purchase_order_id;
         $fileName        = $invoice->file_name;
 
-        if (Storage::exists($invoice->file_path)) {
+        if ($invoice->file_path && Storage::exists($invoice->file_path)) {
             Storage::delete($invoice->file_path);
         }
 

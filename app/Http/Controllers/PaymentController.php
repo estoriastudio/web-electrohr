@@ -30,6 +30,7 @@ class PaymentController extends Controller
         $search     = trim($request->input('search', ''));
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+            ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
             ->when($search, function ($q) use ($search) {
@@ -73,6 +74,7 @@ class PaymentController extends Controller
         $urgentDate = Carbon::now()->addDays(7);
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+            ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
             ->where('payments.status', 'por_autorizar')
@@ -370,18 +372,24 @@ class PaymentController extends Controller
     public function altaFacturas(Request $request): \Illuminate\View\View
     {
         $search = trim($request->input('search', ''));
+        $poType = $request->input('po_type', '');
 
         $orders = PurchaseOrder::with(['supplier', 'milestones', 'invoices'])
             ->when($search, function ($q) use ($search) {
-                $q->whereHas('supplier', function ($s) use ($search) {
-                    $s->where('rfc_name', 'like', '%' . $search . '%')
-                      ->orWhere('commercial_name', 'like', '%' . $search . '%');
-                })->orWhere('folio', 'like', '%' . $search . '%');
+                $q->where(function ($sub) use ($search) {
+                    $sub->whereHas('supplier', function ($s) use ($search) {
+                        $s->where('rfc_name', 'like', '%' . $search . '%')
+                          ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                    })->orWhere('folio', 'like', '%' . $search . '%');
+                });
+            })
+            ->when(in_array($poType, ['materiales_servicios', 'mantenimiento']), function ($q) use ($poType) {
+                $q->where('type', $poType);
             })
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
-        return view('payments.alta_facturas', compact('orders', 'search'));
+        return view('payments.alta_facturas', compact('orders', 'search', 'poType'));
     }
 }

@@ -10,6 +10,7 @@ class PurchaseOrderInvoice extends Model
 {
     protected $fillable = [
         'purchase_order_id',
+        'folio',
         'file_name',
         'file_path',
         'amount',

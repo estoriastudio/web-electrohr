@@ -59,6 +59,7 @@ class MaterialRequestController extends Controller
             'project_work_ids.*'  => 'exists:project_works,id',
             'zone'                => 'required|string|max:255',
             'delivery_address'    => 'required|string|max:255',
+            'location_type'       => 'nullable|in:sitio,electrohr',
             'request_date'        => 'required|date',
             'need_date'           => 'required|date|after_or_equal:request_date',
             'concept_category_id' => 'nullable|exists:concept_categories,id',
@@ -76,8 +77,9 @@ class MaterialRequestController extends Controller
         $workIds = $data['project_work_ids'];
         unset($data['project_work_ids']);
 
-        $data['requested_by'] = Auth::id();
-        $data['status']       = 'pending';
+        $data['requested_by']  = Auth::id();
+        $data['status']        = 'pending';
+        $data['location_type'] = $data['location_type'] ?? 'sitio';
 
         $mr = MaterialRequest::create($data);
         $mr->projectWorks()->sync($workIds);
@@ -118,6 +120,7 @@ class MaterialRequestController extends Controller
             'project_work_ids.*'  => 'exists:project_works,id',
             'zone'                => 'required|string|max:255',
             'delivery_address'    => 'required|string|max:255',
+            'location_type'       => 'nullable|in:sitio,electrohr',
             'request_date'        => 'required|date',
             'need_date'           => 'required|date|after_or_equal:request_date',
             'concept_category_id' => 'nullable|exists:concept_categories,id',
@@ -134,6 +137,8 @@ class MaterialRequestController extends Controller
 
         $workIds = $data['project_work_ids'];
         unset($data['project_work_ids']);
+
+        $data['location_type'] = $data['location_type'] ?? 'sitio';
 
         $materialRequest->update($data);
         $materialRequest->projectWorks()->sync($workIds);

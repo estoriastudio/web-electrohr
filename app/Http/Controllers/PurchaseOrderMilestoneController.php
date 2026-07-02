@@ -48,6 +48,7 @@ class PurchaseOrderMilestoneController extends Controller
                 'invoices',               // para detectar semáforo negro
                 'payments',               // disponible en vista para desglose futuro
             ])
+            ->has('purchaseOrder')
             ->orderByRaw('due_date IS NULL ASC') // nulos al final
             ->orderBy('due_date', 'asc')
             ->get();

@@ -40,10 +40,11 @@
                 <h6 class="mb-0 fw-semibold"><i class="ri-file-list-3-line me-1"></i> Órdenes de Compra</h6>
             </div>
             <div class="card-body p-0">
-                {{-- Búsqueda --}}
+                {{-- Búsqueda y filtros --}}
                 <div class="p-3 border-bottom">
                     <form method="GET" action="{{ route('payments.alta_facturas') }}">
-                        <div class="input-group">
+                        <input type="hidden" name="po_type" value="{{ $poType }}">
+                        <div class="input-group mb-2">
                             <input type="text" class="form-control form-control-sm"
                                    name="search" value="{{ $search }}"
                                    placeholder="Buscar por folio o proveedor...">
@@ -51,10 +52,25 @@
                                 <i class="ri-search-line"></i>
                             </button>
                             @if ($search)
-                                <a href="{{ route('payments.alta_facturas') }}" class="btn btn-sm btn-outline-danger" title="Limpiar">
+                                <a href="{{ route('payments.alta_facturas', ['po_type' => $poType]) }}" class="btn btn-sm btn-outline-danger" title="Limpiar">
                                     <i class="ri-close-line"></i>
                                 </a>
                             @endif
+                        </div>
+                        {{-- Filtro por tipo de OC --}}
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <a href="{{ route('payments.alta_facturas', array_filter(['search' => $search])) }}"
+                               class="btn {{ $poType === '' ? 'btn-secondary' : 'btn-outline-secondary' }}">
+                                Todos
+                            </a>
+                            <a href="{{ route('payments.alta_facturas', array_filter(['search' => $search, 'po_type' => 'materiales_servicios'])) }}"
+                               class="btn {{ $poType === 'materiales_servicios' ? 'btn-primary' : 'btn-outline-primary' }}">
+                                Mat. / Servicios
+                            </a>
+                            <a href="{{ route('payments.alta_facturas', array_filter(['search' => $search, 'po_type' => 'mantenimiento'])) }}"
+                               class="btn {{ $poType === 'mantenimiento' ? 'btn-warning' : 'btn-outline-warning' }}">
+                                Mantenimiento
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -69,19 +85,25 @@
                                 data-oc-supplier="{{ $order->supplier->rfc_name ?? '—' }}"
                                 data-oc-currency="{{ $order->currency }}"
                                 data-oc-amount="{{ $order->total_with_iva }}"
-                                data-oc-invoice-count="{{ $order->invoices->count() + 1 }}">
+                                data-oc-invoice-count="{{ $order->invoices->count() + 1 }}"
+                                data-oc-type="{{ $order->type }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <div class="fw-medium text-dark">{{ $order->folio ?? 'OC #' . $order->id }}</div>
                                     <div class="text-muted fs-12">{{ $order->supplier->rfc_name ?? '—' }}</div>
                                 </div>
-                                <span class="badge
-                                    @if ($order->status === 'autorizada') bg-success-subtle text-success
-                                    @elseif ($order->status === 'pendiente') bg-warning-subtle text-warning
-                                    @else bg-secondary-subtle text-secondary @endif
-                                    fs-10">
-                                    {{ ucfirst($order->status) }}
-                                </span>
+                                <div class="d-flex flex-column align-items-end gap-1">
+                                    <span class="badge
+                                        @if ($order->status === 'autorizada') bg-success-subtle text-success
+                                        @elseif ($order->status === 'pendiente') bg-warning-subtle text-warning
+                                        @else bg-secondary-subtle text-secondary @endif
+                                        fs-10">
+                                        {{ ucfirst($order->status) }}
+                                    </span>
+                                    <span class="badge {{ $order->type === 'mantenimiento' ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary' }} fs-10">
+                                        {{ $order->type === 'mantenimiento' ? 'Mantenimiento' : 'Mat./Serv.' }}
+                                    </span>
+                                </div>
                             </div>
                             <div class="fs-11 text-muted mt-1">
                                 {{ $order->currency }} {{ number_format($order->total_with_iva, 2) }}
@@ -132,15 +154,26 @@
                         {{-- Archivo PDF --}}
                         <div class="col-12">
                             <label class="form-label fw-medium">
-                                Archivo PDF <span class="text-danger">*</span>
-                                <small class="text-muted fw-normal">(máx. 10 MB)</small>
+                                Archivo PDF
+                                <small class="text-muted fw-normal">(opcional, máx. 10 MB)</small>
                             </label>
                             <input type="file" class="form-control @error('pdf_file') is-invalid @enderror"
-                                   name="pdf_file" accept=".pdf" required>
+                                   name="pdf_file" accept=".pdf">
                             <div class="form-text">
-                                El nombre se generará automáticamente: <strong id="form-filename">OC?-FACT?.pdf</strong>
+                                Si adjuntas un PDF, se guardará como: <strong id="form-filename">OC?-FACT?.pdf</strong>
                             </div>
                             @error('pdf_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        {{-- Folio --}}
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Folio de factura</label>
+                            <input type="text" class="form-control @error('folio') is-invalid @enderror"
+                                   name="folio" maxlength="100"
+                                   value="{{ old('folio') }}"
+                                   placeholder="Ej. A-001, FAC-2026-0123">
+                            <div class="form-text">Número de folio fiscal o interno (opcional).</div>
+                            @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Importe --}}
