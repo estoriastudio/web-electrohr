@@ -134,10 +134,10 @@
                         </div>
                     </div>
                     <div class="d-flex flex-column gap-2">
-                        <a href="{{ route('purchase_orders.pdf', $purchaseOrder) }}"
-                           class="btn btn-sm btn-outline-danger" target="_blank">
-                            <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
-                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                data-bs-toggle="modal" data-bs-target="#modalPdfAnnexes">
+                            <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
+                        </button>
                         @hasanyrole('admin|Orden de compra')
                         @if ($canModifyPurchaseOrder)
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
@@ -1441,7 +1441,157 @@
     </div>
 </div>
 
+@php
+    $annexRecord    = $purchaseOrder->annex;
+    $annexUpdatedAt = $annexRecord?->updated_at;
+    $annexAllowed   = '<p><strong><em><u><s><br><ul><ol><li><h1><h2><h3><h4><h5><h6><span><a><blockquote>';
+    $contratoInitHtml = $annexRecord?->contrato_html
+        ?: strip_tags(
+            \Illuminate\Support\Str::markdown(file_get_contents(public_path('document_templates/CONTRATO.docx.md'))),
+            $annexAllowed
+        );
+    $dossierInitHtml = $annexRecord?->dossier_html
+        ?: strip_tags(
+            \Illuminate\Support\Str::markdown(file_get_contents(public_path('document_templates/INDICE DE DOSSIER DE CALIDAD.md'))),
+            $annexAllowed
+        );
+@endphp
+
+{{-- ── Modal: Generar PDF con Anexos ── --}}
+<div class="modal fade" id="modalPdfAnnexes" tabindex="-1" aria-labelledby="modalPdfAnnexesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="modalPdfAnnexesLabel">
+                        <i class="ri-file-pdf-2-line me-1"></i> Generar PDF &mdash; OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}
+                    </h5>
+                    @if ($annexUpdatedAt)
+                    <small class="text-muted">Configuración guardada el {{ $annexUpdatedAt->translatedFormat('d/m/Y \a \l\a\s H:i') ?? $annexUpdatedAt->format('d/m/Y H:i') }}</small>
+                    @else
+                    <small class="text-muted">Sin configuración guardada aún.</small>
+                    @endif
+                </div>
+                <button type="button" class="btn-close ms-3" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formPdfAnnexes" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="annexTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabCondiciones" type="button" role="tab">
+                                <i class="ri-file-text-line me-1"></i> Condiciones Generales
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabContrato" type="button" role="tab">
+                                <i class="ri-file-list-3-line me-1"></i> Contrato
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDossier" type="button" role="tab">
+                                <i class="ri-archive-line me-1"></i> Índice Dossier
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+
+                        {{-- Tab 1: Condiciones Generales --}}
+                        <div class="tab-pane fade show active" id="tabCondiciones" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="annex_condiciones" name="annex_condiciones" value="1"
+                                        {{ $annexRecord?->annex_condiciones ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-semibold" for="annex_condiciones">
+                                        Incluir Condiciones Generales de Compra en el PDF
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="client_name">Nombre de la Contratante</label>
+                                    <input type="text" class="form-control" id="client_name" name="client_name"
+                                        value="{{ $annexRecord?->client_name ?? 'ELECTRO SERVICIOS HR, S.A. DE C.V.' }}"
+                                        placeholder="Ej. ELECTRO SERVICIOS HR, S.A. DE C.V.">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="provider_name">Nombre de la Contratada (Proveedor)</label>
+                                    <input type="text" class="form-control" id="provider_name" name="provider_name"
+                                        value="{{ $annexRecord?->provider_name ?? ($purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? '') }}"
+                                        placeholder="Nombre del proveedor">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="penalidad_porcentaje">Penalidad (porcentaje, ej. &ldquo;10%&rdquo;)</label>
+                                    <input type="text" class="form-control" id="penalidad_porcentaje" name="penalidad_porcentaje"
+                                        value="{{ $annexRecord?->penalidad_porcentaje ?? '' }}"
+                                        placeholder="Ej. 10%">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="penalidad_numero">Penalidad (en letras/monto)</label>
+                                    <input type="text" class="form-control" id="penalidad_numero" name="penalidad_numero"
+                                        value="{{ $annexRecord?->penalidad_numero ?? '' }}"
+                                        placeholder="Ej. DIEZ">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="nombre_aceptacion">Nombre para aceptación / firma</label>
+                                    <input type="text" class="form-control" id="nombre_aceptacion" name="nombre_aceptacion"
+                                        value="{{ $annexRecord?->nombre_aceptacion ?? '' }}"
+                                        placeholder="Nombre del firmante">
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Tab 2: Contrato --}}
+                        <div class="tab-pane fade" id="tabContrato" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="annex_contrato" name="annex_contrato" value="1"
+                                        {{ $annexRecord?->annex_contrato ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-semibold" for="annex_contrato">
+                                        Incluir Contrato / Cláusulas Particulares en el PDF
+                                    </label>
+                                </div>
+                            </div>
+                            <input type="hidden" id="contrato_html_input" name="contrato_html">
+                            <div id="editorContrato" style="height: 420px;"></div>
+                        </div>
+
+                        {{-- Tab 3: Índice Dossier --}}
+                        <div class="tab-pane fade" id="tabDossier" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="annex_dossier" name="annex_dossier" value="1"
+                                        {{ $annexRecord?->annex_dossier ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-semibold" for="annex_dossier">
+                                        Incluir Índice Dossier de Calidad en el PDF
+                                    </label>
+                                </div>
+                            </div>
+                            <input type="hidden" id="dossier_html_input" name="dossier_html">
+                            <div id="editorDossier" style="height: 420px;"></div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-outline-secondary" id="btnSaveAnnex">
+                        <i class="ri-save-line me-1"></i> Guardar configuración
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btnPdfAnnexes">
+                        <i class="ri-file-pdf-2-line me-1"></i> Guardar y Generar PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{-- Contenido inicial para los editores Quill (sanitizado) --}}
+<template id="contrato-init-html">{!! $contratoInitHtml !!}</template>
+<template id="dossier-init-html">{!! $dossierInitHtml !!}</template>
+
 @push('styles')
+<link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
 <style>
 .oc-qty-input,.oc-delivery-input {
     border-color: var(--bs-border-color);
@@ -2035,5 +2185,76 @@ $(function () {
         });
     }
 });
+</script>
+@endpush
+
+@push('scripts')
+<script src="/assets/vendor/quill/quill.min.js"></script>
+<script>
+(function () {
+    var modal = document.getElementById('modalPdfAnnexes');
+    if (!modal) return;
+
+    var form          = document.getElementById('formPdfAnnexes');
+    var quillContrato = null;
+    var quillDossier  = null;
+    var toolbarOpts   = [
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ header: [1, 2, 3, false] }],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['clean']
+    ];
+
+    function initQuillContrato() {
+        if (quillContrato) return;
+        quillContrato = new Quill('#editorContrato', { theme: 'snow', modules: { toolbar: toolbarOpts } });
+        var tpl = document.getElementById('contrato-init-html');
+        if (tpl && tpl.innerHTML.trim()) quillContrato.clipboard.dangerouslyPasteHTML(tpl.innerHTML);
+    }
+
+    function initQuillDossier() {
+        if (quillDossier) return;
+        quillDossier = new Quill('#editorDossier', { theme: 'snow', modules: { toolbar: toolbarOpts } });
+        var tpl = document.getElementById('dossier-init-html');
+        if (tpl && tpl.innerHTML.trim()) quillDossier.clipboard.dangerouslyPasteHTML(tpl.innerHTML);
+    }
+
+    // Initialize editor for the active tab when modal is first shown
+    modal.addEventListener('shown.bs.modal', function () {
+        var active = modal.querySelector('.tab-pane.active');
+        if (!active) return;
+        if (active.id === 'tabContrato') initQuillContrato();
+        if (active.id === 'tabDossier')  initQuillDossier();
+    });
+
+    // Initialize editor when switching tabs
+    modal.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (btn) {
+        btn.addEventListener('shown.bs.tab', function (e) {
+            var target = e.target.getAttribute('data-bs-target');
+            if (target === '#tabContrato') initQuillContrato();
+            if (target === '#tabDossier')  initQuillDossier();
+        });
+    });
+
+    function collectHtml() {
+        if (quillContrato) document.getElementById('contrato_html_input').value = quillContrato.root.innerHTML;
+        if (quillDossier)  document.getElementById('dossier_html_input').value  = quillDossier.root.innerHTML;
+    }
+
+    document.getElementById('btnSaveAnnex').addEventListener('click', function () {
+        collectHtml();
+        form.action = '{{ route('purchase_orders.annex.save', $purchaseOrder) }}';
+        form.target = '_self';
+        form.submit();
+    });
+
+    document.getElementById('btnPdfAnnexes').addEventListener('click', function () {
+        collectHtml();
+        form.action = '{{ route('purchase_orders.pdfWithAnnexes', $purchaseOrder) }}';
+        form.target = '_blank';
+        form.submit();
+        setTimeout(function () { form.target = '_self'; }, 500);
+    });
+})();
 </script>
 @endpush

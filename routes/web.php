@@ -263,6 +263,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // PDF de OC — incluye Solmat para descarga desde trazabilidad
         Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
             Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
+            Route::post('/ordenes-de-compra/{purchase_order}/anexos', [PurchaseOrderController::class, 'saveAnnex'])->name('purchase_orders.annex.save');
+            Route::post('/ordenes-de-compra/{purchase_order}/pdf-con-anexos', [PurchaseOrderController::class, 'downloadPdfWithAnnexes'])->name('purchase_orders.pdfWithAnnexes');
         });
 
         // Órdenes de Compra — escritura: admin, Orden de compra

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 /* Modelos */
 use App\Models\MobileAsset;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
 use App\Models\Supplier;
@@ -20,6 +21,7 @@ use Illuminate\View\View;
 
 /* PDF */
 use Barryvdh\DomPDF\Facade\Pdf;
+use setasign\Fpdi\Fpdi;
 
 /* Notificaciones */
 use App\Services\NotificationService;
@@ -331,6 +333,7 @@ class PurchaseOrderController extends Controller
             'invoices.milestones',
             'items.concept',
             'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
+            'annex',
         ]);
 
         return view('purchase_orders.show', compact('purchaseOrder'));
@@ -826,5 +829,134 @@ class PurchaseOrderController extends Controller
         }
 
         return (float) $value;
+    }
+
+    private function persistAnnex(Request $request, PurchaseOrder $purchaseOrder): PurchaseOrderAnnex
+    {
+        $allowed = '<p><strong><em><u><s><br><ul><ol><li><h1><h2><h3><h4><h5><h6><span><a><blockquote><table><thead><tbody><tr><th><td>';
+
+        return PurchaseOrderAnnex::updateOrCreate(
+            ['purchase_order_id' => $purchaseOrder->id],
+            [
+                'client_name'          => $request->input('client_name', ''),
+                'provider_name'        => $request->input('provider_name', ''),
+                'annex_condiciones'    => $request->boolean('annex_condiciones'),
+                'penalidad_porcentaje' => $request->input('penalidad_porcentaje', ''),
+                'penalidad_numero'     => $request->input('penalidad_numero', ''),
+                'nombre_aceptacion'    => $request->input('nombre_aceptacion', ''),
+                'annex_contrato'       => $request->boolean('annex_contrato'),
+                'contrato_html'        => $request->boolean('annex_contrato')
+                    ? strip_tags($request->input('contrato_html', ''), $allowed) : null,
+                'annex_dossier'        => $request->boolean('annex_dossier'),
+                'dossier_html'         => $request->boolean('annex_dossier')
+                    ? strip_tags($request->input('dossier_html', ''), $allowed) : null,
+            ]
+        );
+    }
+
+    public function saveAnnex(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $this->persistAnnex($request, $purchaseOrder);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Configuración de anexos guardada correctamente.');
+    }
+
+    public function downloadPdfWithAnnexes(Request $request, PurchaseOrder $purchaseOrder): \Illuminate\Http\Response
+    {
+        $annex = $this->persistAnnex($request, $purchaseOrder);
+
+        $purchaseOrder->load([
+            'supplier',
+            'items.concept',
+            'milestones',
+            'purchaseRequest.materialRequest.requestedBy',
+        ]);
+
+        $filename = 'OC-' . ($purchaseOrder->folio ?? $purchaseOrder->id);
+
+        // No annexes: just download the plain OC PDF
+        if (!$annex->annex_condiciones && !$annex->annex_contrato && !$annex->annex_dossier) {
+            return Pdf::loadView('purchase_orders.pdf', compact('purchaseOrder'))
+                ->setPaper('letter', 'portrait')
+                ->download($filename . '.pdf');
+        }
+
+        // Contrato not selected: single combined render, no merge needed
+        if (!$annex->annex_contrato || !$annex->contrato_html) {
+            return Pdf::loadView('purchase_orders.pdf_with_annexes', compact('purchaseOrder', 'annex'))
+                ->setPaper('letter', 'portrait')
+                ->download($filename . '-con-anexos.pdf');
+        }
+
+        // Contrato IS selected: generate each section as its own PDF and merge.
+        // This is necessary because DomPDF's position:fixed only repeats on all
+        // pages when the element is a direct <body> child in an isolated document.
+        $tempFiles = [];
+        try {
+            $parts = [];
+
+            // 1. OC
+            $parts[] = $this->saveTempPdf(
+                Pdf::loadView('purchase_orders.pdf', compact('purchaseOrder'))->setPaper('letter', 'portrait')->output(),
+                $tempFiles
+            );
+
+            // 2. Condiciones Generales (if selected)
+            if ($annex->annex_condiciones) {
+                $parts[] = $this->saveTempPdf(
+                    Pdf::loadView('purchase_orders.pdf_annex_condiciones', compact('purchaseOrder', 'annex'))->setPaper('letter', 'portrait')->output(),
+                    $tempFiles
+                );
+            }
+
+            // 3. Contrato with running page header
+            $parts[] = $this->saveTempPdf(
+                Pdf::loadView('purchase_orders.pdf_annex_contrato', compact('purchaseOrder', 'annex'))->setPaper('letter', 'portrait')->output(),
+                $tempFiles
+            );
+
+            // 4. Dossier (if selected)
+            if ($annex->annex_dossier && $annex->dossier_html) {
+                $parts[] = $this->saveTempPdf(
+                    Pdf::loadView('purchase_orders.pdf_annex_dossier', compact('purchaseOrder', 'annex'))->setPaper('letter', 'portrait')->output(),
+                    $tempFiles
+                );
+            }
+
+            $merged = $this->mergePdfs($parts);
+        } finally {
+            foreach ($tempFiles as $f) { @unlink($f); }
+        }
+
+        return response($merged, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '-con-anexos.pdf"',
+        ]);
+    }
+
+    /** Save a PDF binary string to a temp file and track it for cleanup. */
+    private function saveTempPdf(string $pdfString, array &$tempFiles): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'oc_pdf_');
+        file_put_contents($path, $pdfString);
+        $tempFiles[] = $path;
+        return $path;
+    }
+
+    /** Merge an ordered list of PDF file paths into a single PDF binary string. */
+    private function mergePdfs(array $paths): string
+    {
+        $merger = new Fpdi();
+        foreach ($paths as $path) {
+            $pageCount = $merger->setSourceFile($path);
+            for ($i = 1; $i <= $pageCount; $i++) {
+                $tplId = $merger->importPage($i);
+                $size  = $merger->getTemplateSize($tplId);
+                $merger->AddPage($size['orientation'] ?? 'P', [$size['width'], $size['height']]);
+                $merger->useTemplate($tplId);
+            }
+        }
+        return $merger->Output('S');
     }
 }
