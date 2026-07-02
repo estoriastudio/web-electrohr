@@ -3,26 +3,35 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
+use App\Models\PurchaseRequest;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function dashboard(): View
+    public function dashboard(Request $request): View
     {
         $user = Auth::user();
 
         // Valores por defecto (se rellenan según el rol)
-        $totalPendientePago = 0.0;
-        $totalPorAutorizar  = 0.0;
-        $chartLabels        = [];
-        $chartValues        = [];
-        $top5PorAutorizar   = collect();
-        $urgencyLabels      = [];
-        $urgencyValues      = [];
-        $top5Urgencias      = collect();
+        $totalPendientePago             = 0.0;
+        $totalPorAutorizar              = 0.0;
+        $chartLabels                    = [];
+        $chartValues                    = [];
+        $top5PorAutorizar               = collect();
+        $urgencyLabels                  = [];
+        $urgencyValues                  = [];
+        $top5Urgencias                  = collect();
+        $solcomSearch                   = null;
+        $solcomPendientes               = collect();
+        $ocsPendientesAutorizar         = collect();
+        $ocsPendientesEntregarSitio     = collect();
+        $ocsPendientesEntregarElectrohr = collect();
+        $ocsVencidasEntrega             = collect();
 
         // ── Bloque pagos (admin + Pagos) ──────────────────────────────
         if ($user->hasAnyRole(['admin', 'Pagos'])) {
@@ -98,12 +107,57 @@ class AdminController extends Controller
                 ->orderBy('due_date')
                 ->limit(5)
                 ->get();
+
+            // ── SOLCOM pendientes ──────────────────────────────────────────
+            $solcomSearch = $request->get('solcom_search');
+
+            $solcomPendientes = PurchaseRequest::whereIn('status', ['pending', 'changes_requested'])
+                ->with(['project', 'materialRequest'])
+                ->when($solcomSearch, fn ($q) => $q->where('folio', 'like', '%' . $solcomSearch . '%'))
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // ── OCs pendientes de autorizar ────────────────────────────────
+            $ocsPendientesAutorizar = PurchaseOrder::whereIn('status', ['emitida', 'pendiente'])
+                ->whereNull('archived_at')
+                ->with('supplier')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // ── OCs pendientes de entregar (autorizadas con delivery_date) ─
+            $ocsPendientesEntregar = PurchaseOrder::where('status', 'autorizada')
+                ->whereNull('archived_at')
+                ->with(['supplier', 'purchaseRequest.materialRequest', 'items'])
+                ->whereHas('items', fn ($q) => $q->whereNotNull('delivery_date'))
+                ->get();
+
+            $ocsPendientesEntregarSitio = $ocsPendientesEntregar
+                ->filter(fn ($oc) => ($oc->purchaseRequest?->materialRequest?->location_type ?? 'sitio') !== 'electrohr')
+                ->values();
+
+            $ocsPendientesEntregarElectrohr = $ocsPendientesEntregar
+                ->filter(fn ($oc) => ($oc->purchaseRequest?->materialRequest?->location_type ?? 'sitio') === 'electrohr')
+                ->values();
+
+            // ── OCs vencidas en tiempos de entrega ─────────────────────────
+            $ocsVencidasEntrega = PurchaseOrder::where('status', 'autorizada')
+                ->whereNull('archived_at')
+                ->with(['supplier', 'purchaseRequest.materialRequest', 'items'])
+                ->whereHas('items', function ($q) {
+                    $q->whereNotNull('delivery_date')
+                      ->whereRaw("delivery_date < CURDATE()");
+                })
+                ->get();
         }
 
         return view('index', compact(
             'totalPendientePago', 'totalPorAutorizar',
             'chartLabels', 'chartValues', 'top5PorAutorizar',
-            'urgencyLabels', 'urgencyValues', 'top5Urgencias'
+            'urgencyLabels', 'urgencyValues', 'top5Urgencias',
+            'solcomSearch', 'solcomPendientes',
+            'ocsPendientesAutorizar',
+            'ocsPendientesEntregarSitio', 'ocsPendientesEntregarElectrohr',
+            'ocsVencidasEntrega'
         ));
     }
 

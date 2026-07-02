@@ -17,6 +17,7 @@ class MaterialRequest extends Model
         'project_id',
         'zone',
         'delivery_address',
+        'location_type',
         'request_date',
         'need_date',
         'supply_category',
