@@ -32,29 +32,52 @@
             </li>
 
             @hasanyrole('admin|Orden de compra')
-            @can('read')
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('suppliers.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-shapes-line"></i>
-                    </span>
-                    <span class="nav-text">Proveedores</span>
-                </a>
-            </li>
-            @endcan
+                @can('read')
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('suppliers.index') }}">
+                            <span class="nav-icon">
+                                <i class="ri-shapes-line"></i>
+                            </span>
+                            <span class="nav-text">Proveedores</span>
+                        </a>
+                    </li>
+                @endcan
             @endhasanyrole
 
             @hasanyrole('admin|Moviles')
-            @can('read')
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('mobile_assets.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-shapes-line"></i>
-                    </span>
-                    <span class="nav-text">Bienes Móviles</span>
-                </a>
-            </li>
-            @endcan
+                @can('read')
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('mobile_assets.index') }}">
+                            <span class="nav-icon">
+                                <i class="ri-shapes-line"></i>
+                            </span>
+                            <span class="nav-text">Bienes Móviles</span>
+                        </a>
+                    </li>
+                    
+                    
+                    <li class="nav-item">
+                        <a class="nav-link menu-arrow {{ request()->routeIs('tools.*') || request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="#sidebarTools" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarTools">
+                            <span class="nav-icon">
+                                <i class="ri-hammer-line"></i>
+                            </span>
+                            <span class="nav-text"> Herramientas </span>
+                        </a>
+                        <div class="collapse" id="sidebarTools">
+                            <ul class="nav sub-navbar-nav">
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('tools.*') ? 'active' : '' }}" href="{{ route('tools.index') }}">Registro</a>
+                                </li>
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('tool_controls.*') ? 'active' : '' }}" href="{{ route('tool_controls.index') }}">Control de uso</a>
+                                </li>
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="{{ route('tool_categories.index') }}">Categorias</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @endcan
             @endhasanyrole
 
             @hasanyrole('admin|Proyectos|Solmat')
@@ -234,47 +257,25 @@
             @hasanyrole('admin|Solmat')
             <li class="menu-title">Configuración</li>
 
-            <li class="nav-item">
-                <a class="nav-link menu-arrow {{ request()->routeIs('concepts.*') || request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="#sidebarConcepts" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarConcepts">
-                    <span class="nav-icon">
-                        <i class="ri-pages-line"></i>
-                    </span>
-                    <span class="nav-text"> Suministros </span>
-                </a>
-                <div class="collapse" id="sidebarConcepts">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">Conceptos</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">Familias</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
+                <li class="nav-item">
+                    <a class="nav-link menu-arrow {{ request()->routeIs('concepts.*') || request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="#sidebarConcepts" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarConcepts">
+                        <span class="nav-icon">
+                            <i class="ri-pages-line"></i>
+                        </span>
+                        <span class="nav-text"> Suministros </span>
+                    </a>
+                    <div class="collapse" id="sidebarConcepts">
+                        <ul class="nav sub-navbar-nav">
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">Conceptos</a>
+                            </li>
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">Familias</a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
 
-            <li class="nav-item">
-                <a class="nav-link menu-arrow {{ request()->routeIs('tools.*') || request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="#sidebarTools" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarTools">
-                    <span class="nav-icon">
-                        <i class="ri-hammer-line"></i>
-                    </span>
-                    <span class="nav-text"> Herramientas </span>
-                </a>
-                <div class="collapse" id="sidebarTools">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link {{ request()->routeIs('tools.*') ? 'active' : '' }}" href="{{ route('tools.index') }}">Registro</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link {{ request()->routeIs('tool_controls.*') ? 'active' : '' }}" href="{{ route('tool_controls.index') }}">Control de uso</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link {{ request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="{{ route('tool_categories.index') }}">Categorias</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-            
                 @role('admin')
                 <li class="nav-item">
                     <a class="nav-link" href="{{ route('usuarios.index') }}">

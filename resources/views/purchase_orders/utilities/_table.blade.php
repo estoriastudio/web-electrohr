@@ -14,7 +14,7 @@
     $colspan = 11 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
-<div>
+<div class="table-responsive">
     <table class="table align-middle table-hover table-centered mb-0 app-list-table">
         <thead class="bg-light-subtle">
             <tr>
