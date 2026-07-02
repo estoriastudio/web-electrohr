@@ -298,6 +298,24 @@
                                 </td>
                                 <td class="text-end fw-medium" id="oc_iva">${{ number_format($purchaseOrder->iva, 2) }}</td>
                             </tr>
+                            <tr id="oc_isr_row" @if (is_null($purchaseOrder->isr_rate)) style="display:none;" @endif>
+                                <td class="text-muted fs-12" id="oc_isr_label">
+                                    ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->isr_rate ?? 0), 2), '0'), '.') }}%)
+                                </td>
+                                <td class="text-end fw-medium" id="oc_isr">${{ number_format($purchaseOrder->isr_amount, 2) }}</td>
+                            </tr>
+                            <tr id="oc_retention_iva_row" @if (is_null($purchaseOrder->retention_iva_rate)) style="display:none;" @endif>
+                                <td class="text-muted fs-12" id="oc_retention_iva_label">
+                                    Retenciones IVA ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_iva_rate ?? 0), 2), '0'), '.') }}%)
+                                </td>
+                                <td class="text-end fw-medium" id="oc_retention_iva">${{ number_format($purchaseOrder->retention_iva_amount, 2) }}</td>
+                            </tr>
+                            <tr id="oc_retention_isr_row" @if (is_null($purchaseOrder->retention_isr_rate)) style="display:none;" @endif>
+                                <td class="text-muted fs-12" id="oc_retention_isr_label">
+                                    Retenciones ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_isr_rate ?? 0), 2), '0'), '.') }}%)
+                                </td>
+                                <td class="text-end fw-medium" id="oc_retention_isr">${{ number_format($purchaseOrder->retention_isr_amount, 2) }}</td>
+                            </tr>
                             <tr class="border-top">
                                 <td class="fw-bold fs-14">Total</td>
                                 <td class="text-end fw-bold fs-14 text-primary" id="oc_total">${{ number_format($purchaseOrder->total_with_iva, 2) }}</td>
@@ -1509,6 +1527,11 @@
 
     function updateTotals(data) {
         var el = function (id) { return document.getElementById(id); };
+        var fmtRate = function (rate) {
+            var n = parseFloat(rate);
+            if (!isFinite(n)) return '0';
+            return (Math.round(n * 100) / 100).toString().replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+        };
         if (data.subtotal !== undefined && el('oc_subtotal')) el('oc_subtotal').textContent = '$' + fmtMoney(data.subtotal);
         if (data.iva      !== undefined && el('oc_iva'))      el('oc_iva').textContent      = '$' + fmtMoney(data.iva);
         // Actualizar label de impuesto si el servidor devuelve tax_rate
@@ -1516,9 +1539,43 @@
             if (data.tax_rate === null) {
                 el('oc_iva_label').textContent = 'Impuesto (Exento)';
             } else {
-                el('oc_iva_label').textContent = 'IVA (' + parseFloat(data.tax_rate) + '%)';
+                el('oc_iva_label').textContent = 'IVA (' + fmtRate(data.tax_rate) + '%)';
             }
         }
+
+        if (data.isr_amount !== undefined && el('oc_isr')) {
+            el('oc_isr').textContent = '$' + fmtMoney(data.isr_amount);
+        }
+        if (data.isr_rate !== undefined) {
+            var isrRow = el('oc_isr_row');
+            if (isrRow) isrRow.style.display = data.isr_rate === null ? 'none' : '';
+            if (data.isr_rate !== null && el('oc_isr_label')) {
+                el('oc_isr_label').textContent = 'ISR (' + fmtRate(data.isr_rate) + '%)';
+            }
+        }
+
+        if (data.retention_iva_amount !== undefined && el('oc_retention_iva')) {
+            el('oc_retention_iva').textContent = '$' + fmtMoney(data.retention_iva_amount);
+        }
+        if (data.retention_iva_rate !== undefined) {
+            var retIvaRow = el('oc_retention_iva_row');
+            if (retIvaRow) retIvaRow.style.display = data.retention_iva_rate === null ? 'none' : '';
+            if (data.retention_iva_rate !== null && el('oc_retention_iva_label')) {
+                el('oc_retention_iva_label').textContent = 'Retenciones IVA (' + fmtRate(data.retention_iva_rate) + '%)';
+            }
+        }
+
+        if (data.retention_isr_amount !== undefined && el('oc_retention_isr')) {
+            el('oc_retention_isr').textContent = '$' + fmtMoney(data.retention_isr_amount);
+        }
+        if (data.retention_isr_rate !== undefined) {
+            var retIsrRow = el('oc_retention_isr_row');
+            if (retIsrRow) retIsrRow.style.display = data.retention_isr_rate === null ? 'none' : '';
+            if (data.retention_isr_rate !== null && el('oc_retention_isr_label')) {
+                el('oc_retention_isr_label').textContent = 'Retenciones ISR (' + fmtRate(data.retention_isr_rate) + '%)';
+            }
+        }
+
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
     }

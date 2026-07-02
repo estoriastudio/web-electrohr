@@ -249,7 +249,15 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
+            Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
             Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
+        });
+
+        // Papelera de OC — solo admin
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/ordenes-de-compra/eliminadas/papelera', [PurchaseOrderController::class, 'softDeleted'])->name('purchase_orders.soft_deleted');
+            Route::post('/ordenes-de-compra/{id}/restaurar', [PurchaseOrderController::class, 'restore'])->name('purchase_orders.restore');
+            Route::delete('/ordenes-de-compra/{id}/eliminar-permanente', [PurchaseOrderController::class, 'forceDestroy'])->name('purchase_orders.force_destroy');
         });
 
         // PDF de OC — incluye Solmat para descarga desde trazabilidad
@@ -266,6 +274,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
             Route::patch('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update']);
             Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase_orders.destroy');
+            Route::patch('/ordenes-de-compra/{purchase_order}/archivar', [PurchaseOrderController::class, 'archive'])->name('purchase_orders.archive');
+            Route::patch('/ordenes-de-compra/{purchase_order}/desarchivar', [PurchaseOrderController::class, 'unarchive'])->name('purchase_orders.unarchive');
             // Ítems (conceptos)
             Route::post('/ordenes-de-compra/{purchase_order}/items', [PurchaseOrderController::class, 'storeItem'])->name('purchase_orders.items.store');
             Route::patch('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'updateItem'])->name('purchase_orders.items.update');

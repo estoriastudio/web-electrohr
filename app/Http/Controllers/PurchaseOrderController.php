@@ -46,6 +46,7 @@ class PurchaseOrderController extends Controller
 
         $orders = PurchaseOrder::with(['supplier', 'items'])
             ->withCount(['milestones', 'children'])
+            ->whereNull('archived_at')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {
@@ -121,6 +122,9 @@ class PurchaseOrderController extends Controller
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
             'tax_rate'             => 'required|in:0,8,16,exempt',
+            'isr_rate'             => 'nullable|numeric|min:0|max:100',
+            'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
+            'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
             'status'               => 'required|in:emitida,pendiente,autorizada',
             'recurrence_type'      => 'required|in:unico,recurrente',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
@@ -175,6 +179,9 @@ class PurchaseOrderController extends Controller
         // Normalizar tax_rate: 'exempt' → 0 para almacenar, flag aparte no needed (0% y exento son 0 en cálculo)
         // Guardamos el valor como decimal: exempt se almacena como null para distinguirlo visualmente
         $validated['tax_rate'] = $validated['tax_rate'] === 'exempt' ? null : (float) $validated['tax_rate'];
+        $validated['isr_rate'] = $this->normalizeOptionalRate($validated['isr_rate'] ?? null);
+        $validated['retention_iva_rate'] = $this->normalizeOptionalRate($validated['retention_iva_rate'] ?? null);
+        $validated['retention_isr_rate'] = $this->normalizeOptionalRate($validated['retention_isr_rate'] ?? null);
 
         if (empty($validated['elaborated_by'])) {
             $validated['elaborated_by'] = Auth::user()->name;
@@ -265,6 +272,10 @@ class PurchaseOrderController extends Controller
             'site'                 => $parent->site,
             'currency'             => $parent->currency,
             'amount'               => $parent->amount,
+            'tax_rate'             => $parent->tax_rate,
+            'isr_rate'             => $parent->isr_rate,
+            'retention_iva_rate'   => $parent->retention_iva_rate,
+            'retention_isr_rate'   => $parent->retention_isr_rate,
             'status'               => $parent->status,
             'recurrence_type'      => 'unico',
             'recurrence_frequency' => null,
@@ -349,6 +360,9 @@ class PurchaseOrderController extends Controller
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
             'tax_rate'             => 'required|in:0,8,16,exempt',
+            'isr_rate'             => 'nullable|numeric|min:0|max:100',
+            'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
+            'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
             'status'               => 'required|in:emitida,pendiente,autorizada',
             'recurrence_type'      => 'required|in:unico,recurrente',
             'elaborated_by'        => 'nullable|string|max:255',
@@ -380,6 +394,9 @@ class PurchaseOrderController extends Controller
 
         // Normalizar tax_rate
         $validated['tax_rate'] = ($validated['tax_rate'] ?? '16') === 'exempt' ? null : (float) ($validated['tax_rate'] ?? 16);
+        $validated['isr_rate'] = $this->normalizeOptionalRate($validated['isr_rate'] ?? null);
+        $validated['retention_iva_rate'] = $this->normalizeOptionalRate($validated['retention_iva_rate'] ?? null);
+        $validated['retention_isr_rate'] = $this->normalizeOptionalRate($validated['retention_isr_rate'] ?? null);
 
         // Recalcular amount desde los ítems actuales (no viene del form)
         unset($validated['amount']);
@@ -465,6 +482,113 @@ class PurchaseOrderController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // ARCHIVO Y PAPELERA
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function archive(PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $purchaseOrder->update(['archived_at' => now()]);
+
+        $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'archive',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'archivó la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.index')
+            ->with('success', 'Orden de compra #' . $folio . ' archivada.');
+    }
+
+    public function unarchive(PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $purchaseOrder->update(['archived_at' => null]);
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+
+        return redirect()->route('purchase_orders.archived')
+            ->with('success', 'Orden de compra #' . $folio . ' restaurada al listado activo.');
+    }
+
+    public function archived(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+
+        $orders = PurchaseOrder::with(['supplier', 'items'])
+            ->whereNotNull('archived_at')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->whereHas('supplier', function ($s) use ($search) {
+                        $s->where('rfc_name', 'like', '%' . $search . '%')
+                          ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                    })->orWhere('folio', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderBy('archived_at', 'desc')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('purchase_orders.archive', compact('orders', 'search'));
+    }
+
+    public function softDeleted(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+
+        $orders = PurchaseOrder::onlyTrashed()
+            ->with(['supplier'])
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->whereHas('supplier', function ($s) use ($search) {
+                        $s->where('rfc_name', 'like', '%' . $search . '%')
+                          ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                    })->orWhere('folio', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderBy('deleted_at', 'desc')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('purchase_orders.soft_deleted', compact('orders', 'search'));
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        $purchaseOrder = PurchaseOrder::onlyTrashed()->findOrFail($id);
+        $purchaseOrder->restore();
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+
+        return redirect()->route('purchase_orders.soft_deleted')
+            ->with('success', 'Orden de compra #' . $folio . ' restaurada.');
+    }
+
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        $purchaseOrder = PurchaseOrder::onlyTrashed()->findOrFail($id);
+
+        $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $purchaseOrder->forceDelete();
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'force_destroy',
+            'model_id'     => 0,
+            'data'         => 'eliminó permanentemente la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.soft_deleted')
+            ->with('success', 'Orden de compra #' . $folio . ' eliminada permanentemente.');
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // ÍTEMS (Conceptos)
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -504,9 +628,15 @@ class PurchaseOrderController extends Controller
                 'delivery_date'  => $item->delivery_date,
                 'subtotal'       => $purchaseOrder->subtotal,
                 'iva'            => $purchaseOrder->iva,
+                'isr_amount'     => $purchaseOrder->isr_amount,
+                'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
+                'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
+                'isr_rate'       => $purchaseOrder->isr_rate,
+                'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
+                'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
             ]);
         }
 
@@ -544,9 +674,15 @@ class PurchaseOrderController extends Controller
                 'delivery_date'  => $item->delivery_date,
                 'subtotal'       => $purchaseOrder->subtotal,
                 'iva'            => $purchaseOrder->iva,
+                'isr_amount'     => $purchaseOrder->isr_amount,
+                'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
+                'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
+                'isr_rate'       => $purchaseOrder->isr_rate,
+                'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
+                'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
             ]);
         }
 
@@ -572,9 +708,15 @@ class PurchaseOrderController extends Controller
                 'success'        => true,
                 'subtotal'       => $purchaseOrder->subtotal,
                 'iva'            => $purchaseOrder->iva,
+                'isr_amount'     => $purchaseOrder->isr_amount,
+                'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
+                'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
+                'isr_rate'       => $purchaseOrder->isr_rate,
+                'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
+                'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
             ]);
         }
 
@@ -675,5 +817,14 @@ class PurchaseOrderController extends Controller
         $filename = 'OC-' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.pdf';
 
         return $pdf->download($filename);
+    }
+
+    private function normalizeOptionalRate(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) $value;
     }
 }

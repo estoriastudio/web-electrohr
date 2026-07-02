@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PurchaseOrder extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'parent_id',
         'folio',
@@ -23,6 +25,9 @@ class PurchaseOrder extends Model
         'currency',
         'amount',
         'tax_rate',
+        'isr_rate',
+        'retention_iva_rate',
+        'retention_isr_rate',
         'status',
         'recurrence_type',
         'recurrence_frequency',
@@ -33,15 +38,30 @@ class PurchaseOrder extends Model
         'attorney_name',
         'supplier_signatory',
         'authorized_signatory',
+        'archived_at',
     ];
 
     protected $casts = [
         'amount'                => 'decimal:2',
         'tax_rate'              => 'decimal:2',
+        'isr_rate'              => 'decimal:2',
+        'retention_iva_rate'    => 'decimal:2',
+        'retention_isr_rate'    => 'decimal:2',
         'recurrence_start_date' => 'date',
         'recurrence_end_date'   => 'date',
         'observations'          => 'array',
+        'archived_at'           => 'datetime',
     ];
+
+    public function scopeActive($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
 
     public function supplier(): BelongsTo
     {
@@ -127,6 +147,34 @@ class PurchaseOrder extends Model
         return round($this->subtotal * ($rate / 100), 2);
     }
 
+    public function getIsrAmountAttribute(): float
+    {
+        $rate = (float) ($this->isr_rate ?? 0);
+        return round($this->subtotal * ($rate / 100), 2);
+    }
+
+    public function getRetentionIvaAmountAttribute(): float
+    {
+        $rate = (float) ($this->retention_iva_rate ?? 0);
+        return round($this->subtotal * ($rate / 100), 2);
+    }
+
+    public function getRetentionIsrAmountAttribute(): float
+    {
+        $rate = (float) ($this->retention_isr_rate ?? 0);
+        return round($this->subtotal * ($rate / 100), 2);
+    }
+
+    public function getAdditionalTaxesAmountAttribute(): float
+    {
+        return round(
+            $this->isr_amount
+            + $this->retention_iva_amount
+            + $this->retention_isr_amount,
+            2
+        );
+    }
+
     public function getTotalWithIvaAttribute(): float
     {
         return $this->getTotalWithTaxAttribute();
@@ -134,8 +182,7 @@ class PurchaseOrder extends Model
 
     public function getTotalWithTaxAttribute(): float
     {
-        $rate = (float) ($this->tax_rate ?? 0);
-        return round($this->subtotal * (1 + $rate / 100), 2);
+        return round($this->subtotal + $this->tax_amount + $this->additional_taxes_amount, 2);
     }
 
     /**
@@ -145,10 +192,18 @@ class PurchaseOrder extends Model
     public function recalculateAmount(): void
     {
         $subtotal = (float) $this->items()->sum(\DB::raw('quantity * unit_price'));
+        $taxRate = (float) ($this->tax_rate ?? 0);
+        $isrRate = (float) ($this->isr_rate ?? 0);
+        $retentionIvaRate = (float) ($this->retention_iva_rate ?? 0);
+        $retentionIsrRate = (float) ($this->retention_isr_rate ?? 0);
 
-        if ($subtotal > 0) {
-            $rate = (float) ($this->tax_rate ?? 0);
-            $this->update(['amount' => round($subtotal * (1 + $rate / 100), 2)]);
-        }
+        $taxAmount = $subtotal * ($taxRate / 100);
+        $isrAmount = $subtotal * ($isrRate / 100);
+        $retentionIvaAmount = $subtotal * ($retentionIvaRate / 100);
+        $retentionIsrAmount = $subtotal * ($retentionIsrRate / 100);
+
+        $this->update([
+            'amount' => round($subtotal + $taxAmount + $isrAmount + $retentionIvaAmount + $retentionIsrAmount, 2),
+        ]);
     }
 }

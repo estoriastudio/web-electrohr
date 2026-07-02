@@ -208,6 +208,24 @@
                         <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">IVA</td>
                         <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->iva, 2) }}</td>
                     </tr>
+                    @if (!is_null($po->isr_rate))
+                    <tr>
+                        <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">ISR ({{ rtrim(rtrim(number_format((float) $po->isr_rate, 2), '0'), '.') }}%)</td>
+                        <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->isr_amount, 2) }}</td>
+                    </tr>
+                    @endif
+                    @if (!is_null($po->retention_iva_rate))
+                    <tr>
+                        <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">Retenciones IVA ({{ rtrim(rtrim(number_format((float) $po->retention_iva_rate, 2), '0'), '.') }}%)</td>
+                        <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->retention_iva_amount, 2) }}</td>
+                    </tr>
+                    @endif
+                    @if (!is_null($po->retention_isr_rate))
+                    <tr>
+                        <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">Retenciones ISR ({{ rtrim(rtrim(number_format((float) $po->retention_isr_rate, 2), '0'), '.') }}%)</td>
+                        <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->retention_isr_amount, 2) }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">Total</td>
                         <td style="border: 1px solid #999; padding: 5px; text-align: right; font-weight: bold;">$ {{ number_format($po->total_with_iva, 2) }}</td>

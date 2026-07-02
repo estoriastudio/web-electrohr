@@ -229,6 +229,11 @@
                     </div>
 
                     {{-- Impuesto --}}
+                    @php
+                        $oldIsrRate = old('isr_rate');
+                        $oldRetentionIvaRate = old('retention_iva_rate');
+                        $oldRetentionIsrRate = old('retention_isr_rate');
+                    @endphp
                     <div class="col-md-4">
                         <label for="tax_rate" class="form-label fw-medium">Incluye impuesto <span class="text-danger">*</span></label>
                         <select class="form-select @error('tax_rate') is-invalid @enderror" id="tax_rate" name="tax_rate" required>
@@ -238,6 +243,70 @@
                             <option value="exempt" {{ old('tax_rate') === 'exempt' ? 'selected' : '' }}>Exento de impuesto</option>
                         </select>
                         @error('tax_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-12">
+                        <div class="border rounded-2 p-3 bg-light-subtle">
+                            <p class="mb-2 fw-medium fs-13">Impuestos adicionales (opcionales)</p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input js-extra-tax-toggle" type="checkbox"
+                                               id="check_isr_rate"
+                                               data-target="isr_rate_wrapper"
+                                               {{ ($oldIsrRate !== null && $oldIsrRate !== '') ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="check_isr_rate">ISR</label>
+                                    </div>
+                                    <div id="isr_rate_wrapper" style="display:none;">
+                                        <label for="isr_rate" class="form-label fw-medium">ISR (%)</label>
+                                        <input type="number" step="0.01" min="0" max="100"
+                                               class="form-control @error('isr_rate') is-invalid @enderror"
+                                               id="isr_rate" name="isr_rate"
+                                               value="{{ $oldIsrRate }}"
+                                               disabled>
+                                        @error('isr_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input js-extra-tax-toggle" type="checkbox"
+                                               id="check_retention_iva_rate"
+                                               data-target="retention_iva_rate_wrapper"
+                                               {{ ($oldRetentionIvaRate !== null && $oldRetentionIvaRate !== '') ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="check_retention_iva_rate">Retenciones IVA</label>
+                                    </div>
+                                    <div id="retention_iva_rate_wrapper" style="display:none;">
+                                        <label for="retention_iva_rate" class="form-label fw-medium">Retención IVA (%)</label>
+                                        <input type="number" step="0.01" min="0" max="100"
+                                               class="form-control @error('retention_iva_rate') is-invalid @enderror"
+                                               id="retention_iva_rate" name="retention_iva_rate"
+                                               value="{{ $oldRetentionIvaRate }}"
+                                               disabled>
+                                        @error('retention_iva_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input js-extra-tax-toggle" type="checkbox"
+                                               id="check_retention_isr_rate"
+                                               data-target="retention_isr_rate_wrapper"
+                                               {{ ($oldRetentionIsrRate !== null && $oldRetentionIsrRate !== '') ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="check_retention_isr_rate">Retenciones ISR</label>
+                                    </div>
+                                    <div id="retention_isr_rate_wrapper" style="display:none;">
+                                        <label for="retention_isr_rate" class="form-label fw-medium">Retención ISR (%)</label>
+                                        <input type="number" step="0.01" min="0" max="100"
+                                               class="form-control @error('retention_isr_rate') is-invalid @enderror"
+                                               id="retention_isr_rate" name="retention_isr_rate"
+                                               value="{{ $oldRetentionIsrRate }}"
+                                               disabled>
+                                        @error('retention_isr_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {{-- Estatus --}}
@@ -463,6 +532,24 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     recInputs.forEach(function (el) { el.addEventListener('change', toggleRecurrencia); });
     toggleRecurrencia();
+
+    // ── Toggle impuestos adicionales ─────────────────────────────────────
+    function toggleExtraTaxField(checkbox) {
+        var wrapper = document.getElementById(checkbox.dataset.target);
+        if (!wrapper) return;
+        var input = wrapper.querySelector('input');
+        var enabled = checkbox.checked;
+        wrapper.style.display = enabled ? '' : 'none';
+        if (input) {
+            input.disabled = !enabled;
+            input.required = enabled;
+        }
+    }
+
+    document.querySelectorAll('.js-extra-tax-toggle').forEach(function (cb) {
+        cb.addEventListener('change', function () { toggleExtraTaxField(cb); });
+        toggleExtraTaxField(cb);
+    });
 
     // ── Cargar obras al cambiar proyecto (cascade) ────────────────────────
     projectSelect.addEventListener('change', function () {

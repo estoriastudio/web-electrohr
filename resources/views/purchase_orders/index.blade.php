@@ -49,6 +49,14 @@
                     </a>
                     @endcan
                     @endhasanyrole
+                    <a href="{{ route('purchase_orders.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
+                        <i class="ri-archive-line me-1"></i> Archivadas
+                    </a>
+                    @hasrole('admin')
+                    <a href="{{ route('purchase_orders.soft_deleted') }}" class="btn btn-sm btn-outline-danger ms-1" title="Papelera">
+                        <i class="ri-delete-bin-line me-1"></i> Papelera
+                    </a>
+                    @endhasrole
                 </div>
             </div>
 
@@ -97,154 +105,7 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Tipo</th>
-                                <th>Proveedor</th>
-                                <th>Proyecto / Obra</th>
-                                <th>Próx. Vencimiento</th>
-                                <th>Moneda</th>
-                                <th>Importe</th>
-                                <th>Saldo cubierto</th>
-                                <th>Estatus</th>
-                                <th>Recurrencia</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($orders as $order)
-                                @php
-                                    $statusMap = [
-                                        'emitida'    => ['label' => 'Emitida',    'class' => 'bg-info-subtle text-info'],
-                                        'pendiente'  => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-                                        'autorizada' => ['label' => 'Autorizada', 'class' => 'bg-success-subtle text-success'],
-                                    ];
-                                    $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
-
-                                    $tipoMap = [
-                                        'materiales_servicios' => ['label' => 'Materiales / Servicios', 'class' => 'bg-primary-subtle text-primary'],
-                                        'mantenimiento'        => ['label' => 'Mantenimiento',          'class' => 'bg-secondary-subtle text-secondary'],
-                                    ];
-                                    $t = $tipoMap[$order->type] ?? ['label' => $order->type, 'class' => 'bg-secondary-subtle text-secondary'];
-                                @endphp
-                                <tr>
-                                    <td>
-                                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">#{{ $order->folio ?? '—' }}</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge {{ $t['class'] }} py-1 px-2 fs-12">{{ $t['label'] }}</span>
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('suppliers.show', $order->supplier) }}" class="text-dark fw-medium">
-                                            {{ $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—' }}
-                                        </a>
-                                    </td>
-                                    <td style="max-width:160px">
-                                        @php
-                                            $proj = $order->projectRelation?->name ?? $order->project ?? null;
-                                            $obra = $order->workRelation?->name  ?? $order->site    ?? null;
-                                        @endphp
-                                        @if ($proj)
-                                            <div class="hover-marquee" style="--marquee-width:150px;" title="{{ $proj }}">
-                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
-                                            </div>
-                                        @endif
-                                        @if ($obra)
-                                            <small class="text-muted d-block hover-marquee" style="--marquee-width:150px;" title="{{ $obra }}">
-                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
-                                            </small>
-                                        @endif
-                                        @if (!$proj && !$obra)—@endif
-                                    </td>
-                                    <td>{{ $order->next_due_date ?? '—' }}</td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $order->currency }}</span>
-                                    </td>
-                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->total_with_iva, 2) }}</td>
-                                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
-                                    <td>
-                                        <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
-                                    </td>
-                                    <td>
-                                        @if ($order->parent_id)
-                                            {{-- Orden hija: mostrar origen --}}
-                                            <div class="fs-12">
-                                                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
-                                                    <i class="ri-links-line me-1"></i>Serie
-                                                </span>
-                                                <small class="d-block text-muted mt-1">
-                                                    Origen:
-                                                    <a href="{{ route('purchase_orders.show', $order->parent_id) }}"
-                                                       class="fw-semibold text-decoration-none">
-                                                        OC #{{ $order->parent_id }}
-                                                    </a>
-                                                </small>
-                                                @if ($order->recurrence_start_date)
-                                                    <small class="text-muted">
-                                                        <i class="ri-calendar-line me-1"></i>{{ $order->recurrence_start_date->format('d/m/Y') }}
-                                                    </small>
-                                                @endif
-                                            </div>
-                                        @elseif ($order->recurrence_type === 'recurrente')
-                                            {{-- Orden padre recurrente --}}
-                                            <div class="fs-12">
-                                                <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">Recurrente</span><br>
-                                                <small class="text-muted">
-                                                    {{ ucfirst($order->recurrence_frequency) }}
-                                                    @if ($order->recurrence_start_date)
-                                                        · {{ $order->recurrence_start_date->format('d/m/Y') }}
-                                                    @endif
-                                                    @if ($order->recurrence_end_date)
-                                                        — {{ $order->recurrence_end_date->format('d/m/Y') }}
-                                                    @endif
-                                                </small>
-                                                @if ($order->children_count > 0)
-                                                    <span class="badge bg-info-subtle text-info py-1 px-2 fs-11 d-inline-block mt-1">
-                                                        <i class="ri-git-branch-line me-1"></i>{{ $order->children_count }} órdenes
-                                                    </span>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <span class="badge bg-light text-dark border py-1 px-2 fs-12">Único</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <a href="{{ route('purchase_orders.show', $order) }}"
-                                               class="btn btn-light btn-sm" title="Ver detalle">
-                                                <i class="ri-eye-line"></i>
-                                            </a>
-                                            <a href="{{ route('purchase_orders.pdf', $order) }}"
-                                               class="btn btn-soft-secondary btn-sm" title="Descargar PDF" target="_blank">
-                                                <i class="ri-file-pdf-2-line"></i>
-                                            </a>
-                                            @can('delete')
-                                                <form action="{{ route('purchase_orders.destroy', $order) }}"
-                                                      method="POST"
-                                                      onsubmit="return confirm('¿Seguro que deseas eliminar esta orden de compra? Esta acción no se puede deshacer.');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar orden">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
-                                                </form>
-                                            @endcan
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="11" class="text-center text-muted py-4">
-                                        No hay órdenes de compra registradas.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('purchase_orders.utilities._table')
             </div>
 
             @if ($orders->hasPages())
@@ -257,3 +118,4 @@
 </div>
 
 @endsection
+
