@@ -252,6 +252,28 @@
                     </ul>
                 </div>
             </li>
+
+            <li class="nav-item">
+                <a class="nav-link menu-arrow {{ request()->routeIs('tools.*') || request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="#sidebarTools" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarTools">
+                    <span class="nav-icon">
+                        <i class="ri-hammer-line"></i>
+                    </span>
+                    <span class="nav-text"> Herramientas </span>
+                </a>
+                <div class="collapse" id="sidebarTools">
+                    <ul class="nav sub-navbar-nav">
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('tools.*') ? 'active' : '' }}" href="{{ route('tools.index') }}">Registro</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('tool_controls.*') ? 'active' : '' }}" href="{{ route('tool_controls.index') }}">Control de uso</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="{{ route('tool_categories.index') }}">Categorias</a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
             
                 @role('admin')
                 <li class="nav-item">

@@ -18,6 +18,9 @@ use App\Http\Controllers\MaterialVoucherController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\ConceptCategoryController;
+use App\Http\Controllers\ToolController;
+use App\Http\Controllers\ToolCategoryController;
+use App\Http\Controllers\ToolControlController;
 
 use App\Http\Controllers\PaymentController;
 
@@ -161,6 +164,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
         Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
+        Route::get('/categorias-herramientas/{toolCategory}/subcategorias-json', [ToolCategoryController::class, 'subcategoriesJson'])->name('tool_categories.subcategories_json');
 
 
         // Conceptos (catálogo) — CRUD solo admin
@@ -185,6 +189,35 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/categorias-conceptos/{conceptCategory}/subcategorias', [ConceptCategoryController::class, 'storeSubcategory'])->name('concept_categories.subcategories.store');
             Route::put('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'updateSubcategory'])->name('concept_categories.subcategories.update');
             Route::delete('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'destroySubcategory'])->name('concept_categories.subcategories.destroy');
+
+            // Tool categories
+            Route::resource('/categorias-herramientas', ToolCategoryController::class, [
+                'names' => [
+                    'index' => 'tool_categories.index',
+                    'store' => 'tool_categories.store',
+                    'update' => 'tool_categories.update',
+                    'destroy' => 'tool_categories.destroy',
+                ],
+                'parameters' => ['categorias-herramientas' => 'toolCategory'],
+            ])->only(['index', 'store', 'update', 'destroy']);
+
+            // Tool controls
+            Route::get('/herramientas/controles', [ToolControlController::class, 'index'])->name('tool_controls.index');
+            Route::post('/herramientas/controles', [ToolControlController::class, 'store'])->name('tool_controls.store');
+            Route::put('/herramientas/controles/{toolControl}', [ToolControlController::class, 'update'])->name('tool_controls.update');
+            Route::delete('/herramientas/controles/{toolControl}', [ToolControlController::class, 'destroy'])->name('tool_controls.destroy');
+
+            // Tools
+            Route::resource('/herramientas', ToolController::class, [
+                'names' => [
+                    'index' => 'tools.index',
+                    'show' => 'tools.show',
+                    'store' => 'tools.store',
+                    'update' => 'tools.update',
+                    'destroy' => 'tools.destroy',
+                ],
+                'parameters' => ['herramientas' => 'tool'],
+            ])->only(['index', 'show', 'store', 'update', 'destroy']);
         });
 
         // Usuarios (gestión) y Roles
