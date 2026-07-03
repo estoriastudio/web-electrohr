@@ -16,6 +16,7 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -76,7 +77,7 @@ class PurchaseOrderController extends Controller
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
-        $nextFolio             = (PurchaseOrder::max('folio') ?? 0) + 1;
+        $nextFolio             = (PurchaseOrder::withTrashed()->max('folio') ?? 0) + 1;
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
 
         return view('purchase_orders.index', compact(
@@ -90,7 +91,7 @@ class PurchaseOrderController extends Controller
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
         $mobileAssets          = MobileAsset::where('status', 'active')->orderBy('name')->get();
-        $nextFolio             = (PurchaseOrder::max('folio') ?? 0) + 1;
+        $nextFolio             = (PurchaseOrder::withTrashed()->max('folio') ?? 0) + 1;
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
 
         return view('purchase_orders.create', compact(
@@ -108,7 +109,7 @@ class PurchaseOrderController extends Controller
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
-        $nextFolio             = (PurchaseOrder::max('folio') ?? 0) + 1;
+        $nextFolio             = (PurchaseOrder::withTrashed()->max('folio') ?? 0) + 1;
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
 
         return view('purchase_orders.create_from_solcom', compact(
@@ -119,7 +120,7 @@ class PurchaseOrderController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $rules = [
-            'folio'                => 'required|integer|unique:purchase_orders,folio',
+            'folio'                => 'nullable|integer',
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
@@ -192,49 +193,59 @@ class PurchaseOrderController extends Controller
         // amount siempre parte en 0; se recalculará cuando se agreguen conceptos
         $validated['amount'] = 0;
 
-        $order = PurchaseOrder::create($validated);
+        unset($validated['folio']);
 
-        // Si viene vinculada a una SOLCOM: copiar sus ítems
-        if (!empty($validated['purchase_request_id'])) {
-            $pr = PurchaseRequest::with('items.concept')->find($validated['purchase_request_id']);
+        $childrenCreated = 0;
+        $order = DB::transaction(function () use ($validated, &$childrenCreated) {
+            $nextFolio = (PurchaseOrder::withTrashed()->lockForUpdate()->max('folio') ?? 0) + 1;
 
-            if ($pr) {
-                $selectedItemIds = collect($validated['selected_item_ids'] ?? [])->map(fn ($id) => (int) $id);
-                $itemsToCopy = $selectedItemIds->isNotEmpty()
-                    ? $pr->items->whereIn('id', $selectedItemIds)->values()
-                    : $pr->items;
+            $validated['folio'] = $nextFolio;
+            $order = PurchaseOrder::create($validated);
+            $nextFolio++;
 
-                foreach ($itemsToCopy as $item) {
-                    PurchaseOrderItem::create([
-                        'purchase_order_id' => $order->id,
-                        'purchase_request_item_id' => $item->id,
-                        'concept_id'        => $item->concept_id,
-                        'description'       => $item->description,
-                        'unit'              => $item->unit,
-                        'quantity'          => $item->purchase_quantity,
-                        'unit_price'        => $item->concept?->unit_price ?? 0,
-                        'delivery_date'     => null,
-                    ]);
-                }
+            // Si viene vinculada a una SOLCOM: copiar sus ítems
+            if (!empty($validated['purchase_request_id'])) {
+                $pr = PurchaseRequest::with('items.concept')->find($validated['purchase_request_id']);
 
-                // Recalcular amount a partir de los ítems copiados
-                $order->recalculateAmount();
+                if ($pr) {
+                    $selectedItemIds = collect($validated['selected_item_ids'] ?? [])->map(fn ($id) => (int) $id);
+                    $itemsToCopy = $selectedItemIds->isNotEmpty()
+                        ? $pr->items->whereIn('id', $selectedItemIds)->values()
+                        : $pr->items;
 
-                // Mantener la SOLCOM activa en la Pila de Compras para permitir bifurcaciones.
-                // El cierre de la SOLCOM debe ser explícito y no automático con la primera OC.
-                if ($pr->status !== 'sent_to_purchasing') {
-                    $pr->update(['status' => 'sent_to_purchasing']);
+                    foreach ($itemsToCopy as $item) {
+                        PurchaseOrderItem::create([
+                            'purchase_order_id' => $order->id,
+                            'purchase_request_item_id' => $item->id,
+                            'concept_id'        => $item->concept_id,
+                            'description'       => $item->description,
+                            'unit'              => $item->unit,
+                            'quantity'          => $item->purchase_quantity,
+                            'unit_price'        => $item->concept?->unit_price ?? 0,
+                            'delivery_date'     => null,
+                        ]);
+                    }
+
+                    // Recalcular amount a partir de los ítems copiados
+                    $order->recalculateAmount();
+
+                    // Mantener la SOLCOM activa en la Pila de Compras para permitir bifurcaciones.
+                    // El cierre de la SOLCOM debe ser explícito y no automático con la primera OC.
+                    if ($pr->status !== 'sent_to_purchasing') {
+                        $pr->update(['status' => 'sent_to_purchasing']);
+                    }
                 }
             }
-        }
 
-        // Generar órdenes hijas si es recurrente
-        $childrenCreated = 0;
-        if ($order->recurrence_type === 'recurrente'
-            && $order->recurrence_start_date
-            && $order->recurrence_end_date) {
-            $childrenCreated = $this->generateRecurringChildren($order);
-        }
+            // Generar órdenes hijas si es recurrente
+            if ($order->recurrence_type === 'recurrente'
+                && $order->recurrence_start_date
+                && $order->recurrence_end_date) {
+                $childrenCreated = $this->generateRecurringChildren($order, $nextFolio);
+            }
+
+            return $order;
+        });
 
         $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -259,8 +270,10 @@ class PurchaseOrderController extends Controller
      * Genera órdenes de compra individuales (hijas) para cada ocurrencia de una serie recurrente.
      * Retorna la cantidad de órdenes generadas.
      */
-    private function generateRecurringChildren(PurchaseOrder $parent): int
+    private function generateRecurringChildren(PurchaseOrder $parent, int &$nextFolio): int
     {
+        $parent->loadMissing('items');
+
         $current = $parent->recurrence_start_date->copy();
         $end     = $parent->recurrence_end_date->copy();
 
@@ -293,9 +306,10 @@ class PurchaseOrderController extends Controller
 
         while ($current->lte($end) && $count < $maxItems) {
             $child = PurchaseOrder::create(array_merge($childData, [
-                'folio'                 => (PurchaseOrder::max('folio') ?? 0) + 1,
+                'folio'                 => $nextFolio,
                 'recurrence_start_date' => $current->format('Y-m-d'),
             ]));
+            $nextFolio++;
 
             // Copiar ítems al hijo
             foreach ($parent->items as $item) {
