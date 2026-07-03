@@ -197,7 +197,7 @@
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                     <td>{{ $item->description }}</td>
                                     <td>{{ $item->unit }}</td>
-                                    <td class="text-end">{{ (int) $item->quantity }}</td>
+                                    <td class="text-end">{{ $item->quantity }}</td>
                                     <td>
                                         @if ($item->file_path)
                                             <a href="{{ Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30)) }}"
@@ -287,7 +287,7 @@
                            id="solmat_quantity"
                            class="form-control form-control-lg text-center mb-3"
                            placeholder="0"
-                           step="1"
+                                    step="any"
                            min="1"
                            inputmode="numeric">
 
@@ -679,7 +679,7 @@
         fd.append('code',        selectedConcept.code);
         fd.append('description', selectedConcept.description);
         fd.append('unit',        selectedConcept.unit);
-        fd.append('quantity',    Math.round(qty));
+        fd.append('quantity',    qtyInput.value.trim());
 
         var specFileInput = document.getElementById('solmat_spec_file');
         if (specFileInput && specFileInput.files.length > 0) {
@@ -721,8 +721,7 @@
         if (emptyRow) emptyRow.remove();
 
         var num  = itemCount() + 1;
-        var qty  = parseFloat(item.quantity);
-        var qtyF = isNaN(qty) ? item.quantity : Math.round(qty).toString();
+        var qtyF = item.quantity != null ? String(item.quantity) : '';
 
         var tr = document.createElement('tr');
         tr.className      = 'solmat-item-row solmat-item-new';

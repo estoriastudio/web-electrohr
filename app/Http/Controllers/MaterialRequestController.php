@@ -179,7 +179,7 @@ class MaterialRequestController extends Controller
             'code'        => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit'        => 'required|string|max:50',
-            'quantity'    => 'required|integer|min:1',
+            'quantity'    => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
             'spec_file'   => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 

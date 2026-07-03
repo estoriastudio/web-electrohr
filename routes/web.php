@@ -397,7 +397,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Vales de Material ───────────────────────────────────────────────
-        Route::middleware('role:admin|Pagos|Proveedor')->group(function () {
+        Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
                 'names'      => [
                     'index'   => 'material_vouchers.index',

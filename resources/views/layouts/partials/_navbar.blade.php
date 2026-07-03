@@ -96,7 +96,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solmat|Pagos|Proveedor')
+            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')
             @can('read')
             <li class="menu-title">Almacén</li>
 
@@ -112,7 +112,7 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Solmat|Pagos|Proveedor')
+            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
                    href="{{ route('material_vouchers.index') }}">
