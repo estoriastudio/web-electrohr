@@ -55,6 +55,7 @@
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
     $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
     $minDueDate = now()->format('Y-m-d');
+    $conceptSearchType = $purchaseOrder->type === 'mantenimiento' ? 'mantenimiento' : 'materiales';
 @endphp
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
@@ -1916,7 +1917,7 @@
             var q = this.value.trim();
             if (q.length < 2) { searchDropdown.classList.add('d-none'); return; }
             searchTimer = setTimeout(function () {
-                fetch('{{ route("concepts.search") }}' + '?type={{ $purchaseOrder->type === "mantenimiento" ? "mantenimiento" : "materiales" }}&q=' + encodeURIComponent(q), {
+                fetch('{{ route("concepts.search") }}' + '?type={{ $conceptSearchType }}&q=' + encodeURIComponent(q), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
                 })
                 .then(function (r) { return r.json(); })

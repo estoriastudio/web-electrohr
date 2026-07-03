@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
 use App\Models\MobileAsset;
+use App\Models\Concept;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderItem;
@@ -90,7 +91,7 @@ class PurchaseOrderController extends Controller
     {
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
-        $mobileAssets          = MobileAsset::where('status', 'active')->orderBy('name')->get();
+        $mobileAssets          = MobileAsset::where('status', 'activo')->orderBy('name')->get();
         $nextFolio             = (PurchaseOrder::withTrashed()->max('folio') ?? 0) + 1;
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
 
@@ -619,14 +620,35 @@ class PurchaseOrderController extends Controller
             return $redirect;
         }
 
+        $allowedConceptType = $purchaseOrder->type === 'mantenimiento' ? 'mantenimiento' : 'materiales';
+
         $data = $request->validate([
-            'concept_id'    => 'nullable|exists:concepts,id',
+            'concept_id'    => [
+                'nullable',
+                Rule::exists('concepts', 'id')->where(function ($q) use ($allowedConceptType) {
+                    $q->where('type', $allowedConceptType)
+                      ->where('status', 'active');
+                }),
+            ],
             'description'   => 'required|string|max:500',
             'unit'          => 'required|string|max:50',
             'quantity'      => 'required|numeric|min:0.01',
             'unit_price'    => 'required|numeric|min:0',
             'delivery_date' => 'nullable|string|max:100',
         ]);
+
+        // Si viene del catálogo, normalizar con la definición oficial del concepto.
+        if (! empty($data['concept_id'])) {
+            $concept = Concept::select('description', 'unit')
+                ->where('type', $allowedConceptType)
+                ->where('status', 'active')
+                ->find($data['concept_id']);
+
+            if ($concept) {
+                $data['description'] = $concept->description;
+                $data['unit'] = $concept->unit;
+            }
+        }
 
         $data['purchase_order_id'] = $purchaseOrder->id;
         $item = PurchaseOrderItem::create($data);
