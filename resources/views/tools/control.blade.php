@@ -50,7 +50,7 @@
                             <option value="">Buscar y seleccionar herramienta...</option>
                             @foreach ($tools as $tool)
                                 <option value="{{ $tool->id }}" @selected((string) old('tool_id') === (string) $tool->id)>
-                                    {{ $tool->economic_number }} · {{ $tool->name }}
+                                    {{ $tool->economic_number }} · {{ $tool->description }}
                                 </option>
                             @endforeach
                         </select>
@@ -71,6 +71,11 @@
                     </div>
 
                     <div class="row g-2">
+                        <div class="col-md-12">
+                            <label class="form-label">Responsable <span class="text-danger">*</span></label>
+                            <input type="text" name="responsible" class="form-control @error('responsible') is-invalid @enderror" value="{{ old('responsible') }}" maxlength="150" required>
+                            @error('responsible') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Tipo de préstamo <span class="text-danger">*</span></label>
                             <select name="loan_type" class="form-select @error('loan_type') is-invalid @enderror" required>
@@ -158,6 +163,7 @@
                                 <th>Herramienta</th>
                                 <th>Proyecto / Obra</th>
                                 <th>Préstamo</th>
+                                <th>Responsable</th>
                                 <th>Salida</th>
                                 <th>Revisión</th>
                                 <th>Estatus</th>
@@ -177,6 +183,7 @@
                                         <div class="text-muted fs-12">{{ $control->projectWork?->name ?? 'Sin obra' }}</div>
                                     </td>
                                     <td>{{ $control->loan_type === 'fixed' ? 'Fijo' : 'Provisional' }}</td>
+                                    <td>{{ $control->responsible ?: '—' }}</td>
                                     <td>{{ $control->checkout_date?->format('Y-m-d') }}</td>
                                     <td>{{ $control->review_date?->format('Y-m-d') ?? '—' }}</td>
                                     <td>
@@ -218,7 +225,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         <i class="ri-calendar-event-line fs-24 d-block mb-1 opacity-50"></i>
                                         No hay registros de control.
                                     </td>
@@ -256,7 +263,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info py-2">
-                            <strong>{{ $control->tool?->economic_number }}</strong> · {{ $control->tool?->name }}
+                            <strong>{{ $control->tool?->economic_number }}</strong> · {{ $control->tool?->description }}
                         </div>
 
                         <div class="mb-3">
@@ -270,6 +277,10 @@
                             </select>
                         </div>
                         <div class="row g-2">
+                            <div class="col-md-12">
+                                <label class="form-label">Responsable <span class="text-danger">*</span></label>
+                                <input type="text" name="responsible" class="form-control" value="{{ $control->responsible }}" maxlength="150" required>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Tipo de préstamo <span class="text-danger">*</span></label>
                                 <select name="loan_type" class="form-select" required>

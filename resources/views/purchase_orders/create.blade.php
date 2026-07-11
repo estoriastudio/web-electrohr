@@ -320,56 +320,6 @@
                         @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    {{-- Recurrencia --}}
-                    <div class="col-12">
-                        <label class="form-label fw-medium">Recurrencia <span class="text-danger">*</span></label>
-                        <div class="d-flex gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="recurrence_type"
-                                       id="rec_unico" value="unico"
-                                       {{ old('recurrence_type', 'unico') === 'unico' ? 'checked' : '' }}>
-                                <label class="form-check-label" for="rec_unico">Pago único</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="recurrence_type"
-                                       id="rec_recurrente" value="recurrente"
-                                       {{ old('recurrence_type') === 'recurrente' ? 'checked' : '' }}>
-                                <label class="form-check-label" for="rec_recurrente">Pago recurrente</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Campos de recurrencia (ocultos por defecto) --}}
-                    <div id="campos_recurrencia" style="display:none;" class="col-12">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label for="recurrence_frequency" class="form-label fw-medium">Frecuencia <span class="text-danger">*</span></label>
-                                <select class="form-select @error('recurrence_frequency') is-invalid @enderror"
-                                        id="recurrence_frequency" name="recurrence_frequency">
-                                    <option value="">Seleccionar...</option>
-                                    <option value="semanal"   {{ old('recurrence_frequency') === 'semanal'   ? 'selected' : '' }}>Semanal</option>
-                                    <option value="quincenal" {{ old('recurrence_frequency') === 'quincenal' ? 'selected' : '' }}>Quincenal</option>
-                                    <option value="mensual"   {{ old('recurrence_frequency') === 'mensual'   ? 'selected' : '' }}>Mensual</option>
-                                </select>
-                                @error('recurrence_frequency')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="col-md-4">
-                                <label for="recurrence_start_date" class="form-label fw-medium">Fecha inicio <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control @error('recurrence_start_date') is-invalid @enderror"
-                                       id="recurrence_start_date" name="recurrence_start_date"
-                                       value="{{ old('recurrence_start_date') }}">
-                                @error('recurrence_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="col-md-4">
-                                <label for="recurrence_end_date" class="form-label fw-medium">Fecha fin</label>
-                                <input type="date" class="form-control @error('recurrence_end_date') is-invalid @enderror"
-                                       id="recurrence_end_date" name="recurrence_end_date"
-                                       value="{{ old('recurrence_end_date') }}">
-                                @error('recurrence_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                        </div>
-                    </div>
-
                     {{-- ―― Firmas ―― --}}
                     <div class="col-12">
                         <hr class="my-1">
@@ -444,8 +394,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var btnBack            = document.getElementById('btnBackToTypes');
     var sectionMat         = document.getElementById('section-materiales');
     var sectionMant        = document.getElementById('section-mantenimiento');
-    var camposRec          = document.getElementById('campos_recurrencia');
-    var recInputs          = document.querySelectorAll('input[name="recurrence_type"]');
     var projectSelect      = document.getElementById('project_id');
     var siteSelect         = document.getElementById('project_work_id');
     var supplierChoices    = null;
@@ -524,14 +472,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeInput.value) {
         selectType(typeInput.value);
     }
-
-    // ── Toggle campos de recurrencia ──────────────────────────────────────
-    function toggleRecurrencia() {
-        var checked = document.querySelector('input[name="recurrence_type"]:checked');
-        camposRec.style.display = (checked && checked.value === 'recurrente') ? '' : 'none';
-    }
-    recInputs.forEach(function (el) { el.addEventListener('change', toggleRecurrencia); });
-    toggleRecurrencia();
 
     // ── Toggle impuestos adicionales ─────────────────────────────────────
     function toggleExtraTaxField(checkbox) {

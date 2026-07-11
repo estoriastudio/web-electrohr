@@ -23,7 +23,6 @@ use Illuminate\View\View;
 
 /* PDF */
 use Barryvdh\DomPDF\Facade\Pdf;
-use setasign\Fpdi\Fpdi;
 
 /* Notificaciones */
 use App\Services\NotificationService;
@@ -130,7 +129,6 @@ class PurchaseOrderController extends Controller
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
             'status'               => 'required|in:emitida,pendiente,autorizada',
-            'recurrence_type'      => 'required|in:unico,recurrente',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
@@ -156,12 +154,6 @@ class PurchaseOrderController extends Controller
 
         if ($request->type === 'mantenimiento') {
             $rules['mobile_asset_id'] = 'nullable|exists:mobile_assets,id';
-        }
-
-        if ($request->recurrence_type === 'recurrente') {
-            $rules['recurrence_frequency']  = 'required|in:semanal,quincenal,mensual';
-            $rules['recurrence_start_date'] = 'required|date';
-            $rules['recurrence_end_date']   = 'nullable|date|after_or_equal:recurrence_start_date';
         }
 
         // Solo admin puede asignar el estatus «autorizada» directamente
@@ -193,16 +185,18 @@ class PurchaseOrderController extends Controller
 
         // amount siempre parte en 0; se recalculará cuando se agreguen conceptos
         $validated['amount'] = 0;
+        $validated['recurrence_type'] = 'unico';
+        $validated['recurrence_frequency'] = null;
+        $validated['recurrence_start_date'] = null;
+        $validated['recurrence_end_date'] = null;
 
         unset($validated['folio']);
 
-        $childrenCreated = 0;
-        $order = DB::transaction(function () use ($validated, &$childrenCreated) {
+        $order = DB::transaction(function () use ($validated) {
             $nextFolio = (PurchaseOrder::withTrashed()->lockForUpdate()->max('folio') ?? 0) + 1;
 
             $validated['folio'] = $nextFolio;
             $order = PurchaseOrder::create($validated);
-            $nextFolio++;
 
             // Si viene vinculada a una SOLCOM: copiar sus ítems
             if (!empty($validated['purchase_request_id'])) {
@@ -238,13 +232,6 @@ class PurchaseOrderController extends Controller
                 }
             }
 
-            // Generar órdenes hijas si es recurrente
-            if ($order->recurrence_type === 'recurrente'
-                && $order->recurrence_start_date
-                && $order->recurrence_end_date) {
-                $childrenCreated = $this->generateRecurringChildren($order, $nextFolio);
-            }
-
             return $order;
         });
 
@@ -259,86 +246,12 @@ class PurchaseOrderController extends Controller
         ]);
 
         $successMsg = 'Orden de compra #' . $order->folio . ' creada correctamente.';
-        if ($childrenCreated > 0) {
-            $successMsg .= ' Se generaron ' . $childrenCreated . ' órdenes individuales de la serie.';
-        }
 
         return redirect()->route('purchase_orders.show', $order)
             ->with('success', $successMsg);
     }
 
-    /**
-     * Genera órdenes de compra individuales (hijas) para cada ocurrencia de una serie recurrente.
-     * Retorna la cantidad de órdenes generadas.
-     */
-    private function generateRecurringChildren(PurchaseOrder $parent, int &$nextFolio): int
-    {
-        $parent->loadMissing('items');
 
-        $current = $parent->recurrence_start_date->copy();
-        $end     = $parent->recurrence_end_date->copy();
-
-        $childData = [
-            'parent_id'            => $parent->id,
-            'type'                 => $parent->type,
-            'supplier_id'          => $parent->supplier_id,
-            'project_id'           => $parent->project_id,
-            'project_work_id'      => $parent->project_work_id,
-            'project'              => $parent->project,
-            'site'                 => $parent->site,
-            'currency'             => $parent->currency,
-            'amount'               => $parent->amount,
-            'tax_rate'             => $parent->tax_rate,
-            'isr_rate'             => $parent->isr_rate,
-            'retention_iva_rate'   => $parent->retention_iva_rate,
-            'retention_isr_rate'   => $parent->retention_isr_rate,
-            'status'               => $parent->status,
-            'recurrence_type'      => 'unico',
-            'recurrence_frequency' => null,
-            'recurrence_end_date'  => null,
-            'elaborated_by'        => $parent->elaborated_by,
-            'attorney_name'        => $parent->attorney_name,
-            'supplier_signatory'   => $parent->supplier_signatory,
-            'authorized_signatory' => $parent->authorized_signatory,
-        ];
-
-        $count    = 0;
-        $maxItems = 60;
-
-        while ($current->lte($end) && $count < $maxItems) {
-            $child = PurchaseOrder::create(array_merge($childData, [
-                'folio'                 => $nextFolio,
-                'recurrence_start_date' => $current->format('Y-m-d'),
-            ]));
-            $nextFolio++;
-
-            // Copiar ítems al hijo
-            foreach ($parent->items as $item) {
-                PurchaseOrderItem::create([
-                    'purchase_order_id' => $child->id,
-                    'purchase_request_item_id' => $item->purchase_request_item_id,
-                    'concept_id'        => $item->concept_id,
-                    'description'       => $item->description,
-                    'unit'              => $item->unit,
-                    'quantity'          => $item->quantity,
-                    'unit_price'        => $item->unit_price,
-                    'delivery_date'     => $item->delivery_date,
-                ]);
-            }
-
-            match ($parent->recurrence_frequency) {
-                'semanal'   => $current->addWeek(),
-                'quincenal' => $current->addWeeks(2),
-                'mensual'   => $current->addMonth(),
-                default     => $current->addMonth(),
-            };
-
-            $count++;
-        }
-
-        return $count;
-    }
-    
     public function show(PurchaseOrder $purchaseOrder): View
     {
         $purchaseOrder->load([
@@ -382,7 +295,6 @@ class PurchaseOrderController extends Controller
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
             'status'               => 'required|in:emitida,pendiente,autorizada',
-            'recurrence_type'      => 'required|in:unico,recurrente',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
@@ -396,12 +308,6 @@ class PurchaseOrderController extends Controller
 
         if ($request->type === 'mantenimiento') {
             $rules['mobile_asset_id'] = 'nullable|exists:mobile_assets,id';
-        }
-
-        if ($request->recurrence_type === 'recurrente') {
-            $rules['recurrence_frequency']  = 'required|in:semanal,quincenal,mensual';
-            $rules['recurrence_start_date'] = 'required|date';
-            $rules['recurrence_end_date']   = 'nullable|date|after_or_equal:recurrence_start_date';
         }
 
         $validated = $request->validate($rules);
@@ -427,12 +333,10 @@ class PurchaseOrderController extends Controller
         } else {
             $validated['mobile_asset_id'] = null;
         }
-
-        if ($request->recurrence_type === 'unico') {
-            $validated['recurrence_frequency']  = null;
-            $validated['recurrence_start_date'] = null;
-            $validated['recurrence_end_date']   = null;
-        }
+        $validated['recurrence_type'] = 'unico';
+        $validated['recurrence_frequency']  = null;
+        $validated['recurrence_start_date'] = null;
+        $validated['recurrence_end_date']   = null;
 
         $purchaseOrder->update($validated);
 
@@ -476,14 +380,22 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' autorizada correctamente.');
     }
 
-    public function destroy(PurchaseOrder $purchaseOrder): RedirectResponse
+    public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
             return $redirect;
         }
 
+        $validated = $request->validate([
+            'deletion_comment' => 'required|string|max:1000',
+        ]);
+
         $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $purchaseOrder->update([
+            'deletion_comment' => $validated['deletion_comment'],
+        ]);
 
         $purchaseOrder->delete();
 
@@ -492,7 +404,7 @@ class PurchaseOrderController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'destroy',
             'model_id'     => 0,
-            'data'         => 'eliminó la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+            'data'         => 'eliminó la orden de compra #' . $folio . ' de ' . $supplierName . '. Motivo: ' . $validated['deletion_comment'],
         ]);
 
         return redirect()->route('purchase_orders.index')
@@ -928,6 +840,12 @@ class PurchaseOrderController extends Controller
         // Contrato IS selected: generate each section as its own PDF and merge.
         // This is necessary because DomPDF's position:fixed only repeats on all
         // pages when the element is a direct <body> child in an isolated document.
+        if (!class_exists(\setasign\Fpdi\Fpdi::class) && !class_exists(\setasign\Fpdi\Tcpdf\Fpdi::class)) {
+            return Pdf::loadView('purchase_orders.pdf_with_annexes', compact('purchaseOrder', 'annex'))
+                ->setPaper('letter', 'portrait')
+                ->download($filename . '-con-anexos.pdf');
+        }
+
         $tempFiles = [];
         try {
             $parts = [];
@@ -961,6 +879,10 @@ class PurchaseOrderController extends Controller
             }
 
             $merged = $this->mergePdfs($parts);
+        } catch (\Throwable $e) {
+            return Pdf::loadView('purchase_orders.pdf_with_annexes', compact('purchaseOrder', 'annex'))
+                ->setPaper('letter', 'portrait')
+                ->download($filename . '-con-anexos.pdf');
         } finally {
             foreach ($tempFiles as $f) { @unlink($f); }
         }
@@ -983,7 +905,14 @@ class PurchaseOrderController extends Controller
     /** Merge an ordered list of PDF file paths into a single PDF binary string. */
     private function mergePdfs(array $paths): string
     {
-        $merger = new Fpdi();
+        if (class_exists(\setasign\Fpdi\Fpdi::class)) {
+            $merger = new \setasign\Fpdi\Fpdi();
+        } elseif (class_exists(\setasign\Fpdi\Tcpdf\Fpdi::class)) {
+            $merger = new \setasign\Fpdi\Tcpdf\Fpdi();
+        } else {
+            throw new \RuntimeException('FPDI is not available.');
+        }
+
         foreach ($paths as $path) {
             $pageCount = $merger->setSourceFile($path);
             for ($i = 1; $i <= $pageCount; $i++) {

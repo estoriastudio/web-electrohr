@@ -39,6 +39,7 @@ class PurchaseOrder extends Model
         'attorney_name',
         'supplier_signatory',
         'authorized_signatory',
+        'deletion_comment',
         'archived_at',
     ];
 

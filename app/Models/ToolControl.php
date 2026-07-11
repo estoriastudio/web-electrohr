@@ -10,6 +10,7 @@ class ToolControl extends Model
     protected $fillable = [
         'tool_id',
         'project_work_id',
+        'responsible',
         'loan_type',
         'checkout_date',
         'review_date',

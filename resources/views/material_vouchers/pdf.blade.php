@@ -92,6 +92,11 @@
         </tr>
     </table>
 
+    <div style="margin-top:8px;">
+        <div class="muted" style="font-size:10px;">SOLICITANTE:</div>
+        <div class="small-line">{{ $voucher->requester ?: '—' }}</div>
+    </div>
+
     <div style="margin-top:10px;">
         <div class="muted" style="font-size:10px;">VALE A FAVOR DE:</div>
         <div class="line">{{ $supplierName }}</div>

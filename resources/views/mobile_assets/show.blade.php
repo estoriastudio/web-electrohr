@@ -78,6 +78,13 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @php
     $typeLabels = [
         'parque_vehicular'  => 'Parque Vehicular',
@@ -309,6 +316,7 @@
                                 <th>Folio</th>
                                 <th>Fecha</th>
                                 <th>Próximo</th>
+                                <th>Km a vencer</th>
                                 <th>Evidencia</th>
                                 <th>Notas</th>
                                 @role('admin|Moviles')
@@ -332,6 +340,9 @@
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
+                                    </td>
+                                    <td class="fs-12 text-muted">
+                                        {{ $log->mileage_due ? number_format($log->mileage_due) . ' km' : '—' }}
                                     </td>
                                     <td>
                                         @if ($log->inspection_file)
@@ -361,7 +372,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                    <td colspan="7" class="text-center text-muted py-4">
                                         <i class="ri-file-list-3-line fs-24 d-block mb-1 opacity-50"></i>
                                         Sin entradas en la bitácora.
                                     </td>
@@ -457,6 +468,14 @@
                 @if (empty($applicableDocTypes))
                     <p class="text-muted fs-13 mb-0">Sin documentos configurados.</p>
                 @endif
+
+                <div class="mt-3 pt-3 border-top">
+                    <a href="{{ route('mobile_assets.documents.zip', $mobileAsset) }}"
+                       class="btn btn-primary btn-sm w-100 {{ $hasDownloadableDocuments ? '' : 'disabled' }}"
+                       @if (! $hasDownloadableDocuments) aria-disabled="true" @endif>
+                        <i class="ri-folder-zip-line me-1"></i> Descargar documentación (.zip)
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -526,17 +545,16 @@
                   method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="ri-file-list-3-line me-1"></i> Registrar mantenimiento</h5>
+                    <div>
+                        <h5 class="modal-title"><i class="ri-file-list-3-line me-1"></i> Registrar mantenimiento</h5>
+                        <div class="text-muted fs-13 mt-1">
+                            <i class="ri-hashtag me-1"></i>Folio {{ $nextMaintenanceFolio }}
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-medium">Folio / N° de seguimiento</label>
-                            <input type="text" name="folio" class="form-control"
-                                   placeholder="Ej. MTN-0001" value="{{ old('folio') }}">
-                        </div>
 
                         <div class="col-md-6">
                             <label class="form-label fw-medium">
@@ -550,6 +568,12 @@
                             <label class="form-label fw-medium">Fecha próximo mantenimiento</label>
                             <input type="date" name="next_maintenance_date" class="form-control"
                                    value="{{ old('next_maintenance_date') }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Kilometraje a vencer</label>
+                            <input type="number" name="mileage_due" class="form-control"
+                                   min="0" step="1" placeholder="Ej. 120000" value="{{ old('mileage_due') }}">
                         </div>
 
                         <div class="col-md-6">

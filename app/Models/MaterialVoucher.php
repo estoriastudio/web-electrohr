@@ -16,6 +16,7 @@ class MaterialVoucher extends Model
         'project_id',
         'project_work_id',
         'voucher_date',
+        'requester',
         'status',
         'authorized_by',
         'authorized_at',

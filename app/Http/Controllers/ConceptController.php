@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Concept;
 use App\Models\ConceptCategory;
+use App\Models\ConceptSubcategory;
+use App\Models\PurchaseOrderItem;
 use App\Imports\ConceptImport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
 
@@ -42,15 +46,33 @@ class ConceptController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'code'                    => ['required', 'string', 'max:100', 'unique:concepts,code'],
-            'description'             => ['required', 'string', 'max:500'],
+            'description'             => ['required', 'string', 'max:2500'],
             'unit'                    => ['required', 'string', 'max:50'],
             'unit_price'              => ['nullable', 'numeric', 'min:0'],
             'status'                  => ['required', Rule::in(['active', 'inactive'])],
             'type'                    => ['required', Rule::in(['materiales', 'mantenimiento'])],
-            'concept_category_id'     => ['nullable', 'exists:concept_categories,id'],
-            'concept_subcategory_id'  => ['nullable', 'exists:concept_subcategories,id'],
+            'concept_category_id'     => ['required', 'exists:concept_categories,id'],
+            'concept_subcategory_id'  => ['required', 'exists:concept_subcategories,id'],
         ]);
+
+        $categoryId = (int) $validated['concept_category_id'];
+        $subcategoryId = (int) $validated['concept_subcategory_id'];
+
+        $belongsToCategory = ConceptSubcategory::query()
+            ->where('id', $subcategoryId)
+            ->where('concept_category_id', $categoryId)
+            ->exists();
+
+        if (! $belongsToCategory) {
+            throw ValidationException::withMessages([
+                'concept_subcategory_id' => 'La subcategoría seleccionada no pertenece a la categoría indicada.',
+            ]);
+        }
+
+        $category = ConceptCategory::query()->findOrFail($categoryId);
+        $subcategory = ConceptSubcategory::query()->findOrFail($subcategoryId);
+
+        $validated['code'] = $this->buildNextCode($category, $subcategory);
 
         Concept::create($validated);
 
@@ -62,7 +84,7 @@ class ConceptController extends Controller
     {
         $validated = $request->validate([
             'code'                    => ['required', 'string', 'max:100', Rule::unique('concepts', 'code')->ignore($concept->id)],
-            'description'             => ['required', 'string', 'max:500'],
+            'description'             => ['required', 'string', 'max:2500'],
             'unit'                    => ['required', 'string', 'max:50'],
             'unit_price'              => ['nullable', 'numeric', 'min:0'],
             'status'                  => ['required', Rule::in(['active', 'inactive'])],
@@ -75,6 +97,65 @@ class ConceptController extends Controller
 
         return redirect()->route('concepts.index')
             ->with('success', 'Concepto actualizado correctamente.');
+    }
+
+    public function nextCode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'concept_category_id'    => ['required', 'integer', 'exists:concept_categories,id'],
+            'concept_subcategory_id' => ['required', 'integer', 'exists:concept_subcategories,id'],
+        ]);
+
+        $categoryId = (int) $validated['concept_category_id'];
+        $subcategoryId = (int) $validated['concept_subcategory_id'];
+
+        $subcategory = ConceptSubcategory::query()
+            ->where('id', $subcategoryId)
+            ->where('concept_category_id', $categoryId)
+            ->first();
+
+        if (! $subcategory) {
+            return response()->json([
+                'message' => 'La subcategoría seleccionada no pertenece a la categoría indicada.',
+            ], 422);
+        }
+
+        $category = ConceptCategory::query()->findOrFail($categoryId);
+        $prefix = $this->buildCodePrefix($category->name, $subcategory->name);
+        $nextNumber = $this->nextNumberForPrefix($categoryId, $subcategoryId, $prefix);
+
+        return response()->json([
+            'code'        => $this->makeAvailableCode($prefix, $nextNumber),
+            'prefix'      => $prefix,
+            'next_number' => $nextNumber,
+        ]);
+    }
+
+    public function awardedPrices(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+
+        $items = PurchaseOrderItem::query()
+            ->select('purchase_order_items.*')
+            ->join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
+            ->with(['purchaseOrder.supplier', 'concept'])
+            ->whereNull('purchase_orders.deleted_at')
+            ->when($search === '', fn ($q) => $q->whereRaw('1 = 0'))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($group) use ($search) {
+                    $group->where('purchase_order_items.description', 'like', "%{$search}%")
+                        ->orWhereHas('concept', function ($q2) use ($search) {
+                            $q2->where('description', 'like', "%{$search}%")
+                                ->orWhere('code', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->orderByDesc('purchase_orders.created_at')
+            ->orderByDesc('purchase_orders.id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('concepts.awarded_prices', compact('items', 'search'));
     }
 
     public function destroy(Concept $concept): RedirectResponse
@@ -192,6 +273,59 @@ class ConceptController extends Controller
     public function edit(Concept $concept): RedirectResponse
     {
         return redirect()->route('concepts.index');
+    }
+
+    private function buildNextCode(ConceptCategory $category, ConceptSubcategory $subcategory): string
+    {
+        $prefix = $this->buildCodePrefix($category->name, $subcategory->name);
+        $nextNumber = $this->nextNumberForPrefix($category->id, $subcategory->id, $prefix);
+
+        return $this->makeAvailableCode($prefix, $nextNumber);
+    }
+
+    private function nextNumberForPrefix(int $categoryId, int $subcategoryId, string $prefix): int
+    {
+        $max = 0;
+
+        $codes = Concept::query()
+            ->where('concept_category_id', $categoryId)
+            ->where('concept_subcategory_id', $subcategoryId)
+            ->where('code', 'like', $prefix . '-%')
+            ->pluck('code');
+
+        foreach ($codes as $code) {
+            if (preg_match('/^' . preg_quote($prefix, '/') . '-(\d+)$/', (string) $code, $matches) === 1) {
+                $max = max($max, (int) $matches[1]);
+            }
+        }
+
+        return $max + 1;
+    }
+
+    private function makeAvailableCode(string $prefix, int $startNumber): string
+    {
+        $number = max(1, $startNumber);
+
+        do {
+            $code = $prefix . '-' . str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+            $number++;
+        } while (Concept::query()->where('code', $code)->exists());
+
+        return $code;
+    }
+
+    private function buildCodePrefix(string $categoryName, string $subcategoryName): string
+    {
+        return $this->abbr($categoryName) . '-' . $this->abbr($subcategoryName);
+    }
+
+    private function abbr(string $name): string
+    {
+        $ascii = Str::upper(Str::ascii(trim($name)));
+        $lettersOnly = preg_replace('/[^A-Z]/', '', $ascii) ?? '';
+        $piece = substr($lettersOnly, 0, 3);
+
+        return str_pad($piece, 3, 'X');
     }
 }
 

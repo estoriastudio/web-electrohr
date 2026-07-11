@@ -29,12 +29,14 @@ class ToolControlController extends Controller
                 $query->where(function ($query) use ($search) {
                     $query->whereHas('tool', function ($toolQuery) use ($search) {
                         $toolQuery->where('economic_number', 'like', "%{$search}%")
-                            ->orWhere('name', 'like', "%{$search}%");
+                            ->orWhere('name', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%");
                     })
                     ->orWhereHas('projectWork', function ($workQuery) use ($search) {
                         $workQuery->where('name', 'like', "%{$search}%")
                             ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
-                    });
+                    })
+                    ->orWhere('responsible', 'like', "%{$search}%");
                 });
             })
             ->when($status, fn ($query) => $query->where('status', $status))
@@ -43,10 +45,10 @@ class ToolControlController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $tools = Tool::where('status', 'active')
+        $tools = Tool::whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
-            ->orderBy('name')
-            ->get(['id', 'economic_number', 'name']);
+            ->orderBy('description')
+            ->get(['id', 'economic_number', 'name', 'description']);
 
         $projectWorks = ProjectWork::with('project')
             ->where('status', 'active')
@@ -61,6 +63,7 @@ class ToolControlController extends Controller
         $validated = $request->validate([
             'tool_id' => ['required', 'exists:tools,id'],
             'project_work_id' => ['required', 'exists:project_works,id'],
+            'responsible' => ['required', 'string', 'max:150'],
             'loan_type' => ['required', Rule::in(['fixed', 'provisional'])],
             'checkout_date' => ['required', 'date'],
             'review_date' => ['nullable', 'date', 'after_or_equal:checkout_date'],
@@ -71,6 +74,7 @@ class ToolControlController extends Controller
         $toolControl = ToolControl::create([
             'tool_id' => $validated['tool_id'],
             'project_work_id' => $validated['project_work_id'],
+            'responsible' => $validated['responsible'],
             'loan_type' => $validated['loan_type'],
             'checkout_date' => $validated['checkout_date'],
             'review_date' => $validated['review_date'] ?? null,
@@ -94,6 +98,7 @@ class ToolControlController extends Controller
     {
         $validated = $request->validate([
             'project_work_id' => ['required', 'exists:project_works,id'],
+            'responsible' => ['required', 'string', 'max:150'],
             'loan_type' => ['required', Rule::in(['fixed', 'provisional'])],
             'checkout_date' => ['required', 'date'],
             'review_date' => ['nullable', 'date', 'after_or_equal:checkout_date'],
@@ -103,6 +108,7 @@ class ToolControlController extends Controller
 
         $toolControl->update([
             'project_work_id' => $validated['project_work_id'],
+            'responsible' => $validated['responsible'],
             'loan_type' => $validated['loan_type'],
             'checkout_date' => $validated['checkout_date'],
             'review_date' => $validated['review_date'] ?? null,

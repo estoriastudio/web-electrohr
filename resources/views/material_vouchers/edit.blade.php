@@ -49,6 +49,12 @@
             </div>
 
             <div class="col-md-3">
+                <label class="form-label">Solicitante</label>
+                <input type="text" name="requester" class="form-control @error('requester') is-invalid @enderror" value="{{ old('requester', $materialVoucher->requester) }}" placeholder="Nombre del solicitante">
+                @error('requester')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3">
                 <label class="form-label">Firma de autorización</label>
                 <input type="text" name="authorized_signature_name" class="form-control @error('authorized_signature_name') is-invalid @enderror" value="{{ old('authorized_signature_name', $materialVoucher->authorized_signature_name) }}">
                 @error('authorized_signature_name')<div class="invalid-feedback">{{ $message }}</div>@enderror

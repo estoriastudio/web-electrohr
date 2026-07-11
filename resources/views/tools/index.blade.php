@@ -78,6 +78,7 @@
                         <select name="status" class="form-select form-select-sm">
                             <option value="">Todos los estatus</option>
                             <option value="active" @selected($status === 'active')>Activa</option>
+                            <option value="in_service" @selected($status === 'in_service')>En Servicio</option>
                             <option value="inactive" @selected($status === 'inactive')>Inactiva</option>
                         </select>
                     </div>
@@ -98,7 +99,7 @@
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>No. Económico</th>
-                                <th>Nombre</th>
+                                <th>Descripción</th>
                                 <th>Categoría</th>
                                 <th>Marca / Modelo</th>
                                 <th>No. Serie</th>
@@ -116,8 +117,10 @@
                                 <tr>
                                     <td><span class="fw-semibold">{{ $tool->economic_number }}</span></td>
                                     <td>
-                                        <div class="fw-medium">{{ $tool->name }}</div>
-                                        <div class="text-muted fs-12 text-wrap" style="max-width:320px;">{{ $tool->description }}</div>
+                                        <div class="fw-medium text-wrap" style="max-width:320px;">{{ $tool->description }}</div>
+                                        @if($tool->requires_calibration)
+                                            <span class="badge bg-warning-subtle text-warning mt-1">Requiere calibración</span>
+                                        @endif
                                     </td>
                                     <td>
                                         @if ($rootCategoryForTool)
@@ -138,6 +141,8 @@
                                     <td>
                                         @if ($tool->status === 'active')
                                             <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Activa</span>
+                                        @elseif ($tool->status === 'in_service')
+                                            <span class="badge bg-info-subtle text-info py-1 px-2 fs-12">En Servicio</span>
                                         @else
                                             <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Inactiva</span>
                                         @endif
@@ -154,12 +159,12 @@
                                                     title="Editar"
                                                     data-id="{{ $tool->id }}"
                                                     data-economic-number="{{ $tool->economic_number }}"
-                                                    data-name="{{ $tool->name }}"
                                                     data-description="{{ $tool->description }}"
                                                     data-brand="{{ $tool->brand }}"
                                                     data-model="{{ $tool->model }}"
                                                     data-serial-number="{{ $tool->serial_number }}"
                                                     data-status="{{ $tool->status }}"
+                                                    data-requires-calibration="{{ $tool->requires_calibration ? '1' : '0' }}"
                                                     data-root-category-id="{{ $rootCategoryForTool?->id }}"
                                                     data-subcategory-id="{{ $subcategoryForTool?->id }}">
                                                 <i class="ri-edit-line"></i>
@@ -236,11 +241,6 @@
                             @error('economic_number') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                            <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" required maxlength="120">
-                            @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="col-12">
                             <label class="form-label">Descripción <span class="text-danger">*</span></label>
                             <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="2" required maxlength="500">{{ old('description') }}</textarea>
                             @error('description') <div class="invalid-feedback">{{ $message }}</div> @enderror
@@ -264,9 +264,16 @@
                             <label class="form-label">Estatus <span class="text-danger">*</span></label>
                             <select name="status" class="form-select @error('status') is-invalid @enderror" required>
                                 <option value="active" @selected(old('status', 'active') === 'active')>Activa</option>
+                                <option value="in_service" @selected(old('status') === 'in_service')>En Servicio</option>
                                 <option value="inactive" @selected(old('status') === 'inactive')>Inactiva</option>
                             </select>
                             @error('status') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" role="switch" id="create_requires_calibration" name="requires_calibration" value="1" @checked(old('requires_calibration'))>
+                                <label class="form-check-label" for="create_requires_calibration">Requiere calibración</label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -312,10 +319,6 @@
                             <input type="text" name="economic_number" id="edit_economic_number" class="form-control" required maxlength="100">
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                            <input type="text" name="name" id="edit_name" class="form-control" required maxlength="120">
-                        </div>
-                        <div class="col-12">
                             <label class="form-label">Descripción <span class="text-danger">*</span></label>
                             <textarea name="description" id="edit_description" class="form-control" rows="2" required maxlength="500"></textarea>
                         </div>
@@ -335,8 +338,15 @@
                             <label class="form-label">Estatus <span class="text-danger">*</span></label>
                             <select name="status" id="edit_status" class="form-select" required>
                                 <option value="active">Activa</option>
+                                <option value="in_service">En Servicio</option>
                                 <option value="inactive">Inactiva</option>
                             </select>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" role="switch" id="edit_requires_calibration" name="requires_calibration" value="1">
+                                <label class="form-check-label" for="edit_requires_calibration">Requiere calibración</label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -453,12 +463,12 @@ function loadToolSubcategories(rootCategoryId, selectEl, preselectId) {
             editForm.action = '/herramientas/' + this.dataset.id;
 
             document.getElementById('edit_economic_number').value = this.dataset.economicNumber || '';
-            document.getElementById('edit_name').value = this.dataset.name || '';
             document.getElementById('edit_description').value = this.dataset.description || '';
             document.getElementById('edit_brand').value = this.dataset.brand || '';
             document.getElementById('edit_model').value = this.dataset.model || '';
             document.getElementById('edit_serial_number').value = this.dataset.serialNumber || '';
             document.getElementById('edit_status').value = this.dataset.status || 'active';
+            document.getElementById('edit_requires_calibration').checked = this.dataset.requiresCalibration === '1';
 
             editRootCategory.value = this.dataset.rootCategoryId || '';
             loadToolSubcategories(this.dataset.rootCategoryId, editSubcategory, this.dataset.subcategoryId || '');

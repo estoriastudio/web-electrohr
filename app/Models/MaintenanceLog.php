@@ -13,12 +13,14 @@ class MaintenanceLog extends Model
         'inspection_file',
         'maintenance_date',
         'next_maintenance_date',
+        'mileage_due',
         'notes',
     ];
 
     protected $casts = [
         'maintenance_date'      => 'date',
         'next_maintenance_date' => 'date',
+        'mileage_due'           => 'integer',
     ];
 
     public function mobileAsset(): BelongsTo

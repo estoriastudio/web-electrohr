@@ -178,7 +178,7 @@
                 <strong>Observaciones:</strong>
 
                 @if($po->observations && count($po->observations) > 0)
-                    @foreach($po->observations as $note){{ $note['user_name'] ?? '' }}: {{ $note['text'] ?? '' }}
+                    @foreach($po->observations as $note){{ $note['text'] ?? '' }}
                         @if(!$loop->last) | @endif
                     @endforeach
                 @else

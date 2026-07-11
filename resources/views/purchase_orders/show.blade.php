@@ -100,13 +100,6 @@
                             <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">{{ $tipoLabel }}</span>
                             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $purchaseOrder->currency }}</span>
-                            @if ($purchaseOrder->recurrence_type === 'recurrente')
-                                <span class="badge bg-purple-subtle text-purple py-1 px-2 fs-12">
-                                    Recurrente · {{ ucfirst($purchaseOrder->recurrence_frequency) }}
-                                </span>
-                            @else
-                                <span class="badge bg-light text-dark border py-1 px-2 fs-12">Pago único</span>
-                            @endif
                         </div>
                         @if ($purchaseOrder->project || $purchaseOrder->site)
                             <p class="card-text text-muted fs-13 mb-0 mt-1">

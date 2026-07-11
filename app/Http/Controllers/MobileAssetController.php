@@ -7,14 +7,18 @@ use App\Imports\MobileAssetImport;
 use App\Models\MobileAsset;
 use App\Models\MobileAssetDocument;
 use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use ZipArchive;
 
 class MobileAssetController extends Controller
 {
@@ -39,6 +43,8 @@ class MobileAssetController extends Controller
                         ->orWhere('model', 'like', '%' . $search . '%');
                 });
             })
+            ->orderByRaw('folio IS NULL')
+            ->orderBy('folio')
             ->orderBy('name')
             ->paginate(24)
             ->withQueryString();
@@ -119,13 +125,126 @@ class MobileAssetController extends Controller
         $applicableDocTypes = $mobileAsset->getApplicableDocumentTypes();
         $docLabels          = MobileAssetDocument::labelsEs();
         $noExpiryDocs       = MobileAssetDocument::NO_EXPIRY_DOCS;
+        $nextMaintenanceFolio = $this->previewNextMaintenanceFolio($mobileAsset);
+        $hasDownloadableDocuments = $mobileAsset->documents
+            ->whereIn('document_type', $applicableDocTypes)
+            ->whereNotNull('file_path')
+            ->isNotEmpty();
 
         return view('mobile_assets.show', compact(
             'mobileAsset',
             'applicableDocTypes',
             'docLabels',
-            'noExpiryDocs'
+            'noExpiryDocs',
+            'nextMaintenanceFolio',
+            'hasDownloadableDocuments'
         ));
+    }
+
+    private function previewNextMaintenanceFolio(MobileAsset $mobileAsset): string
+    {
+        $prefix = $this->buildMaintenancePrefix($mobileAsset->name ?? 'VEH');
+        $nextNumber = 1;
+
+        foreach ($mobileAsset->maintenanceLogs as $log) {
+            if (! is_string($log->folio)) {
+                continue;
+            }
+
+            if (preg_match('/-(\d+)$/', $log->folio, $matches) === 1) {
+                $currentNumber = (int) $matches[1];
+                if ($currentNumber >= $nextNumber) {
+                    $nextNumber = $currentNumber + 1;
+                }
+            }
+        }
+
+        return sprintf('%s-%03d', $prefix, $nextNumber);
+    }
+
+    private function buildMaintenancePrefix(string $name): string
+    {
+        $normalized = Str::upper(trim((string) Str::ascii($name)));
+        $words = preg_split('/\s+/', preg_replace('/\s+/', ' ', $normalized), -1, PREG_SPLIT_NO_EMPTY);
+
+        $prefix = '';
+        foreach ($words as $word) {
+            if (preg_match('/[A-Z0-9]/', $word, $matches)) {
+                $prefix .= $matches[0];
+            }
+        }
+
+        if ($prefix === '') {
+            $fallback = preg_replace('/[^A-Z0-9]/', '', $normalized);
+            $prefix = substr($fallback, 0, 3);
+        }
+
+        return $prefix !== '' ? substr($prefix, 0, 8) : 'VEH';
+    }
+
+    /**
+     * Download all available applicable documents in a single ZIP file.
+     */
+    public function downloadDocumentsZip(MobileAsset $mobileAsset): RedirectResponse|BinaryFileResponse
+    {
+        $applicableTypes = $mobileAsset->getApplicableDocumentTypes();
+        $docLabels = MobileAssetDocument::labelsEs();
+
+        $documents = $mobileAsset->documents()
+            ->whereIn('document_type', $applicableTypes)
+            ->whereNotNull('file_path')
+            ->get();
+
+        if ($documents->isEmpty()) {
+            return redirect()->route('mobile_assets.show', $mobileAsset)
+                ->with('error', 'Este bien no tiene documentos para descargar.');
+        }
+
+        $tmpDir = storage_path('app/tmp');
+        if (! File::isDirectory($tmpDir)) {
+            File::makeDirectory($tmpDir, 0755, true);
+        }
+
+        $safeAssetName = Str::slug($mobileAsset->name ?: 'vehiculo');
+        $zipPath = $tmpDir . '/documentos_' . $safeAssetName . '_' . $mobileAsset->id . '_' . time() . '.zip';
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        if ($opened !== true) {
+            return redirect()->route('mobile_assets.show', $mobileAsset)
+                ->with('error', 'No se pudo generar el archivo ZIP.');
+        }
+
+        foreach ($documents as $doc) {
+            $disk = Storage::disk('s3');
+
+            if (! $disk->exists($doc->file_path)) {
+                continue;
+            }
+
+            $contents = $disk->get($doc->file_path);
+            $extension = pathinfo($doc->file_path, PATHINFO_EXTENSION);
+            $label = $docLabels[$doc->document_type] ?? $doc->document_type;
+            $fileName = Str::slug($label) . ($extension ? '.' . strtolower($extension) : '');
+
+            $zip->addFromString($fileName, $contents);
+        }
+
+        $zip->close();
+
+        if (! file_exists($zipPath) || filesize($zipPath) === 0) {
+            if (file_exists($zipPath)) {
+                @unlink($zipPath);
+            }
+
+            return redirect()->route('mobile_assets.show', $mobileAsset)
+                ->with('error', 'No se encontraron archivos válidos para incluir en el ZIP.');
+        }
+
+        $downloadName = sprintf('documentacion-%s-%s.zip', $safeAssetName, now()->format('Ymd_His'));
+
+        return response()->download($zipPath, $downloadName)->deleteFileAfterSend(true);
     }
 
     /**

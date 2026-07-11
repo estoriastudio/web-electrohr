@@ -56,6 +56,40 @@ class MaterialVoucherController extends Controller
             ->orderByRaw('COALESCE(NULLIF(commercial_name, \'\'), rfc_name) ASC')
             ->get();
 
+        $prefixes = [];
+        foreach ($suppliers as $supplier) {
+            $prefixes[$supplier->id] = $this->buildSupplierPrefix($supplier);
+        }
+
+        $sequenceMap = DB::table('material_voucher_folio_sequences')
+            ->whereIn('prefix', array_values($prefixes))
+            ->pluck('last_number', 'prefix');
+
+        $maxByPrefix = MaterialVoucher::query()
+            ->selectRaw('folio_prefix, MAX(folio_number) as max_number')
+            ->whereIn('folio_prefix', array_values($prefixes))
+            ->groupBy('folio_prefix')
+            ->pluck('max_number', 'folio_prefix');
+
+        $supplierFolioPreviews = [];
+        foreach ($suppliers as $supplier) {
+            $prefix = $prefixes[$supplier->id];
+            $lastFromSequence = (int) ($sequenceMap[$prefix] ?? 0);
+            $lastFromVoucher = (int) ($maxByPrefix[$prefix] ?? 0);
+            $nextNumber = max($lastFromSequence, $lastFromVoucher) + 1;
+
+            $supplierFolioPreviews[$supplier->id] = sprintf('%s-%03d', $prefix, $nextNumber);
+        }
+
+        $defaultSupplierId = old('supplier_id');
+        if (! $defaultSupplierId && $suppliers->isNotEmpty()) {
+            $defaultSupplierId = $suppliers->first()->id;
+        }
+
+        $defaultFolioPreview = $defaultSupplierId && isset($supplierFolioPreviews[$defaultSupplierId])
+            ? $supplierFolioPreviews[$defaultSupplierId]
+            : 'VALE-001';
+
         $projects = Project::query()
             ->where('status', 'active')
             ->with('works')
@@ -67,7 +101,9 @@ class MaterialVoucherController extends Controller
             'suppliers',
             'projects',
             'search',
-            'status'
+            'status',
+            'supplierFolioPreviews',
+            'defaultFolioPreview'
         ));
     }
 
@@ -88,7 +124,7 @@ class MaterialVoucherController extends Controller
             'supplier_id'       => 'required|exists:suppliers,id',
             'project_id'        => 'nullable|exists:projects,id',
             'project_work_id'   => 'nullable|exists:project_works,id',
-            'voucher_date'      => 'required|date',
+            'requester'         => 'required|string|max:255',
             'initial_note'      => 'nullable|string|max:1000',
         ]);
 
@@ -113,7 +149,8 @@ class MaterialVoucherController extends Controller
             'supplier_id'               => $data['supplier_id'],
             'project_id'                => $data['project_id'] ?? null,
             'project_work_id'           => $data['project_work_id'] ?? null,
-            'voucher_date'              => $data['voucher_date'],
+            'voucher_date'              => now()->toDateString(),
+            'requester'                 => $data['requester'],
             'status'                    => 'emitido',
             'authorized_by'             => null,
             'authorized_at'             => null,
@@ -178,6 +215,7 @@ class MaterialVoucherController extends Controller
             'project_id'                => 'nullable|exists:projects,id',
             'project_work_id'           => 'nullable|exists:project_works,id',
             'voucher_date'              => 'required|date',
+            'requester'                 => 'nullable|string|max:255',
             'status'                    => ['required', Rule::in(MaterialVoucher::STATUSES)],
             'authorized_signature_name' => 'nullable|string|max:255',
         ]);

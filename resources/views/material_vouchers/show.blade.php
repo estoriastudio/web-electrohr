@@ -109,7 +109,11 @@
                 <span class="text-muted fs-12 d-block">Fecha</span>
                 <span class="fw-semibold">{{ $materialVoucher->voucher_date?->format('d/m/Y') }}</span>
             </div>
-            <div class="col-md-8">
+            <div class="col-md-4">
+                <span class="text-muted fs-12 d-block">Solicitante</span>
+                <span class="fw-semibold">{{ $materialVoucher->requester ?: '—' }}</span>
+            </div>
+            <div class="col-md-4">
                 <span class="text-muted fs-12 d-block">Vale a favor de</span>
                 <span class="fw-semibold">{{ $supplierName ?: '—' }}</span>
             </div>

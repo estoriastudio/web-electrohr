@@ -112,7 +112,7 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')
+            @hasanyrole('admin|Solcom|Moviles')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
                    href="{{ route('material_vouchers.index') }}">
@@ -268,6 +268,9 @@
                         <ul class="nav sub-navbar-nav">
                             <li class="sub-nav-item">
                                 <a class="sub-nav-link {{ request()->routeIs('concepts.*') ? 'active' : '' }}" href="{{ route('concepts.index') }}">Conceptos</a>
+                            </li>
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link {{ request()->routeIs('concepts.awarded_prices') ? 'active' : '' }}" href="{{ route('concepts.awarded_prices') }}">Precios adjudicados</a>
                             </li>
                             <li class="sub-nav-item">
                                 <a class="sub-nav-link {{ request()->routeIs('concept_categories.*') ? 'active' : '' }}" href="{{ route('concept_categories.index') }}">Familias</a>

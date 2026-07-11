@@ -142,11 +142,17 @@
 			<form action="{{ route('material_vouchers.store') }}" method="POST">
 				@csrf
 				<div class="modal-header">
-					<h5 class="modal-title" id="modalCreateVoucherLabel"><i class="ri-receipt-line me-1"></i> Nuevo Vale de Material</h5>
+					<div>
+						<h5 class="modal-title" id="modalCreateVoucherLabel"><i class="ri-receipt-line me-1"></i> Nuevo Vale de Material</h5>
+						<div class="text-muted fs-13 mt-1" id="mvAutoFolioPreviewWrap">
+							<i class="ri-hashtag me-1"></i>Folio <span id="mvAutoFolioPreview">{{ $defaultFolioPreview }}</span>
+						</div>
+					</div>
 					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 				</div>
 				<div class="modal-body">
 					<div class="row g-3">
+						<input type="hidden" name="voucher_date" value="{{ now()->toDateString() }}">
 						<div class="col-md-6">
 							<label class="form-label">Proveedor <span class="text-danger">*</span></label>
 							<select id="mvSupplierId" name="supplier_id" class="form-select @error('supplier_id') is-invalid @enderror" required>
@@ -161,9 +167,9 @@
 						</div>
 
 						<div class="col-md-6">
-							<label class="form-label">Fecha del vale <span class="text-danger">*</span></label>
-							<input type="date" name="voucher_date" value="{{ old('voucher_date', now()->toDateString()) }}" class="form-control @error('voucher_date') is-invalid @enderror" required>
-							@error('voucher_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+							<label class="form-label">Solicitante <span class="text-danger">*</span></label>
+							<input type="text" name="requester" value="{{ old('requester', auth()->user()?->name) }}" class="form-control @error('requester') is-invalid @enderror" required>
+							@error('requester')<div class="invalid-feedback">{{ $message }}</div>@enderror
 						</div>
 
 						<input type="hidden" name="project_id" value="">
@@ -193,7 +199,14 @@
 document.addEventListener('DOMContentLoaded', function () {
 	const modalElement = document.getElementById('modalCreateVoucher');
 	const supplierSelect = document.getElementById('mvSupplierId');
+	const folioPreview = document.getElementById('mvAutoFolioPreview');
+	const folioMap = @json($supplierFolioPreviews);
 	let supplierChoices = null;
+
+	function updateFolioPreview() {
+		if (!folioPreview || !supplierSelect) return;
+		folioPreview.textContent = folioMap[supplierSelect.value] || '{{ $defaultFolioPreview }}';
+	}
 
 	function initSupplierChoices() {
 		if (!supplierSelect || supplierChoices || typeof Choices === 'undefined') return;
@@ -210,11 +223,18 @@ document.addEventListener('DOMContentLoaded', function () {
 		modalElement.addEventListener('shown.bs.modal', initSupplierChoices);
 	}
 
+	if (supplierSelect) {
+		supplierSelect.addEventListener('change', updateFolioPreview);
+	}
+
+	updateFolioPreview();
+
 	@if($errors->any())
 	if (modalElement && window.bootstrap) {
 		const modal = new bootstrap.Modal(modalElement);
 		modal.show();
 		initSupplierChoices();
+		updateFolioPreview();
 	}
 	@endif
 });

@@ -21,6 +21,7 @@ use App\Http\Controllers\ConceptCategoryController;
 use App\Http\Controllers\ToolController;
 use App\Http\Controllers\ToolCategoryController;
 use App\Http\Controllers\ToolControlController;
+use App\Http\Controllers\ToolCalibrationController;
 
 use App\Http\Controllers\PaymentController;
 
@@ -107,6 +108,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
             // Checklist documental del bien móvil
             Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
                  ->name('mobile_assets.document.update');
+              Route::get('bienes-mobiles/{mobile_asset}/documentos/zip', [MobileAssetController::class, 'downloadDocumentsZip'])
+                  ->name('mobile_assets.documents.zip');
 
             // Bitácora de mantenimiento
             Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
@@ -163,6 +166,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
+        Route::get('/conceptos/codigo-siguiente', [ConceptController::class, 'nextCode'])->name('concepts.next_code');
+        Route::get('/conceptos/precios-adjudicados', [ConceptController::class, 'awardedPrices'])->name('concepts.awarded_prices');
         Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         Route::get('/categorias-herramientas/{toolCategory}/subcategorias-json', [ToolCategoryController::class, 'subcategoriesJson'])->name('tool_categories.subcategories_json');
 
@@ -206,6 +211,18 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/herramientas/controles', [ToolControlController::class, 'store'])->name('tool_controls.store');
             Route::put('/herramientas/controles/{toolControl}', [ToolControlController::class, 'update'])->name('tool_controls.update');
             Route::delete('/herramientas/controles/{toolControl}', [ToolControlController::class, 'destroy'])->name('tool_controls.destroy');
+
+            Route::post('/herramientas/{tool}/foto/{slot}', [ToolController::class, 'uploadPhoto'])
+                ->name('tools.photo.upload')
+                ->where('slot', '[123]');
+            Route::delete('/herramientas/{tool}/foto/{slot}', [ToolController::class, 'deletePhoto'])
+                ->name('tools.photo.delete')
+                ->where('slot', '[123]');
+
+            Route::post('/herramientas/{tool}/calibraciones', [ToolCalibrationController::class, 'store'])
+                ->name('tool_calibrations.store');
+            Route::delete('/herramientas/{tool}/calibraciones/{toolCalibration}', [ToolCalibrationController::class, 'destroy'])
+                ->name('tool_calibrations.destroy');
 
             // Tools
             Route::resource('/herramientas', ToolController::class, [

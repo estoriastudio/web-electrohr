@@ -242,19 +242,47 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="create_category" class="form-label fw-medium">
+                                Categoría <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @error('concept_category_id') is-invalid @enderror"
+                                    id="create_category" name="concept_category_id" required>
+                                <option value="">Seleccione una categoría</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}"
+                                            data-type="{{ $cat->type }}"
+                                            @selected(old('concept_category_id') == $cat->id)>
+                                        {{ $cat->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('concept_category_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_subcategory" class="form-label fw-medium">
+                                Subcategoría <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @error('concept_subcategory_id') is-invalid @enderror"
+                                    id="create_subcategory" name="concept_subcategory_id" required>
+                                <option value="">Seleccione una subcategoría</option>
+                            </select>
+                            @error('concept_subcategory_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <div class="col-md-5">
                             <label for="create_code" class="form-label fw-medium">
                                 Código <span class="text-danger">*</span>
                             </label>
                             <input type="text"
-                                   class="form-control @error('code') is-invalid @enderror"
+                                   class="form-control"
                                    id="create_code" name="code"
                                    value="{{ old('code') }}"
-                                   placeholder="Ej. MAT-001"
-                                   required autocomplete="off">
-                            @error('code')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                                placeholder="Ej. ALM-COM-001"
+                                   required autocomplete="off" readonly>
                         </div>
                         <div class="col-md-7">
                             <label for="create_unit" class="form-label fw-medium">
@@ -323,29 +351,6 @@
                             @error('type')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_category" class="form-label fw-medium">Categoría</label>
-                            <select class="form-select @error('concept_category_id') is-invalid @enderror"
-                                    id="create_category" name="concept_category_id">
-                                <option value="">— Sin categoría —</option>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat->id }}"
-                                            data-type="{{ $cat->type }}"
-                                            @selected(old('concept_category_id') == $cat->id)>
-                                        {{ $cat->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('concept_category_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_subcategory" class="form-label fw-medium">Subcategoría</label>
-                            <select class="form-select" id="create_subcategory" name="concept_subcategory_id">
-                                <option value="">— Sin subcategoría —</option>
-                            </select>
                         </div>
                     </div>
                 </div>
@@ -527,11 +532,12 @@
 @push('scripts')
 <script>
 // ── Carga dinámica de subcategorías ───────────────────────────────────────────
-function loadSubcategories(categoryId, selectEl, preselectId) {
-    selectEl.innerHTML = '<option value="">— Sin subcategoría —</option>';
-    if (!categoryId) return;
+function loadSubcategories(categoryId, selectEl, preselectId, emptyLabel) {
+    var defaultLabel = emptyLabel || '— Sin subcategoría —';
+    selectEl.innerHTML = '<option value="">' + defaultLabel + '</option>';
+    if (!categoryId) return Promise.resolve();
 
-    fetch('/categorias-conceptos/' + categoryId + '/subcategorias-json', {
+    return fetch('/categorias-conceptos/' + categoryId + '/subcategorias-json', {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
     .then(function (r) { return r.json(); })
@@ -543,6 +549,9 @@ function loadSubcategories(categoryId, selectEl, preselectId) {
             if (preselectId && String(s.id) === String(preselectId)) opt.selected = true;
             selectEl.appendChild(opt);
         });
+    })
+    .catch(function () {
+        return null;
     });
 }
 
@@ -550,6 +559,40 @@ function loadSubcategories(categoryId, selectEl, preselectId) {
 var createType     = document.getElementById('create_type');
 var createCategory = document.getElementById('create_category');
 var createSubcat   = document.getElementById('create_subcategory');
+var createCode     = document.getElementById('create_code');
+var nextCodeUrl    = @json(route('concepts.next_code'));
+var initialCreateSubcategoryId = @json(old('concept_subcategory_id'));
+var codeRequestToken = 0;
+
+function updateCreateCodePreview() {
+    if (!createCode || !createCategory || !createSubcat) return;
+
+    var categoryId = createCategory.value;
+    var subcategoryId = createSubcat.value;
+
+    if (!categoryId || !subcategoryId) {
+        createCode.value = '';
+        return;
+    }
+
+    var requestToken = ++codeRequestToken;
+    var url = nextCodeUrl
+        + '?concept_category_id=' + encodeURIComponent(categoryId)
+        + '&concept_subcategory_id=' + encodeURIComponent(subcategoryId);
+
+    fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+        if (requestToken !== codeRequestToken) return;
+        createCode.value = data && data.code ? data.code : '';
+    })
+    .catch(function () {
+        if (requestToken !== codeRequestToken) return;
+        createCode.value = '';
+    });
+}
 
 function filterCategoriesByType(typeVal, categorySelect) {
     Array.from(categorySelect.options).forEach(function (opt) {
@@ -558,7 +601,8 @@ function filterCategoriesByType(typeVal, categorySelect) {
     });
     if (categorySelect.selectedOptions[0] && categorySelect.selectedOptions[0].hidden) {
         categorySelect.value = '';
-        loadSubcategories('', createSubcat, null);
+        loadSubcategories('', createSubcat, null, 'Seleccione una subcategoría');
+        updateCreateCodePreview();
     }
 }
 
@@ -571,7 +615,14 @@ if (createType) {
 
 if (createCategory) {
     createCategory.addEventListener('change', function () {
-        loadSubcategories(this.value, createSubcat, null);
+        loadSubcategories(this.value, createSubcat, null, 'Seleccione una subcategoría');
+        updateCreateCodePreview();
+    });
+}
+
+if (createSubcat) {
+    createSubcat.addEventListener('change', function () {
+        updateCreateCodePreview();
     });
 }
 
@@ -631,6 +682,17 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
+    if (createType && createCategory) {
+        filterCategoriesByType(createType.value, createCategory);
+    }
+
+    if (createCategory) {
+        loadSubcategories(createCategory.value, createSubcat, initialCreateSubcategoryId, 'Seleccione una subcategoría')
+            .then(function () {
+                updateCreateCodePreview();
+            });
+    }
+
     const importForm = document.querySelector('#modalImportConcepts form');
     const importBtn  = document.getElementById('btnImportConceptsSubmit');
     if (importForm && importBtn) {

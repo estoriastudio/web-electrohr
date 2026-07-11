@@ -49,6 +49,9 @@
                     </a>
                     @endcan
                     @endhasanyrole
+                    <a href="{{ route('concepts.awarded_prices') }}" class="btn btn-sm btn-soft-info ms-1" title="Precios adjudicados">
+                        <i class="ri-price-tag-3-line me-1"></i> Precios adjudicados
+                    </a>
                     <a href="{{ route('purchase_orders.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
