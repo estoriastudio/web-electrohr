@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\PurchaseOrder;
 
 /* Internamente esto se conoce como SOLCOM o Solicitud de Compra */
 
 class PurchaseRequest extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'folio',
         'code',
@@ -25,14 +28,27 @@ class PurchaseRequest extends Model
         'requested_by',
         'assigned_to',
         'status',
+        'archived_at',
         'observations',
+        'deletion_comment',
     ];
 
     protected $casts = [
         'request_date' => 'date',
         'need_date'    => 'date',
+        'archived_at'  => 'datetime',
         'observations' => 'array',
     ];
+
+    public function scopeActive($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
 
     public function materialRequest(): BelongsTo
     {

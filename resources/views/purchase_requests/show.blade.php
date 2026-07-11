@@ -75,7 +75,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
 
-                        @hasanyrole('admin|Solcom')
+                                @hasanyrole('admin|Solcom')
                         <a href="{{ route('purchase_requests.edit', $purchaseRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
@@ -89,7 +89,10 @@
                         </button>
                         @endif
 
-                        {{-- SOLICITAR CAMBIOS: visible solo cuando está en compras, para rol orders --}}
+                        @endhasanyrole
+
+                        {{-- SOLICITAR CAMBIOS: disponible para Solcom y Compras cuando está en compras --}}
+                        @hasanyrole('admin|Solcom|Orden de compra')
                         @if ($purchaseRequest->status === 'sent_to_purchasing')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChanges">
@@ -501,8 +504,10 @@
         </div>
     </div>
 </div>
+@endhasanyrole
 
 {{-- ── Modal: Solicitar Cambios ── --}}
+@hasanyrole('admin|Solcom|Orden de compra')
 <div class="modal fade" id="modalRequestChanges" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

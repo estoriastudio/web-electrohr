@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestController extends Controller
@@ -23,6 +24,7 @@ class PurchaseRequestController extends Controller
         $status = $request->input('status', '');
 
         $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+            ->whereNull('archived_at')
             ->orderByDesc('folio');
 
         if ($search) {
@@ -39,7 +41,7 @@ class PurchaseRequestController extends Controller
         }
 
         $purchaseRequests = $query->paginate(15)->withQueryString();
-        $nextFolio        = max((PurchaseRequest::max('folio') ?? 17999), 17999) + 1;
+        $nextFolio        = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
         $purchasingUsers  = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
 
@@ -108,6 +110,11 @@ class PurchaseRequestController extends Controller
                             $pr->update(['assigned_to' => $suggestedUser->id]);
                         }
                     }
+                }
+
+                // Heredar observaciones de SOLMAT a SOLCOM para mantener trazabilidad.
+                if (!empty($mr->observations) && empty($pr->observations)) {
+                    $pr->update(['observations' => $mr->observations]);
                 }
 
                 $mr->update(['status' => 'linked']);
@@ -185,15 +192,24 @@ class PurchaseRequestController extends Controller
 
     public function destroy(PurchaseRequest $purchaseRequest)
     {
+        $validated = request()->validate([
+            'deletion_comment' => 'required|string|max:1000',
+        ]);
+
         $folio = $purchaseRequest->folio;
+
+        $purchaseRequest->update([
+            'deletion_comment' => $validated['deletion_comment'],
+        ]);
+
         $purchaseRequest->delete();
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
-            'model_action' => 'delete',
+            'model_action' => 'destroy',
             'model_id'     => 0,
             'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$folio} eliminada.",
+            'data'         => "SOLCOM #{$folio} eliminada. Motivo: {$validated['deletion_comment']}",
         ]);
 
         return redirect()->route('purchase_requests.index')
@@ -399,11 +415,21 @@ class PurchaseRequestController extends Controller
     // ── Almacén: Pila SOLMAT ────────────────────────────────────────────────
     public function solmatPile(Request $request)
     {
-        $search = $request->input('search', '');
+        $search  = $request->input('search', '');
+        $section = $request->input('section', 'entrada'); // entrada | salida | todas
 
         $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items'])
-            ->where('status', 'sent_to_warehouse')
+            ->withCount('purchaseRequests')
+            ->withMax('purchaseRequests', 'created_at')
             ->orderByDesc('folio');
+
+        if ($section === 'entrada') {
+            $query->where('status', 'sent_to_warehouse');
+        } elseif ($section === 'salida') {
+            $query->where('status', 'linked');
+        } else {
+            $query->whereIn('status', ['sent_to_warehouse', 'linked']);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -415,14 +441,23 @@ class PurchaseRequestController extends Controller
 
         $materialRequests = $query->paginate(20)->withQueryString();
 
-        return view('warehouse.solmat_pile', compact('materialRequests', 'search'));
+        $entryCount = MaterialRequest::where('status', 'sent_to_warehouse')->count();
+        $outCount   = MaterialRequest::where('status', 'linked')->count();
+
+        return view('warehouse.solmat_pile', compact(
+            'materialRequests',
+            'search',
+            'section',
+            'entryCount',
+            'outCount'
+        ));
     }
 
     // ── Crear SOLCOM desde SOLMAT (formulario pre-llenado) ───────────────────
     public function createFromSolmat(MaterialRequest $materialRequest)
     {
         $materialRequest->load(['project', 'projectWorks', 'items']);
-        $nextFolio = max((PurchaseRequest::max('folio') ?? 17999), 17999) + 1;
+        $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
         $projects  = Project::where('status', 'active')->orderBy('name')->get();
 
         return view('purchase_requests.create_from_solmat',
@@ -601,5 +636,114 @@ class PurchaseRequestController extends Controller
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
                          ->with('success', 'Nota marcada como resuelta.');
+    }
+
+    // ── SOLCOM: Archivo y Papelera ──────────────────────────────────────────
+    public function archive(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest->update(['archived_at' => now()]);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'archive',
+            'model_id'     => $purchaseRequest->id,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$purchaseRequest->folio} archivada.",
+        ]);
+
+        return redirect()->route('purchase_requests.index')
+            ->with('success', "SOLCOM #{$purchaseRequest->folio} archivada.");
+    }
+
+    public function unarchive(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest->update(['archived_at' => null]);
+
+        return redirect()->route('purchase_requests.archived')
+            ->with('success', "SOLCOM #{$purchaseRequest->folio} restaurada al listado activo.");
+    }
+
+    public function archived(Request $request)
+    {
+        $search = trim($request->input('search', ''));
+
+        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+            ->whereNotNull('archived_at')
+            ->orderBy('archived_at', 'desc');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('folio', 'like', "%{$search}%")
+                  ->orWhere('zone', 'like', "%{$search}%")
+                  ->orWhere('short_description', 'like', "%{$search}%")
+                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $purchaseRequests = $query->paginate(15)->withQueryString();
+
+        return view('purchase_requests.archive', compact('purchaseRequests', 'search'));
+    }
+
+    public function softDeleted(Request $request)
+    {
+        $search = trim($request->input('search', ''));
+
+        $query = PurchaseRequest::onlyTrashed()
+            ->with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+            ->orderBy('deleted_at', 'desc');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('folio', 'like', "%{$search}%")
+                  ->orWhere('zone', 'like', "%{$search}%")
+                  ->orWhere('short_description', 'like', "%{$search}%")
+                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $purchaseRequests = $query->paginate(15)->withQueryString();
+
+        return view('purchase_requests.soft_deleted', compact('purchaseRequests', 'search'));
+    }
+
+    public function restore(int $id)
+    {
+        $purchaseRequest = PurchaseRequest::onlyTrashed()->findOrFail($id);
+        $purchaseRequest->restore();
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'restore',
+            'model_id'     => $purchaseRequest->id,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$purchaseRequest->folio} restaurada desde papelera.",
+        ]);
+
+        return redirect()->route('purchase_requests.soft_deleted')
+            ->with('success', "SOLCOM #{$purchaseRequest->folio} restaurada.");
+    }
+
+    public function forceDestroy(int $id)
+    {
+        $purchaseRequest = PurchaseRequest::onlyTrashed()->findOrFail($id);
+        $folio = $purchaseRequest->folio;
+
+        DB::transaction(function () use ($purchaseRequest) {
+            $purchaseRequest->changeNotes()->delete();
+            $purchaseRequest->items()->delete();
+            $purchaseRequest->forceDelete();
+        });
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'force_destroy',
+            'model_id'     => 0,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$folio} eliminada permanentemente.",
+        ]);
+
+        return redirect()->route('purchase_requests.soft_deleted')
+            ->with('success', "SOLCOM #{$folio} eliminada permanentemente.");
     }
 }

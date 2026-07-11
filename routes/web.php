@@ -460,6 +460,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
                        [PurchaseRequestController::class, 'itemsJsonByFolio'])
                  ->name('purchase_requests.items_json_by_folio');
 
+            Route::get('/solicitudes-compra/archivadas',
+                       [PurchaseRequestController::class, 'archived'])
+                 ->name('purchase_requests.archived');
+
             Route::resource('/solicitudes-compra', PurchaseRequestController::class, [
                 'names'      => [
                     'index'   => 'purchase_requests.index',
@@ -472,6 +476,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['solicitudes-compra' => 'purchaseRequest'],
             ]);
+
+                Route::patch('/solicitudes-compra/{purchaseRequest}/archivar',
+                     [PurchaseRequestController::class, 'archive'])
+                 ->name('purchase_requests.archive');
+
+                Route::patch('/solicitudes-compra/{purchaseRequest}/desarchivar',
+                     [PurchaseRequestController::class, 'unarchive'])
+                 ->name('purchase_requests.unarchive');
 
             Route::post('/solicitudes-compra/{purchaseRequest}/items',
                         [PurchaseRequestController::class, 'storeItem'])
@@ -524,6 +536,20 @@ Route::namespace('App\Http\Controllers')->group(function () {
                        [PurchaseRequestController::class, 'purchasingPile'])
                  ->name('purchasing.solcom_pile');
 
+        });
+
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/solicitudes-compra/eliminadas/papelera',
+                       [PurchaseRequestController::class, 'softDeleted'])
+                 ->name('purchase_requests.soft_deleted');
+
+            Route::post('/solicitudes-compra/{id}/restaurar',
+                        [PurchaseRequestController::class, 'restore'])
+                 ->name('purchase_requests.restore');
+
+            Route::delete('/solicitudes-compra/{id}/eliminar-permanente',
+                          [PurchaseRequestController::class, 'forceDestroy'])
+                 ->name('purchase_requests.force_destroy');
         });
 
         // ── Carga de Trabajo SOLCOM (solo Orden de compra) ─────────────────

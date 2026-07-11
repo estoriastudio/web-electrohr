@@ -11,10 +11,10 @@
     $fechaOC  = $po->created_at ? $po->created_at->format('d/m/Y') : \Carbon\Carbon::now()->format('d/m/Y');
     $currency = $po->currency ?? 'MXN';
 
-    $lugarEntrega = $po->purchaseRequest?->delivery_address
+    $lugarEntrega = $po->site
+        ?? $po->purchaseRequest?->delivery_address
         ?? $po->workRelation?->address
         ?? $po->projectRelation?->address
-        ?? $po->site
         ?? '—';
     $proyecto     = $po->projectRelation?->name ?? $po->project ?? '—';
     $obra         = $po->workRelation?->name ?? $po->site ?? '—';

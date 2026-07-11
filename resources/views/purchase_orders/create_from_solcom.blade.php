@@ -138,6 +138,17 @@
                             @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
+                        {{-- Dirección de entrega (se guarda en site de OC) --}}
+                        <div class="col-12">
+                            <label for="site" class="form-label fw-medium">Dirección de Entrega</label>
+                            <input type="text"
+                                   class="form-control @error('site') is-invalid @enderror"
+                                   id="site" name="site"
+                                   value="{{ old('site', $purchaseRequest->delivery_address) }}"
+                                   placeholder="Dirección de entrega para esta OC">
+                            @error('site')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
                         {{-- Moneda --}}
                         <div class="col-md-4">
                             <label for="currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>

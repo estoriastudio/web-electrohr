@@ -155,7 +155,7 @@
                             <label class="form-label">Fecha de Necesidad <span class="text-danger">*</span></label>
                             <input type="date" name="need_date"
                                    class="form-control @error('need_date') is-invalid @enderror"
-                                   value="{{ old('need_date', $materialRequest->need_date?->format('Y-m-d')) }}" required>
+                                   value="{{ old('need_date', now()->format('Y-m-d')) }}" required>
                             @error('need_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 

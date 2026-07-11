@@ -123,6 +123,7 @@ class PurchaseOrderController extends Controller
             'folio'                => 'nullable|integer',
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
             'supplier_id'          => 'required|exists:suppliers,id',
+            'site'                 => 'nullable|string|max:255',
             'currency'             => 'required|in:MXN,USD,EUR',
             'tax_rate'             => 'required|in:0,8,16,exempt',
             'isr_rate'             => 'nullable|numeric|min:0|max:100',
@@ -219,6 +220,11 @@ class PurchaseOrderController extends Controller
                             'unit_price'        => $item->concept?->unit_price ?? 0,
                             'delivery_date'     => null,
                         ]);
+                    }
+
+                    // Heredar observaciones de SOLCOM a OC para conservar el historial del flujo.
+                    if (!empty($pr->observations) && empty($order->observations)) {
+                        $order->update(['observations' => $pr->observations]);
                     }
 
                     // Recalcular amount a partir de los ítems copiados

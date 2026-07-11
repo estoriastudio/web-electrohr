@@ -39,14 +39,24 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Compra</h4>
-                @hasanyrole('admin|Solcom')
-                @can('create')
-                <button type="button" class="btn btn-sm btn-primary"
-                        data-bs-toggle="modal" data-bs-target="#modalCreatePR">
-                    <i class="ri-add-line me-1"></i> Nueva SOLCOM
-                </button>
-                @endcan
-                @endhasanyrole
+                <div>
+                    @hasanyrole('admin|Solcom')
+                    @can('create')
+                    <button type="button" class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal" data-bs-target="#modalCreatePR">
+                        <i class="ri-add-line me-1"></i> Nueva SOLCOM
+                    </button>
+                    @endcan
+                    @endhasanyrole
+                    <a href="{{ route('purchase_requests.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
+                        <i class="ri-archive-line me-1"></i> Archivadas
+                    </a>
+                    @hasrole('admin')
+                    <a href="{{ route('purchase_requests.soft_deleted') }}" class="btn btn-sm btn-outline-danger ms-1" title="Papelera">
+                        <i class="ri-delete-bin-line me-1"></i> Papelera
+                    </a>
+                    @endhasrole
+                </div>
             </div>
 
             {{-- Filtros --}}
@@ -82,101 +92,7 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Código</th>
-                                <th>SOLMAT</th>
-                                <th>Proyecto / Obra</th>
-                                <th>F. Solicitud</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $statusMap = [
-                                    'pending'           => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
-                                    'linked'            => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
-                                    'sent_to_purchasing'=> ['label' => 'En Compras',         'class' => 'bg-primary-subtle text-primary'],
-                                    'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
-                                    'completed'         => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
-                                ];
-                            @endphp
-                            @forelse ($purchaseRequests as $pr)
-                                @php $s = $statusMap[$pr->status] ?? ['label' => $pr->status, 'class' => 'bg-secondary-subtle text-secondary']; @endphp
-                                <tr>
-                                    <td><span class="fw-semibold">{{ $pr->folio }}</span></td>
-                                    <td>{{ $pr->code ?? '—' }}</td>
-                                    <td>
-                                        @if ($pr->materialRequest)
-                                            <a href="{{ route('material_requests.show', $pr->materialRequest) }}"
-                                               class="text-primary fw-semibold text-decoration-none">
-                                                #{{ $pr->materialRequest->folio }}
-                                            </a>
-                                        @else
-                                            <span class="text-muted">—</span>
-                                        @endif
-                                    </td>
-                                    <td style="max-width: 200px;">
-                                        @php
-                                            $proj = $pr->project?->name ?? null;
-                                            $obra = $pr->projectWork?->name ?? null;
-                                        @endphp
-                                        @if ($proj)
-                                            <div class="hover-marquee" title="{{ $proj }}">
-                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
-                                            </div>
-                                        @endif
-                                        @if ($obra)
-                                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
-                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
-                                            </small>
-                                        @endif
-                                        @if (!$proj && !$obra)
-                                            <span class="text-muted">—</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ $pr->request_date?->format('d/m/Y') }}</td>
-                                    <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <a href="{{ route('purchase_requests.show', $pr) }}"
-                                               class="btn btn-light btn-sm" title="Ver detalle">
-                                                <i class="ri-eye-line"></i>
-                                            </a>
-                                            @hasanyrole('admin|Solcom')
-                                            @can('update')
-                                                <a href="{{ route('purchase_requests.edit', $pr) }}"
-                                                   class="btn btn-soft-primary btn-sm" title="Editar">
-                                                    <i class="ri-edit-line"></i>
-                                                </a>
-                                            @endcan
-                                            @can('delete')
-                                                <form action="{{ route('purchase_requests.destroy', $pr) }}" method="POST"
-                                                      onsubmit="return confirm('¿Eliminar SOLCOM #{{ $pr->folio }}?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
-                                                </form>
-                                            @endcan
-                                            @endhasanyrole
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        No hay solicitudes de compra registradas.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('purchase_requests.utilities._table')
             </div>
 
             @if ($purchaseRequests->hasPages())
