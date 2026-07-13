@@ -9,6 +9,7 @@ use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\MobileAssetController;
 use App\Http\Controllers\MaintenanceLogController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseOrderEvidenceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
@@ -381,6 +382,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
+        });
+
+        // Evidencias de entrega en OC
+        Route::middleware('role:admin|Solmat|Pagos|Orden de compra')->group(function () {
+            Route::post('/evidencias', [PurchaseOrderEvidenceController::class, 'store'])->name('evidences.store');
+            Route::get('/evidencias/{evidence}/download', [PurchaseOrderEvidenceController::class, 'download'])->name('evidences.download');
+            Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])->name('evidences.destroy');
         });
 
         // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra

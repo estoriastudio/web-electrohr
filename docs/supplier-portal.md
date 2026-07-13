@@ -59,7 +59,8 @@ Prefijo de rutas: /portal-proveedor
    - Evidencia de soporte.
    - XML opcional.
 5. El sistema guarda la informacion asociada al hito.
-6. En el listado, cuando existe factura y evidencia para el hito, se muestra el estado Documentacion recibida.
+6. La evidencia de entrega tambien se registra en el modulo interno Evidencias de la Orden de Compra para seguimiento del equipo.
+7. En el listado, cuando existe factura y evidencia para el hito, se muestra el estado Documentacion recibida.
 
 ## Validaciones Relevantes
 

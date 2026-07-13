@@ -50,6 +50,11 @@ class PurchaseOrderMilestone extends Model
         );
     }
 
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderEvidence::class, 'purchase_order_milestone_id');
+    }
+
     /**
      * Monto objetivo real del hito en la moneda de la OC.
      * - value_type = 'fijo':       devuelve value directamente.

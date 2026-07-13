@@ -116,6 +116,11 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderInvoice::class);
     }
 
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderEvidence::class)->latest();
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);

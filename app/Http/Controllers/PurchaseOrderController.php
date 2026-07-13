@@ -328,6 +328,8 @@ class PurchaseOrderController extends Controller
             'milestones.payments',
             'milestones.invoices',
             'invoices.milestones',
+            'evidences.milestone',
+            'evidences.uploader',
             'items.concept',
             'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
             'annex',

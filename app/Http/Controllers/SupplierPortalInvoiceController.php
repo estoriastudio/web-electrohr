@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderEvidence;
 use App\Models\PurchaseOrderInvoice;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SupplierPortalInvoiceController extends Controller
 {
@@ -91,20 +93,45 @@ class SupplierPortalInvoiceController extends Controller
         }
         $evidencePath = $request->file('evidence_file')->storeAs($directory, $evidenceName);
 
-        $invoice = PurchaseOrderInvoice::create([
-            'purchase_order_id' => $purchaseOrder->id,
-            'folio' => null,
-            'file_name' => $pdfName,
-            'file_path' => $pdfPath,
-            'xml_file_name' => $xmlName,
-            'xml_file_path' => $xmlPath,
-            'evidence_file_name' => $evidenceName,
-            'evidence_file_path' => $evidencePath,
-            'amount' => $resolvedAmount,
-            'currency' => $purchaseOrder->currency,
-        ]);
+        DB::transaction(function () use (
+            $purchaseOrder,
+            $pdfName,
+            $pdfPath,
+            $xmlName,
+            $xmlPath,
+            $evidenceName,
+            $evidencePath,
+            $resolvedAmount,
+            $milestone,
+            $request
+        ) {
+            $invoice = PurchaseOrderInvoice::create([
+                'purchase_order_id' => $purchaseOrder->id,
+                'folio' => null,
+                'file_name' => $pdfName,
+                'file_path' => $pdfPath,
+                'xml_file_name' => $xmlName,
+                'xml_file_path' => $xmlPath,
+                'evidence_file_name' => $evidenceName,
+                'evidence_file_path' => $evidencePath,
+                'amount' => $resolvedAmount,
+                'currency' => $purchaseOrder->currency,
+            ]);
 
-        $invoice->milestones()->sync([$milestone->id]);
+            $invoice->milestones()->sync([$milestone->id]);
+
+            PurchaseOrderEvidence::create([
+                'purchase_order_id' => $purchaseOrder->id,
+                'purchase_order_milestone_id' => $milestone->id,
+                'purchase_order_invoice_id' => $invoice->id,
+                'uploaded_by' => $request->user()->id,
+                'file_name' => $evidenceName,
+                'file_path' => $evidencePath,
+                'mime_type' => $request->file('evidence_file')->getClientMimeType(),
+                'source' => 'supplier_portal',
+                'description' => 'Evidencia subida por proveedor junto con factura.',
+            ]);
+        });
 
         return redirect()->route('supplier_portal.purchase_orders.index')
             ->with('success', 'Factura registrada correctamente para el hito seleccionado.');

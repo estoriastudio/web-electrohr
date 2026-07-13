@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderInvoice extends Model
 {
@@ -40,5 +41,10 @@ class PurchaseOrderInvoice extends Model
             'purchase_order_invoice_id',
             'purchase_order_milestone_id'
         );
+    }
+
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderEvidence::class, 'purchase_order_invoice_id');
     }
 }

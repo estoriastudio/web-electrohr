@@ -54,6 +54,9 @@
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
     $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
+    $groupedEvidences = $purchaseOrder->evidences
+        ->sortByDesc('created_at')
+        ->groupBy(fn ($e) => optional($e->created_at)->format('Y-m-d') ?? 'sin-fecha');
     $minDueDate = now()->format('Y-m-d');
     $conceptSearchType = $purchaseOrder->type === 'mantenimiento' ? 'mantenimiento' : 'materiales';
 @endphp
@@ -152,6 +155,69 @@
         </div>
     </div>
 </div>
+
+{{-- MODAL Subir Evidencia --}}
+@hasanyrole('admin|Solmat|Pagos|Orden de compra')
+<div class="modal fade" id="modalCreateEvidence" tabindex="-1" aria-labelledby="modalCreateEvidenceLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('evidences.store') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCreateEvidenceLabel">
+                        <i class="ri-image-add-line me-1 text-info"></i> Subir evidencia — OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Archivo de evidencia <span class="text-danger">*</span></label>
+                            <input type="file"
+                                   class="form-control @error('evidence_file') is-invalid @enderror"
+                                   name="evidence_file"
+                                   accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                   required>
+                            <div class="form-text">Formatos permitidos: PDF, JPG, PNG, WEBP. Máximo 10 MB.</div>
+                            @error('evidence_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Hito relacionado</label>
+                            <select name="purchase_order_milestone_id" class="form-select @error('purchase_order_milestone_id') is-invalid @enderror">
+                                <option value="">Sin hito específico</option>
+                                @foreach ($orderedMilestones as $m)
+                                    <option value="{{ $m->id }}">
+                                        Hito #{{ $loop->iteration }} — {{ $m->concept ?: ($m->type === 'anticipo' ? 'Anticipo' : 'Regular') }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('purchase_order_milestone_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-medium">Descripción</label>
+                            <input type="text"
+                                   name="description"
+                                   maxlength="255"
+                                   class="form-control @error('description') is-invalid @enderror"
+                                   placeholder="Ej. Entrada de almacén y evidencia de recepción">
+                            @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="ri-upload-2-line me-1"></i> Subir evidencia
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endhasanyrole
 
 {{-- ── CONCEPTOS ── --}}
 <div class="row mb-3">
@@ -985,6 +1051,117 @@
     </div>
 </div>
 
+{{-- ── EVIDENCIAS ── --}}
+@hasanyrole('admin|Solmat|Pagos|Orden de compra')
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center py-2">
+                <h5 class="card-title mb-0">
+                    <i class="ri-image-add-line me-1 text-info"></i> Evidencias
+                    <span class="badge bg-info-subtle text-info ms-1">{{ $purchaseOrder->evidences->count() }}</span>
+                </h5>
+                <button type="button" class="btn btn-sm btn-info"
+                        data-bs-toggle="modal" data-bs-target="#modalCreateEvidence">
+                    <i class="ri-upload-2-line me-1"></i> Subir evidencia
+                </button>
+            </div>
+
+            @if ($purchaseOrder->evidences->count() > 0)
+                @foreach ($groupedEvidences as $groupDate => $evidences)
+                    <div class="card-body {{ !$loop->first ? 'border-top' : '' }}">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 fw-semibold text-muted">
+                                <i class="ri-calendar-line me-1"></i>
+                                {{ $groupDate === 'sin-fecha' ? 'Sin fecha' : \Carbon\Carbon::parse($groupDate)->format('d/m/Y') }}
+                            </h6>
+                            <span class="badge bg-light text-dark border">{{ $evidences->count() }} archivo(s)</span>
+                        </div>
+
+                        <div class="row g-3">
+                            @foreach ($evidences as $evidence)
+                                @php
+                                    $isImage = \Illuminate\Support\Str::startsWith((string) $evidence->mime_type, 'image/');
+                                    $previewUrl = route('evidences.download', ['evidence' => $evidence, 'disposition' => 'inline']);
+                                @endphp
+                                <div class="col-sm-6 col-lg-4 col-xl-3">
+                                    <div class="card h-100 border oc-evidence-card">
+                                        <button type="button"
+                                                class="btn oc-evidence-preview p-0 text-start js-open-evidence-modal"
+                                                data-evidence-preview-url="{{ $previewUrl }}"
+                                                data-evidence-download-url="{{ route('evidences.download', $evidence) }}"
+                                                data-evidence-name="{{ $evidence->file_name }}"
+                                                data-evidence-is-image="{{ $isImage ? 1 : 0 }}"
+                                                title="Previsualizar evidencia">
+                                            @if ($isImage)
+                                                <img src="{{ $previewUrl }}" alt="{{ $evidence->file_name }}" class="oc-evidence-thumb">
+                                            @else
+                                                <div class="oc-evidence-doc d-flex flex-column align-items-center justify-content-center">
+                                                    <i class="ri-file-pdf-2-line text-danger fs-32"></i>
+                                                    <span class="fs-11 text-muted mt-1">Documento</span>
+                                                </div>
+                                            @endif
+                                        </button>
+                                        <div class="card-body p-2">
+                                            <p class="mb-1 fs-12 fw-semibold text-truncate" title="{{ $evidence->file_name }}">
+                                                {{ $evidence->file_name }}
+                                            </p>
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="badge {{ $evidence->source === 'supplier_portal' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success' }} fs-10">
+                                                    {{ $evidence->source === 'supplier_portal' ? 'Proveedor' : 'Interno' }}
+                                                </span>
+                                                <small class="text-muted fs-11">{{ $evidence->created_at?->format('H:i') }}</small>
+                                            </div>
+                                            <div class="text-muted fs-11 mb-2 text-truncate" title="{{ $evidence->uploader?->name ?? 'Sistema' }}">
+                                                <i class="ri-user-line me-1"></i>{{ $evidence->uploader?->name ?? 'Sistema' }}
+                                            </div>
+                                            @if ($evidence->description)
+                                                <div class="text-muted fs-11 mb-2 text-truncate" title="{{ $evidence->description }}">
+                                                    {{ $evidence->description }}
+                                                </div>
+                                            @endif
+                                            <div class="d-flex gap-1">
+                                                <button type="button"
+                                                        class="btn btn-xs btn-soft-info flex-fill js-open-evidence-modal"
+                                                        data-evidence-preview-url="{{ $previewUrl }}"
+                                                        data-evidence-download-url="{{ route('evidences.download', $evidence) }}"
+                                                        data-evidence-name="{{ $evidence->file_name }}"
+                                                        data-evidence-is-image="{{ $isImage ? 1 : 0 }}"
+                                                        title="Previsualizar">
+                                                    <i class="ri-eye-line"></i>
+                                                </button>
+                                                <a href="{{ route('evidences.download', $evidence) }}"
+                                                   target="_blank"
+                                                   class="btn btn-xs btn-soft-primary flex-fill"
+                                                   title="Descargar">
+                                                    <i class="ri-download-2-line"></i>
+                                                </a>
+                                                <form action="{{ route('evidences.destroy', $evidence) }}" method="POST"
+                                                      onsubmit="return confirm('¿Eliminar la evidencia {{ $evidence->file_name }}? Esta acción no se puede deshacer.');">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-xs btn-soft-danger" title="Eliminar">
+                                                        <i class="ri-delete-bin-line"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+            @else
+                <div class="card-body text-center text-muted py-4">
+                    <i class="ri-image-line fs-36 d-block mb-2 text-info opacity-50"></i>
+                    No hay evidencias registradas. Usa el botón <strong>"Subir evidencia"</strong> para agregar la primera.
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+@endhasanyrole
+
 {{-- ── OBSERVACIONES ── --}}
 <div class="row mb-4">
     <div class="col-12">
@@ -1455,6 +1632,34 @@
     </div>
 </div>
 
+{{-- Modal único para visualizar evidencias --}}
+<div class="modal fade" id="modalViewEvidence" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewEvidenceTitle">
+                    <i class="ri-image-2-line me-1"></i> Evidencia
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light-subtle">
+                <div id="evidenceImageWrap" class="text-center d-none">
+                    <img id="evidenceImagePreview" src="" alt="Evidencia" class="img-fluid rounded border" style="max-height: 72vh; object-fit: contain;">
+                </div>
+                <div id="evidenceDocWrap" class="d-none">
+                    <iframe id="evidenceDocPreview" src="" title="Evidencia" style="width: 100%; height: 72vh; border: 1px solid var(--bs-border-color); border-radius: .5rem;"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="evidenceDownloadAction" href="#" target="_blank" class="btn btn-primary">
+                    <i class="ri-download-2-line me-1"></i> Descargar
+                </a>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @php
     $annexRecord    = $purchaseOrder->annex;
     $annexUpdatedAt = $annexRecord?->updated_at;
@@ -1628,6 +1833,33 @@
     100% { background-color: transparent; }
 }
 .oc-item-new { animation: oc-flash .9s ease-out forwards; }
+.oc-evidence-card {
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.oc-evidence-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .4rem .9rem rgba(0,0,0,.08);
+}
+.oc-evidence-preview {
+    border: 0;
+    background: transparent;
+    width: 100%;
+}
+.oc-evidence-thumb {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-top-left-radius: .5rem;
+    border-top-right-radius: .5rem;
+}
+.oc-evidence-doc {
+    width: 100%;
+    height: 150px;
+    background: var(--bs-light);
+    border-top-left-radius: .5rem;
+    border-top-right-radius: .5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
 </style>
 @endpush
 
@@ -2196,6 +2428,58 @@ $(function () {
             if (speiDocWrap) speiDocWrap.classList.add('d-none');
             if (speiTitle) speiTitle.innerHTML = '<i class="ri-image-2-line me-1"></i> Comprobante SPEI';
             if (speiDownloadAction) speiDownloadAction.setAttribute('href', '#');
+        });
+    }
+
+    // ── Visualización de evidencias ──
+    var evidenceModalEl = document.getElementById('modalViewEvidence');
+    var evidenceImageWrap = document.getElementById('evidenceImageWrap');
+    var evidenceDocWrap = document.getElementById('evidenceDocWrap');
+    var evidenceImagePreview = document.getElementById('evidenceImagePreview');
+    var evidenceDocPreview = document.getElementById('evidenceDocPreview');
+    var evidenceDownloadAction = document.getElementById('evidenceDownloadAction');
+    var evidenceTitle = document.getElementById('viewEvidenceTitle');
+
+    $(document).on('click', '.js-open-evidence-modal', function () {
+        var $btn = $(this);
+        var previewUrl = $btn.data('evidencePreviewUrl');
+        var downloadUrl = $btn.data('evidenceDownloadUrl');
+        var fileName = $btn.data('evidenceName') || 'Evidencia';
+        var isImage = String($btn.data('evidenceIsImage')) === '1';
+
+        if (evidenceTitle) {
+            evidenceTitle.innerHTML = '<i class="ri-image-2-line me-1"></i> Evidencia - ' + fileName;
+        }
+
+        if (evidenceDownloadAction) {
+            evidenceDownloadAction.setAttribute('href', downloadUrl || '#');
+        }
+
+        if (isImage) {
+            evidenceDocWrap.classList.add('d-none');
+            evidenceImageWrap.classList.remove('d-none');
+            evidenceImagePreview.setAttribute('src', previewUrl || '');
+            evidenceDocPreview.setAttribute('src', '');
+        } else {
+            evidenceImageWrap.classList.add('d-none');
+            evidenceDocWrap.classList.remove('d-none');
+            evidenceDocPreview.setAttribute('src', previewUrl || '');
+            evidenceImagePreview.setAttribute('src', '');
+        }
+
+        if (evidenceModalEl) {
+            bootstrap.Modal.getOrCreateInstance(evidenceModalEl).show();
+        }
+    });
+
+    if (evidenceModalEl) {
+        evidenceModalEl.addEventListener('hidden.bs.modal', function () {
+            if (evidenceImagePreview) evidenceImagePreview.setAttribute('src', '');
+            if (evidenceDocPreview) evidenceDocPreview.setAttribute('src', '');
+            if (evidenceImageWrap) evidenceImageWrap.classList.add('d-none');
+            if (evidenceDocWrap) evidenceDocWrap.classList.add('d-none');
+            if (evidenceTitle) evidenceTitle.innerHTML = '<i class="ri-image-2-line me-1"></i> Evidencia';
+            if (evidenceDownloadAction) evidenceDownloadAction.setAttribute('href', '#');
         });
     }
 });

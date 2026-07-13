@@ -58,6 +58,7 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 | Ordenes de Compra (CUD)    | Orden de compra                 |
 | Hitos de Pago              | Pagos, Orden de compra          |
 | Alta de Facturas (interna) | Pagos, Recepción, Orden de compra |
+| Evidencias de Entrega OC   | admin, Solmat, Pagos, Orden de compra |
 | Autorización de Pagos      | Pagos                           |
 | Proyectos                  | Proyectos, Solmat               |
 | Solicitudes de Compra      | Solcom, Orden de compra, admin  |
@@ -79,3 +80,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-06-15: Creacion inicial de matriz de roles y permisos.
 - 2026-06-16: Roles renombrados a español; eliminados `orders`/`payments` (inglés). Agregado rol `Recepción` (solo Alta de Facturas). Bienes Móviles y Proyectos ahora protegidos por middleware. Solmat accede a Proyectos y Pila SOLMAT. Orden de compra reemplaza a Solcom como nombre de rol.
 - 2026-07-13: Se agrega rol `supplier_portal_access` y su mapeo de Portal de Proveedores. Se documenta tambien `Proveedor` en Vales de Material y se actualizan mapeos de Hitos/Alta de Facturas segun rutas actuales.
+- 2026-07-13: Se agrega el modulo funcional Evidencias de Entrega OC con acceso para admin, Solmat, Pagos y Orden de compra.
