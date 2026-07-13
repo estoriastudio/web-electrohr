@@ -56,10 +56,15 @@ Route::namespace('App\Http\Controllers')->group(function () {
             });
 
                 // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado
-                Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
-                Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('purchase_requests.show');
+                Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])
+                    ->whereNumber('purchase_order')
+                    ->name('purchase_orders.show');
+                Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])
+                    ->whereNumber('purchaseRequest')
+                    ->name('purchase_requests.show');
                 Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
-                         ->name('material_requests.show');
+                    ->whereNumber('materialRequest')
+                    ->name('material_requests.show');
 
         // ── Solo admin ────────────────────────────────────────────────────────
 

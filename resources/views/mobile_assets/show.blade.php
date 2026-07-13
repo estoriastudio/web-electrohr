@@ -471,9 +471,12 @@
 
                 <div class="mt-3 pt-3 border-top">
                     <a href="{{ route('mobile_assets.documents.zip', $mobileAsset) }}"
+                       id="download-documents-zip-btn"
                        class="btn btn-primary btn-sm w-100 {{ $hasDownloadableDocuments ? '' : 'disabled' }}"
                        @if (! $hasDownloadableDocuments) aria-disabled="true" @endif>
-                        <i class="ri-folder-zip-line me-1"></i> Descargar documentación (.zip)
+                        <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                        <i class="ri-folder-zip-line me-1"></i>
+                        <span class="download-documents-zip-text">Descargar documentación (.zip)</span>
                     </a>
                 </div>
             </div>
@@ -695,6 +698,70 @@
             toggleReplace(this.dataset.slot);
         });
     });
+
+    // ── Loader en descarga de documentación ZIP ───────────────────────
+    var downloadZipBtn = document.getElementById('download-documents-zip-btn');
+    if (downloadZipBtn && !downloadZipBtn.classList.contains('disabled')) {
+        downloadZipBtn.addEventListener('click', async function (event) {
+            event.preventDefault();
+            if (downloadZipBtn.dataset.loading === '1') return;
+
+            downloadZipBtn.dataset.loading = '1';
+            downloadZipBtn.classList.add('disabled');
+            downloadZipBtn.setAttribute('aria-disabled', 'true');
+
+            var spinnerEl = downloadZipBtn.querySelector('.spinner-border');
+            var iconEl = downloadZipBtn.querySelector('i');
+            var textEl = downloadZipBtn.querySelector('.download-documents-zip-text');
+
+            if (spinnerEl) spinnerEl.classList.remove('d-none');
+            if (iconEl) iconEl.classList.add('d-none');
+            if (textEl) textEl.textContent = 'Generando archivo ZIP...';
+
+            try {
+                var response = await fetch(downloadZipBtn.href, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('No se pudo generar el ZIP.');
+                }
+
+                var disposition = response.headers.get('content-disposition') || '';
+                var fileName = 'documentacion-mobile-asset.zip';
+                var fileNameMatch = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+
+                if (fileNameMatch) {
+                    fileName = decodeURIComponent(fileNameMatch[1] || fileNameMatch[2]);
+                }
+
+                var blob = await response.blob();
+                var downloadUrl = URL.createObjectURL(blob);
+                var tempLink = document.createElement('a');
+
+                tempLink.href = downloadUrl;
+                tempLink.download = fileName;
+                document.body.appendChild(tempLink);
+                tempLink.click();
+                tempLink.remove();
+                URL.revokeObjectURL(downloadUrl);
+            } catch (error) {
+                window.alert('No fue posible descargar la documentación. Intenta nuevamente.');
+            } finally {
+                downloadZipBtn.dataset.loading = '0';
+                downloadZipBtn.classList.remove('disabled');
+                downloadZipBtn.removeAttribute('aria-disabled');
+
+                if (spinnerEl) spinnerEl.classList.add('d-none');
+                if (iconEl) iconEl.classList.remove('d-none');
+                if (textEl) textEl.textContent = 'Descargar documentación (.zip)';
+            }
+        });
+    }
 
 })();
 </script>
