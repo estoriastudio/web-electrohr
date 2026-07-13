@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Supplier extends Model
 {
@@ -21,6 +22,17 @@ class Supplier extends Model
         'swift_code',
         'currency',
         'status',
+        'portal_user_id',
+        'portal_access_enabled',
+        'portal_access_activated_at',
+        'portal_access_deactivated_at',
+        'portal_access_managed_by',
+    ];
+
+    protected $casts = [
+        'portal_access_enabled' => 'boolean',
+        'portal_access_activated_at' => 'datetime',
+        'portal_access_deactivated_at' => 'datetime',
     ];
 
     /**
@@ -141,5 +153,15 @@ class Supplier extends Model
     public function locations()
     {
         return $this->hasMany(SupplierLocation::class);
+    }
+
+    public function portalUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'portal_user_id');
+    }
+
+    public function portalAccessManager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'portal_access_managed_by');
     }
 }

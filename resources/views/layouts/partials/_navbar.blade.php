@@ -2,12 +2,12 @@
 <div class="main-nav">
     <!-- Sidebar Logo -->
     <div class="logo-box">
-        <a href="index.html" class="logo-dark">
+        <a href="{{ route('dashboard') }}" class="logo-dark">
             <img src="{{ asset('assets/images/logo-sm.png') }}" class="logo-sm" alt="logo sm">
             <img src="{{ asset('assets/images/logo-dark.png') }}" class="logo-lg" alt="logo dark">
         </a>
 
-        <a href="index.html" class="logo-light">
+        <a href="{{ route('dashboard') }}" class="logo-light">
             <img src="{{ asset('assets/images/logo-sm.png') }}" class="logo-sm" alt="logo sm">
             <img src="{{ asset('assets/images/logo-light.png') }}" class="logo-lg" alt="logo light">
         </a>
@@ -23,13 +23,37 @@
             <li class="menu-title">Menu</li>
 
             <li class="nav-item">
-                <a class="nav-link" href="{{ route('dashboard') }}">
+                <a class="nav-link" href="{{ auth()->user()->hasRole('supplier_portal_access') ? route('supplier_portal.dashboard') : route('dashboard') }}">
                     <span class="nav-icon">
                         <i class="ri-dashboard-2-line"></i>
                     </span>
                     <span class="nav-text">Vista General</span>
                 </a>
             </li>
+
+            @hasanyrole('supplier_portal_access')
+            <li class="menu-title">Portal Proveedor</li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('supplier_portal.purchase_orders.*') ? 'active' : '' }}"
+                   href="{{ route('supplier_portal.purchase_orders.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-file-list-3-line"></i>
+                    </span>
+                    <span class="nav-text">Mis Órdenes de Compra</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('supplier_portal.material_vouchers.*') ? 'active' : '' }}"
+                   href="{{ route('supplier_portal.material_vouchers.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-receipt-line"></i>
+                    </span>
+                    <span class="nav-text">Mis Vales de Material</span>
+                </a>
+            </li>
+            @endhasanyrole
 
             @hasanyrole('admin|Orden de compra')
                 @can('read')
@@ -54,7 +78,6 @@
                             <span class="nav-text">Bienes Móviles</span>
                         </a>
                     </li>
-                    
                     
                     <li class="nav-item">
                         <a class="nav-link menu-arrow {{ request()->routeIs('tools.*') || request()->routeIs('tool_categories.*') ? 'active' : '' }}" href="#sidebarTools" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarTools">

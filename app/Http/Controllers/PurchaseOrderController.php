@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
+use App\Models\ProjectWork;
 use App\Models\Supplier;
 use App\Models\Project;
 
@@ -19,6 +20,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /* PDF */
@@ -105,7 +107,7 @@ class PurchaseOrderController extends Controller
      */
     public function createFromSolcom(PurchaseRequest $purchaseRequest): View
     {
-        $purchaseRequest->load(['project', 'projectWork', 'items.concept', 'purchaseOrders:id,purchase_request_id,folio']);
+        $purchaseRequest->load(['project', 'projectWork', 'projectWorks', 'items.concept', 'purchaseOrders:id,purchase_request_id,folio']);
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
@@ -140,6 +142,8 @@ class PurchaseOrderController extends Controller
         if ($request->type === 'materiales_servicios') {
             $rules['project_id']      = 'nullable|exists:projects,id';
             $rules['project_work_id'] = 'nullable|exists:project_works,id';
+            $rules['project_work_ids'] = 'nullable|array|min:1';
+            $rules['project_work_ids.*'] = 'exists:project_works,id';
 
             // Si se crea desde SOLCOM, permitir seleccionar qué conceptos heredar
             if ($request->filled('purchase_request_id')) {
@@ -163,6 +167,61 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $selectedWorkIds = collect($validated['project_work_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($selectedWorkIds->isEmpty() && !empty($validated['project_work_id'])) {
+            $selectedWorkIds = collect([(int) $validated['project_work_id']]);
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios' && $selectedWorkIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Debes seleccionar al menos una obra para crear la OC.',
+            ]);
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios' && !empty($validated['project_id']) && $selectedWorkIds->isNotEmpty()) {
+            $validWorksCount = ProjectWork::where('project_id', (int) $validated['project_id'])
+                ->whereIn('id', $selectedWorkIds)
+                ->count();
+
+            if ($validWorksCount !== $selectedWorkIds->count()) {
+                throw ValidationException::withMessages([
+                    'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
+                ]);
+            }
+        }
+
+        $sourcePurchaseRequest = null;
+        if (!empty($validated['purchase_request_id'])) {
+            $sourcePurchaseRequest = PurchaseRequest::with(['items.concept', 'projectWorks'])
+                ->find($validated['purchase_request_id']);
+
+            if ($sourcePurchaseRequest && $selectedWorkIds->isNotEmpty()) {
+                // La OC hereda el proyecto de la SOLCOM origen.
+                $validated['project_id'] = (int) $sourcePurchaseRequest->project_id;
+
+                $allowedWorkIds = $sourcePurchaseRequest->projectWorks
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id);
+
+                $outside = $selectedWorkIds->diff($allowedWorkIds);
+                if ($outside->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a la SOLCOM origen.',
+                    ]);
+                }
+            }
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios') {
+            $validated['project_work_id'] = $selectedWorkIds->first();
+        }
+
+        unset($validated['project_work_ids']);
 
         if ($request->type === 'mantenimiento') {
             $validated['project_id']          = null;
@@ -193,15 +252,19 @@ class PurchaseOrderController extends Controller
 
         unset($validated['folio']);
 
-        $order = DB::transaction(function () use ($validated) {
+        $order = DB::transaction(function () use ($validated, $selectedWorkIds, $sourcePurchaseRequest) {
             $nextFolio = (PurchaseOrder::withTrashed()->lockForUpdate()->max('folio') ?? 0) + 1;
 
             $validated['folio'] = $nextFolio;
             $order = PurchaseOrder::create($validated);
 
+            if (($validated['type'] ?? null) === 'materiales_servicios') {
+                $order->projectWorks()->sync($selectedWorkIds->all());
+            }
+
             // Si viene vinculada a una SOLCOM: copiar sus ítems
             if (!empty($validated['purchase_request_id'])) {
-                $pr = PurchaseRequest::with('items.concept')->find($validated['purchase_request_id']);
+                $pr = $sourcePurchaseRequest;
 
                 if ($pr) {
                     $selectedItemIds = collect($validated['selected_item_ids'] ?? [])->map(fn ($id) => (int) $id);
@@ -310,6 +373,8 @@ class PurchaseOrderController extends Controller
         if ($request->type === 'materiales_servicios') {
             $rules['project_id']      = 'nullable|exists:projects,id';
             $rules['project_work_id'] = 'nullable|exists:project_works,id';
+            $rules['project_work_ids'] = 'nullable|array|min:1';
+            $rules['project_work_ids.*'] = 'exists:project_works,id';
         }
 
         if ($request->type === 'mantenimiento') {
@@ -317,6 +382,53 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $selectedWorkIds = collect($validated['project_work_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($selectedWorkIds->isEmpty() && !empty($validated['project_work_id'])) {
+            $selectedWorkIds = collect([(int) $validated['project_work_id']]);
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios' && $selectedWorkIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Debes seleccionar al menos una obra para guardar la OC.',
+            ]);
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios' && !empty($validated['project_id']) && $selectedWorkIds->isNotEmpty()) {
+            $validWorksCount = ProjectWork::where('project_id', (int) $validated['project_id'])
+                ->whereIn('id', $selectedWorkIds)
+                ->count();
+
+            if ($validWorksCount !== $selectedWorkIds->count()) {
+                throw ValidationException::withMessages([
+                    'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
+                ]);
+            }
+        }
+
+        if (!empty($purchaseOrder->purchase_request_id) && $selectedWorkIds->isNotEmpty()) {
+            $originPurchaseRequest = PurchaseRequest::find($purchaseOrder->purchase_request_id);
+            $allowedWorkIds = $originPurchaseRequest
+                ? $originPurchaseRequest->projectWorks()->pluck('project_works.id')->map(fn ($id) => (int) $id)
+                : collect();
+
+            $outside = $selectedWorkIds->diff($allowedWorkIds);
+            if ($outside->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a la SOLCOM origen.',
+                ]);
+            }
+        }
+
+        if (($validated['type'] ?? null) === 'materiales_servicios') {
+            $validated['project_work_id'] = $selectedWorkIds->first();
+        }
+
+        unset($validated['project_work_ids']);
 
         if (!Auth::user()->hasRole('admin') && ($validated['status'] ?? '') === 'autorizada') {
             $validated['status'] = 'pendiente';
@@ -345,6 +457,12 @@ class PurchaseOrderController extends Controller
         $validated['recurrence_end_date']   = null;
 
         $purchaseOrder->update($validated);
+
+        if (($validated['type'] ?? null) === 'materiales_servicios') {
+            $purchaseOrder->projectWorks()->sync($selectedWorkIds->all());
+        } else {
+            $purchaseOrder->projectWorks()->detach();
+        }
 
         // Recalcular amount a partir de los ítems con la nueva tax_rate
         $purchaseOrder->recalculateAmount();

@@ -19,6 +19,13 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @if ($errors->any())
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <ul class="mb-0">
@@ -90,6 +97,7 @@
                                 <th>Proveedor</th>
                                 <th># Órdenes de compra</th>
                                 <th>Estatus</th>
+                                <th>Portal</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -136,6 +144,17 @@
                                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                                     </td>
 
+                                    {{-- Portal --}}
+                                    <td>
+                                        @if (!$supplier->portal_user_id)
+                                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Sin configurar</span>
+                                        @elseif ($supplier->portal_access_enabled)
+                                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Acceso activo</span>
+                                        @else
+                                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">Acceso deshabilitado</span>
+                                        @endif
+                                    </td>
+
                                     {{-- Acciones --}}
                                     <td>
                                         <div class="d-flex gap-2">
@@ -160,12 +179,38 @@
                                                     </button>
                                                 </form>
                                             @endcan
+
+                                            @if (!$supplier->portal_user_id)
+                                                <a href="{{ route('suppliers.show', $supplier) }}?setup_portal=1"
+                                                   class="btn btn-soft-success btn-sm"
+                                                   title="Habilitar acceso a Portal">
+                                                    <i class="ri-key-2-line"></i>
+                                                </a>
+                                            @elseif ($supplier->portal_access_enabled)
+                                                <form action="{{ route('suppliers.portal_access.disable', $supplier) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('¿Deshabilitar acceso al Portal para este proveedor?')">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Deshabilitar acceso a Portal">
+                                                        <i class="ri-lock-line"></i>
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form action="{{ route('suppliers.portal_access.reactivate', $supplier) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('¿Reactivar acceso al Portal para este proveedor?')">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-soft-success btn-sm" title="Reactivar acceso a Portal">
+                                                        <i class="ri-lock-unlock-line"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
+                                    <td colspan="5" class="text-center text-muted py-4">
                                         No hay proveedores registrados.
                                     </td>
                                 </tr>

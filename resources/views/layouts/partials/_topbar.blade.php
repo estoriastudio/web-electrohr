@@ -39,6 +39,7 @@
                     </div>
 
                     <!-- Notification -->
+                    @if (!Auth::user()->hasRole('supplier_portal_access'))
                     <div class="dropdown topbar-item">
                         <button type="button" class="topbar-button position-relative" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                             <i class="ri-notification-3-line fs-24"></i>
@@ -105,6 +106,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
 
                     <!-- Theme Setting -->
                     <div class="topbar-item d-none d-md-flex">
@@ -124,6 +126,9 @@
                                 <img class="rounded-circle" width="32" height="32"
                                      src="{{ $gravatarUrl }}"
                                      alt="{{ Auth::user()->name }}">
+                                <span class="ms-2 fw-semibold footer-text text-nowrap d-none d-md-inline-block" style="max-width: 170px;">
+                                    {{ Auth::user()->name }}
+                                </span>
                             </span>
                         </a>
                         <div class="dropdown-menu dropdown-menu-end">

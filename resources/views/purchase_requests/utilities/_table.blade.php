@@ -48,100 +48,105 @@
                 @endphp
                 <tr @if ($mode === 'trashed') class="table-danger" @endif>
                     <td>
-                        <div class="dropdown">
-                            <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Acciones">
-                                <i class="ri-more-2-fill"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                @if ($mode === 'trashed')
-                                    <li>
-                                        <form action="{{ route('purchase_requests.restore', $pr->id) }}" method="POST">
-                                            @csrf
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="ri-arrow-go-back-line me-2 text-muted"></i>Restaurar
-                                            </button>
-                                        </form>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <form action="{{ route('purchase_requests.force_destroy', $pr->id) }}"
-                                              method="POST"
-                                              onsubmit="return confirm('¿Seguro que deseas ELIMINAR PERMANENTEMENTE la SOLCOM #{{ $pr->folio }}? Esta acción no se puede deshacer.');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="dropdown-item text-danger fw-semibold">
-                                                <i class="ri-delete-bin-2-line me-2"></i>Eliminar permanentemente
-                                            </button>
-                                        </form>
-                                    </li>
-                                @else
-                                    <li>
-                                        <a class="dropdown-item" href="{{ route('purchase_requests.show', $pr) }}">
-                                            <i class="ri-eye-line me-2 text-muted"></i>Ver detalle
-                                        </a>
-                                    </li>
-
-                                    @if ($mode === 'index')
-                                        @hasanyrole('admin|Solcom')
-                                        @can('update')
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="{{ route('purchase_requests.show', $pr) }}"><i class="ri-eye-line me-2 text-muted"></i></a>
+                            <div class="dropdown">
+                                <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Acciones">
+                                    <i class="ri-more-2-fill"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @if ($mode === 'trashed')
                                         <li>
-                                            <a class="dropdown-item" href="{{ route('purchase_requests.edit', $pr) }}">
-                                                <i class="ri-pencil-line me-2 text-muted"></i>Editar
-                                            </a>
-                                        </li>
-                                        @endcan
-                                        @endhasanyrole
-                                    @endif
-
-                                    <li>
-                                        <a class="dropdown-item" href="{{ route('purchase_requests.pdf', $pr) }}" target="_blank">
-                                            <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
-                                        </a>
-                                    </li>
-
-                                    @hasanyrole('admin|Solcom|Orden de compra')
-                                    <li><hr class="dropdown-divider"></li>
-                                    @if ($mode === 'index')
-                                        <li>
-                                            <form action="{{ route('purchase_requests.archive', $pr) }}" method="POST">
+                                            <form action="{{ route('purchase_requests.restore', $pr->id) }}" method="POST">
                                                 @csrf
-                                                @method('PATCH')
                                                 <button type="submit" class="dropdown-item">
-                                                    <i class="ri-archive-line me-2 text-muted"></i>Archivar
+                                                    <i class="ri-arrow-go-back-line me-2 text-muted"></i>Restaurar
+                                                </button>
+                                            </form>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form action="{{ route('purchase_requests.force_destroy', $pr->id) }}"
+                                                method="POST"
+                                                onsubmit="return confirm('¿Seguro que deseas ELIMINAR PERMANENTEMENTE la SOLCOM #{{ $pr->folio }}? Esta acción no se puede deshacer.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="dropdown-item text-danger fw-semibold">
+                                                    <i class="ri-delete-bin-2-line me-2"></i>Eliminar permanentemente
                                                 </button>
                                             </form>
                                         </li>
                                     @else
+                                        {{--  
                                         <li>
-                                            <form action="{{ route('purchase_requests.unarchive', $pr) }}" method="POST">
+                                            <a class="dropdown-item" href="{{ route('purchase_requests.show', $pr) }}">
+                                                <i class="ri-eye-line me-2 text-muted"></i>Ver detalle
+                                            </a>
+                                        </li>
+                                        --}}
+
+                                        @if ($mode === 'index')
+                                            @hasanyrole('admin|Solcom')
+                                            @can('update')
+                                            <li>
+                                                <a class="dropdown-item" href="{{ route('purchase_requests.edit', $pr) }}">
+                                                    <i class="ri-pencil-line me-2 text-muted"></i>Editar
+                                                </a>
+                                            </li>
+                                            @endcan
+                                            @endhasanyrole
+                                        @endif
+
+                                        <li>
+                                            <a class="dropdown-item" href="{{ route('purchase_requests.pdf', $pr) }}" target="_blank">
+                                                <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
+                                            </a>
+                                        </li>
+
+                                        @hasanyrole('admin|Solcom|Orden de compra')
+                                        <li><hr class="dropdown-divider"></li>
+                                        @if ($mode === 'index')
+                                            <li>
+                                                <form action="{{ route('purchase_requests.archive', $pr) }}" method="POST">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="ri-archive-line me-2 text-muted"></i>Archivar
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        @else
+                                            <li>
+                                                <form action="{{ route('purchase_requests.unarchive', $pr) }}" method="POST">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="ri-inbox-unarchive-line me-2 text-muted"></i>Restaurar al listado
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        @endif
+                                        @endhasanyrole
+
+                                        @hasanyrole('admin|Solcom')
+                                        @can('delete')
+                                        <li>
+                                            <form action="{{ route('purchase_requests.destroy', $pr) }}"
+                                                method="POST"
+                                                onsubmit="return submitPurchaseRequestDelete(this, '{{ $pr->folio ?? $pr->id }}');">
                                                 @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="dropdown-item">
-                                                    <i class="ri-inbox-unarchive-line me-2 text-muted"></i>Restaurar al listado
+                                                @method('DELETE')
+                                                <input type="hidden" name="deletion_comment" value="">
+                                                <button type="submit" class="dropdown-item text-danger">
+                                                    <i class="ri-delete-bin-line me-2"></i>Eliminar
                                                 </button>
                                             </form>
                                         </li>
+                                        @endcan
+                                        @endhasanyrole
                                     @endif
-                                    @endhasanyrole
-
-                                    @hasanyrole('admin|Solcom')
-                                    @can('delete')
-                                    <li>
-                                        <form action="{{ route('purchase_requests.destroy', $pr) }}"
-                                              method="POST"
-                                              onsubmit="return submitPurchaseRequestDelete(this, '{{ $pr->folio ?? $pr->id }}');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <input type="hidden" name="deletion_comment" value="">
-                                            <button type="submit" class="dropdown-item text-danger">
-                                                <i class="ri-delete-bin-line me-2"></i>Eliminar
-                                            </button>
-                                        </form>
-                                    </li>
-                                    @endcan
-                                    @endhasanyrole
-                                @endif
-                            </ul>
+                                </ul>
+                            </div>
                         </div>
                     </td>
                     <td><span class="fw-semibold">{{ $pr->folio }}</span></td>

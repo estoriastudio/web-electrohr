@@ -56,6 +56,11 @@
         @php
             $defaultSelectedItems = $purchaseRequest->items->pluck('id')->map(fn($id) => (string) $id)->all();
             $selectedItems = old('selected_item_ids', $defaultSelectedItems);
+            $defaultSelectedWorks = $purchaseRequest->projectWorks->pluck('id')->map(fn($id) => (string) $id)->all();
+            if (empty($defaultSelectedWorks) && $purchaseRequest->project_work_id) {
+                $defaultSelectedWorks = [(string) $purchaseRequest->project_work_id];
+            }
+            $selectedWorks = old('project_work_ids', $defaultSelectedWorks);
         @endphp
         <div class="card">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
@@ -123,19 +128,44 @@
                             @error('project_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
-                        {{-- Obra --}}
                         <div class="col-md-6">
-                            <label for="project_work_id" class="form-label fw-medium">Obra</label>
-                            <select class="form-control @error('project_work_id') is-invalid @enderror"
-                                    id="project_work_id" disabled
-                                    style="background-color:#f8f9fa;pointer-events:none;">
-                                <option value="">Seleccionar obra...</option>
-                                {{-- Se llenará por JS con la obra de la SOLCOM pre-seleccionada --}}
-                            </select>
-                            {{-- Hidden para que el valor se envíe con el formulario --}}
-                            <input type="hidden" name="project_work_id" id="project_work_id_hidden"
-                                   value="{{ old('project_work_id', $purchaseRequest->project_work_id) }}">
-                            @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label class="form-label fw-medium">Obras a cubrir <span class="text-danger">*</span></label>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-light" id="btn_select_all_works">
+                                    <i class="ri-checkbox-multiple-line me-1"></i>Seleccionar todas
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_all_works">
+                                    <i class="ri-checkbox-blank-line me-1"></i>Limpiar selección
+                                </button>
+                            </div>
+                            <div id="selected_works_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                Debes seleccionar al menos una obra para crear la OC.
+                            </div>
+                            <div class="border rounded-2 p-2" style="max-height: 220px; overflow-y: auto;">
+                                @forelse ($purchaseRequest->projectWorks as $work)
+                                    @php
+                                        $checkedWork = in_array((string) $work->id, array_map('strval', (array) $selectedWorks), true);
+                                    @endphp
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input js-inherit-work"
+                                               type="checkbox"
+                                               name="project_work_ids[]"
+                                               id="work_{{ $work->id }}"
+                                               value="{{ $work->id }}"
+                                               {{ $checkedWork ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="work_{{ $work->id }}">
+                                            {{ $work->name }}
+                                        </label>
+                                    </div>
+                                @empty
+                                    <p class="text-muted fs-12 mb-0">Esta SOLCOM no tiene obras vinculadas.</p>
+                                @endforelse
+                            </div>
+                            <div class="text-muted fs-12 mt-2">
+                                Seleccionadas: <strong id="selected_works_badge">{{ count((array) $selectedWorks) }}</strong>
+                            </div>
+                            @error('project_work_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            @error('project_work_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Dirección de entrega (se guarda en site de OC) --}}
@@ -408,12 +438,8 @@
 @push('scripts')
 <script>
 (function () {
-    const projectSel      = document.getElementById('project_id');
-    const workSel         = document.getElementById('project_work_id');
-    const workHidden      = document.getElementById('project_work_id_hidden');
     const supplierSel     = document.getElementById('supplier_id');
     const signatoryInput  = document.getElementById('supplier_signatory');
-    const solcomWorkId    = {{ $purchaseRequest->project_work_id ?? 'null' }};
 
     // Inicializar Choices.js en el proveedor
     const supplierChoices = new Choices(supplierSel, {
@@ -442,40 +468,6 @@
         .catch(() => {});
     });
 
-    // Cargar obras del proyecto (solo visual, el hidden ya tiene el valor)
-    function loadWorks(projectId, preselectWorkId) {
-        workSel.innerHTML = '<option value="">Cargando obras…</option>';
-
-        if (!projectId) {
-            workSel.innerHTML = '<option value="">Seleccionar obra...</option>';
-            return;
-        }
-
-        fetch('/proyectos/' + projectId + '/obras-json', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.json())
-        .then(works => {
-            workSel.innerHTML = '<option value="">Seleccionar obra...</option>';
-            works.forEach(w => {
-                const opt = document.createElement('option');
-                opt.value = w.id;
-                opt.textContent = w.name;
-                if (preselectWorkId && w.id == preselectWorkId) opt.selected = true;
-                workSel.appendChild(opt);
-            });
-        })
-        .catch(() => {
-            workSel.innerHTML = '<option value="">Error al cargar obras</option>';
-        });
-    }
-
-    // Carga inicial si hay proyecto pre-seleccionado
-    const initialProject = projectSel.value || '{{ $purchaseRequest->project_id }}';
-    if (initialProject) {
-        loadWorks(initialProject, solcomWorkId);
-    }
-
     // Toggle impuestos adicionales
     function toggleExtraTaxField(checkbox) {
         const wrapper = document.getElementById(checkbox.dataset.target);
@@ -497,13 +489,18 @@
 
 (function () {
     const checkboxes = Array.from(document.querySelectorAll('.js-inherit-item'));
+    const workCheckboxes = Array.from(document.querySelectorAll('.js-inherit-work'));
     if (!checkboxes.length) return;
 
     const selectedBadge = document.getElementById('selected_items_badge');
     const selectedSubtotal = document.getElementById('selected_items_subtotal');
     const selectedError = document.getElementById('selected_items_error');
+    const selectedWorksBadge = document.getElementById('selected_works_badge');
+    const selectedWorksError = document.getElementById('selected_works_error');
     const btnSelectAll = document.getElementById('btn_select_all_items');
     const btnClearAll = document.getElementById('btn_clear_all_items');
+    const btnSelectAllWorks = document.getElementById('btn_select_all_works');
+    const btnClearAllWorks = document.getElementById('btn_clear_all_works');
     const form = document.querySelector('form[action="{{ route('purchase_orders.store') }}"]');
 
     function updateSelectedStats() {
@@ -528,6 +525,13 @@
         return selected;
     }
 
+    function updateSelectedWorks() {
+        const selected = workCheckboxes.filter(function (cb) { return cb.checked; }).length;
+        if (selectedWorksBadge) selectedWorksBadge.textContent = String(selected);
+        if (selectedWorksError) selectedWorksError.classList.toggle('d-none', selected > 0);
+        return selected;
+    }
+
     checkboxes.forEach(function (cb) {
         cb.addEventListener('change', updateSelectedStats);
     });
@@ -546,18 +550,43 @@
         });
     }
 
+    workCheckboxes.forEach(function (cb) {
+        cb.addEventListener('change', updateSelectedWorks);
+    });
+
+    if (btnSelectAllWorks) {
+        btnSelectAllWorks.addEventListener('click', function () {
+            workCheckboxes.forEach(function (cb) { cb.checked = true; });
+            updateSelectedWorks();
+        });
+    }
+
+    if (btnClearAllWorks) {
+        btnClearAllWorks.addEventListener('click', function () {
+            workCheckboxes.forEach(function (cb) { cb.checked = false; });
+            updateSelectedWorks();
+        });
+    }
+
     if (form) {
         form.addEventListener('submit', function (e) {
-            if (updateSelectedStats() > 0) return;
+            const hasItems = updateSelectedStats() > 0;
+            const hasWorks = updateSelectedWorks() > 0;
+            if (hasItems && hasWorks) return;
             e.preventDefault();
-            if (selectedError) {
+            if (!hasItems && selectedError) {
                 selectedError.classList.remove('d-none');
                 selectedError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (!hasWorks && selectedWorksError) {
+                selectedWorksError.classList.remove('d-none');
+                selectedWorksError.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
     }
 
     updateSelectedStats();
+    updateSelectedWorks();
 }());
 </script>
 @endpush

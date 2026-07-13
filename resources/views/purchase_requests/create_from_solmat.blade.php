@@ -40,6 +40,10 @@
 
 <div class="row justify-content-center">
     <div class="col-xl-10">
+        @php
+            $defaultSelectedWorks = $materialRequest->projectWorks->pluck('id')->map(fn($id) => (string) $id)->all();
+            $selectedWorks = old('project_work_ids', $defaultSelectedWorks);
+        @endphp
         <div class="card">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h4 class="card-title mb-0">
@@ -92,8 +96,9 @@
                         {{-- Proyecto --}}
                         <div class="col-md-6">
                             <label class="form-label">Proyecto <span class="text-danger">*</span></label>
-                            <select name="project_id" id="solcomProjectId"
-                                    class="form-select @error('project_id') is-invalid @enderror" required>
+                            <select id="solcomProjectId"
+                                    class="form-select @error('project_id') is-invalid @enderror" disabled
+                                    style="background-color:#f8f9fa;pointer-events:none;">
                                 <option value="">— Selecciona proyecto —</option>
                                 @foreach ($projects as $project)
                                     <option value="{{ $project->id }}"
@@ -102,29 +107,68 @@
                                     </option>
                                 @endforeach
                             </select>
+                            <input type="hidden" name="project_id" value="{{ old('project_id', $materialRequest->project_id) }}">
                             @error('project_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">El proyecto se hereda de la SOLMAT origen y no puede modificarse.</div>
                         </div>
 
-                        {{-- Obra (single, pre-seleccionada de las obras de la SOLMAT) --}}
-                        <div class="col-md-6">
-                            <label class="form-label">Obra <span class="text-danger">*</span></label>
-                            <select name="project_work_id" id="solcomProjectWorkId"
-                                    class="form-select @error('project_work_id') is-invalid @enderror" required>
-                                <option value="">— Selecciona obra —</option>
-                                @foreach ($materialRequest->projectWorks as $pw)
-                                    <option value="{{ $pw->id }}"
-                                        {{ old('project_work_id', $materialRequest->projectWorks->first()?->id) == $pw->id ? 'selected' : '' }}>
-                                        {{ $pw->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('project_work_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                            @if ($materialRequest->projectWorks->count() > 1)
-                                <div class="form-text">
-                                    <i class="ri-information-line me-1"></i>
-                                    La SOLMAT tiene {{ $materialRequest->projectWorks->count() }} obras vinculadas. Selecciona la que aplica para esta SOLCOM.
-                                </div>
-                            @endif
+                        {{-- Obras vinculadas de SOLMAT --}}
+                        <div class="col-12">
+                            <label class="form-label">Obras vinculadas <span class="text-danger">*</span></label>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-light" id="btn_select_all_works">
+                                    <i class="ri-checkbox-multiple-line me-1"></i>Seleccionar todas
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_all_works">
+                                    <i class="ri-checkbox-blank-line me-1"></i>Limpiar selección
+                                </button>
+                                <span class="text-muted fs-12 align-self-center ms-md-auto">
+                                    Obras seleccionadas: <strong id="selected_works_badge">{{ count((array) $selectedWorks) }}</strong>
+                                </span>
+                            </div>
+                            <div id="selected_works_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                Debes seleccionar al menos una obra para crear la SOLCOM.
+                            </div>
+                            <div class="table-responsive border rounded-2">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead class="bg-light-subtle">
+                                        <tr>
+                                            <th style="width:42px;"></th>
+                                            <th>Obra</th>
+                                            <th class="text-end">Proyecto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($materialRequest->projectWorks as $pw)
+                                            @php
+                                                $checked = in_array((string) $pw->id, array_map('strval', (array) $selectedWorks), true);
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input js-solcom-work"
+                                                           name="project_work_ids[]"
+                                                           value="{{ $pw->id }}"
+                                                           {{ $checked ? 'checked' : '' }}>
+                                                </td>
+                                                <td class="fw-medium">{{ $pw->name }}</td>
+                                                <td class="text-end text-muted">{{ $materialRequest->project?->name }}</td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="3" class="text-center text-muted py-3">
+                                                    Esta SOLMAT no tiene obras vinculadas.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                            @error('project_work_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            @error('project_work_ids.*') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            <div class="form-text">
+                                La SOLCOM puede cubrir una o varias obras de esta SOLMAT.
+                            </div>
                         </div>
 
                         {{-- Zona / Ubicación y Dirección --}}
@@ -220,37 +264,56 @@
 @push('scripts')
 <script>
 (function () {
-    const projectSel = document.getElementById('solcomProjectId');
-    const workSel    = document.getElementById('solcomProjectWorkId');
-    const solmatWorks = @json($materialRequest->projectWorks->map(fn($pw) => ['id' => $pw->id, 'name' => $pw->name]));
+    const workCheckboxes = Array.from(document.querySelectorAll('.js-solcom-work'));
+    const selectedWorksBadge = document.getElementById('selected_works_badge');
+    const selectedWorksError = document.getElementById('selected_works_error');
+    const btnSelectAllWorks = document.getElementById('btn_select_all_works');
+    const btnClearAllWorks = document.getElementById('btn_clear_all_works');
+    const form = document.getElementById('formCreateSolcom');
 
-    // Al cambiar proyecto: cargar obras del proyecto seleccionado desde API
-    projectSel.addEventListener('change', function () {
-        const projectId = this.value;
-        workSel.innerHTML = '<option value="">— Cargando obras… —</option>';
-
-        if (!projectId) {
-            workSel.innerHTML = '<option value="">— Selecciona obra —</option>';
-            return;
+    function updateSelectedWorks() {
+        const selectedCount = workCheckboxes.filter(function (cb) { return cb.checked; }).length;
+        if (selectedWorksBadge) {
+            selectedWorksBadge.textContent = String(selectedCount);
         }
+        if (selectedWorksError) {
+            selectedWorksError.classList.toggle('d-none', selectedCount > 0);
+        }
+        return selectedCount;
+    }
 
-        fetch('/proyectos/' + projectId + '/obras-json', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.json())
-        .then(works => {
-            workSel.innerHTML = '<option value="">— Selecciona obra —</option>';
-            works.forEach(w => {
-                const opt = document.createElement('option');
-                opt.value = w.id;
-                opt.textContent = w.name;
-                // Pre-seleccionar si la obra es una de las obras de la SOLMAT
-                if (solmatWorks.some(sw => sw.id == w.id)) opt.selected = true;
-                workSel.appendChild(opt);
-            });
-        })
-        .catch(() => { workSel.innerHTML = '<option value="">— Error al cargar obras —</option>'; });
+    workCheckboxes.forEach(function (cb) {
+        cb.addEventListener('change', updateSelectedWorks);
     });
+
+    if (btnSelectAllWorks) {
+        btnSelectAllWorks.addEventListener('click', function () {
+            workCheckboxes.forEach(function (cb) { cb.checked = true; });
+            updateSelectedWorks();
+        });
+    }
+
+    if (btnClearAllWorks) {
+        btnClearAllWorks.addEventListener('click', function () {
+            workCheckboxes.forEach(function (cb) { cb.checked = false; });
+            updateSelectedWorks();
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            if (updateSelectedWorks() > 0) {
+                return;
+            }
+            event.preventDefault();
+            if (selectedWorksError) {
+                selectedWorksError.classList.remove('d-none');
+                selectedWorksError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    }
+
+    updateSelectedWorks();
 }());
 </script>
 @endpush

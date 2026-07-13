@@ -31,6 +31,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Proyectos',
             'Moviles',
             'Recepción',
+            'supplier_portal_access',
         ];
 
         foreach ($roles as $roleName) {

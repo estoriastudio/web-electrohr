@@ -25,6 +25,13 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 {{-- ── Encabezado de la vista ───────────────────────────────────────────── --}}
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
@@ -244,6 +251,72 @@
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                     </dd>
                 </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title mb-0">
+                    <i class="ri-shield-user-line me-1 text-muted"></i> Acceso a Portal de Proveedores
+                </h5>
+                @if (!$supplier->portal_user_id)
+                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalPortalAccessConfig">
+                        <i class="ri-key-2-line me-1"></i> Habilitar acceso a Portal
+                    </button>
+                @elseif ($supplier->portal_access_enabled)
+                    <form action="{{ route('suppliers.portal_access.disable', $supplier) }}" method="POST"
+                          onsubmit="return confirm('¿Deshabilitar acceso al Portal para este proveedor?')">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            <i class="ri-lock-line me-1"></i> Deshabilitar acceso
+                        </button>
+                    </form>
+                @else
+                    <form action="{{ route('suppliers.portal_access.reactivate', $supplier) }}" method="POST"
+                          onsubmit="return confirm('¿Reactivar acceso al Portal para este proveedor?')">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-success">
+                            <i class="ri-lock-unlock-line me-1"></i> Reactivar acceso
+                        </button>
+                    </form>
+                @endif
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="text-muted fs-12 mb-1">Estatus de acceso</div>
+                        @if (!$supplier->portal_user_id)
+                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Sin configurar</span>
+                        @elseif ($supplier->portal_access_enabled)
+                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Activo</span>
+                        @else
+                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">Deshabilitado</span>
+                        @endif
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted fs-12 mb-1">Correo portal</div>
+                        <div class="fw-medium fs-14">{{ $supplier->portalUser?->email ?? '—' }}</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted fs-12 mb-1">Última activación</div>
+                        <div class="fw-medium fs-14">{{ $supplier->portal_access_activated_at?->format('d/m/Y H:i') ?? '—' }}</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted fs-12 mb-1">Última desactivación</div>
+                        <div class="fw-medium fs-14">{{ $supplier->portal_access_deactivated_at?->format('d/m/Y H:i') ?? '—' }}</div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPortalAccessConfig">
+                        <i class="ri-settings-3-line me-1"></i> Configurar credenciales del portal
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -579,6 +652,83 @@
         </div>
     </div>
 
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     MODAL — Configurar acceso portal proveedor
+══════════════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalPortalAccessConfig" tabindex="-1" aria-labelledby="modalPortalAccessConfigLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPortalAccessConfigLabel">
+                    <i class="ri-shield-user-line me-1"></i> Configurar acceso al portal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('suppliers.portal_access.enable', $supplier) }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Define las credenciales del proveedor para ingresar al Portal de Proveedores.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Nombre de usuario</label>
+                        <input type="text" name="portal_name" class="form-control @error('portal_name') is-invalid @enderror"
+                               value="{{ old('portal_name', $supplier->portalUser?->name ?? ($supplier->commercial_name ?? $supplier->rfc_name)) }}"
+                               placeholder="Ej. Compras Proveedor SA">
+                        @error('portal_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Correo de acceso <span class="text-danger">*</span></label>
+                        <input type="email" name="portal_email" class="form-control @error('portal_email') is-invalid @enderror"
+                               value="{{ old('portal_email', $supplier->portalUser?->email ?? $supplier->email) }}"
+                               placeholder="portal.proveedor@empresa.com" required>
+                        @error('portal_email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">
+                            Contraseña
+                            @if (!$supplier->portal_user_id)
+                                <span class="text-danger">*</span>
+                            @endif
+                        </label>
+                        <input type="password" name="portal_password" class="form-control @error('portal_password') is-invalid @enderror"
+                               placeholder="Mínimo 8 caracteres" @if (!$supplier->portal_user_id) required @endif>
+                        <div class="form-text">
+                            @if ($supplier->portal_user_id)
+                                Déjalo vacío para conservar la contraseña actual.
+                            @else
+                                Se usará para el primer inicio de sesión del proveedor.
+                            @endif
+                        </div>
+                        @error('portal_password')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label fw-medium">Confirmar contraseña</label>
+                        <input type="password" name="portal_password_confirmation" class="form-control"
+                               placeholder="Repite la contraseña">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-save-line me-1"></i> Guardar configuración
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="row">
@@ -997,6 +1147,12 @@ document.addEventListener('DOMContentLoaded', function () {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDeleteLocation')).show();
         });
     });
+
+    const portalConfigModalEl = document.getElementById('modalPortalAccessConfig');
+    const shouldOpenPortalConfig = @json($errors->has('portal_email') || request()->boolean('setup_portal'));
+    if (portalConfigModalEl && shouldOpenPortalConfig) {
+        bootstrap.Modal.getOrCreateInstance(portalConfigModalEl).show();
+    }
 
 });
 </script>

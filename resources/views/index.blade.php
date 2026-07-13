@@ -1,5 +1,38 @@
 @extends('layouts.app')
 
+@push('styles')
+    <style>
+        .welcome-hero {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.5rem;
+            background-image:
+                linear-gradient(120deg, rgba(10, 35, 66, 0.9) 0%, rgba(10, 35, 66, 0.62) 48%, rgba(10, 35, 66, 0.2) 100%),
+                var(--welcome-hero-banner),
+                url('{{ asset('welcome/welcome-default.jpg') }}');
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            box-shadow: 0 1.5rem 3rem rgba(15, 23, 42, 0.12);
+        }
+
+        .welcome-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 36%);
+            pointer-events: none;
+        }
+
+        .welcome-hero__content {
+            position: relative;
+            z-index: 1;
+            max-width: 46rem;
+            padding: 52px 0;
+        }
+    </style>
+@endpush
+
 @section('page_title', 'Bienvenida')
 
 @section('breadcrumbs')
@@ -8,6 +41,30 @@
 @endsection
 
 @section('content')
+
+@php
+    $authUser = auth()->user();
+    $isSupplierPortal = $authUser->hasRole('supplier_portal_access');
+    $primaryRoleSlug = \Illuminate\Support\Str::slug((string) optional($authUser->roles->first())->name ?: 'general');
+    $welcomeBannerFile = $isSupplierPortal
+        ? 'welcome-supplier.jpg'
+        : 'welcome-' . $primaryRoleSlug . '.jpg';
+    $welcomeTitle = $isSupplierPortal
+        ? 'Bienvenido al Portal de Proveedores SAHR 2.0.'
+        : 'Bienvenido al SAHR 2.0.';
+    $welcomeDescription = $isSupplierPortal
+        ? 'Desde este portal puedes revisar tus hitos habilitados y subir la documentación requerida para tus facturas. El equipo de ElectroHR dará seguimiento a cada entrega.'
+        : 'Da seguimiento a tus procesos y usa el tablero para priorizar pendientes del día.';
+@endphp
+
+<div class="welcome-hero text-white p-4 p-lg-5 mb-4"
+     style="--welcome-hero-banner: url('{{ asset('welcome/' . $welcomeBannerFile) }}');">
+    <div class="welcome-hero__content">
+        <span class="badge text-bg-light text-dark rounded-pill px-3 py-2 mb-3">SAHR 2.0</span>
+        <h1 class="display-6 fw-bold mb-1">Hola {{ Auth::user()->name }}. <br>{{ $welcomeTitle }}</h1>
+        <p class="lead mb-0">{{ $welcomeDescription }}</p>
+    </div>
+</div>
 
 {{-- ============================================================ --}}
 {{-- Bloque 1: Indicadores de Pagos — admin + Pagos            --}}

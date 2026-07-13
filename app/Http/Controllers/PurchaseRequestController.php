@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MaterialRequest;
 use App\Models\Notification;
 use App\Models\Project;
+use App\Models\ProjectWork;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestChangeNote;
 use App\Models\PurchaseRequestItem;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseRequestController extends Controller
 {
@@ -60,7 +62,9 @@ class PurchaseRequestController extends Controller
             'code'                => 'nullable|string|max:100',
             'material_request_id' => 'nullable|exists:material_requests,id',
             'project_id'          => 'required|exists:projects,id',
-            'project_work_id'     => 'required|exists:project_works,id',
+            'project_work_id'     => 'nullable|exists:project_works,id',
+            'project_work_ids'    => 'nullable|array|min:1',
+            'project_work_ids.*'  => 'exists:project_works,id',
             'zone'                => 'required|string|max:255',
             'delivery_address'    => 'required|string|max:255',
             'short_description'   => 'required|string|max:255',
@@ -69,15 +73,61 @@ class PurchaseRequestController extends Controller
             'assigned_to'         => 'nullable|exists:users,id',
         ]);
 
+        $selectedWorkIds = collect($data['project_work_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($selectedWorkIds->isEmpty() && !empty($data['project_work_id'])) {
+            $selectedWorkIds = collect([(int) $data['project_work_id']]);
+        }
+
+        if ($selectedWorkIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Debes seleccionar al menos una obra.',
+            ]);
+        }
+
+        $validWorksCount = ProjectWork::where('project_id', (int) $data['project_id'])
+            ->whereIn('id', $selectedWorkIds)
+            ->count();
+
+        if ($validWorksCount !== $selectedWorkIds->count()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
+            ]);
+        }
+
+        $mr = null;
+        if (! empty($data['material_request_id'])) {
+            $mr = MaterialRequest::with(['items.concept.category', 'projectWorks'])
+                ->find($data['material_request_id']);
+
+            if ($mr) {
+                // El proyecto de la SOLCOM se hereda de la SOLMAT origen.
+                $data['project_id'] = (int) $mr->project_id;
+
+                $allowedWorkIds = $mr->projectWorks->pluck('id')->map(fn ($id) => (int) $id);
+                $outside = $selectedWorkIds->diff($allowedWorkIds);
+                if ($outside->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a la SOLMAT origen.',
+                    ]);
+                }
+            }
+        }
+
+        $data['project_work_id'] = $selectedWorkIds->first();
+        unset($data['project_work_ids']);
+
         $data['requested_by'] = Auth::id();
         $data['status']       = 'pending';
 
         $pr = PurchaseRequest::create($data);
+        $pr->projectWorks()->sync($selectedWorkIds->all());
 
         // Si viene vinculada a una SOLMAT: copiar sus items y marcarla como 'linked'
         if (! empty($data['material_request_id'])) {
-            $mr = MaterialRequest::with('items.concept.category')->find($data['material_request_id']);
-
             if ($mr) {
                 foreach ($mr->items as $item) {
                     PurchaseRequestItem::create([
@@ -168,7 +218,9 @@ class PurchaseRequestController extends Controller
         $data = $request->validate([
             'code'              => 'nullable|string|max:100',
             'project_id'        => 'required|exists:projects,id',
-            'project_work_id'   => 'required|exists:project_works,id',
+            'project_work_id'   => 'nullable|exists:project_works,id',
+            'project_work_ids'  => 'nullable|array|min:1',
+            'project_work_ids.*'=> 'exists:project_works,id',
             'zone'              => 'required|string|max:255',
             'delivery_address'  => 'required|string|max:255',
             'short_description' => 'required|string|max:255',
@@ -176,7 +228,50 @@ class PurchaseRequestController extends Controller
             'need_date'         => 'required|date|after_or_equal:request_date',
         ]);
 
+        $selectedWorkIds = collect($data['project_work_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($selectedWorkIds->isEmpty() && !empty($data['project_work_id'])) {
+            $selectedWorkIds = collect([(int) $data['project_work_id']]);
+        }
+
+        if ($selectedWorkIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Debes seleccionar al menos una obra.',
+            ]);
+        }
+
+        $validWorksCount = ProjectWork::where('project_id', (int) $data['project_id'])
+            ->whereIn('id', $selectedWorkIds)
+            ->count();
+
+        if ($validWorksCount !== $selectedWorkIds->count()) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
+            ]);
+        }
+
+        if ($purchaseRequest->materialRequest) {
+            $allowedWorkIds = $purchaseRequest->materialRequest
+                ->projectWorks()
+                ->pluck('project_works.id')
+                ->map(fn ($id) => (int) $id);
+
+            $outside = $selectedWorkIds->diff($allowedWorkIds);
+            if ($outside->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a la SOLMAT origen.',
+                ]);
+            }
+        }
+
+        $data['project_work_id'] = $selectedWorkIds->first();
+        unset($data['project_work_ids']);
+
         $purchaseRequest->update($data);
+        $purchaseRequest->projectWorks()->sync($selectedWorkIds->all());
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),

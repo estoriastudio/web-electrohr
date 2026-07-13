@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 use App\Exports\SupplierExport;
 use App\Imports\SupplierImport;
 use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Permission\Models\Role;
 
 /* Notificaciones */
 use App\Services\NotificationService;
@@ -25,6 +31,7 @@ class SupplierController extends Controller
         $search = trim($request->input('search', ''));
 
         $suppliers = Supplier::withCount('purchaseOrders')
+            ->with('portalUser')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('rfc_name', 'like', '%' . $search . '%')
@@ -96,6 +103,8 @@ class SupplierController extends Controller
                 'materialVouchers' => fn ($q) => $q->withCount('items')->with(['project', 'projectWork'])->orderByDesc('voucher_date')->orderByDesc('id'),
                 'contacts',
                 'locations',
+                'portalUser',
+                'portalAccessManager',
             ])
             ->findOrFail($supplier->id);
 
@@ -123,6 +132,127 @@ class SupplierController extends Controller
             'saldoPendiente',
             'proximoHito',
         ));
+    }
+
+    public function enablePortalAccess(Request $request, Supplier $supplier): \Illuminate\Http\RedirectResponse
+    {
+        $portalUserId = $supplier->portal_user_id;
+
+        $validated = $request->validate([
+            'portal_name' => 'nullable|string|max:255',
+            'portal_email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($portalUserId),
+            ],
+            'portal_password' => [
+                $portalUserId ? 'nullable' : 'required',
+                'confirmed',
+                Password::min(8),
+            ],
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'supplier_portal_access',
+            'guard_name' => 'web',
+        ]);
+
+        DB::transaction(function () use ($supplier, $validated, $role): void {
+            $portalUser = $supplier->portalUser;
+
+            if ($portalUser) {
+                $portalUser->name = $validated['portal_name'] ?: ($supplier->commercial_name ?: $supplier->rfc_name);
+                $portalUser->email = $validated['portal_email'];
+
+                if (!empty($validated['portal_password'])) {
+                    $portalUser->password = Hash::make($validated['portal_password']);
+                }
+
+                $portalUser->save();
+            } else {
+                $portalUser = User::create([
+                    'name' => $validated['portal_name'] ?: ($supplier->commercial_name ?: $supplier->rfc_name),
+                    'email' => $validated['portal_email'],
+                    'password' => Hash::make($validated['portal_password']),
+                ]);
+            }
+
+            if (!$portalUser->hasRole($role->name)) {
+                $portalUser->assignRole($role);
+            }
+
+            $supplier->portal_user_id = $portalUser->id;
+            $supplier->portal_access_enabled = true;
+            $supplier->portal_access_activated_at = now();
+            $supplier->portal_access_deactivated_at = null;
+            $supplier->portal_access_managed_by = Auth::id();
+            $supplier->save();
+        });
+
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $supplier->id,
+            'data'         => 'habilitó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Acceso al Portal habilitado correctamente.');
+    }
+
+    public function disablePortalAccess(Supplier $supplier): \Illuminate\Http\RedirectResponse
+    {
+        if (!$supplier->portal_user_id) {
+            return redirect()->route('suppliers.show', $supplier)
+                ->with('error', 'Este proveedor no tiene un usuario de portal configurado.');
+        }
+
+        $supplier->update([
+            'portal_access_enabled' => false,
+            'portal_access_deactivated_at' => now(),
+            'portal_access_managed_by' => Auth::id(),
+        ]);
+
+        DB::table('sessions')->where('user_id', $supplier->portal_user_id)->delete();
+
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $supplier->id,
+            'data'         => 'deshabilitó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Acceso al Portal deshabilitado.');
+    }
+
+    public function reactivatePortalAccess(Supplier $supplier): \Illuminate\Http\RedirectResponse
+    {
+        if (!$supplier->portal_user_id) {
+            return redirect()->route('suppliers.show', $supplier)
+                ->with('error', 'Este proveedor no tiene un usuario de portal configurado.');
+        }
+
+        $supplier->update([
+            'portal_access_enabled' => true,
+            'portal_access_activated_at' => now(),
+            'portal_access_deactivated_at' => null,
+            'portal_access_managed_by' => Auth::id(),
+        ]);
+
+        $this->notification->send([
+            'type'         => 'Supplier',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $supplier->id,
+            'data'         => 'reactivó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+        ]);
+
+        return redirect()->route('suppliers.show', $supplier)
+            ->with('success', 'Acceso al Portal reactivado.');
     }
 
     /**

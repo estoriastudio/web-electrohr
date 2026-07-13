@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -78,6 +79,16 @@ class PurchaseOrder extends Model
     public function workRelation(): BelongsTo
     {
         return $this->belongsTo(ProjectWork::class, 'project_work_id');
+    }
+
+    public function projectWorks(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ProjectWork::class,
+            'purchase_order_project_works',
+            'purchase_order_id',
+            'project_work_id'
+        );
     }
 
     public function parent(): BelongsTo

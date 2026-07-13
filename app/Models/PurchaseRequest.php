@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\PurchaseOrder;
@@ -63,6 +64,16 @@ class PurchaseRequest extends Model
     public function projectWork(): BelongsTo
     {
         return $this->belongsTo(ProjectWork::class, 'project_work_id');
+    }
+
+    public function projectWorks(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ProjectWork::class,
+            'purchase_request_project_works',
+            'purchase_request_id',
+            'project_work_id'
+        );
     }
 
     public function requestedBy(): BelongsTo

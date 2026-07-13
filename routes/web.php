@@ -22,6 +22,8 @@ use App\Http\Controllers\ToolController;
 use App\Http\Controllers\ToolCategoryController;
 use App\Http\Controllers\ToolControlController;
 use App\Http\Controllers\ToolCalibrationController;
+use App\Http\Controllers\SupplierPortalController;
+use App\Http\Controllers\SupplierPortalInvoiceController;
 
 use App\Http\Controllers\PaymentController;
 
@@ -37,6 +39,26 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Perfil propio — accesible para todos los roles autenticados
         Route::get('/usuarios/{user}', [UserController::class, 'show'])->name('usuarios.show');
         Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
+
+        // Portal de proveedores
+        Route::middleware(['role:supplier_portal_access', 'supplier_portal'])
+            ->prefix('portal-proveedor')
+            ->name('supplier_portal.')
+            ->group(function () {
+                Route::get('/', [SupplierPortalController::class, 'dashboard'])->name('dashboard');
+                Route::get('/ordenes-compra', [SupplierPortalController::class, 'purchaseOrders'])->name('purchase_orders.index');
+                Route::get('/vales-material', [SupplierPortalController::class, 'materialVouchers'])->name('material_vouchers.index');
+                Route::get('/ordenes-compra/{purchaseOrder}/facturas/nueva', [SupplierPortalInvoiceController::class, 'create'])
+                    ->name('invoices.create');
+                Route::post('/ordenes-compra/{purchaseOrder}/facturas', [SupplierPortalInvoiceController::class, 'store'])
+                    ->name('invoices.store');
+            });
+
+                // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado
+                Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
+                Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('purchase_requests.show');
+                Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
+                         ->name('material_requests.show');
 
         // ── Solo admin ────────────────────────────────────────────────────────
 
@@ -78,6 +100,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['proveedores' => 'supplier', 'sucursales' => 'location'],
             ])->only(['store', 'update', 'destroy']);
+
+            Route::post('proveedores/{supplier}/portal-access/enable', [SupplierController::class, 'enablePortalAccess'])
+                ->name('suppliers.portal_access.enable');
+            Route::post('proveedores/{supplier}/portal-access/disable', [SupplierController::class, 'disablePortalAccess'])
+                ->name('suppliers.portal_access.disable');
+            Route::post('proveedores/{supplier}/portal-access/reactivate', [SupplierController::class, 'reactivatePortalAccess'])
+                ->name('suppliers.portal_access.reactivate');
         });
 
         // Bienes Móviles
@@ -267,7 +296,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
-            Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase_orders.show');
         });
 
         // Papelera de OC — solo admin
@@ -469,13 +497,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     'index'   => 'purchase_requests.index',
                     'create'  => 'purchase_requests.create',
                     'store'   => 'purchase_requests.store',
-                    'show'    => 'purchase_requests.show',
                     'edit'    => 'purchase_requests.edit',
                     'update'  => 'purchase_requests.update',
                     'destroy' => 'purchase_requests.destroy',
                 ],
                 'parameters' => ['solicitudes-compra' => 'purchaseRequest'],
-            ]);
+            ])->except(['show']);
 
                 Route::patch('/solicitudes-compra/{purchaseRequest}/archivar',
                      [PurchaseRequestController::class, 'archive'])
@@ -562,9 +589,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
         Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
-            Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
-                 ->name('material_requests.show');
-
             Route::get('/almacen/pila-solmat',
                        [PurchaseRequestController::class, 'solmatPile'])
                  ->name('warehouse.solmat_pile');
