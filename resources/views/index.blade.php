@@ -61,7 +61,7 @@
      style="--welcome-hero-banner: url('{{ asset('welcome/' . $welcomeBannerFile) }}');">
     <div class="welcome-hero__content">
         <span class="badge text-bg-light text-dark rounded-pill px-3 py-2 mb-3">SAHR 2.0</span>
-        <h1 class="display-6 fw-bold mb-1">Hola {{ Auth::user()->name }}. <br>{{ $welcomeTitle }}</h1>
+        <h1 class="display-6 fw-bold mb-1">Hola <span class="footer-text">{{ Auth::user()->name }}</span>. <br>{{ $welcomeTitle }}</h1>
         <p class="lead mb-0">{{ $welcomeDescription }}</p>
     </div>
 </div>
