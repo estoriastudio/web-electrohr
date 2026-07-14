@@ -65,6 +65,15 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
                     ->whereNumber('materialRequest')
                     ->name('material_requests.show');
+                Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])
+                    ->whereNumber('purchase_order')
+                    ->name('purchase_orders.pdf');
+                Route::get('/solicitudes-compra/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'downloadPdf'])
+                    ->whereNumber('purchaseRequest')
+                    ->name('purchase_requests.pdf');
+                Route::get('/solicitudes-material/{materialRequest}/pdf', [MaterialRequestController::class, 'downloadPdf'])
+                    ->whereNumber('materialRequest')
+                    ->name('material_requests.pdf');
 
         // ── Solo admin ────────────────────────────────────────────────────────
 
@@ -313,7 +322,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // PDF de OC — incluye Solmat para descarga desde trazabilidad
         Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
-            Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase_orders.pdf');
             Route::post('/ordenes-de-compra/{purchase_order}/anexos', [PurchaseOrderController::class, 'saveAnnex'])->name('purchase_orders.annex.save');
             Route::post('/ordenes-de-compra/{purchase_order}/pdf-con-anexos', [PurchaseOrderController::class, 'downloadPdfWithAnnexes'])->name('purchase_orders.pdfWithAnnexes');
         });
@@ -445,10 +453,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
                          [MaterialRequestController::class, 'destroyObservation'])
                   ->name('material_requests.notes.destroy');
 
-            Route::get('/solicitudes-material/{materialRequest}/pdf',
-                       [MaterialRequestController::class, 'downloadPdf'])
-                 ->name('material_requests.pdf');
-
             Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse',
                         [MaterialRequestController::class, 'sendToWarehouse'])
                  ->name('material_requests.send_to_warehouse');
@@ -553,10 +557,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/solicitudes-compra/{purchaseRequest}/items-json',
                        [PurchaseRequestController::class, 'itemsJson'])
                  ->name('purchase_requests.items_json');
-
-            Route::get('/solicitudes-compra/{purchaseRequest}/pdf',
-                       [PurchaseRequestController::class, 'downloadPdf'])
-                 ->name('purchase_requests.pdf');
 
             // ── Flujo de trabajo SOLCOM ───────────────────────────────────────
             Route::post('/solicitudes-compra/{purchaseRequest}/send-to-purchasing',
