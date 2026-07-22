@@ -10,6 +10,7 @@ use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class MaterialRequestController extends Controller
@@ -37,11 +38,10 @@ class MaterialRequestController extends Controller
         }
 
         $materialRequests = $query->paginate(15)->withQueryString();
-        $nextFolio        = (MaterialRequest::max('folio') ?? 0) + 1;
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
         $categories       = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
 
-        return view('material_requests.index', compact('materialRequests', 'nextFolio', 'projects', 'search', 'status', 'categories'));
+        return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'categories'));
     }
 
     public function create()
@@ -52,7 +52,6 @@ class MaterialRequestController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'folio'               => 'required|integer|unique:material_requests,folio',
             'code'                => 'nullable|string|max:100',
             'project_id'          => 'required|exists:projects,id',
             'project_work_ids'    => 'required|array|min:1',
@@ -81,8 +80,17 @@ class MaterialRequestController extends Controller
         $data['status']        = 'pending';
         $data['location_type'] = $data['location_type'] ?? 'sitio';
 
-        $mr = MaterialRequest::create($data);
-        $mr->projectWorks()->sync($workIds);
+        // El folio se asigna dentro de una transacción con bloqueo para garantizar
+        // que dos solicitudes concurrentes nunca obtengan el mismo número.
+        $mr = DB::transaction(function () use ($data, $workIds) {
+            $lastFolio    = MaterialRequest::orderByDesc('folio')->lockForUpdate()->value('folio') ?? 16499;
+            $data['folio'] = max($lastFolio + 1, 16500);
+
+            $mr = MaterialRequest::create($data);
+            $mr->projectWorks()->sync($workIds);
+
+            return $mr;
+        });
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
