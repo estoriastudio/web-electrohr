@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\ConceptCategory;
 use App\Models\MaterialRequest;
 use App\Models\MaterialRequestItem;
+use App\Models\MaterialRequestItemProjectWork;
 use App\Models\Project;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class MaterialRequestController extends Controller
@@ -20,6 +24,7 @@ class MaterialRequestController extends Controller
         $status = $request->input('status', '');
 
         $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy'])
+            ->active()
             ->orderByDesc('folio');
 
         if ($search) {
@@ -155,9 +160,15 @@ class MaterialRequestController extends Controller
                          ->with('success', "Solicitud de Material #{$materialRequest->folio} actualizada.");
     }
 
-    public function destroy(MaterialRequest $materialRequest)
+    public function destroy(Request $request, MaterialRequest $materialRequest): RedirectResponse
     {
+        $validated = $request->validate([
+            'deletion_comment' => 'required|string|max:1000',
+        ]);
+
         $folio = $materialRequest->folio;
+
+        $materialRequest->update(['deletion_comment' => $validated['deletion_comment']]);
         $materialRequest->delete();
 
         app(NotificationService::class)->send([
@@ -165,11 +176,109 @@ class MaterialRequestController extends Controller
             'model_action' => 'delete',
             'model_id'     => 0,
             'type'         => 'material_request',
-            'data'         => "SOLMAT #{$folio} eliminada.",
+            'data'         => "SOLMAT #{$folio} eliminada. Motivo: " . $validated['deletion_comment'],
         ]);
 
         return redirect()->route('material_requests.index')
                          ->with('success', "Solicitud de Material #{$folio} eliminada.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ARCHIVO Y PAPELERA
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function archive(MaterialRequest $materialRequest): RedirectResponse
+    {
+        $materialRequest->update(['archived_at' => now()]);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'archive',
+            'model_id'     => $materialRequest->id,
+            'type'         => 'material_request',
+            'data'         => "SOLMAT #{$materialRequest->folio} archivada.",
+        ]);
+
+        return redirect()->route('material_requests.index')
+                         ->with('success', "SOLMAT #{$materialRequest->folio} archivada.");
+    }
+
+    public function unarchive(MaterialRequest $materialRequest): RedirectResponse
+    {
+        $materialRequest->update(['archived_at' => null]);
+
+        return redirect()->route('material_requests.archived')
+                         ->with('success', "SOLMAT #{$materialRequest->folio} restaurada al listado activo.");
+    }
+
+    public function archived(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+
+        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy'])
+            ->archived()
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('folio', 'like', '%' . $search . '%')
+                        ->orWhere('zone', 'like', '%' . $search . '%')
+                        ->orWhere('supply_category', 'like', '%' . $search . '%')
+                        ->orWhereHas('project', fn($p) => $p->where('name', 'like', '%' . $search . '%'));
+                });
+            })
+            ->orderBy('archived_at', 'desc')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('material_requests.archive', compact('materialRequests', 'search'));
+    }
+
+    public function softDeleted(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+
+        $materialRequests = MaterialRequest::onlyTrashed()
+            ->with(['project', 'projectWorks', 'requestedBy'])
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('folio', 'like', '%' . $search . '%')
+                        ->orWhere('zone', 'like', '%' . $search . '%')
+                        ->orWhere('supply_category', 'like', '%' . $search . '%')
+                        ->orWhereHas('project', fn($p) => $p->where('name', 'like', '%' . $search . '%'));
+                });
+            })
+            ->orderBy('deleted_at', 'desc')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('material_requests.soft_deleted', compact('materialRequests', 'search'));
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        $materialRequest = MaterialRequest::onlyTrashed()->findOrFail($id);
+        $materialRequest->restore();
+
+        return redirect()->route('material_requests.soft_deleted')
+                         ->with('success', "SOLMAT #{$materialRequest->folio} restaurada.");
+    }
+
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        $materialRequest = MaterialRequest::onlyTrashed()->findOrFail($id);
+        $folio = $materialRequest->folio;
+
+        $materialRequest->forceDelete();
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'force_destroy',
+            'model_id'     => 0,
+            'type'         => 'material_request',
+            'data'         => "SOLMAT #{$folio} eliminada permanentemente.",
+        ]);
+
+        return redirect()->route('material_requests.soft_deleted')
+                         ->with('success', "SOLMAT #{$folio} eliminada permanentemente.");
     }
 
     public function storeItem(Request $request, MaterialRequest $materialRequest)

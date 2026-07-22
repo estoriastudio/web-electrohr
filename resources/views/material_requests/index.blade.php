@@ -39,14 +39,28 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Material</h4>
-                @hasanyrole('admin|Solmat')
-                @can('create')
-                <button type="button" class="btn btn-sm btn-primary"
-                        data-bs-toggle="modal" data-bs-target="#modalCreateMR">
-                    <i class="ri-add-line me-1"></i> Nueva SOLMAT
-                </button>
-                @endcan
-                @endhasanyrole
+                <div class="d-flex align-items-center gap-2">
+                    @hasanyrole('admin|Solmat')
+                    <a href="{{ route('material_requests.archived') }}"
+                       class="btn btn-sm btn-outline-secondary" title="Archivadas">
+                        <i class="ri-archive-line me-1"></i> Archivadas
+                    </a>
+                    @endhasanyrole
+                    @hasanyrole('admin')
+                    <a href="{{ route('material_requests.soft_deleted') }}"
+                       class="btn btn-sm btn-outline-danger" title="Papelera">
+                        <i class="ri-delete-bin-line me-1"></i> Papelera
+                    </a>
+                    @endhasanyrole
+                    @hasanyrole('admin|Solmat')
+                    @can('create')
+                    <button type="button" class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal" data-bs-target="#modalCreateMR">
+                        <i class="ri-add-line me-1"></i> Nueva SOLMAT
+                    </button>
+                    @endcan
+                    @endhasanyrole
+                </div>
             </div>
 
             {{-- Filtros --}}
@@ -81,101 +95,7 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle table-hover table-centered mb-0 app-list-table">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Código</th>
-                                <th>Proyecto / Obras</th>
-                                <th>Ubicación</th>
-                                <th>F. Solicitud</th>
-                                <th>Categoría</th>
-                                <th>Elaborada por</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $statusMap = [
-                                    'pending'          => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
-                                    'sent_to_warehouse'=> ['label' => 'Enviado a Almacén',  'class' => 'bg-secondary-subtle text-secondary'],
-                                    'linked'           => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
-                                    'completed' => ['label' => 'Finalizado', 'class' => 'bg-success-subtle text-success'],
-                                ];
-                            @endphp
-                            @forelse ($materialRequests as $mr)
-                                @php $s = $statusMap[$mr->status] ?? ['label' => $mr->status, 'class' => 'bg-secondary-subtle text-secondary']; @endphp
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold">#{{ $mr->folio }}</div>
-                                        <small class="text-muted">{{ $mr->need_date?->format('d/m/Y') ?: '—' }}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
-                                    </td>
-                                    <td style="max-width: 220px;">
-                                        @php
-                                            $proj = $mr->project?->name ?? null;
-                                            $obra = $mr->projectWorks->pluck('name')->implode(' · ');
-                                            $obra = $obra !== '' ? $obra : null;
-                                        @endphp
-                                        @if ($proj)
-                                            <div class="hover-marquee" title="{{ $proj }}">
-                                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
-                                            </div>
-                                        @endif
-                                        @if ($obra)
-                                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
-                                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
-                                            </small>
-                                        @endif
-                                        @if (!$proj && !$obra)
-                                            <span class="text-muted">—</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-wrap" style="max-width: 200px;">{{ $mr->zone }}</td>
-                                    <td>{{ $mr->request_date?->format('d/m/Y') }}</td>
-                                    <td>{{ $mr->supply_category }}</td>
-                                    <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
-                                    <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <a href="{{ route('material_requests.show', $mr) }}"
-                                               class="btn btn-light btn-sm" title="Ver detalle">
-                                                <i class="ri-eye-line"></i>
-                                            </a>
-                                            @hasanyrole('admin|Solmat')
-                                            @can('update')
-                                                <a href="{{ route('material_requests.edit', $mr) }}"
-                                                   class="btn btn-soft-primary btn-sm" title="Editar">
-                                                    <i class="ri-edit-line"></i>
-                                                </a>
-                                            @endcan
-                                            @can('delete')
-                                                <form action="{{ route('material_requests.destroy', $mr) }}" method="POST"
-                                                      onsubmit="return confirm('¿Eliminar SOLMAT #{{ $mr->folio }}?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
-                                                </form>
-                                            @endcan
-                                            @endhasanyrole
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
-                                        No hay solicitudes de material registradas.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('material_requests.utilities._table')
             </div>
 
             @if ($materialRequests->hasPages())
