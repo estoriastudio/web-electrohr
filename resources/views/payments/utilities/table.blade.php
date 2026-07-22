@@ -3,13 +3,11 @@
         <thead class="bg-light-subtle">
             <tr>
                 <th>Urgencia</th>
-                <th>Folio</th>
+                <th>Orden de Compra</th>
                 <th>Proveedor</th>
                 <th>Proyecto / Obra</th>
-                <th>Hito</th>
                 <th>Monto</th>
                 <th>Pago / Vencimiento</th>
-                <th>Referencia</th>
                 <th>Estatus</th>
                 <th>Acciones</th>
             </tr>
@@ -20,6 +18,9 @@
                     $milestone  = $payment->milestone;
                     $order      = $milestone->purchaseOrder;
                     $supplier   = $order->supplier;
+                    $supplierName = $supplier->rfc_name ?? $supplier->commercial_name ?? '—';
+                    $proj = $order->projectRelation?->name ?? $order->project ?? null;
+                    $obra = $order->workRelation?->name ?? $order->site ?? null;
                     $isUrgent   = $milestone->due_date
                                     && $milestone->due_date->lte($urgentDate)
                                     && $payment->status !== 'pagado';
@@ -42,31 +43,31 @@
                         @endif
                     </td>
                     <td class="fw-semibold">
-                        {{ $payment->folio }} <br>
-                        <a href="{{ route('purchase_orders.show', $order) }}" class="badge bg-light text-secondary border d-inline-flex align-items-center gap-1 mt-1 text-decoration-none fw-normal fs-11">
-                            <i class="ri-file-list-3-line"></i> OC #{{ $order->folio }}
+                        <a href="{{ route('purchase_orders.show', $order) }}" class="text-decoration-none" title="Ver OC #{{ $order->folio ?? '—' }}">
+                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">OC #{{ $order->folio ?? '—' }}</span>
                         </a>
                     </td>
                     <td>
-                        <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark fw-medium">
-                            {{ $supplier->rfc_name ?? $supplier->commercial_name ?? '—' }}
+                        <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark fw-medium text-decoration-none">
+                            <span class="hover-marquee d-block" style="--marquee-width:210px;" title="{{ $supplierName }}">
+                                <span class="track"><span>{{ $supplierName }}</span><span aria-hidden="true">{{ $supplierName }}</span></span>
+                            </span>
                         </a>
                     </td>
                     <td>
-                        @if ($order->projectRelation)
-                            <span class="fw-medium">{{ $order->projectRelation->name }}</span>
-                            @if ($order->workRelation)
-                                <small class="text-muted d-block fs-11">{{ $order->workRelation->name }}</small>
-                            @endif
-                        @else
+                        @if ($proj)
+                            <div class="hover-marquee" style="--marquee-width:170px;" title="{{ $proj }}">
+                                <span class="track"><span class="fw-medium">{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
+                            </div>
+                        @endif
+                        @if ($obra)
+                            <small class="text-muted d-block hover-marquee fs-11" style="--marquee-width:170px;" title="{{ $obra }}">
+                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
+                            </small>
+                        @endif
+                        @if (!$proj && !$obra)
                             <span class="text-muted">—</span>
                         @endif
-                    </td>
-                    <td>
-                        Hito #{{ $milestone->id }}
-                        <small class="text-muted d-block fs-11">
-                            {{ $milestone->type === 'anticipo' ? 'Anticipo' : 'Regular' }}
-                        </small>
                     </td>
                     <td class="fw-semibold">
                         <span class="d-flex align-items-center gap-1">
@@ -76,23 +77,11 @@
                         <small class="badge bg-secondary-subtle text-secondary fs-10 mt-1">{{ $order->currency }}</small>
                     </td>
                     <td>
-                        <div class="d-flex flex-column gap-1">
-                            <span class="d-flex align-items-center gap-1 fs-12">
-                                <i class="ri-calendar-check-line text-primary"></i>
-                                {{ $payment->payment_date->format('d/m/Y') }}
-                            </span>
-                            @if ($milestone->due_date)
-                                @php $duePast = $milestone->due_date->isPast() && $payment->status !== 'pagado'; @endphp
-                                <span class="d-flex align-items-center gap-1 fs-12 {{ $duePast ? 'text-danger fw-semibold' : 'text-muted' }}">
-                                    <i class="ri-alarm-warning-line {{ $duePast ? 'text-danger' : 'text-muted' }}"></i>
-                                    {{ $milestone->due_date->format('d/m/Y') }}
-                                </span>
-                            @else
-                                <span class="text-muted fs-12">—</span>
-                            @endif
-                        </div>
+                        <span class="d-flex align-items-center gap-1 fs-12">
+                            <i class="ri-calendar-check-line text-primary"></i>
+                            {{ $payment->payment_date->format('d/m/Y') }}
+                        </span>
                     </td>
-                    <td>{{ $payment->reference_number ?? '—' }}</td>
                     <td>
                         <span class="badge {{ $ps['class'] }} py-1 px-2 fs-12">{{ $ps['label'] }}</span>
                     </td>
@@ -139,18 +128,12 @@
                             @endif
                             @endrole
                             @endhasanyrole
-
-                            {{-- Ver OC --}}
-                            <a href="{{ route('purchase_orders.show', $order) }}"
-                                class="btn btn-light btn-sm" title="Ver orden de compra">
-                                <i class="ri-eye-line"></i>
-                            </a>
                         </div>
                     </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="10" class="text-center text-muted py-5">
+                    <td colspan="8" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

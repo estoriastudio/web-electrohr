@@ -130,7 +130,7 @@
                     <span class="nav-icon">
                         <i class="ri-file-add-line"></i>
                     </span>
-                    <span class="nav-text">Solicitudes de Material</span>
+                    <span class="nav-text">SOLMATs</span>
                 </a>
             </li>
             @endhasanyrole
@@ -177,7 +177,7 @@
                     <span class="nav-icon">
                         <i class="ri-shopping-cart-2-line"></i>
                     </span>
-                    <span class="nav-text">Solicitudes de Compra</span>
+                    <span class="nav-text">SOLCOMs</span>
                 </a>
             </li>
             @endcan
@@ -236,7 +236,7 @@
                     <span class="nav-icon">
                         <i class="ri-file-list-3-line"></i>
                     </span>
-                    <span class="nav-text">Hitos de Pago</span>
+                    <span class="nav-text">Hitos</span>
                 </a>
             </li>
             @endhasanyrole
@@ -247,7 +247,10 @@
                     <span class="nav-icon">
                         <i class="ri-shield-check-line"></i>
                     </span>
-                    <span class="nav-text">Autorización de Pagos</span>
+                    <span class="nav-text">Autorizaciones</span>
+                    @if(($paymentsToAuthorizeCount ?? 0) > 0)
+                        <span class="badge bg-warning badge-pill">{{ $paymentsToAuthorizeCount }}</span>
+                    @endif
                 </a>
             </li>
 
@@ -258,6 +261,9 @@
                         <i class="ri-money-dollar-circle-line"></i>
                     </span>
                     <span class="nav-text">Por Pagar</span>
+                    @if(($paymentsToPayCount ?? 0) > 0)
+                        <span class="badge bg-info badge-pill">{{ $paymentsToPayCount }}</span>
+                    @endif
                 </a>
             </li>
 
