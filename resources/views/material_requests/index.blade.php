@@ -205,11 +205,10 @@
                     <div class="row g-3">
                         {{-- Folio y Código --}}
                         <div class="col-md-4">
-                            <label class="form-label">Folio <span class="text-danger">*</span></label>
-                            <input type="number" name="folio" class="form-control @error('folio') is-invalid @enderror"
-                                   value="{{ old('folio', max($nextFolio, 16500)) }}" required min="16500" readonly
-                                   style="background-color: #f8f9fa;">
-                            @error('folio') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <label class="form-label">Folio</label>
+                            <div class="form-control" style="background-color: #f8f9fa; color: #6c757d;">
+                                Se asignará automáticamente
+                            </div>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label">Código</label>
