@@ -6,11 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /* Internamente esto se conoce como SOLMAT o Solicitud de Materiales */
 
 class MaterialRequest extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'folio',
         'code',
@@ -25,13 +28,26 @@ class MaterialRequest extends Model
         'requested_by',
         'status',
         'observations',
+        'deletion_comment',
+        'archived_at',
     ];
 
     protected $casts = [
         'request_date' => 'date',
         'need_date'    => 'date',
         'observations' => 'array',
+        'archived_at'  => 'datetime',
     ];
+
+    public function scopeActive($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
 
     public function project(): BelongsTo
     {

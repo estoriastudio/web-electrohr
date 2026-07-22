@@ -416,7 +416,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── SOLMAT (Solicitudes de Material) ──────────────────────────────────
+
+        // Papelera SOLMAT — solo admin
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/solicitudes-material/eliminadas/papelera', [MaterialRequestController::class, 'softDeleted'])
+                 ->name('material_requests.soft_deleted');
+            Route::post('/solicitudes-material/{id}/restaurar', [MaterialRequestController::class, 'restore'])
+                 ->name('material_requests.restore');
+            Route::delete('/solicitudes-material/{id}/eliminar-permanente', [MaterialRequestController::class, 'forceDestroy'])
+                 ->name('material_requests.force_destroy');
+        });
+
         Route::middleware('role:admin|Solmat')->group(function () {
+            // Rutas estáticas antes del resource para evitar conflicto con {materialRequest}
+            Route::get('/solicitudes-material/archivadas', [MaterialRequestController::class, 'archived'])
+                 ->name('material_requests.archived');
+
             // AJAX lookup (debe ir antes del resource para evitar conflicto con {material_request})
             Route::get('/solicitudes-material/buscar', [MaterialRequestController::class, 'jsonByFolio'])
                  ->name('material_requests.lookup');
@@ -432,6 +447,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['solicitudes-material' => 'materialRequest'],
             ])->except(['show']);
+
+            Route::patch('/solicitudes-material/{materialRequest}/archivar', [MaterialRequestController::class, 'archive'])
+                 ->name('material_requests.archive');
+            Route::patch('/solicitudes-material/{materialRequest}/desarchivar', [MaterialRequestController::class, 'unarchive'])
+                 ->name('material_requests.unarchive');
 
             Route::post('/solicitudes-material/{materialRequest}/items',
                         [MaterialRequestController::class, 'storeItem'])
