@@ -10,7 +10,7 @@
         ? 'archived'
         : (request()->routeIs('purchase_requests.soft_deleted') ? 'trashed' : 'index');
 
-    $colspan = 7 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 8 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive pr-requests-table-responsive">
@@ -18,6 +18,7 @@
         <thead class="bg-light-subtle">
             <tr>
                 <th>Acciones</th>
+                <th>Trazabilidad</th>
                 <th>Folio</th>
                 <th>Código</th>
                 <th>SOLMAT</th>
@@ -45,6 +46,8 @@
             @forelse ($purchaseRequests as $pr)
                 @php
                     $s = $statusMap[$pr->status] ?? ['label' => $pr->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                    $solmat = $pr->materialRequest ?? null;
+                    $oc = $pr->purchaseOrders->first() ?? null;
                 @endphp
                 <tr @if ($mode === 'trashed') class="table-danger" @endif>
                     <td>
@@ -149,6 +152,42 @@
                             </div>
                         </div>
                     </td>
+                    <td>
+                        <div class="po-trace-map" aria-label="Mapa de trazabilidad de la solicitud">
+                            @if ($solmat)
+                                <a href="{{ route('material_requests.show', $solmat) }}"
+                                   class="po-trace-node po-trace-node-solmat"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-placement="top"
+                                   title="SOLMAT #{{ $solmat->folio ?? $solmat->id }}"
+                                   aria-label="Ver SOLMAT #{{ $solmat->folio ?? $solmat->id }}">
+                                    <i class="ri-hammer-line"></i>
+                                </a>
+                                <span class="po-trace-link" aria-hidden="true"></span>
+                            @endif
+
+                            <a href="{{ route('purchase_requests.show', $pr) }}"
+                               class="po-trace-node po-trace-node-solcom"
+                               data-bs-toggle="tooltip"
+                               data-bs-placement="top"
+                               title="SOLCOM #{{ $pr->folio ?? $pr->id }}"
+                               aria-label="Ver SOLCOM #{{ $pr->folio ?? $pr->id }}">
+                                <i class="ri-file-text-line"></i>
+                            </a>
+
+                            @if ($oc)
+                                <span class="po-trace-link" aria-hidden="true"></span>
+                                <a href="{{ route('purchase_orders.show', $oc) }}"
+                                   class="po-trace-node po-trace-node-oc"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-placement="top"
+                                   title="OC #{{ $oc->folio ?? $oc->id }}"
+                                   aria-label="Ver OC #{{ $oc->folio ?? $oc->id }}">
+                                    <i class="ri-shopping-bag-3-line"></i>
+                                </a>
+                            @endif
+                        </div>
+                    </td>
                     <td><span class="fw-semibold">{{ $pr->folio }}</span></td>
                     <td>{{ $pr->code ?? '—' }}</td>
                     <td>
@@ -217,10 +256,68 @@
         z-index: 1085;
     }
 
+    .po-trace-map {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        min-width: 64px;
+    }
+
+    .po-trace-node {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        border: 2px solid transparent;
+        font-size: 12px;
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .po-trace-node:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+    }
+
+    .po-trace-node-solmat {
+        background: #f3ecff;
+        border-color: #6f42c1;
+        color: #6f42c1;
+    }
+
+    .po-trace-node-solcom {
+        background: #fff3cd;
+        border-color: #ffc107;
+        color: #b78600;
+    }
+
+    .po-trace-node-oc {
+        background: #e7f1ff;
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+
+    .po-trace-link {
+        width: 14px;
+        border-top: 2px solid #adb5bd;
+        margin: 0 2px;
+    }
+
     @media (max-width: 1199.98px) {
         .pr-requests-table-responsive {
             overflow-x: auto;
             overflow-y: visible;
+        }
+
+        .po-trace-map {
+            min-width: 56px;
+        }
+
+        .po-trace-link {
+            width: 10px;
+            margin: 0 1px;
         }
     }
     </style>
@@ -244,6 +341,16 @@
 
         return confirm('¿Seguro que deseas eliminar esta SOLCOM?');
     }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!window.bootstrap || !window.bootstrap.Tooltip) return;
+
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+            if (!bootstrap.Tooltip.getInstance(el)) {
+                new bootstrap.Tooltip(el);
+            }
+        });
+    });
     </script>
     @endpush
 @endonce

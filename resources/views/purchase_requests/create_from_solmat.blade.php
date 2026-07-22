@@ -23,7 +23,7 @@
 
 {{-- Referencia SOLMAT --}}
 <div class="alert alert-info d-flex align-items-center gap-3 mb-4 py-2">
-    <i class="ri-links-line fs-20 flex-shrink-0 text-info"></i>
+    <i class="ri-links-line fs-20 shrink-0 text-info"></i>
     <div>
         <p class="mb-0 fw-semibold fs-13">
             Generando SOLCOM a partir de
@@ -219,21 +219,29 @@
                                             <th>Código</th>
                                             <th>Descripción</th>
                                             <th>Unidad</th>
-                                            <th class="text-end">Cantidad Solicitada</th>
+                                            <th class="text-end">Cantidad SOLMAT</th>
+                                            <th class="text-end">Cantidad SOLCOM</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @forelse ($materialRequest->items as $i => $item)
-                                            <tr>
+                                            @php
+                                                $itemWorkQuantities = $item->workQuantities->map(fn ($row) => [
+                                                    'work_id' => (string) $row->project_work_id,
+                                                    'quantity' => (float) $row->quantity,
+                                                ])->values();
+                                            @endphp
+                                            <tr class="js-solcom-item-row" data-item-total="{{ (float) $item->total_quantity }}" data-item-work-quantities='@json($itemWorkQuantities)'>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
                                                 <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                                 <td>{{ $item->description }}</td>
                                                 <td>{{ $item->unit }}</td>
-                                                <td class="text-end">{{ (int) $item->quantity }}</td>
+                                                <td class="text-end js-solmat-total-qty">{{ number_format((float) $item->total_quantity, 2, '.', '') }}</td>
+                                                <td class="text-end fw-semibold text-primary js-solcom-total-qty">0.00</td>
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="5" class="text-center text-muted py-3">
+                                                <td colspan="6" class="text-center text-muted py-3">
                                                     Esta SOLMAT no tiene conceptos registrados.
                                                 </td>
                                             </tr>
@@ -270,6 +278,47 @@
     const btnSelectAllWorks = document.getElementById('btn_select_all_works');
     const btnClearAllWorks = document.getElementById('btn_clear_all_works');
     const form = document.getElementById('formCreateSolcom');
+    const itemRows = Array.from(document.querySelectorAll('.js-solcom-item-row'));
+
+    function selectedWorkIds() {
+        return workCheckboxes.filter(function (cb) { return cb.checked; }).map(function (cb) {
+            return String(cb.value);
+        });
+    }
+
+    function formatQty(value) {
+        return Number(value || 0).toFixed(2);
+    }
+
+    function updateItemQuantities() {
+        const selectedIds = selectedWorkIds();
+
+        itemRows.forEach(function (row) {
+            const totalCell = row.querySelector('.js-solcom-total-qty');
+            const total = parseFloat(row.getAttribute('data-item-total') || '0');
+            let selectedTotal = 0;
+
+            try {
+                const workQuantities = JSON.parse(row.getAttribute('data-item-work-quantities') || '[]');
+                if (Array.isArray(workQuantities) && workQuantities.length > 0) {
+                    selectedTotal = workQuantities.reduce(function (acc, entry) {
+                        return selectedIds.includes(String(entry.work_id)) ? acc + parseFloat(entry.quantity || 0) : acc;
+                    }, 0);
+                    if (selectedIds.length === 0) {
+                        selectedTotal = 0;
+                    }
+                } else {
+                    selectedTotal = total;
+                }
+            } catch (error) {
+                selectedTotal = total;
+            }
+
+            if (totalCell) {
+                totalCell.textContent = formatQty(selectedTotal);
+            }
+        });
+    }
 
     function updateSelectedWorks() {
         const selectedCount = workCheckboxes.filter(function (cb) { return cb.checked; }).length;
@@ -279,6 +328,7 @@
         if (selectedWorksError) {
             selectedWorksError.classList.toggle('d-none', selectedCount > 0);
         }
+        updateItemQuantities();
         return selectedCount;
     }
 

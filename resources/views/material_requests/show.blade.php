@@ -192,37 +192,110 @@
                         </thead>
                         <tbody id="solmat_items_tbody">
                             @forelse ($materialRequest->items as $index => $item)
-                                <tr class="solmat-item-row">
+                                @php
+                                    $breakdownJson = $item->workQuantities->map(fn ($workQuantity) => [
+                                        'work_id' => $workQuantity->project_work_id,
+                                        'work_name' => $workQuantity->projectWork?->name,
+                                        'quantity' => number_format((float) $workQuantity->quantity, 2, '.', ''),
+                                    ])->values();
+                                @endphp
+                                <tr class="solmat-item-row" data-item-id="{{ $item->id }}">
                                     <td>{{ $index + 1 }}</td>
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                     <td>{{ $item->description }}</td>
                                     <td>{{ $item->unit }}</td>
-                                    <td class="text-end">{{ $item->quantity }}</td>
+                                    <td class="text-end fw-semibold">
+                                        <button type="button"
+                                                class="btn btn-link btn-sm p-0 text-decoration-none text-dark js-solmat-qty-popover"
+                                                data-breakdown='@json($breakdownJson)'
+                                                title="Desglose por obra">
+                                            <span class="d-inline-flex align-items-center gap-1">
+                                                <span>{{ number_format((float) $item->total_quantity, 2, '.', '') }}</span>
+                                                <i class="ri-information-line fs-13 text-primary"></i>
+                                            </span>
+                                        </button>
+                                    </td>
                                     <td>
-                                        @if ($item->file_path)
-                                            <a href="{{ Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30)) }}"
-                                               target="_blank"
-                                               class="btn btn-light btn-sm"
-                                               title="Descargar especificaciones">
-                                                <i class="ri-file-download-line"></i>
-                                            </a>
-                                        @else
-                                            <span class="text-muted fs-12">—</span>
-                                        @endif
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @if ($item->file_path)
+                                                <a href="{{ Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30)) }}"
+                                                   target="_blank"
+                                                   class="btn btn-light btn-sm"
+                                                   title="Descargar especificaciones">
+                                                    <i class="ri-file-download-line"></i>
+                                                </a>
+                                            @else
+                                                <span class="text-muted fs-12">—</span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td>
                                         @hasanyrole('admin|Solmat')
-                                        <form action="{{ route('material_requests.items.destroy', [$materialRequest, $item]) }}"
-                                              method="POST"
-                                              class="solmat-delete-form">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                <i class="ri-delete-bin-line"></i>
-                                            </button>
-                                        </form>
+                                        <div class="d-flex gap-1">
+                                            @if ($item->workQuantities->isNotEmpty())
+                                                <button type="button"
+                                                        class="btn btn-soft-primary btn-sm js-solmat-open-edit"
+                                                        data-edit-target="#solmat_breakdown_edit_{{ $item->id }}"
+                                                        title="Editar cantidades">
+                                                    <i class="ri-edit-line"></i>
+                                                </button>
+                                            @endif
+                                            <form action="{{ route('material_requests.items.destroy', [$materialRequest, $item]) }}"
+                                                  method="POST"
+                                                  class="solmat-delete-form">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
+                                                    <i class="ri-delete-bin-line"></i>
+                                                </button>
+                                            </form>
+                                        </div>
                                         @endhasanyrole
                                     </td>
                                 </tr>
+                                @if ($item->workQuantities->isNotEmpty())
+                                    @hasanyrole('admin|Solmat')
+                                        <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
+                                            <td colspan="7" class="py-2">
+                                                <form action="{{ route('material_requests.items.update', [$materialRequest, $item]) }}"
+                                                      method="POST"
+                                                      class="solmat-breakdown-form">
+                                                    @csrf @method('PATCH')
+                                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                                        <span class="text-muted fs-12 fw-semibold">Editar cantidades por obra</span>
+                                                        <span class="badge bg-primary-subtle text-primary">
+                                                            Total: <span class="js-solmat-breakdown-total">{{ number_format((float) $item->total_quantity, 2, '.', '') }}</span>
+                                                        </span>
+                                                    </div>
+                                                    <div class="row g-2">
+                                                        @foreach ($item->workQuantities as $workQuantity)
+                                                            <div class="col-md-6 col-lg-4">
+                                                                <label class="form-label fs-12 mb-1">{{ $workQuantity->projectWork?->name }}</label>
+                                                                <input type="number"
+                                                                       name="work_quantities[{{ $loop->index }}][quantity]"
+                                                                       class="form-control js-solmat-breakdown-qty"
+                                                                       value="{{ number_format((float) $workQuantity->quantity, 2, '.', '') }}"
+                                                                       min="0.01"
+                                                                       step="0.01"
+                                                                       inputmode="decimal">
+                                                                <input type="hidden"
+                                                                       name="work_quantities[{{ $loop->index }}][work_id]"
+                                                                       value="{{ $workQuantity->project_work_id }}">
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <div class="d-flex justify-content-end gap-2 mt-3">
+                                                        <button type="button" class="btn btn-light btn-sm js-solmat-cancel-edit">
+                                                            Cancelar
+                                                        </button>
+                                                        <button type="submit" class="btn btn-primary btn-sm">
+                                                            Guardar cambios
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    @endhasanyrole
+                                @endif
                             @empty
                                 <tr id="solmat_empty_row">
                                     <td colspan="7" class="text-center text-muted py-3">
@@ -280,16 +353,13 @@
                         <span class="badge bg-white text-dark border" id="solmat_preview_unit"></span>
                     </div>
 
-                    <label for="solmat_quantity" class="form-label fw-medium">
-                        Cantidad solicitada <span class="text-danger">*</span>
-                    </label>
-                    <input type="number"
-                           id="solmat_quantity"
-                           class="form-control form-control-lg text-center mb-3"
-                           placeholder="0"
-                                    step="any"
-                           min="1"
-                           inputmode="numeric">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-medium mb-0">Cantidad por obra <span class="text-danger">*</span></label>
+                            <span class="badge bg-primary-subtle text-primary" id="solmat_total_preview">Total: 0.00</span>
+                        </div>
+                        <div id="solmat_works_quantities" class="vstack gap-2"></div>
+                    </div>
 
                     <div class="mb-3">
                         <label for="solmat_spec_file" class="form-label fw-medium">
@@ -329,12 +399,12 @@
                 {{-- Lista de notas --}}
                 @forelse ($materialRequest->observations ?? [] as $noteIndex => $note)
                     <div class="d-flex gap-3 mb-3">
-                        <div class="avatar-sm flex-shrink-0">
+                        <div class="avatar-sm shrink-0">
                             <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
                                 {{ strtoupper(substr($note['user_name'] ?? '?', 0, 1)) }}
                             </span>
                         </div>
-                        <div class="flex-grow-1">
+                        <div class="grow">
                             <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
@@ -413,392 +483,28 @@
     100% { background-color: transparent; }
 }
 .solmat-item-new { animation: solmat-flash .9s ease-out forwards; }
+
+/* Popover "Desglose por obra": tabla compacta con nombres truncados */
+.solmat-breakdown-popover { max-width: 320px; }
+.solmat-breakdown-popover .popover-body { padding: .5rem .25rem; }
+.solmat-breakdown-table { font-size: .8125rem; margin: 0; }
+.solmat-breakdown-table th,
+.solmat-breakdown-table td { padding: .2rem .5rem; }
+.solmat-breakdown-table thead th {
+    font-size: .6875rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.solmat-breakdown-name { max-width: 200px; }
 </style>
 <script>
-(function () {
-    'use strict';
-
-    // ── URLs y token CSRF ─────────────────────────────────────────
-    var csrfMeta  = document.querySelector('meta[name="csrf-token"]');
-    var csrfToken = csrfMeta ? csrfMeta.content : '';
-    var storeUrl  = '{{ route('material_requests.items.store', $materialRequest) }}';
-    var searchUrl = '{{ route('concepts.search') }}?type=materiales&paginated=1&per_page=50';
-
-    // ── Referencias al DOM ────────────────────────────────────────
-    var countBadge    = document.getElementById('solmat_items_count');
-    var tbody         = document.getElementById('solmat_items_tbody');
-    var addPanel      = document.getElementById('solmat_add_panel');
-    var stateSearch   = document.getElementById('solmat_state_search');
-    var searchInput   = document.getElementById('solmat_concept_search');
-    var dropdown      = document.getElementById('solmat_concept_dropdown');
-    var stateSelected = document.getElementById('solmat_state_selected');
-    var previewCode   = document.getElementById('solmat_preview_code');
-    var previewDesc   = document.getElementById('solmat_preview_desc');
-    var previewUnit   = document.getElementById('solmat_preview_unit');
-    var qtyInput      = document.getElementById('solmat_quantity');
-    var btnAdd        = document.getElementById('solmat_btn_add');
-    var btnChange     = document.getElementById('solmat_btn_change');
-    var addError      = document.getElementById('solmat_add_error');
-
-    if (!searchInput) return; // panel no visible (usuario sin permiso)
-
-    var selectedConcept = null;
-    var debounceTimer;
-    var currentQuery = '';
-    var currentPage = 1;
-    var hasMoreResults = false;
-    var isLoadingMore = false;
-    var displayedResults = 0;
-    var totalResults = 0;
-
-    // ── Escape HTML seguro ────────────────────────────────────────
-    function escHtml(str) {
-        var d = document.createElement('div');
-        d.appendChild(document.createTextNode(str != null ? String(str) : ''));
-        return d.innerHTML;
-    }
-
-    // ── Conteo e ícono del badge ──────────────────────────────────
-    function itemCount() {
-        return tbody.querySelectorAll('tr.solmat-item-row').length;
-    }
-
-    function updateBadge() {
-        if (countBadge) countBadge.textContent = itemCount() + ' ítem(s)';
-    }
-
-    // ── Estado A: pantalla de búsqueda ────────────────────────────
-    function showSearch() {
-        selectedConcept    = null;
-        searchInput.value  = '';
-        currentQuery = '';
-        currentPage = 1;
-        hasMoreResults = false;
-        isLoadingMore = false;
-        displayedResults = 0;
-        totalResults = 0;
-        dropdown.innerHTML = '';
-        dropdown.classList.add('d-none');
-        if (qtyInput)  qtyInput.value = '';
-        if (addError)  { addError.classList.add('d-none'); addError.textContent = ''; }
-        stateSelected.classList.add('d-none');
-        stateSearch.classList.remove('d-none');
-        searchInput.focus();
-    }
-
-    // ── Estado B: concepto seleccionado ───────────────────────────
-    function showSelected(concept) {
-        selectedConcept         = concept;
-        previewCode.textContent = concept.code;
-        previewDesc.textContent = concept.description;
-        previewUnit.textContent = concept.unit;
-        if (addError) { addError.classList.add('d-none'); addError.textContent = ''; }
-        stateSearch.classList.add('d-none');
-        stateSelected.classList.remove('d-none');
-        qtyInput.value = '';
-        qtyInput.focus();
-    }
-
-    function renderConceptOption(c) {
-        var li = document.createElement('li');
-        li.className = 'list-group-item list-group-item-action py-3 px-3';
-        li.style.cursor = 'pointer';
-        li.innerHTML =
-            '<div class="d-flex justify-content-between align-items-start gap-2">'
-            + '<div class="flex-grow-1 overflow-hidden">'
-            + '<span class="fw-bold d-block">' + escHtml(c.code) + '</span>'
-            + '<span class="text-muted fs-13 d-block text-truncate">' + escHtml(c.description) + '</span>'
-            + '</div>'
-            + '<span class="badge bg-light text-dark border flex-shrink-0 align-self-center">'
-            + escHtml(c.unit) + '</span>'
-            + '</div>';
-
-        li.addEventListener('pointerdown', function (e) {
-            e.preventDefault();
-            dropdown.classList.add('d-none');
-            showSelected(c);
-        });
-
-        return li;
-    }
-
-    function renderLoadMoreButton() {
-        var more = document.createElement('li');
-        more.className = 'list-group-item text-center py-2';
-        more.innerHTML =
-            '<button type="button" id="solmat_btn_load_more" class="btn btn-link btn-sm text-decoration-none">'
-            + '<i class="ri-arrow-down-s-line me-1"></i>Cargar más resultados'
-            + '</button>';
-        dropdown.appendChild(more);
-
-        var loadBtn = document.getElementById('solmat_btn_load_more');
-        if (!loadBtn) return;
-
-        loadBtn.addEventListener('click', function () {
-            if (isLoadingMore || !hasMoreResults) return;
-            fetchConcepts(currentQuery, currentPage + 1, true);
-        });
-    }
-
-    function renderResultIndicator() {
-        var indicator = document.createElement('li');
-        indicator.className = 'list-group-item bg-light-subtle text-muted fs-12 py-2 px-3';
-        indicator.id = 'solmat_results_indicator';
-        indicator.innerHTML =
-            '<i class="ri-filter-3-line me-1"></i>'
-            + 'Mostrando <strong>' + displayedResults + '</strong> de <strong>' + totalResults + '</strong> resultado(s)';
-        dropdown.appendChild(indicator);
-    }
-
-    function fetchConcepts(q, page, append) {
-        if (!q || q.length < 1) {
-            dropdown.classList.add('d-none');
-            dropdown.innerHTML = '';
-            return;
-        }
-
-        isLoadingMore = true;
-
-        fetch(searchUrl + '&q=' + encodeURIComponent(q) + '&page=' + encodeURIComponent(page), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (payload) {
-            var data = Array.isArray(payload) ? payload : (payload.data || []);
-            var meta = payload.meta || null;
-
-            if (!append) {
-                dropdown.innerHTML = '';
-            } else {
-                var prevMore = document.getElementById('solmat_btn_load_more');
-                if (prevMore && prevMore.parentElement && prevMore.parentElement.parentElement) {
-                    prevMore.parentElement.parentElement.remove();
-                }
-                var prevIndicator = document.getElementById('solmat_results_indicator');
-                if (prevIndicator && prevIndicator.parentElement) {
-                    prevIndicator.parentElement.removeChild(prevIndicator);
-                }
-            }
-
-            if (!append && data.length === 0) {
-                dropdown.innerHTML =
-                    '<li class="list-group-item text-center text-muted py-3 fs-13">'
-                    + '<i class="ri-search-line me-1"></i>Sin resultados para «' + escHtml(q) + '»</li>';
-                dropdown.classList.remove('d-none');
-                currentPage = 1;
-                hasMoreResults = false;
-                displayedResults = 0;
-                totalResults = 0;
-                return;
-            }
-
-            data.forEach(function (c) {
-                dropdown.appendChild(renderConceptOption(c));
-            });
-
-            currentPage = page;
-            hasMoreResults = meta ? !!meta.has_more : false;
-            displayedResults = append ? (displayedResults + data.length) : data.length;
-            totalResults = meta && typeof meta.total === 'number' ? meta.total : displayedResults;
-
-            renderResultIndicator();
-
-            if (hasMoreResults) {
-                renderLoadMoreButton();
-            }
-
-            dropdown.classList.remove('d-none');
-        })
-        .catch(function () {
-            if (!append) {
-                dropdown.innerHTML =
-                    '<li class="list-group-item text-danger py-2 px-3 fs-13">'
-                    + '<i class="ri-error-warning-line me-1"></i>Error al buscar. Intenta de nuevo.</li>';
-                dropdown.classList.remove('d-none');
-            }
-        })
-        .finally(function () {
-            isLoadingMore = false;
-        });
-    }
-
-    // ── Búsqueda con debounce ─────────────────────────────────────
-    searchInput.addEventListener('input', function () {
-        clearTimeout(debounceTimer);
-        var q = this.value.trim();
-        if (q.length < 1) {
-            currentQuery = '';
-            currentPage = 1;
-            hasMoreResults = false;
-            displayedResults = 0;
-            totalResults = 0;
-            dropdown.classList.add('d-none');
-            dropdown.innerHTML = '';
-            return;
-        }
-        debounceTimer = setTimeout(function () {
-            currentQuery = q;
-            currentPage = 1;
-            hasMoreResults = false;
-            displayedResults = 0;
-            totalResults = 0;
-            fetchConcepts(q, 1, false);
-        }, 300);
-    });
-
-    // Cerrar dropdown al tocar fuera del panel
-    document.addEventListener('pointerdown', function (e) {
-        if (addPanel && !addPanel.contains(e.target)) {
-            dropdown.classList.add('d-none');
-        }
-    });
-
-    // ── Botón "Cambiar concepto" ───────────────────────────────────
-    btnChange.addEventListener('click', showSearch);
-
-    // ── Agregar ítem vía AJAX ─────────────────────────────────────
-    function doAdd() {
-        if (!selectedConcept) return;
-
-        var qty = parseFloat(qtyInput.value);
-        if (!qtyInput.value.trim() || isNaN(qty) || qty <= 0) {
-            addError.textContent = 'Ingresa una cantidad válida mayor a 0.';
-            addError.classList.remove('d-none');
-            qtyInput.focus();
-            return;
-        }
-        addError.classList.add('d-none');
-
-        btnAdd.disabled = true;
-        btnAdd.innerHTML =
-            '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Agregando…';
-
-        var fd = new FormData();
-        fd.append('_token',      csrfToken);
-        fd.append('concept_id',  selectedConcept.id);
-        fd.append('code',        selectedConcept.code);
-        fd.append('description', selectedConcept.description);
-        fd.append('unit',        selectedConcept.unit);
-        fd.append('quantity',    qtyInput.value.trim());
-
-        var specFileInput = document.getElementById('solmat_spec_file');
-        if (specFileInput && specFileInput.files.length > 0) {
-            fd.append('spec_file', specFileInput.files[0]);
-        }
-
-        fetch(storeUrl, {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-            body: fd
-        })
-        .then(function (r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.json();
-        })
-        .then(function (item) {
-            appendRow(item);
-            updateBadge();
-            showSearch();
-        })
-        .catch(function () {
-            addError.textContent = 'Error al agregar el concepto. Intenta de nuevo.';
-            addError.classList.remove('d-none');
-        })
-        .finally(function () {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = '<i class="ri-add-line me-1"></i>Agregar a la solicitud';
-        });
-    }
-
-    btnAdd.addEventListener('click', doAdd);
-    qtyInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); doAdd(); }
-    });
-
-    // ── Insertar fila nueva en la tabla ───────────────────────────
-    function appendRow(item) {
-        var emptyRow = document.getElementById('solmat_empty_row');
-        if (emptyRow) emptyRow.remove();
-
-        var num  = itemCount() + 1;
-        var qtyF = item.quantity != null ? String(item.quantity) : '';
-
-        var tr = document.createElement('tr');
-        tr.className      = 'solmat-item-row solmat-item-new';
-        tr.dataset.itemId = item.id;
-        tr.innerHTML =
-            '<td>' + num + '</td>'
-            + '<td><span class="fw-semibold">' + escHtml(item.code) + '</span></td>'
-            + '<td>' + escHtml(item.description) + '</td>'
-            + '<td>' + escHtml(item.unit) + '</td>'
-            + '<td class="text-end">' + qtyF + '</td>'
-            + '<td>'
-            + (item.file_url
-                ? '<a href="' + escHtml(item.file_url) + '" target="_blank" class="btn btn-light btn-sm" title="Descargar especificaciones"><i class="ri-file-download-line"></i></a>'
-                : '<span class="text-muted fs-12">—</span>')
-            + '</td>'
-            + '<td>'
-            + '<form method="POST" action="' + storeUrl + '/' + escHtml(item.id) + '" class="solmat-delete-form">'
-            + '<input type="hidden" name="_token" value="' + escHtml(csrfToken) + '">'
-            + '<input type="hidden" name="_method" value="DELETE">'
-            + '<button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">'
-            + '<i class="ri-delete-bin-line"></i></button>'
-            + '</form>'
-            + '</td>';
-
-        tbody.appendChild(tr);
-    }
-
-    // ── Eliminar ítem vía AJAX (event delegation en tbody) ────────
-    tbody.addEventListener('submit', function (e) {
-        var form = e.target.closest('.solmat-delete-form');
-        if (!form) return;
-        e.preventDefault();
-
-        if (!confirm('¿Eliminar este concepto?')) return;
-
-        var btn = form.querySelector('button[type=submit]');
-        if (btn) btn.disabled = true;
-        var tr = form.closest('tr');
-
-        fetch(form.action, {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-            body: new FormData(form)
-        })
-        .then(function (r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.json();
-        })
-        .then(function () {
-            tr.style.cssText = 'transition:opacity .25s;opacity:0';
-            setTimeout(function () {
-                tr.remove();
-                renumber();
-                updateBadge();
-                if (itemCount() === 0) {
-                    var emptyTr = document.createElement('tr');
-                    emptyTr.id = 'solmat_empty_row';
-                    emptyTr.innerHTML =
-                        '<td colspan="7" class="text-center text-muted py-3">Sin conceptos registrados.</td>';
-                    tbody.appendChild(emptyTr);
-                }
-            }, 280);
-        })
-        .catch(function () {
-            alert('Error al eliminar. Intenta de nuevo.');
-            if (btn) btn.disabled = false;
-        });
-    });
-
-    // ── Renumerar filas tras eliminar ─────────────────────────────
-    function renumber() {
-        tbody.querySelectorAll('tr.solmat-item-row').forEach(function (row, i) {
-            var td = row.querySelector('td:first-child');
-            if (td) td.textContent = i + 1;
-        });
-    }
-
-}());
+    // Configuración inyectada desde el servidor para material_request.js
+    window.solmatConfig = {
+        storeUrl: '{{ route('material_requests.items.store', $materialRequest) }}',
+        searchUrl: '{{ route('concepts.search') }}?type=materiales&paginated=1&per_page=50',
+        allowedWorks: @json($materialRequest->projectWorks->map(fn($pw) => ['id' => (string) $pw->id, 'name' => $pw->name])->values()),
+    };
 </script>
+<script src="{{ asset('assets/js/material_request.js') }}"></script>
 @endpush

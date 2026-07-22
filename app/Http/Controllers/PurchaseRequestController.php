@@ -25,7 +25,7 @@ class PurchaseRequestController extends Controller
         $search = $request->input('search', '');
         $status = $request->input('status', '');
 
-        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
             ->whereNull('archived_at')
             ->orderByDesc('folio');
 
@@ -100,7 +100,7 @@ class PurchaseRequestController extends Controller
 
         $mr = null;
         if (! empty($data['material_request_id'])) {
-            $mr = MaterialRequest::with(['items.concept.category', 'projectWorks'])
+            $mr = MaterialRequest::with(['items.concept.category', 'items.workQuantities', 'projectWorks'])
                 ->find($data['material_request_id']);
 
             if ($mr) {
@@ -130,14 +130,16 @@ class PurchaseRequestController extends Controller
         if (! empty($data['material_request_id'])) {
             if ($mr) {
                 foreach ($mr->items as $item) {
+                    $resolvedQuantity = $this->resolveItemQuantityForWorks($item, $selectedWorkIds);
+
                     PurchaseRequestItem::create([
                         'purchase_request_id' => $pr->id,
                         'concept_id'          => $item->concept_id,
                         'code'                => $item->code,
                         'description'         => $item->description,
                         'unit'                => $item->unit,
-                        'requested_quantity'  => $item->quantity,
-                        'purchase_quantity'   => $item->quantity,
+                        'requested_quantity'  => $resolvedQuantity,
+                        'purchase_quantity'   => $resolvedQuantity,
                         'file_path'           => $item->file_path,
                     ]);
                 }
@@ -551,7 +553,7 @@ class PurchaseRequestController extends Controller
     // ── Crear SOLCOM desde SOLMAT (formulario pre-llenado) ───────────────────
     public function createFromSolmat(MaterialRequest $materialRequest)
     {
-        $materialRequest->load(['project', 'projectWorks', 'items']);
+        $materialRequest->load(['project', 'projectWorks', 'items.workQuantities.projectWork']);
         $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
         $projects  = Project::where('status', 'active')->orderBy('name')->get();
 
@@ -762,7 +764,7 @@ class PurchaseRequestController extends Controller
     {
         $search = trim($request->input('search', ''));
 
-        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
             ->whereNotNull('archived_at')
             ->orderBy('archived_at', 'desc');
 
@@ -785,7 +787,7 @@ class PurchaseRequestController extends Controller
         $search = trim($request->input('search', ''));
 
         $query = PurchaseRequest::onlyTrashed()
-            ->with(['project', 'projectWork', 'requestedBy', 'materialRequest'])
+            ->with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
             ->orderBy('deleted_at', 'desc');
 
         if ($search) {
@@ -840,5 +842,22 @@ class PurchaseRequestController extends Controller
 
         return redirect()->route('purchase_requests.soft_deleted')
             ->with('success', "SOLCOM #{$folio} eliminada permanentemente.");
+    }
+
+    private function resolveItemQuantityForWorks($materialRequestItem, $selectedWorkIds): float
+    {
+        if ($materialRequestItem->relationLoaded('workQuantities') && $materialRequestItem->workQuantities->isNotEmpty()) {
+            $selected = $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
+                return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
+            });
+
+            if ($selected->isNotEmpty()) {
+                return (float) $selected->sum('quantity');
+            }
+
+            return (float) $materialRequestItem->workQuantities->sum('quantity');
+        }
+
+        return (float) $materialRequestItem->quantity;
     }
 }

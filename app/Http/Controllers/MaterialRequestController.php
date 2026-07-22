@@ -24,7 +24,6 @@ class MaterialRequestController extends Controller
         $status = $request->input('status', '');
 
         $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy'])
-            ->active()
             ->orderByDesc('folio');
 
         if ($search) {
@@ -110,7 +109,13 @@ class MaterialRequestController extends Controller
 
     public function show(MaterialRequest $materialRequest)
     {
-        $materialRequest->load(['project', 'projectWorks', 'requestedBy', 'items', 'purchaseRequests']);
+        $materialRequest->load([
+            'project',
+            'projectWorks',
+            'requestedBy',
+            'items.workQuantities.projectWork',
+            'purchaseRequests',
+        ]);
 
         return view('material_requests.show', compact('materialRequest'));
     }
@@ -295,18 +300,54 @@ class MaterialRequestController extends Controller
             'code'        => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit'        => 'required|string|max:50',
-            'quantity'    => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'work_quantities'           => 'required|array|min:1',
+            'work_quantities.*.work_id'  => 'required|exists:project_works,id',
+            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
             'spec_file'   => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
-        $data['material_request_id'] = $materialRequest->id;
+        $allowedWorkIds = $materialRequest->projectWorks()->pluck('project_works.id')->map(fn ($id) => (int) $id);
+        $submittedWorkIds = collect($data['work_quantities'])->pluck('work_id')->map(fn ($id) => (int) $id)->values();
 
-        if ($request->hasFile('spec_file')) {
-            $path = $request->file('spec_file')->store('solmat_specs', 's3');
-            $data['file_path'] = $path;
+        if ($submittedWorkIds->isEmpty()) {
+            return response()->json(['message' => 'Debes capturar al menos una cantidad por obra.'], 422);
         }
 
-        $item = MaterialRequestItem::create($data);
+        if ($submittedWorkIds->diff($allowedWorkIds)->isNotEmpty()) {
+            return response()->json(['message' => 'Todas las obras deben pertenecer a la SOLMAT.'], 422);
+        }
+
+        $totalQuantity = collect($data['work_quantities'])->sum(fn ($row) => (float) $row['quantity']);
+
+        if ($totalQuantity <= 0) {
+            return response()->json(['message' => 'La cantidad total debe ser mayor a cero.'], 422);
+        }
+
+        $item = DB::transaction(function () use ($request, $materialRequest, $data, $totalQuantity) {
+            $item = MaterialRequestItem::create([
+                'material_request_id' => $materialRequest->id,
+                'concept_id'          => $data['concept_id'] ?? null,
+                'code'                => $data['code'],
+                'description'         => $data['description'],
+                'unit'                => $data['unit'],
+                'quantity'            => $totalQuantity,
+            ]);
+
+            if ($request->hasFile('spec_file')) {
+                $path = $request->file('spec_file')->store('solmat_specs', 's3');
+                $item->update(['file_path' => $path]);
+            }
+
+            foreach ($data['work_quantities'] as $row) {
+                MaterialRequestItemProjectWork::create([
+                    'material_request_item_id' => $item->id,
+                    'project_work_id'          => (int) $row['work_id'],
+                    'quantity'                 => (float) $row['quantity'],
+                ]);
+            }
+
+            return $item->load('workQuantities.projectWork');
+        });
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -314,7 +355,12 @@ class MaterialRequestController extends Controller
                 'code'        => $item->code,
                 'description' => $item->description,
                 'unit'        => $item->unit,
-                'quantity'    => $item->quantity,
+                'quantity'    => $item->total_quantity,
+                'work_quantities' => $item->workQuantities->map(fn ($row) => [
+                    'work_id'   => $row->project_work_id,
+                    'work_name' => $row->projectWork?->name,
+                    'quantity'  => (float) $row->quantity,
+                ]),
                 'file_path'   => $item->file_path,
                 'file_url'    => $item->file_path
                     ? Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30))
@@ -340,6 +386,65 @@ class MaterialRequestController extends Controller
 
         return redirect()->route('material_requests.show', $materialRequest)
                          ->with('success', 'Concepto eliminado.');
+    }
+
+    public function updateItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
+    {
+        if ((int) $item->material_request_id !== (int) $materialRequest->id) {
+            abort(404);
+        }
+
+        $item->loadMissing('workQuantities');
+
+        $data = $request->validate([
+            'work_quantities'            => 'required|array|min:1',
+            'work_quantities.*.work_id'  => 'required|exists:project_works,id',
+            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+        ]);
+
+        if ($item->workQuantities->isEmpty()) {
+            return response()->json(['message' => 'Este concepto no tiene desglose por obra editable.'], 422);
+        }
+
+        $existingWorkIds = $item->workQuantities->pluck('project_work_id')->map(fn ($id) => (int) $id)->sort()->values();
+        $submittedWorkIds = collect($data['work_quantities'])->pluck('work_id')->map(fn ($id) => (int) $id)->sort()->values();
+
+        if ($existingWorkIds->diff($submittedWorkIds)->isNotEmpty() || $submittedWorkIds->diff($existingWorkIds)->isNotEmpty()) {
+            return response()->json(['message' => 'No se pueden agregar ni quitar obras del desglose.'], 422);
+        }
+
+        $totalQuantity = collect($data['work_quantities'])->sum(fn ($row) => (float) $row['quantity']);
+
+        if ($totalQuantity <= 0) {
+            return response()->json(['message' => 'La cantidad total debe ser mayor a cero.'], 422);
+        }
+
+        DB::transaction(function () use ($item, $data, $totalQuantity) {
+            $item->update(['quantity' => $totalQuantity]);
+
+            foreach ($data['work_quantities'] as $row) {
+                MaterialRequestItemProjectWork::where('material_request_item_id', $item->id)
+                    ->where('project_work_id', (int) $row['work_id'])
+                    ->update(['quantity' => (float) $row['quantity']]);
+            }
+        });
+
+        $item->refresh()->load('workQuantities.projectWork');
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'id'             => $item->id,
+                'quantity'       => $item->total_quantity,
+                'work_quantities' => $item->workQuantities->map(fn ($row) => [
+                    'work_id'   => $row->project_work_id,
+                    'work_name' => $row->projectWork?->name,
+                    'quantity'  => (float) $row->quantity,
+                ]),
+            ]);
+        }
+
+        return redirect()->route('material_requests.show', $materialRequest)
+                         ->with('success', 'Concepto actualizado.');
     }
 
     public function storeObservation(Request $request, MaterialRequest $materialRequest)

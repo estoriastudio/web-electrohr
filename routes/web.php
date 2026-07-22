@@ -457,6 +457,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
                         [MaterialRequestController::class, 'storeItem'])
                  ->name('material_requests.items.store');
 
+              Route::patch('/solicitudes-material/{materialRequest}/items/{item}',
+                        [MaterialRequestController::class, 'updateItem'])
+                  ->name('material_requests.items.update');
+
             Route::delete('/solicitudes-material/{materialRequest}/items/{item}',
                           [MaterialRequestController::class, 'destroyItem'])
                  ->name('material_requests.items.destroy');
