@@ -12,11 +12,20 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('suppliers.index') }}">Proveedores</a></li>
+    <li class="breadcrumb-item">
+        @if (auth()->user()?->hasAnyRole('admin|Orden de compra'))
+            <a href="{{ route('suppliers.index') }}">Proveedores</a>
+        @else
+            Proveedores
+        @endif
+    </li>
     <li class="breadcrumb-item active">{{ $supplier->rfc_name ?? $supplier->commercial_name ?? 'Detalle' }}</li>
 @endsection
 
 @section('content')
+@php
+    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra');
+@endphp
 
 @if (session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -41,6 +50,12 @@
         @endif
     </div>
 </div>
+
+@if (!$canManageSupplier)
+    <div class="alert alert-info">
+        <i class="ri-eye-line me-1"></i> Vista en modo solo lectura para el perfil Pagos.
+    </div>
+@endif
 
 
 {{-- ══════════════════════════════════════════════════════════════
@@ -261,11 +276,11 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-shield-user-line me-1 text-muted"></i> Acceso a Portal de Proveedores
                 </h5>
-                @if (!$supplier->portal_user_id)
+                @if ($canManageSupplier && !$supplier->portal_user_id)
                     <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalPortalAccessConfig">
                         <i class="ri-key-2-line me-1"></i> Habilitar acceso a Portal
                     </button>
-                @elseif ($supplier->portal_access_enabled)
+                @elseif ($canManageSupplier && $supplier->portal_access_enabled)
                     <form action="{{ route('suppliers.portal_access.disable', $supplier) }}" method="POST"
                           onsubmit="return confirm('¿Deshabilitar acceso al Portal para este proveedor?')">
                         @csrf
@@ -273,7 +288,7 @@
                             <i class="ri-lock-line me-1"></i> Deshabilitar acceso
                         </button>
                     </form>
-                @else
+                @elseif ($canManageSupplier)
                     <form action="{{ route('suppliers.portal_access.reactivate', $supplier) }}" method="POST"
                           onsubmit="return confirm('¿Reactivar acceso al Portal para este proveedor?')">
                         @csrf
@@ -312,11 +327,13 @@
                     </div>
                 </div>
 
+                @if ($canManageSupplier)
                 <div class="mt-3">
                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPortalAccessConfig">
                         <i class="ri-settings-3-line me-1"></i> Configurar credenciales del portal
                     </button>
                 </div>
+                @endif
             </div>
         </div>
     </div>
@@ -488,9 +505,11 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-contacts-line me-1 text-muted"></i> Contactos
                 </h5>
+                @if ($canManageSupplier)
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateContact">
                     <i class="ri-add-line me-1"></i> Registrar nuevo
                 </button>
+                @endif
             </div>
             <div class="card-body p-0">
                 @if($supplier->contacts->isEmpty())
@@ -541,6 +560,7 @@
                                             @endif
                                         </td>
                                         <td>
+                                            @if ($canManageSupplier)
                                             <div class="d-flex gap-1">
                                                 <button type="button" class="btn btn-sm btn-light btn-edit-contact"
                                                     data-name="{{ $contact->name }}"
@@ -556,6 +576,9 @@
                                                     <i class="ri-delete-bin-line fs-14 text-danger"></i>
                                                 </button>
                                             </div>
+                                            @else
+                                                <span class="text-muted fs-12">Solo lectura</span>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -574,9 +597,11 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-map-pin-line me-1 text-muted"></i> Sucursales / Ubicaciones
                 </h5>
+                @if ($canManageSupplier)
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateLocation">
                     <i class="ri-add-line me-1"></i> Registrar nueva
                 </button>
+                @endif
             </div>
             <div class="card-body p-0">
                 @if($supplier->locations->isEmpty())
@@ -621,6 +646,7 @@
                                         @endif
                                     </div>
                                     <div class="d-flex gap-1 flex-shrink-0 ms-3">
+                                        @if ($canManageSupplier)
                                         <button type="button" class="btn btn-icon btn-sm btn-light btn-edit-location"
                                             data-name="{{ $location->name }}"
                                             data-street="{{ $location->street }}"
@@ -642,6 +668,9 @@
                                             title="Eliminar">
                                             <i class="ri-delete-bin-line fs-13 text-danger"></i>
                                         </button>
+                                        @else
+                                            <span class="text-muted fs-12">Solo lectura</span>
+                                        @endif
                                     </div>
                                 </div>
                             </li>
@@ -654,6 +683,7 @@
 
 </div>
 
+@if ($canManageSupplier)
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Configurar acceso portal proveedor
 ══════════════════════════════════════════════════════════════════ --}}
@@ -730,6 +760,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <div class="row">
     <div class="col-12">
@@ -740,6 +771,7 @@
     </div>
 </div>
 
+@if ($canManageSupplier)
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Editar información general del proveedor
 ══════════════════════════════════════════════════════════════════ --}}
@@ -1079,6 +1111,7 @@
         </div>
     </div>
 </div>
+@endif
 
 @endsection
 

@@ -32,6 +32,9 @@
                     <p class="text-muted fs-13 mb-0">Los pagos con vencimiento en los próximos 7 días aparecen primero.</p>
                 </div>
                 <div class="d-flex gap-2">
+                    <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
+                        <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
+                    </a>
                     <a href="{{ route('payments.interactive') }}" class="btn btn-sm btn-outline-primary">
                         <i class="ri-file-list-3-line me-1"></i> Activar Modo Interactivo
                     </a>

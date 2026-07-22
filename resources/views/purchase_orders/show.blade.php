@@ -585,10 +585,14 @@
                     $dueLabelClass = 'text-muted';
                 }
             }
+
+            $paymentsCount = $milestone->payments->count();
+            $canDeleteMilestone = $paymentsCount === 0
+                || ($paymentsCount === 1 && $milestone->payments->first()?->status !== 'pagado');
         @endphp
 
         <div class="col-md-6 col-xl-6 mb-3">
-            <div class="card h-100 {{ $semBorder }} border-2">
+            <div class="card h-100 {{ $semBorder }} border-2 overflow-visible">
                 <div class="card-header d-flex justify-content-between align-items-center py-2 {{ $semHeader }}">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         {{-- Indicador semáforo --}}
@@ -609,13 +613,13 @@
                     <div class="d-flex gap-1">
                         @hasanyrole('admin|Orden de compra')
                         @if ($canModifyPurchaseOrder)
-                        @if ($milestone->payments->count() === 0)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
                                     data-bs-toggle="modal"
                                     data-bs-target="#modalEditMilestone{{ $milestone->id }}">
                                 <i class="ri-edit-line fs-13"></i>
                             </button>
+                        @if ($canDeleteMilestone)
                             <form action="{{ route('milestones.destroy', $milestone) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar este hito y todos sus pagos?')">
                                 @csrf @method('DELETE')
@@ -624,15 +628,8 @@
                                 </button>
                             </form>
                         @else
-                            {{-- Tiene pagos: solo edición parcial de fechas permitida --}}
-                            <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
-                                    title="Editar fechas del hito (tiene pagos: solo fechas editables)"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#modalEditMilestone{{ $milestone->id }}">
-                                <i class="ri-edit-line fs-13"></i>
-                            </button>
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
-                                    title="No se puede eliminar: el hito tiene pagos registrados" disabled>
+                                    title="No se puede eliminar: el hito tiene pagos pagados o múltiples pagos registrados" disabled>
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
@@ -655,19 +652,6 @@
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted fs-12">Tipo valor:</span>
                         <span class="fs-12 fw-medium">{{ $tipoValorMap[$milestone->value_type] ?? $milestone->value_type }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted fs-12">Valor:</span>
-                        <span class="fs-12 fw-semibold text-end">
-                            @if ($milestone->value_type === 'porcentaje')
-                                {{ $milestone->value }}%
-                                <span class="d-block fs-11 text-muted fw-medium">
-                                    = {{ $purchaseOrder->currency }} {{ number_format($milestone->effective_amount, 2) }}
-                                </span>
-                            @else
-                                {{ $purchaseOrder->currency }} {{ number_format($milestone->value, 2) }}
-                            @endif
-                        </span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted fs-12">Cubierto:</span>
@@ -711,37 +695,20 @@
                 <div class="card-body pt-0">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="fw-semibold text-muted text-uppercase fs-11">Pagos ({{ $milestone->payments->count() }})</small>
-                        @hasanyrole('admin|Pagos')
-                        @if (!$isComplete)
-                            @if ($purchaseOrder->status === 'autorizada')
-                                <button type="button" class="btn btn-xs btn-primary btn-sm"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#modalCreatePayment{{ $milestone->id }}">
-                                    <i class="ri-add-line"></i> Pago
-                                </button>
-                            @else
-                                <button type="button" class="btn btn-xs btn-primary btn-sm"
-                                        disabled
-                                        title="La OC debe estar Autorizada para registrar pagos">
-                                    <i class="ri-add-line"></i> Pago
-                                </button>
-                            @endif
-                        @endif
-                        @endhasanyrole
                     </div>
 
                     @if ($milestone->payments->count() > 0)
-                        <div class="table-responsive">
+                        <div class="table-responsive overflow-visible">
                             <table class="table table-sm table-hover mb-0" style="font-size: 12px;">
                                 <thead class="bg-light-subtle">
                                     <tr>
+                                        <th>Estatus</th>
                                         <th>Folio</th>
                                         <th>Monto</th>
                                         @if (($milestone->payment_condition ?? 'credito') === 'credito')
                                         <th>Fecha Factura</th>
                                         @endif
                                         <th>Fecha Pago</th>
-                                        <th>Estatus</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -755,122 +722,152 @@
                                                 'rechazado'     => ['label' => 'Rechazado',     'class' => 'bg-danger-subtle text-danger'],
                                             ];
                                             $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                                            $statusRowClassMap = [
+                                                'por_autorizar' => 'table-warning',
+                                                'autorizado'    => 'table-info',
+                                                'pagado'        => 'table-success',
+                                                'rechazado'     => 'table-danger',
+                                            ];
+                                            $statusRowClass = $statusRowClassMap[$payment->status] ?? '';
+                                            $isAdminUser = auth()->user()?->hasRole('admin');
+                                            $paymentDaysDiff = $today->diffInDays($payment->payment_date, false);
+                                            if ($paymentDaysDiff === 0) {
+                                                $paymentDateLabel = 'Vence hoy';
+                                                $paymentDateLabelClass = 'text-danger fw-semibold';
+                                            } elseif ($paymentDaysDiff < 0) {
+                                                $paymentDateLabel = 'Hace ' . abs($paymentDaysDiff) . ' ' . (abs($paymentDaysDiff) === 1 ? 'día' : 'días');
+                                                $paymentDateLabelClass = $payment->status === 'pagado' ? 'text-muted' : 'text-danger fw-semibold';
+                                            } elseif ($paymentDaysDiff <= 7) {
+                                                $paymentDateLabel = 'En ' . $paymentDaysDiff . ' ' . ($paymentDaysDiff === 1 ? 'día' : 'días');
+                                                $paymentDateLabelClass = 'text-warning fw-semibold';
+                                            } else {
+                                                $paymentDateLabel = 'En ~' . (int) ceil($paymentDaysDiff / 7) . ' ' . ((int) ceil($paymentDaysDiff / 7) === 1 ? 'semana' : 'semanas');
+                                                $paymentDateLabelClass = 'text-muted';
+                                            }
 
-                                            // Transiciones permitidas por estatus
-                                            $transitions = match ($payment->status) {
-                                                'por_autorizar' => [
-                                                    'autorizado' => ['label' => 'Autorizar',  'icon' => 'ri-check-line',           'btn' => 'btn-soft-info',    'confirm' => '¿Autorizar este pago?'],
-                                                    'rechazado'  => ['label' => 'Rechazar',   'icon' => 'ri-close-circle-line',    'btn' => 'btn-soft-danger',  'confirm' => '¿Rechazar este pago?'],
-                                                ],
-                                                'autorizado' => [
-                                                    'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
-                                                ],
-                                                'rechazado' => [
-                                                    'por_autorizar' => ['label' => 'Reactivar', 'icon' => 'ri-arrow-go-back-line', 'btn' => 'btn-soft-warning', 'confirm' => '¿Reactivar este pago a «Por autorizar»?'],
-                                                ],
-                                                default => [], // pagado: sin transiciones
-                                            };
+                                            // Transiciones permitidas por rol y estatus
+                                            $transitions = $isAdminUser
+                                                ? match ($payment->status) {
+                                                    'por_autorizar' => [
+                                                        'autorizado' => ['label' => 'Autorizar',  'icon' => 'ri-check-line',           'btn' => 'btn-soft-info',    'confirm' => '¿Autorizar este pago?'],
+                                                        'rechazado'  => ['label' => 'Rechazar',   'icon' => 'ri-close-circle-line',    'btn' => 'btn-soft-danger',  'confirm' => '¿Rechazar este pago?'],
+                                                    ],
+                                                    'autorizado' => [
+                                                        'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
+                                                        'por_autorizar' => ['label' => 'Revertir', 'icon' => 'ri-arrow-go-back-line', 'btn' => 'btn-soft-warning', 'confirm' => '¿Revertir a «Por autorizar»?'],
+                                                    ],
+                                                    'rechazado' => [
+                                                        'por_autorizar' => ['label' => 'Reactivar', 'icon' => 'ri-arrow-go-back-line', 'btn' => 'btn-soft-warning', 'confirm' => '¿Reactivar este pago a «Por autorizar»?'],
+                                                    ],
+                                                    default => [],
+                                                }
+                                                : match ($payment->status) {
+                                                    'autorizado' => [
+                                                        'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
+                                                    ],
+                                                    default => [],
+                                                };
                                         @endphp
-                                        <tr>
+                                        <tr class="{{ $statusRowClass }}" data-bs-theme="light">
+                                            <td>
+                                                <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
+                                            </td>
                                             <td class="fw-medium">{{ $payment->folio }}</td>
-                                            <td>{{ number_format($payment->amount, 2) }}</td>
+                                            <td>{{ $purchaseOrder->currency }} ${{ number_format($payment->amount, 2) }}</td>
                                             @if (($milestone->payment_condition ?? 'credito') === 'credito')
                                             <td>
                                                 {{ $payment->invoice_date ? $payment->invoice_date->format('d/m/Y') : '—' }}
                                             </td>
                                             @endif
-                                            <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                             <td>
-                                                <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
+                                                <span class="d-flex align-items-center gap-1 fs-12">
+                                                    <i class="ri-calendar-check-line text-primary"></i>
+                                                    {{ $payment->payment_date->format('d/m/Y') }}
+                                                </span>
+                                                <small class="d-block fs-11 {{ $paymentDateLabelClass }}">{{ $paymentDateLabel }}</small>
                                             </td>
-                                            <td>
-                                                <div class="d-flex gap-1 flex-wrap">
-                                                    {{-- Botones de transición de estatus --}}
-                                                    @foreach ($transitions as $newStatus => $transition)
-                                                        @if ($newStatus === 'autorizado')
-                                                            @role('admin')
-                                                            <form action="{{ route('payments.update', $payment) }}" method="POST">
-                                                                @csrf @method('PATCH')
-                                                                <input type="hidden" name="status" value="{{ $newStatus }}">
-                                                                <button type="submit"
-                                                                        class="btn btn-xs {{ $transition['btn'] }}"
-                                                                        title="{{ $transition['label'] }}"
-                                                                        onclick="return confirm('{{ $transition['confirm'] }}')">
-                                                                    <i class="{{ $transition['icon'] }}"></i>
-                                                                    {{ $transition['label'] }}
-                                                                </button>
-                                                            </form>
-                                                            @endrole
-                                                        @else
-                                                            @hasanyrole('admin|Pagos')
-                                                            <form action="{{ route('payments.update', $payment) }}" method="POST">
-                                                                @csrf @method('PATCH')
-                                                                <input type="hidden" name="status" value="{{ $newStatus }}">
-                                                                <button type="submit"
-                                                                        class="btn btn-xs {{ $transition['btn'] }}"
-                                                                        title="{{ $transition['label'] }}"
-                                                                        onclick="return confirm('{{ $transition['confirm'] }}')">
-                                                                    <i class="{{ $transition['icon'] }}"></i>
-                                                                    {{ $transition['label'] }}
-                                                                </button>
-                                                            </form>
-                                                            @endhasanyrole
+                                            <td class="text-end">
+                                                <div class="dropdown">
+                                                    <button class="btn btn-light btn-sm" type="button"
+                                                            data-bs-toggle="dropdown" aria-expanded="false"
+                                                            title="Acciones">
+                                                        <i class="ri-more-2-fill"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        {{-- Transiciones de estatus --}}
+                                                        @hasanyrole('admin|Pagos')
+                                                        @foreach ($transitions as $newStatus => $transition)
+                                                            <li>
+                                                                <form action="{{ route('payments.update', $payment) }}" method="POST">
+                                                                    @csrf @method('PATCH')
+                                                                    <input type="hidden" name="status" value="{{ $newStatus }}">
+                                                                    <button type="submit" class="dropdown-item"
+                                                                            onclick="return confirm('{{ $transition['confirm'] }}')">
+                                                                        <i class="{{ $transition['icon'] }} me-1"></i>{{ $transition['label'] }}
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                        @endforeach
+                                                        @endhasanyrole
+
+                                                        {{-- Contrarecibo PDF (solo hitos crédito) --}}
+                                                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                                        @hasanyrole('admin|Pagos|Orden de compra')
+                                                        <li>
+                                                            <a href="{{ route('payments.contrarecibo', $payment) }}"
+                                                               target="_blank" class="dropdown-item">
+                                                                <i class="ri-file-download-line me-1"></i>Descargar contrarecibo
+                                                            </a>
+                                                        </li>
+                                                        @endhasanyrole
                                                         @endif
-                                                    @endforeach
 
-                                                    {{-- Contrarecibo PDF (solo hitos crédito) --}}
-                                                    @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                                                    @hasanyrole('admin|Pagos|Orden de compra')
-                                                    <a href="{{ route('payments.contrarecibo', $payment) }}"
-                                                       target="_blank"
-                                                       class="btn btn-xs btn-soft-secondary"
-                                                       title="Descargar contrarecibo PDF">
-                                                        <i class="ri-file-download-line"></i> Contrarecibo
-                                                    </a>
-                                                    @endhasanyrole
-                                                    @endif
+                                                        {{-- SPEI: subir/reemplazar --}}
+                                                        @hasanyrole('admin|Pagos')
+                                                        <li>
+                                                            <button type="button" class="dropdown-item"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modalSpeiReceipt{{ $payment->id }}">
+                                                                <i class="ri-file-upload-line me-1"></i>
+                                                                {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI' }}
+                                                            </button>
+                                                        </li>
+                                                        @endhasanyrole
 
-                                                    {{-- Comprobante SPEI (subir/ver) --}}
-                                                    @hasanyrole('admin|Pagos')
-                                                    <button type="button"
-                                                            class="btn btn-xs {{ $payment->spei_receipt_path ? 'btn-soft-primary' : 'btn-soft-warning' }}"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#modalSpeiReceipt{{ $payment->id }}"
-                                                            title="{{ $payment->spei_receipt_path ? 'Reemplazar comprobante SPEI' : 'Subir comprobante SPEI' }}">
-                                                        <i class="ri-file-upload-line"></i>
-                                                        {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI' }}
-                                                    </button>
-                                                    @endhasanyrole
+                                                        {{-- SPEI: ver --}}
+                                                        @if ($payment->spei_receipt_path)
+                                                        @hasanyrole('admin|Pagos|Orden de compra')
+                                                        @php
+                                                            $speiExt = strtolower(pathinfo($payment->spei_receipt_name ?: $payment->spei_receipt_path, PATHINFO_EXTENSION));
+                                                            $speiIsImage = in_array($speiExt, ['jpg', 'jpeg', 'png', 'webp'], true);
+                                                        @endphp
+                                                        <li>
+                                                            <button type="button"
+                                                                    class="dropdown-item js-open-spei-modal"
+                                                                    data-spei-preview-url="{{ route('payments.spei_receipt.download', ['payment' => $payment, 'disposition' => 'inline']) }}"
+                                                                    data-spei-download-url="{{ route('payments.spei_receipt.download', $payment) }}"
+                                                                    data-spei-name="{{ $payment->spei_receipt_name ?: ('SPEI-' . $payment->folio) }}"
+                                                                    data-spei-is-image="{{ $speiIsImage ? '1' : '0' }}">
+                                                                <i class="ri-eye-line me-1"></i>Ver SPEI
+                                                            </button>
+                                                        </li>
+                                                        @endhasanyrole
+                                                        @endif
 
-                                                    @if ($payment->spei_receipt_path)
-                                                    @hasanyrole('admin|Pagos|Orden de compra')
-                                                    @php
-                                                        $speiExt = strtolower(pathinfo($payment->spei_receipt_name ?: $payment->spei_receipt_path, PATHINFO_EXTENSION));
-                                                        $speiIsImage = in_array($speiExt, ['jpg', 'jpeg', 'png', 'webp'], true);
-                                                    @endphp
-                                                    <button type="button"
-                                                            class="btn btn-xs btn-soft-success js-open-spei-modal"
-                                                            data-spei-preview-url="{{ route('payments.spei_receipt.download', ['payment' => $payment, 'disposition' => 'inline']) }}"
-                                                            data-spei-download-url="{{ route('payments.spei_receipt.download', $payment) }}"
-                                                            data-spei-name="{{ $payment->spei_receipt_name ?: ('SPEI-' . $payment->folio) }}"
-                                                            data-spei-is-image="{{ $speiIsImage ? '1' : '0' }}"
-                                                            title="Ver comprobante SPEI">
-                                                        <i class="ri-eye-line"></i>
-                                                        Ver SPEI
-                                                    </button>
-                                                    @endhasanyrole
-                                                    @endif
-
-                                                    {{-- Eliminar (solo admin|Pagos) --}}
-                                                    @hasanyrole('admin|Pagos')
-                                                    <form action="{{ route('payments.destroy', $payment) }}" method="POST"
-                                                          onsubmit="return confirm('¿Eliminar este pago?')">
-                                                        @csrf @method('DELETE')
-                                                        <button type="submit" class="btn btn-xs btn-soft-danger" title="Eliminar pago">
-                                                            <i class="ri-delete-bin-line"></i>
-                                                        </button>
-                                                    </form>
-                                                    @endhasanyrole
+                                                        {{-- Eliminar --}}
+                                                        @hasanyrole('admin|Pagos')
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li>
+                                                            <form action="{{ route('payments.destroy', $payment) }}" method="POST"
+                                                                  onsubmit="return confirm('¿Eliminar este pago?')">
+                                                                @csrf @method('DELETE')
+                                                                <button type="submit" class="dropdown-item text-danger">
+                                                                    <i class="ri-delete-bin-line me-1"></i>Eliminar pago
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        @endhasanyrole
+                                                    </ul>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1257,7 +1254,6 @@
 @foreach ($orderedMilestones as $milestone)
     @php
         $milestonePosition = $loop->iteration;
-        $pendiente = max(0, $milestone->effective_amount - (float)$milestone->covered_amount);
     @endphp
 
     {{-- MODAL Editar Hito --}}
@@ -1271,13 +1267,6 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        @if ($milestone->payments->count() > 0)
-                        <div class="alert alert-warning py-2 fs-13 mb-3">
-                            <i class="ri-alert-line me-1"></i>
-                            Este hito tiene <strong>{{ $milestone->payments->count() }} pago(s)</strong> registrados.
-                            Solo se puede modificar el concepto, fechas y condiciones. El valor no es editable.
-                        </div>
-                        @endif
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label fw-medium">Concepto</label>
@@ -1294,25 +1283,20 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Tipo de valor <span class="text-danger">*</span></label>
-                                <select class="form-select" name="value_type" required
-                                        {{ $milestone->payments->count() > 0 ? 'disabled' : '' }}>
+                                <select class="form-select" name="value_type" required>
                                     <option value="fijo"       {{ $milestone->value_type === 'fijo'       ? 'selected' : '' }}>Fijo</option>
                                     <option value="porcentaje" {{ $milestone->value_type === 'porcentaje' ? 'selected' : '' }}>Porcentaje</option>
                                 </select>
-                                @if ($milestone->payments->count() > 0)
-                                <input type="hidden" name="value_type" value="{{ $milestone->value_type }}">
-                                @endif
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0.01" class="form-control"
-                                       name="value" value="{{ $milestone->value }}" required
-                                       {{ $milestone->payments->count() > 0 ? 'readonly' : '' }}>
+                                       name="value" value="{{ $milestone->value }}" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-medium">Fecha vencimiento</label>
+                                <label class="form-label fw-medium">Fecha vencimiento <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control"
-                                       name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}" min="{{ $minDueDate }}">
+                                       name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}" min="{{ $minDueDate }}" required>
                             </div>
                             <div class="col-12">
                                 <div class="form-check form-switch">
@@ -1335,99 +1319,6 @@
             </div>
         </div>
     </div>
-
-    {{-- MODAL Crear Pago para este hito --}}
-    @if (!$milestone->is_complete)
-    <div class="modal fade" id="modalCreatePayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form action="{{ route('payments.store') }}" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <input type="hidden" name="milestone_id" value="{{ $milestone->id }}">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><i class="ri-money-dollar-circle-line me-1"></i> Nuevo Pago — Hito #{{ $milestonePosition }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                        <div class="alert alert-info py-2 fs-13 mb-3">
-                            <i class="ri-bank-line me-1"></i>
-                            <strong>Hito Crédito:</strong> registra la fecha de factura del proveedor y la fecha en que se programará el pago.
-                        </div>
-                        @endif
-                        <div class="alert alert-light border py-2 fs-13 mb-3">
-                            Saldo pendiente del hito: <strong>{{ $purchaseOrder->currency }} {{ number_format($pendiente, 2) }}</strong>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">Folio</label>
-                                <input type="text" class="form-control" name="folio"
-                                       placeholder="Dejar vacío para generar automático">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">Cantidad <span class="text-danger">*</span></label>
-                                <input type="number" step="0.01" min="0.01" max="{{ $pendiente }}"
-                                       class="form-control" name="amount" required>
-                            </div>
-                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">
-                                    Fecha de factura <span class="text-danger">*</span>
-                                    <small class="text-muted fw-normal">(cuando la recibe el proveedor)</small>
-                                </label>
-                                <input type="date" class="form-control" name="invoice_date"
-                                       value="{{ date('Y-m-d') }}" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">
-                                    Fecha de pago programada <span class="text-danger">*</span>
-                                    <small class="text-muted fw-normal">(cuando se liquidará)</small>
-                                </label>
-                                <input type="date" class="form-control" name="payment_date"
-                                       value="{{ date('Y-m-d') }}" required>
-                            </div>
-                            @else
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">Fecha de pago <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" name="payment_date"
-                                       value="{{ date('Y-m-d') }}" required>
-                            </div>
-                            @endif
-                            <div class="col-md-6">
-                                <label class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
-                                <select class="form-select" name="status" required>
-                                    <option value="por_autorizar" selected>Por autorizar</option>
-                                    <option value="autorizado">Autorizado</option>
-                                    <option value="pagado">Pagado</option>
-                                </select>
-                            </div>
-                            <div class="col-{{ ($milestone->payment_condition ?? 'credito') === 'credito' ? '12' : 'md-6' }}">
-                                <label class="form-label fw-medium">Número de referencia</label>
-                                <input type="text" class="form-control" name="reference_number"
-                                       placeholder="Ej. transferencia bancaria, cheque...">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-medium">
-                                    Comprobante SPEI (Opcional)
-                                    <small class="text-muted fw-normal">PDF, JPG, PNG, WEBP - máx. 10MB</small>
-                                </label>
-                                <input type="file"
-                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
-                                       name="spei_receipt_file"
-                                       accept=".pdf,.jpg,.jpeg,.png,.webp">
-                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Registrar pago</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    @endif
 
 @endforeach
 
@@ -1576,8 +1467,8 @@
                             <div class="invalid-feedback" id="milestoneValueFeedback"></div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-medium">Fecha vencimiento</label>
-                            <input type="date" class="form-control" name="due_date" min="{{ $minDueDate }}">
+                            <label class="form-label fw-medium">Fecha vencimiento <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="due_date" min="{{ $minDueDate }}" required>
                         </div>
                         <div class="col-12">
                             <div class="form-check form-switch">

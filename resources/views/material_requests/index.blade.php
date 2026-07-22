@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Solicitudes de Material (SOLMAT)')
+@section('page_title', $scope === 'all' ? 'Solicitudes de Material — Listado Completo' : 'Mis Solicitudes de Material (SOLMAT)')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
@@ -38,9 +38,37 @@
     <div class="col-xl-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
-                <h4 class="card-title mb-0">Solicitudes de Material</h4>
+                <h4 class="card-title mb-0">
+                    @if ($scope === 'all')
+                        Solicitudes de Material
+                        <span class="badge bg-secondary ms-1" style="font-size: .65rem;">Listado Completo</span>
+                    @else
+                        Mis Solicitudes de Material
+                    @endif
+                </h4>
                 <div class="d-flex align-items-center gap-2">
                     @hasanyrole('admin|Solmat')
+                    @if ($scope === 'all')
+                        <a href="{{ route('material_requests.index') }}"
+                           class="btn btn-sm btn-outline-primary" title="Mis SOLMAT">
+                            <i class="ri-user-line me-1"></i> Mis SOLMAT
+                        </a>
+                    @else
+                        <a href="{{ route('material_requests.index', ['scope' => 'all']) }}"
+                           class="btn btn-sm btn-outline-secondary" title="Ver todas las SOLMAT">
+                            <i class="ri-list-unordered me-1"></i> Listado Completo
+                        </a>
+                    @endif
+                    
+                    @hasanyrole('admin|Solmat')
+                    @can('create')
+                    <button type="button" class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal" data-bs-target="#modalCreateMR">
+                        <i class="ri-add-line me-1"></i> Nueva SOLMAT
+                    </button>
+                    @endcan
+                    @endhasanyrole
+
                     <a href="{{ route('material_requests.archived') }}"
                        class="btn btn-sm btn-outline-secondary" title="Archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
@@ -52,20 +80,15 @@
                         <i class="ri-delete-bin-line me-1"></i> Papelera
                     </a>
                     @endhasanyrole
-                    @hasanyrole('admin|Solmat')
-                    @can('create')
-                    <button type="button" class="btn btn-sm btn-primary"
-                            data-bs-toggle="modal" data-bs-target="#modalCreateMR">
-                        <i class="ri-add-line me-1"></i> Nueva SOLMAT
-                    </button>
-                    @endcan
-                    @endhasanyrole
                 </div>
             </div>
 
             {{-- Filtros --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('material_requests.index') }}" class="row g-2 align-items-end">
+                    @if ($scope === 'all')
+                        <input type="hidden" name="scope" value="all">
+                    @endif
                     <div class="col-md-5">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
@@ -86,7 +109,7 @@
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
                         @if ($search || $status)
-                            <a href="{{ route('material_requests.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
+                            <a href="{{ route('material_requests.index', $scope === 'all' ? ['scope' => 'all'] : []) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif

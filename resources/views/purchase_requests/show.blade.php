@@ -124,8 +124,14 @@
                         <p class="fw-semibold mb-0">{{ $purchaseRequest->project?->name ?? '—' }}</p>
                     </div>
                     <div class="col-sm-6 col-md-4">
-                        <p class="text-muted fs-12 mb-1">Obra</p>
-                        <p class="fw-semibold mb-0">{{ $purchaseRequest->projectWork?->name ?? '—' }}</p>
+                        <p class="text-muted fs-12 mb-1">Obras Vinculadas</p>
+                        <div class="d-flex flex-wrap gap-1">
+                            @forelse ($purchaseRequest->projectWorks as $projectWork)
+                                <span class="badge bg-info-subtle text-info border py-1 px-2">{{ $projectWork->name }}</span>
+                            @empty
+                                <span class="fw-semibold">{{ $purchaseRequest->projectWork?->name ?? '—' }}</span>
+                            @endforelse
+                        </div>
                     </div>
                     <div class="col-sm-6 col-md-4">
                         <p class="text-muted fs-12 mb-1">Zona</p>
@@ -195,6 +201,9 @@
                         </thead>
                         <tbody id="solcom_items_tbody">
                             @forelse ($purchaseRequest->items as $index => $item)
+                                @php
+                                    $breakdownJson = collect($item->selected_work_breakdown ?? [])->values();
+                                @endphp
                                 <tr class="solcom-item-row">
                                     <td class="solcom-row-num text-muted fs-12">{{ $index + 1 }}</td>
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
@@ -222,7 +231,21 @@
                                         @endif
                                     </td>
                                     <td>{{ $item->unit }}</td>
-                                    <td class="text-end text-muted fs-13">{{ (int) $item->requested_quantity }}</td>
+                                    <td class="text-end text-muted fs-13 fw-semibold">
+                                        @if ($breakdownJson->isNotEmpty())
+                                            <button type="button"
+                                                    class="btn btn-link btn-sm p-0 text-decoration-none text-dark js-solcom-qty-popover"
+                                                    data-breakdown='@json($breakdownJson)'
+                                                    title="Desglose por obra">
+                                                <span class="d-inline-flex align-items-center gap-1">
+                                                    <span>{{ number_format((float) $item->requested_quantity, 2, '.', '') }}</span>
+                                                    <i class="ri-information-line fs-13 text-primary"></i>
+                                                </span>
+                                            </button>
+                                        @else
+                                            {{ number_format((float) $item->requested_quantity, 2, '.', '') }}
+                                        @endif
+                                    </td>
                                     <td style="min-width:170px">
                                         @hasanyrole('admin|Solcom')
                                         <div class="input-group">
@@ -576,11 +599,83 @@
 .solcom-qty-input[type=number] {
     -moz-appearance: textfield;
 }
+
+/* Popover "Desglose por obra": tabla compacta con nombres truncados */
+.solcom-breakdown-popover { max-width: 320px; }
+.solcom-breakdown-popover .popover-body { padding: .5rem .25rem; }
+.solcom-breakdown-table { font-size: .8125rem; margin: 0; }
+.solcom-breakdown-table th,
+.solcom-breakdown-table td { padding: .2rem .5rem; }
+.solcom-breakdown-table thead th {
+    font-size: .6875rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.solcom-breakdown-name { max-width: 200px; }
 </style>
 @endpush
 
 @push('scripts')
 <script>
+// ── Popover "Desglose por obra" en columna Solicitada ───────────────
+(function () {
+    function escHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(str)));
+        return div.innerHTML;
+    }
+
+    function buildBreakdownContent(breakdown) {
+        if (!Array.isArray(breakdown) || breakdown.length === 0) {
+            return '<span class="text-muted fs-13">Sin desglose por obra.</span>';
+        }
+
+        var rows = breakdown.map(function (row) {
+            var name = escHtml(row.work_name || row.work_id || 'Obra');
+            var nameAttr = name.replace(/"/g, '&quot;');
+            var qty = escHtml(String(row.quantity || '0.00'));
+
+            return '<tr>'
+                + '<td><div class="text-truncate solcom-breakdown-name" title="' + nameAttr + '">' + name + '</div></td>'
+                + '<td class="text-end fw-semibold ps-3">' + qty + '</td>'
+                + '</tr>';
+        }).join('');
+
+        return '<table class="table table-sm table-borderless align-middle mb-0 solcom-breakdown-table">'
+            + '<thead><tr class="text-muted"><th class="fw-semibold">Obra</th><th class="fw-semibold text-end">Cant.</th></tr></thead>'
+            + '<tbody>' + rows + '</tbody>'
+            + '</table>';
+    }
+
+    function initQtyPopovers(scope) {
+        if (!window.bootstrap || !window.bootstrap.Popover) return;
+
+        var root = scope || document;
+        root.querySelectorAll('.js-solcom-qty-popover').forEach(function (trigger) {
+            if (trigger._solcomPopover) return;
+
+            var breakdown = [];
+            try {
+                breakdown = JSON.parse(trigger.getAttribute('data-breakdown') || '[]');
+            } catch (error) {
+                breakdown = [];
+            }
+
+            trigger._solcomPopover = new bootstrap.Popover(trigger, {
+                trigger: 'focus',
+                placement: 'top',
+                html: true,
+                sanitize: false,
+                content: buildBreakdownContent(breakdown),
+                customClass: 'solcom-breakdown-popover'
+            });
+        });
+    }
+
+    initQtyPopovers(document);
+}());
+
 // ── Contador de caracteres en modal solicitar cambios ──────────────────
 (function () {
     var textarea  = document.querySelector('#modalRequestChanges textarea[name="change_text"]');

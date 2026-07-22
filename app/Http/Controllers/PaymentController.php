@@ -33,6 +33,7 @@ class PaymentController extends Controller
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->select('payments.*')
+            ->where('payments.status', 'por_autorizar')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
@@ -62,6 +63,39 @@ class PaymentController extends Controller
             ->get();
 
         return view('payments.index', compact('payments', 'urgentDate', 'search'));
+    }
+
+    public function payable(Request $request): View
+    {
+        $urgentDate = Carbon::now()->addDays(7);
+        $search     = trim($request->input('search', ''));
+
+        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+            ->has('milestone.purchaseOrder')
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
+            ->select('payments.*')
+            ->where('payments.status', 'autorizado')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('payments.folio', 'like', '%' . $search . '%')
+                        ->orWhere('payments.reference_number', 'like', '%' . $search . '%')
+                        ->orWhere('purchase_orders.folio', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByRaw("
+                CASE
+                    WHEN purchase_order_milestones.due_date <= ? THEN 0
+                    ELSE 1
+                END ASC,
+                purchase_order_milestones.due_date ASC
+            ", [$urgentDate->toDateString()])
+            ->get();
+
+        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search'));
     }
 
     public function create()
@@ -120,68 +154,16 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'milestone_id'     => 'required|exists:purchase_order_milestones,id',
-            'folio'            => 'nullable|string|max:100',
-            'amount'           => 'required|numeric|min:0.01',
-            'payment_date'     => 'required|date',
-            'invoice_date'     => 'nullable|date',
-            'status'           => 'required|in:por_autorizar,autorizado,pagado',
-            'reference_number' => 'nullable|string|max:255',
-            'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
-        ]);
+        $milestoneId = $request->input('milestone_id');
+        $milestone = $milestoneId ? PurchaseOrderMilestone::find($milestoneId) : null;
 
-        $milestone = PurchaseOrderMilestone::findOrFail($validated['milestone_id']);
-
-        if ($milestone->is_complete) {
+        if ($milestone) {
             return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
-                ->with('error', 'El hito ya está completamente cubierto. No se pueden agregar más pagos.');
+                ->with('error', 'Los pagos se generan automáticamente al crear el hito. No se permite crear pagos manuales.');
         }
 
-        $saldoPendiente = $milestone->effective_amount - (float) $milestone->covered_amount;
-
-        if ($validated['amount'] > $saldoPendiente) {
-            return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
-                ->with('error', 'El monto del pago excede el saldo pendiente del hito (' . number_format($saldoPendiente, 2) . ').');
-        }
-
-        if (empty($validated['folio'])) {
-            $validated['folio'] = strtoupper('PAY-' . random_int(10000, 99999));
-        }
-
-        if ($request->hasFile('spei_receipt_file')) {
-            $file = $request->file('spei_receipt_file');
-            $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) ($validated['folio'] ?? ('PAY-' . random_int(10000, 99999)))));
-            $fileName = 'SPEI-' . $safeFolio . '-' . time() . '.' . strtolower($file->getClientOriginalExtension());
-            $storageDir = 'payments/spei/' . $validated['milestone_id'];
-            $storedPath = Storage::disk('s3')->putFileAs($storageDir, $file, $fileName);
-
-            if (!$storedPath) {
-                return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
-                    ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
-            }
-
-            $validated['spei_receipt_path'] = $storedPath;
-            $validated['spei_receipt_name'] = $fileName;
-        }
-
-        $payment = Payment::create($validated);
-
-        if ($payment->status === 'pagado') {
-            $milestone->increment('covered_amount', $payment->amount);
-        }
-
-        // Notificación
-        $this->notification->send([
-            'type'         => 'Payment',
-            'action_by'    => Auth::id(),
-            'model_action' => 'create',
-            'model_id'     => $payment->id,
-            'data'         => 'creó un nuevo pago en el hito #' . $milestone->id . ' de la orden de compra #' . $milestone->purchase_order_id,
-        ]);
-
-        return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
-            ->with('success', 'Pago registrado correctamente.');
+        return redirect()->route('payments.index')
+            ->with('error', 'Los pagos se generan automáticamente al crear el hito. No se permite crear pagos manuales.');
     }
 
     public function show(Payment $payment)
@@ -256,7 +238,7 @@ class PaymentController extends Controller
         $isAdmin = Auth::user()->hasRole('admin');
 
         $allowed = match ($previousStatus) {
-            'por_autorizar' => ['autorizado', 'rechazado'],
+            'por_autorizar' => $isAdmin ? ['autorizado', 'rechazado'] : [],
             'autorizado'    => $isAdmin ? ['pagado', 'por_autorizar'] : ['pagado'],
             'pagado'        => [],                                      // pagado es estado final
             'rechazado'     => $isAdmin ? ['por_autorizar'] : [],       // solo admin puede reactivar

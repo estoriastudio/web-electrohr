@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /* Notificaciones */
 use App\Services\NotificationService;
@@ -41,14 +44,25 @@ class PurchaseOrderMilestoneController extends Controller
      * Ordenamiento: los hitos con due_date más cercana aparecen primero;
      * los que no tienen due_date se muestran al final.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $search = trim($request->input('search', ''));
+
         $milestones = PurchaseOrderMilestone::with([
                 'purchaseOrder.supplier', // para mostrar proveedor sin N+1
                 'invoices',               // para detectar semáforo negro
                 'payments',               // disponible en vista para desglose futuro
             ])
             ->has('purchaseOrder')
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('purchaseOrder', function ($orderQuery) use ($search) {
+                    $orderQuery->where('folio', 'like', '%' . $search . '%')
+                        ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
+                            $supplierQuery->where('rfc_name', 'like', '%' . $search . '%')
+                                ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                        });
+                });
+            })
             ->orderByRaw('due_date IS NULL ASC') // nulos al final
             ->orderBy('due_date', 'asc')
             ->get();
@@ -57,7 +71,7 @@ class PurchaseOrderMilestoneController extends Controller
         // se marcan en AMARILLO. Cambiar el valor para ajustar la regla.
         $urgentDate = Carbon::today()->addDays(7);
 
-        return view('milestones.index', compact('milestones', 'urgentDate'));
+        return view('milestones.index', compact('milestones', 'urgentDate', 'search'));
     }
 
     public function create()
@@ -75,7 +89,7 @@ class PurchaseOrderMilestoneController extends Controller
             'value_type'        => 'required|in:fijo,porcentaje',
             'value'             => 'required|numeric|min:0.01',
             'invoice_date'      => 'nullable|date',
-            'due_date'          => 'nullable|date',
+            'due_date'          => 'required|date',
         ]);
 
         $purchaseOrder = PurchaseOrder::findOrFail((int) $validated['purchase_order_id']);
@@ -88,7 +102,22 @@ class PurchaseOrderMilestoneController extends Controller
         $validated['is_advance']     = $request->boolean('is_advance');
         $validated['type']           = 'regular'; // campo legacy, valor fijo
 
-        $order = PurchaseOrderMilestone::create($validated);
+        $order = DB::transaction(function () use ($validated) {
+            $milestone = PurchaseOrderMilestone::create($validated);
+            $milestone->load('purchaseOrder');
+
+            Payment::create([
+                'milestone_id'     => $milestone->id,
+                'folio'            => $this->generatePaymentFolio(),
+                'amount'           => $milestone->effective_amount,
+                'payment_date'     => $milestone->due_date,
+                'invoice_date'     => null,
+                'status'           => 'por_autorizar',
+                'reference_number' => null,
+            ]);
+
+            return $milestone;
+        });
 
         // Notificación
         $this->notification->send([
@@ -122,13 +151,19 @@ class PurchaseOrderMilestoneController extends Controller
             'value_type'        => 'required|in:fijo,porcentaje',
             'value'             => 'required|numeric|min:0.01',
             'invoice_date'      => 'nullable|date',
-            'due_date'          => 'nullable|date',
+            'due_date'          => 'required|date',
         ]);
 
         $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
         if ($purchaseOrder?->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
                 ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+        }
+
+        $payments = $purchaseOrderMilestone->payments()->orderBy('id')->get();
+        if ($payments->count() > 1) {
+            return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
+                ->with('error', 'No se puede sincronizar automáticamente: el hito tiene múltiples pagos. Contacta a administración para consolidar el historial.');
         }
 
         $validated['is_advance'] = $request->boolean('is_advance');
@@ -144,7 +179,40 @@ class PurchaseOrderMilestoneController extends Controller
             'due_date'          => $purchaseOrderMilestone->due_date?->format('d/m/Y'),
         ];
 
-        $purchaseOrderMilestone->update($validated);
+        DB::transaction(function () use ($purchaseOrderMilestone, $validated, $payments): void {
+            $purchaseOrderMilestone->update($validated);
+            $purchaseOrderMilestone->refresh()->load('purchaseOrder');
+
+            $targetAmount = $purchaseOrderMilestone->effective_amount;
+            $payment = $payments->first();
+
+            if (!$payment) {
+                Payment::create([
+                    'milestone_id'     => $purchaseOrderMilestone->id,
+                    'folio'            => $this->generatePaymentFolio(),
+                    'amount'           => $targetAmount,
+                    'payment_date'     => $purchaseOrderMilestone->due_date,
+                    'invoice_date'     => null,
+                    'status'           => 'por_autorizar',
+                    'reference_number' => null,
+                ]);
+
+                return;
+            }
+
+            $previousAmount = (float) $payment->amount;
+            $delta = round($targetAmount - $previousAmount, 2);
+
+            $payment->update([
+                'amount'       => $targetAmount,
+                'payment_date' => $purchaseOrderMilestone->due_date,
+            ]);
+
+            if ($payment->status === 'pagado' && abs($delta) > 0.0) {
+                $purchaseOrderMilestone->covered_amount = max(0, round((float) $purchaseOrderMilestone->covered_amount + $delta, 2));
+                $purchaseOrderMilestone->save();
+            }
+        });
 
         // Construir resumen de cambios para auditoría
         $changes = [];
@@ -177,6 +245,15 @@ class PurchaseOrderMilestoneController extends Controller
             ->with('success', 'Hito actualizado correctamente.');
     }
 
+    private function generatePaymentFolio(): string
+    {
+        do {
+            $folio = strtoupper('PAY-' . random_int(10000, 99999));
+        } while (Payment::where('folio', $folio)->exists());
+
+        return $folio;
+    }
+
     public function destroy(PurchaseOrderMilestone $purchaseOrderMilestone): RedirectResponse
     {
         $milestoneId = $purchaseOrderMilestone->id;
@@ -188,9 +265,23 @@ class PurchaseOrderMilestoneController extends Controller
                 ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
         }
 
-        if ($purchaseOrderMilestone->payments()->count() > 0) {
+        $payments = $purchaseOrderMilestone->payments()->orderBy('id')->get();
+
+        if ($payments->count() > 1) {
             return redirect()->route('purchase_orders.show', $orderId)
-                ->with('error', 'No se puede eliminar un hito que ya tiene pagos registrados.');
+                ->with('error', 'No se puede eliminar un hito con múltiples pagos registrados.');
+        }
+
+        if ($payments->count() === 1 && $payments->first()->status === 'pagado') {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('error', 'No se puede eliminar un hito con pago en estatus pagado.');
+        }
+
+        foreach ($payments as $payment) {
+            if ($payment->spei_receipt_path && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+                Storage::disk('s3')->delete($payment->spei_receipt_path);
+            }
+            $payment->delete();
         }
 
         $purchaseOrderMilestone->delete();

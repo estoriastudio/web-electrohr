@@ -22,9 +22,14 @@ class MaterialRequestController extends Controller
     {
         $search = $request->input('search', '');
         $status = $request->input('status', '');
+        $scope  = $request->input('scope', 'mine'); // 'mine' | 'all'
 
-        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy'])
+        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
             ->orderByDesc('folio');
+
+        if ($scope !== 'all') {
+            $query->where('requested_by', Auth::id());
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -44,7 +49,7 @@ class MaterialRequestController extends Controller
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
         $categories       = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
 
-        return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'categories'));
+        return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'scope', 'categories'));
     }
 
     public function create()
@@ -227,7 +232,7 @@ class MaterialRequestController extends Controller
     {
         $search = trim($request->input('search', ''));
 
-        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy'])
+        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
             ->archived()
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -249,7 +254,7 @@ class MaterialRequestController extends Controller
         $search = trim($request->input('search', ''));
 
         $materialRequests = MaterialRequest::onlyTrashed()
-            ->with(['project', 'projectWorks', 'requestedBy'])
+            ->with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('folio', 'like', '%' . $search . '%')

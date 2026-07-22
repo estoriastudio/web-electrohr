@@ -78,6 +78,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
+        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+            Route::get('/proveedores/{supplier}', [SupplierController::class, 'show'])
+                ->whereNumber('supplier')
+                ->name('suppliers.show');
+        });
+
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
@@ -86,13 +92,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     'index'   => 'suppliers.index',
                     'create'  => 'suppliers.create',
                     'store'   => 'suppliers.store',
-                    'show'    => 'suppliers.show',
                     'edit'    => 'suppliers.edit',
                     'update'  => 'suppliers.update',
                     'destroy' => 'suppliers.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier'],
-            ]);
+            ])->except(['show']);
             Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
 
             Route::resource('proveedores.contactos', SupplierContactController::class, [
@@ -368,6 +373,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Pagos
         Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
+            Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
             Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
                 'create'  => 'payments.create',
                 'store'   => 'payments.store',

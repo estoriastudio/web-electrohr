@@ -45,6 +45,26 @@
                 </div>
             </div>
 
+            <div class="card-body border-bottom py-3">
+                <form method="GET" action="{{ route('milestones.index') }}" class="d-flex gap-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light">
+                            <i class="ri-search-line text-muted"></i>
+                        </span>
+                        <input type="text" name="search" value="{{ $search ?? '' }}"
+                               class="form-control"
+                               placeholder="Buscar por orden de compra o proveedor…"
+                               autocomplete="off">
+                        @if (!empty($search))
+                            <a href="{{ route('milestones.index') }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                                <i class="ri-close-line"></i>
+                            </a>
+                        @endif
+                        <button type="submit" class="btn btn-primary">Buscar</button>
+                    </div>
+                </form>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
@@ -103,6 +123,9 @@
                                         'black'  => '#212529',
                                     ];
                                     $semColor = $semColors[$semaphore];
+                                    $isBlackRow = $semaphore === 'black';
+                                    $mainTextClass = $isBlackRow ? 'text-white' : 'text-dark';
+                                    $mutedTextClass = $isBlackRow ? 'text-white-50' : 'text-muted';
 
                                     // Tiempo relativo al vencimiento
                                     $dueLabel = null;
@@ -146,14 +169,14 @@
                                     <td class="fw-semibold">{{ $milestone->id }}</td>
 
                                     <td>
-                                        <a href="{{ route('purchase_orders.show', $order) }}" class="text-dark fw-medium">
+                                       <a href="{{ route('purchase_orders.show', $order) }}" class="{{ $mainTextClass }} fw-medium">
                                             #{{ $order->folio }}
                                         </a>
-                                        <small class="text-muted d-block fs-11">{{ $order->currency }}</small>
+                                       <small class="{{ $mutedTextClass }} d-block fs-11">{{ $order->currency }}</small>
                                     </td>
 
                                     <td>
-                                        <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark">
+                                       <a href="{{ route('suppliers.show', $supplier) }}" class="{{ $mainTextClass }}">
                                             {{ $supplier->rfc_name ?? $supplier->commercial_name ?? '—' }}
                                         </a>
                                     </td>
@@ -191,7 +214,7 @@
                                                      aria-valuemax="100">
                                                 </div>
                                             </div>
-                                            <span class="fs-11 text-muted">{{ $progressPct }}%</span>
+                                           <span class="fs-11 {{ $mutedTextClass }}">{{ $progressPct }}%</span>
                                         </div>
                                     </td>
 
@@ -204,7 +227,7 @@
                                                 <small class="d-block fs-11 {{ $dueLabelClass }}">{{ $dueLabel }}</small>
                                             @endif
                                         @else
-                                            <span class="text-muted">—</span>
+                                           <span class="{{ $mutedTextClass }}">—</span>
                                         @endif
                                     </td>
 

@@ -242,12 +242,22 @@
             @endhasanyrole
 
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.index') ? 'active' : '' }}"
+                <a class="nav-link {{ request()->routeIs('payments.index') || request()->routeIs('payments.interactive') ? 'active' : '' }}"
                    href="{{ route('payments.index') }}">
                     <span class="nav-icon">
                         <i class="ri-shield-check-line"></i>
                     </span>
                     <span class="nav-text">Autorización de Pagos</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('payments.payable') ? 'active' : '' }}"
+                   href="{{ route('payments.payable') }}">
+                    <span class="nav-icon">
+                        <i class="ri-money-dollar-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Por Pagar</span>
                 </a>
             </li>
 

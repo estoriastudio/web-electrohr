@@ -13,8 +13,7 @@ return [
     */
     'authorized_signatories' => [
         'Osvaldo Ramirez Maciel',
-        'Ángel Ramirez Maciel',
-        'Blanca Celene Ramirez Maciel',
+        'Luis Ángel Ramirez Maciel',
+        'Blanca Selene Ramirez Maciel',
     ],
-
 ];

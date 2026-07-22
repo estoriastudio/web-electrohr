@@ -114,7 +114,7 @@
 
                             {{-- Marcar como pagado: admin|Pagos --}}
                             @hasanyrole('admin|Pagos')
-                            @if (in_array($payment->status, ['por_autorizar', 'autorizado']))
+                            @if ($payment->status === 'autorizado')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="status" value="pagado">
@@ -126,7 +126,8 @@
                             @endif
 
                             {{-- Revertir a por autorizar --}}
-                            @if ($payment->status !== 'por_autorizar')
+                            @role('admin')
+                            @if (in_array($payment->status, ['autorizado', 'rechazado']))
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="status" value="por_autorizar">
@@ -136,6 +137,7 @@
                                     </button>
                                 </form>
                             @endif
+                            @endrole
                             @endhasanyrole
 
                             {{-- Ver OC --}}

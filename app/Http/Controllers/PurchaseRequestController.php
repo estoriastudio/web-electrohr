@@ -188,9 +188,69 @@ class PurchaseRequestController extends Controller
     public function show(PurchaseRequest $purchaseRequest)
     {
         $purchaseRequest->load([
-            'project', 'projectWork', 'requestedBy', 'assignedTo',
-            'items', 'materialRequest', 'changeNotes.requestedBy', 'changeNotes.resolvedBy',
+            'project',
+            'projectWork',
+            'projectWorks',
+            'requestedBy',
+            'assignedTo',
+            'items',
+            'materialRequest.items.workQuantities.projectWork',
+            'changeNotes.requestedBy',
+            'changeNotes.resolvedBy',
         ]);
+
+        $selectedWorkIds = $purchaseRequest->projectWorks
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($selectedWorkIds->isEmpty() && !empty($purchaseRequest->project_work_id)) {
+            $selectedWorkIds = collect([(int) $purchaseRequest->project_work_id]);
+        }
+
+        $sourceItems = $purchaseRequest->materialRequest?->items ?? collect();
+        $usedSourceItemIds = [];
+
+        $purchaseRequest->items->each(function ($purchaseItem) use ($sourceItems, $selectedWorkIds, &$usedSourceItemIds) {
+            $sourceItem = $sourceItems->first(function ($materialItem) use ($purchaseItem, &$usedSourceItemIds) {
+                if (in_array((int) $materialItem->id, $usedSourceItemIds, true)) {
+                    return false;
+                }
+
+                if (!empty($purchaseItem->concept_id) && !empty($materialItem->concept_id)) {
+                    return (int) $purchaseItem->concept_id === (int) $materialItem->concept_id;
+                }
+
+                return (string) $purchaseItem->code === (string) $materialItem->code
+                    && (string) $purchaseItem->description === (string) $materialItem->description
+                    && (string) $purchaseItem->unit === (string) $materialItem->unit;
+            });
+
+            if (!$sourceItem || $sourceItem->workQuantities->isEmpty()) {
+                $purchaseItem->setAttribute('selected_work_breakdown', []);
+                return;
+            }
+
+            $usedSourceItemIds[] = (int) $sourceItem->id;
+
+            $breakdown = $sourceItem->workQuantities
+                ->filter(function ($workQuantity) use ($selectedWorkIds) {
+                    if ($selectedWorkIds->isEmpty()) {
+                        return true;
+                    }
+
+                    return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
+                })
+                ->map(fn ($workQuantity) => [
+                    'work_id' => (string) $workQuantity->project_work_id,
+                    'work_name' => $workQuantity->projectWork?->name,
+                    'quantity' => number_format((float) $workQuantity->quantity, 2, '.', ''),
+                ])
+                ->values()
+                ->all();
+
+            $purchaseItem->setAttribute('selected_work_breakdown', $breakdown);
+        });
 
         $history         = Notification::where('type', 'purchase_request')
                                        ->where('model_id', $purchaseRequest->id)
