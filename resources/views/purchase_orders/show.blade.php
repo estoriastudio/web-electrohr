@@ -1461,7 +1461,7 @@
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" min="0.01"
-                                   max="{{ $purchaseOrder->amount }}"
+                                max="{{ $importeTotal }}"
                                    class="form-control" id="milestoneValue"
                                    name="value" placeholder="Ej. 5000.00" required>
                             <div class="invalid-feedback" id="milestoneValueFeedback"></div>
@@ -2205,7 +2205,7 @@ $(function () {
     @endif
 
     // ── Validación dinámica del campo Valor en Nuevo Hito ──
-    var ocAmount = {{ $purchaseOrder->amount }};
+    var ocAmount = {{ $importeTotal }};
 
     function updateMilestoneValueConstraints() {
         var type  = $('#milestoneValueType').val();

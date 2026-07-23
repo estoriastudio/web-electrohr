@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /* Notificaciones */
 use App\Services\NotificationService;
@@ -98,6 +99,12 @@ class PurchaseOrderMilestoneController extends Controller
                 ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
         }
 
+        $this->ensureMilestoneValueIsWithinOrderTotal(
+            $purchaseOrder,
+            (string) $validated['value_type'],
+            (float) $validated['value']
+        );
+
         $validated['covered_amount'] = 0;
         $validated['is_advance']     = $request->boolean('is_advance');
         $validated['type']           = 'regular'; // campo legacy, valor fijo
@@ -159,6 +166,12 @@ class PurchaseOrderMilestoneController extends Controller
             return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
                 ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
         }
+
+        $this->ensureMilestoneValueIsWithinOrderTotal(
+            $purchaseOrder,
+            (string) $validated['value_type'],
+            (float) $validated['value']
+        );
 
         $payments = $purchaseOrderMilestone->payments()->orderBy('id')->get();
         if ($payments->count() > 1) {
@@ -243,6 +256,30 @@ class PurchaseOrderMilestoneController extends Controller
 
         return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
             ->with('success', 'Hito actualizado correctamente.');
+    }
+
+    private function ensureMilestoneValueIsWithinOrderTotal(PurchaseOrder $purchaseOrder, string $valueType, float $value): void
+    {
+        if ($valueType === 'porcentaje' && $value > 100) {
+            throw ValidationException::withMessages([
+                'value' => 'El porcentaje no puede ser mayor a 100%.',
+            ]);
+        }
+
+        if ($valueType !== 'fijo') {
+            return;
+        }
+
+        $orderTotal = (float) $purchaseOrder->total_with_iva;
+        if ($value <= $orderTotal) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'value' => 'El valor fijo no puede superar el total de la OC ('
+                . number_format($orderTotal, 2, '.', ',')
+                . ').',
+        ]);
     }
 
     private function generatePaymentFolio(): string
