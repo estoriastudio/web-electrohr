@@ -907,6 +907,7 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder->load([
             'supplier',
+            'mobileAsset',
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
@@ -966,6 +967,7 @@ class PurchaseOrderController extends Controller
 
         $purchaseOrder->load([
             'supplier',
+            'mobileAsset',
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',

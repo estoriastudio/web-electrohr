@@ -73,6 +73,11 @@ class PurchaseOrder extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function mobileAsset(): BelongsTo
+    {
+        return $this->belongsTo(MobileAsset::class);
+    }
+
     public function projectRelation(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'project_id');

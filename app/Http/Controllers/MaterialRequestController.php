@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\ConceptCategory;
 use App\Models\MaterialRequest;
+use App\Models\MaterialRequestChangeNote;
 use App\Models\MaterialRequestItem;
 use App\Models\MaterialRequestItemProjectWork;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
 use App\Models\Project;
+use App\Models\User;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
@@ -24,7 +28,7 @@ class MaterialRequestController extends Controller
         $status = $request->input('status', '');
         $scope  = $request->input('scope', 'mine'); // 'mine' | 'all'
 
-        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
+        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders'])
             ->orderByDesc('folio');
 
         if ($scope !== 'all') {
@@ -120,9 +124,85 @@ class MaterialRequestController extends Controller
             'requestedBy',
             'items.workQuantities.projectWork',
             'purchaseRequests',
+            'changeNotes.requestedBy',
+            'changeNotes.resolvedBy',
         ]);
 
         return view('material_requests.show', compact('materialRequest'));
+    }
+
+    public function changeRequestsPanel(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+        $requestedBy = $request->input('requested_by', '');
+
+        $baseQuery = MaterialRequestChangeNote::query()
+            ->with([
+                'requestedBy',
+                'materialRequest.project',
+                'materialRequest.projectWorks',
+                'materialRequest.purchaseRequests',
+            ])
+            ->whereNull('resolved_at')
+            ->whereHas('materialRequest', function ($query) {
+                $query->whereNull('archived_at');
+            });
+
+        $query = clone $baseQuery;
+
+        if ($search !== '') {
+            $query->where(function ($noteQuery) use ($search) {
+                $noteQuery->where('text', 'like', "%{$search}%")
+                    ->orWhereHas('materialRequest', function ($materialRequestQuery) use ($search) {
+                        $materialRequestQuery->where('folio', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%")
+                            ->orWhere('supply_category', 'like', "%{$search}%")
+                            ->orWhere('zone', 'like', "%{$search}%")
+                            ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                    });
+            });
+        }
+
+        if ($requestedBy !== '') {
+            $query->where('requested_by', $requestedBy);
+        }
+
+        $changeNotes = $query
+            ->orderBy('created_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        $summaryQuery = clone $baseQuery;
+        $pendingCount = (clone $summaryQuery)->count();
+        $affectedSolmatCount = (clone $summaryQuery)->distinct('material_request_id')->count('material_request_id');
+        $urgentCount = (clone $summaryQuery)
+            ->whereHas('materialRequest', function ($materialRequestQuery) {
+                $materialRequestQuery->whereDate('need_date', '<=', now()->addDays(5)->toDateString());
+            })
+            ->count();
+        $withSolcomCount = (clone $summaryQuery)
+            ->whereHas('materialRequest', function ($materialRequestQuery) {
+                $materialRequestQuery->has('purchaseRequests');
+            })
+            ->count();
+
+        $requesterUsers = User::whereIn('id', MaterialRequestChangeNote::query()
+            ->whereNull('resolved_at')
+            ->select('requested_by')
+            ->distinct())
+            ->orderBy('name')
+            ->get();
+
+        return view('material_request_changes.index', compact(
+            'changeNotes',
+            'search',
+            'requestedBy',
+            'pendingCount',
+            'affectedSolmatCount',
+            'urgentCount',
+            'withSolcomCount',
+            'requesterUsers'
+        ));
     }
 
     public function edit(MaterialRequest $materialRequest)
@@ -284,22 +364,71 @@ class MaterialRequestController extends Controller
         $materialRequest = MaterialRequest::onlyTrashed()->findOrFail($id);
         $folio = $materialRequest->folio;
 
-        $materialRequest->forceDelete();
+        $summary = DB::transaction(function () use ($materialRequest) {
+            $materialRequest->loadMissing([
+                'purchaseRequests' => fn ($query) => $query->withTrashed(),
+                'linkedPurchaseRequests' => fn ($query) => $query->withTrashed(),
+            ]);
+
+            $purchaseRequestIds = $materialRequest->purchaseRequests
+                ->pluck('id')
+                ->merge($materialRequest->linkedPurchaseRequests->pluck('id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            $purchaseOrderIds = collect();
+
+            if ($purchaseRequestIds->isNotEmpty()) {
+                $purchaseOrderIds = PurchaseOrder::withTrashed()
+                    ->whereIn('purchase_request_id', $purchaseRequestIds)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values();
+
+                if ($purchaseOrderIds->isNotEmpty()) {
+                    PurchaseOrder::withTrashed()
+                        ->whereIn('id', $purchaseOrderIds)
+                        ->get()
+                        ->each
+                        ->forceDelete();
+                }
+
+                PurchaseRequest::withTrashed()
+                    ->whereIn('id', $purchaseRequestIds)
+                    ->get()
+                    ->each
+                    ->forceDelete();
+            }
+
+            $materialRequest->forceDelete();
+
+            return [
+                'purchase_request_count' => $purchaseRequestIds->count(),
+                'purchase_order_count' => $purchaseOrderIds->count(),
+            ];
+        });
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
             'model_action' => 'force_destroy',
             'model_id'     => 0,
             'type'         => 'material_request',
-            'data'         => "SOLMAT #{$folio} eliminada permanentemente.",
+            'data'         => "SOLMAT #{$folio} eliminada permanentemente con trazabilidad asociada (" .
+                $summary['purchase_request_count'] . " SOLCOM y " . $summary['purchase_order_count'] . " OC).",
         ]);
 
         return redirect()->route('material_requests.soft_deleted')
-                         ->with('success', "SOLMAT #{$folio} eliminada permanentemente.");
+                         ->with('success', "SOLMAT #{$folio} eliminada permanentemente junto con {$summary['purchase_request_count']} SOLCOM y {$summary['purchase_order_count']} OC vinculadas.");
     }
 
     public function storeItem(Request $request, MaterialRequest $materialRequest)
     {
+        if (!in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
+            abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
+        }
+
         $data = $request->validate([
             'concept_id'  => 'nullable|exists:concepts,id',
             'code'        => 'required|string|max:100',
@@ -308,6 +437,7 @@ class MaterialRequestController extends Controller
             'work_quantities'           => 'required|array|min:1',
             'work_quantities.*.work_id'  => 'required|exists:project_works,id',
             'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'work_quantities.*.is_committed' => 'nullable|boolean',
             'spec_file'   => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
@@ -348,6 +478,7 @@ class MaterialRequestController extends Controller
                     'material_request_item_id' => $item->id,
                     'project_work_id'          => (int) $row['work_id'],
                     'quantity'                 => (float) $row['quantity'],
+                    'is_committed'             => (bool) ($row['is_committed'] ?? false),
                 ]);
             }
 
@@ -365,6 +496,7 @@ class MaterialRequestController extends Controller
                     'work_id'   => $row->project_work_id,
                     'work_name' => $row->projectWork?->name,
                     'quantity'  => (float) $row->quantity,
+                    'is_committed' => $row->is_committed,
                 ]),
                 'file_path'   => $item->file_path,
                 'file_url'    => $item->file_path
@@ -379,6 +511,14 @@ class MaterialRequestController extends Controller
 
     public function destroyItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
+        if (!in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
+            abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
+        }
+
+        if ((int) $item->material_request_id !== (int) $materialRequest->id) {
+            abort(404);
+        }
+
         if ($item->file_path) {
             Storage::disk('s3')->delete($item->file_path);
         }
@@ -399,12 +539,17 @@ class MaterialRequestController extends Controller
             abort(404);
         }
 
+        if (!in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
+            abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
+        }
+
         $item->loadMissing('workQuantities');
 
         $data = $request->validate([
             'work_quantities'            => 'required|array|min:1',
             'work_quantities.*.work_id'  => 'required|exists:project_works,id',
             'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'work_quantities.*.is_committed' => 'nullable|boolean',
         ]);
 
         if ($item->workQuantities->isEmpty()) {
@@ -430,7 +575,10 @@ class MaterialRequestController extends Controller
             foreach ($data['work_quantities'] as $row) {
                 MaterialRequestItemProjectWork::where('material_request_item_id', $item->id)
                     ->where('project_work_id', (int) $row['work_id'])
-                    ->update(['quantity' => (float) $row['quantity']]);
+                    ->update([
+                        'quantity' => (float) $row['quantity'],
+                        'is_committed' => (bool) ($row['is_committed'] ?? false),
+                    ]);
             }
         });
 
@@ -444,6 +592,7 @@ class MaterialRequestController extends Controller
                     'work_id'   => $row->project_work_id,
                     'work_name' => $row->projectWork?->name,
                     'quantity'  => (float) $row->quantity,
+                    'is_committed' => $row->is_committed,
                 ]),
             ]);
         }
@@ -512,7 +661,10 @@ class MaterialRequestController extends Controller
 
     public function sendToWarehouse(MaterialRequest $materialRequest)
     {
-        $materialRequest->update(['status' => 'sent_to_warehouse']);
+        $materialRequest->update([
+            'status' => 'sent_to_warehouse',
+            'sent_to_warehouse_at' => now(),
+        ]);
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
@@ -524,6 +676,60 @@ class MaterialRequestController extends Controller
 
         return redirect()->route('material_requests.show', $materialRequest)
                          ->with('success', "SOLMAT #{$materialRequest->folio} enviada a Almacén correctamente.");
+    }
+
+    public function requestChanges(Request $request, MaterialRequest $materialRequest): RedirectResponse
+    {
+        $data = $request->validate([
+            'change_text' => 'required|string|max:2000',
+        ]);
+
+        MaterialRequestChangeNote::create([
+            'material_request_id' => $materialRequest->id,
+            'requested_by'        => Auth::id(),
+            'text'                => $data['change_text'],
+        ]);
+
+        $materialRequest->update(['status' => 'changes_requested']);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $materialRequest->id,
+            'type'         => 'material_request',
+            'data'         => "SOLMAT #{$materialRequest->folio}: cambios solicitados por " . Auth::user()->name . '.',
+        ]);
+
+        return redirect()->route('material_requests.show', $materialRequest)
+                         ->with('success', 'Solicitud de cambios registrada. La SOLMAT queda en ajustes para el equipo solicitante.');
+    }
+
+    public function resolveChangeNote(MaterialRequest $materialRequest, MaterialRequestChangeNote $changeNote): RedirectResponse
+    {
+        if ((int) $changeNote->material_request_id !== (int) $materialRequest->id) {
+            abort(404);
+        }
+
+        $changeNote->update([
+            'resolved_at' => now(),
+            'resolved_by' => Auth::id(),
+        ]);
+
+        $unresolvedCount = $materialRequest->changeNotes()->whereNull('resolved_at')->count();
+        if ($unresolvedCount === 0) {
+            $materialRequest->update(['status' => 'pending']);
+
+            app(NotificationService::class)->send([
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $materialRequest->id,
+                'type'         => 'material_request',
+                'data'         => "SOLMAT #{$materialRequest->folio}: cambios resueltos, lista para reenviar a Almacén.",
+            ]);
+        }
+
+        return redirect()->route('material_requests.show', $materialRequest)
+                         ->with('success', 'Solicitud de cambio marcada como resuelta.');
     }
 
     public function jsonByFolio(Request $request)

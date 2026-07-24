@@ -70,8 +70,8 @@
 							<tr>
 								<th>Folio OC</th>
 								<th>Fecha OC</th>
-								<th>Proveedor</th>
 								<th>Concepto</th>
+								<th>Proveedor</th>
 								<th>Unidad</th>
 								<th class="text-end">Precio Adjudicado</th>
 							</tr>
@@ -103,17 +103,18 @@
 												<span class="text-muted">—</span>
 											@endif
 										</td>
-										<td>
-											{{ $item->purchaseOrder?->supplier?->rfc_name
-												?? $item->purchaseOrder?->supplier?->commercial_name
-												?? 'Sin proveedor' }}
-										</td>
 										<td class="text-wrap" style="max-width:420px;">
 											@if ($item->concept?->code)
 												<span class="badge bg-light text-dark border me-1">{{ $item->concept->code }}</span>
 											@endif
 											{{ $item->concept?->description ?? $item->description }}
 										</td>
+										<td>
+											{{ $item->purchaseOrder?->supplier?->rfc_name
+												?? $item->purchaseOrder?->supplier?->commercial_name
+												?? 'Sin proveedor' }}
+										</td>
+										
 										<td>{{ $item->unit ?: '—' }}</td>
 										<td class="text-end fw-semibold">${{ number_format((float) $item->unit_price, 2) }}</td>
 									</tr>

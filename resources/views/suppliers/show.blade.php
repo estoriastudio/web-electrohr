@@ -41,6 +41,13 @@
     </div>
 @endif
 
+@if (session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ session('warning') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 {{-- ── Encabezado de la vista ───────────────────────────────────────────── --}}
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>

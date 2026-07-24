@@ -118,14 +118,22 @@
                                 <th>Categoría</th>
                                 <th>F. Solicitud</th>
                                 <th>Ítems</th>
+                                <th>Comprometido</th>
                                 <th>SOLCOM Generadas</th>
-                                <th>Últ. salida</th>
+                                <th>Fecha liberación</th>
                                 <th>Elaborada por</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($materialRequests as $mr)
+                                @php
+                                    $committedPercent = $mr->committed_percent;
+                                    $isFullyCommitted = $mr->total_requested_quantity > 0 && $committedPercent >= 100;
+                                    $commitmentClass = $isFullyCommitted
+                                        ? 'bg-danger-subtle text-danger'
+                                        : ($committedPercent > 0 ? 'bg-warning-subtle text-warning' : 'bg-light text-muted border');
+                                @endphp
                                 <tr>
                                     <td>
                                         <input type="checkbox"
@@ -134,6 +142,7 @@
                                                value="{{ $mr->id }}"
                                                data-project-id="{{ (int) ($mr->project_id ?? 0) }}"
                                                data-project-name="{{ $mr->project?->name ?? 'Sin proyecto' }}"
+                                               @disabled($isFullyCommitted)
                                                title="Seleccionar SOLMAT #{{ $mr->folio }}">
                                     </td>
                                     <td>
@@ -173,6 +182,11 @@
                                         </span>
                                     </td>
                                     <td>
+                                        <span class="badge {{ $commitmentClass }} py-1 px-2 fs-12">
+                                            {{ number_format($committedPercent, 0) }}%
+                                        </span>
+                                    </td>
+                                    <td>
                                         @if (($mr->purchase_requests_count ?? 0) > 0)
                                             <span class="badge bg-info-subtle text-info py-1 px-2 fs-12">
                                                 {{ $mr->purchase_requests_count }} SOLCOM
@@ -182,11 +196,11 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if (!empty($mr->purchase_requests_max_created_at))
-                                            @php $lastOut = \Carbon\Carbon::parse($mr->purchase_requests_max_created_at); @endphp
-                                            <span class="fw-medium fs-12" title="{{ $lastOut->format('d/m/Y H:i') }}">
-                                                {{ $lastOut->diffForHumans() }}
+                                        @if ($mr->sent_to_warehouse_at)
+                                            <span class="fw-medium fs-12 text-nowrap" title="{{ $mr->sent_to_warehouse_at->format('d/m/Y H:i') }}">
+                                                {{ $mr->sent_to_warehouse_at->format('d/m/Y H:i') }}
                                             </span>
+                                            <div><small class="text-muted">{{ $mr->sent_to_warehouse_at->diffForHumans() }}</small></div>
                                         @else
                                             <span class="text-muted fs-12">—</span>
                                         @endif
@@ -198,16 +212,23 @@
                                                class="btn btn-light btn-sm" title="Ver SOLMAT">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            <a href="{{ route('purchase_requests.create_from_solmat', $mr) }}"
-                                               class="btn btn-warning btn-sm" title="Crear SOLCOM">
-                                                <i class="ri-shopping-cart-2-line me-1"></i>Crear SOLCOM
-                                            </a>
+                                            @if ($isFullyCommitted)
+                                                <button type="button" class="btn btn-light btn-sm" disabled
+                                                        title="Todos los conceptos de esta SOLMAT están comprometidos">
+                                                    <i class="ri-lock-line me-1"></i>Sin saldo
+                                                </button>
+                                            @else
+                                                <a href="{{ route('purchase_requests.create_from_solmat', $mr) }}"
+                                                   class="btn btn-warning btn-sm" title="Crear SOLCOM">
+                                                    <i class="ri-shopping-cart-2-line me-1"></i>Crear SOLCOM
+                                                </a>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted py-5">
+                                    <td colspan="12" class="text-center text-muted py-5">
                                         <i class="ri-inbox-2-line fs-24 d-block mb-2 opacity-50"></i>
                                         No hay SOLMAT en esta bandeja.<br>
                                         <small>Cambia de sección o ajusta los filtros para ver más resultados.</small>
@@ -242,7 +263,7 @@
     const form = document.getElementById('formCreateConsolidatedSolcom');
 
     function getCheckedBoxes() {
-        return checkboxes.filter(function (checkbox) { return checkbox.checked; });
+        return checkboxes.filter(function (checkbox) { return !checkbox.disabled && checkbox.checked; });
     }
 
     function updateSelectionState() {
@@ -317,7 +338,7 @@
 
             checkboxes.forEach(function (checkbox) {
                 const projectId = String(checkbox.getAttribute('data-project-id') || '');
-                checkbox.checked = projectId === firstProjectId;
+                checkbox.checked = !checkbox.disabled && projectId === firstProjectId;
             });
 
             const hasDifferentProjects = checkboxes.some(function (checkbox) {

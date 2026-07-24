@@ -27,6 +27,7 @@ class MaterialRequest extends Model
         'concept_category_id',
         'requested_by',
         'status',
+        'sent_to_warehouse_at',
         'observations',
         'deletion_comment',
         'archived_at',
@@ -35,6 +36,7 @@ class MaterialRequest extends Model
     protected $casts = [
         'request_date' => 'date',
         'need_date'    => 'date',
+        'sent_to_warehouse_at' => 'datetime',
         'observations' => 'array',
         'archived_at'  => 'datetime',
     ];
@@ -92,5 +94,33 @@ class MaterialRequest extends Model
             'material_request_id',
             'purchase_request_id'
         );
+    }
+
+    public function changeNotes(): HasMany
+    {
+        return $this->hasMany(MaterialRequestChangeNote::class)->orderBy('created_at');
+    }
+
+    public function getTotalCommittedQuantityAttribute(): float
+    {
+        return (float) $this->items
+            ->flatMap(fn (MaterialRequestItem $item) => $item->workQuantities)
+            ->where('is_committed', true)
+            ->sum('quantity');
+    }
+
+    public function getTotalRequestedQuantityAttribute(): float
+    {
+        return (float) $this->items
+            ->sum(fn (MaterialRequestItem $item) => $item->total_quantity);
+    }
+
+    public function getCommittedPercentAttribute(): float
+    {
+        if ($this->total_requested_quantity <= 0) {
+            return 0;
+        }
+
+        return ($this->total_committed_quantity / $this->total_requested_quantity) * 100;
     }
 }

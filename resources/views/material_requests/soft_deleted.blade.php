@@ -75,4 +75,87 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalForceDestroySolmat" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger-subtle">
+                <h5 class="modal-title text-danger">
+                    <i class="ri-alert-line me-2"></i>Cancelar trazabilidad de SOLMAT
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Estás a punto de eliminar permanentemente la SOLMAT
+                    <strong id="forceDestroySolmatFolio">#—</strong>.
+                </p>
+                <p class="text-muted fs-13 mb-3">
+                    Esta acción cancela todo el proceso de trazabilidad asociado y eliminará también los documentos vinculados.
+                    No se puede deshacer.
+                </p>
+
+                <div class="alert alert-danger py-2 mb-0">
+                    <div class="fw-semibold mb-1">Se eliminará:</div>
+                    <ul class="mb-0 ps-3 fs-13">
+                        <li>La SOLMAT seleccionada.</li>
+                        <li><span id="forceDestroySolcomCount">0</span> SOLCOM vinculada(s).</li>
+                        <li><span id="forceDestroyOcCount">0</span> OC vinculada(s).</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmForceDestroySolmat">
+                    <i class="ri-delete-bin-2-line me-1"></i>Confirmar eliminación total
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    var modalEl = document.getElementById('modalForceDestroySolmat');
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) return;
+
+    var modal = new window.bootstrap.Modal(modalEl);
+    var activeForm = null;
+
+    var folioEl = document.getElementById('forceDestroySolmatFolio');
+    var solcomCountEl = document.getElementById('forceDestroySolcomCount');
+    var ocCountEl = document.getElementById('forceDestroyOcCount');
+    var confirmBtn = document.getElementById('btnConfirmForceDestroySolmat');
+
+    document.querySelectorAll('.js-solmat-force-delete-form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            activeForm = form;
+
+            var folio = form.getAttribute('data-solmat-folio') || '—';
+            var solcomCount = form.getAttribute('data-solcom-count') || '0';
+            var ocCount = form.getAttribute('data-oc-count') || '0';
+
+            if (folioEl) folioEl.textContent = '#' + folio;
+            if (solcomCountEl) solcomCountEl.textContent = solcomCount;
+            if (ocCountEl) ocCountEl.textContent = ocCount;
+
+            modal.show();
+        });
+    });
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+            if (!activeForm) return;
+            activeForm.submit();
+        });
+    }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        activeForm = null;
+    });
+}());
+</script>
+@endpush

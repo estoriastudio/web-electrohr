@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 use App\Exports\SupplierExport;
 use App\Imports\SupplierImport;
@@ -153,6 +154,8 @@ class SupplierController extends Controller
             ],
         ]);
 
+        $portalPassword = $validated['portal_password'] ?? null;
+
         $role = Role::firstOrCreate([
             'name' => 'supplier_portal_access',
             'guard_name' => 'web',
@@ -198,8 +201,32 @@ class SupplierController extends Controller
             'data'         => 'habilitó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
-        return redirect()->route('suppliers.show', $supplier)
+        $redirect = redirect()->route('suppliers.show', $supplier)
             ->with('success', 'Acceso al Portal habilitado correctamente.');
+
+        if ($portalPassword) {
+            if (in_array(config('mail.default'), ['array', 'log'], true)) {
+                $redirect->with('warning', 'La cuenta fue habilitada, pero no fue posible enviar el correo de bienvenida.');
+            } else {
+                try {
+                    Mail::send('mail.supplier_welcome', [
+                        'supplier' => $supplier,
+                        'portalEmail' => $validated['portal_email'],
+                        'portalPassword' => $portalPassword,
+                        'portalUrl' => 'https://electrohr.app',
+                    ], function ($message) use ($validated): void {
+                        $message->to($validated['portal_email'])
+                            ->subject('Bienvenido al Portal de Proveedores ElectroHR');
+                    });
+                } catch (\Throwable $exception) {
+                    report($exception);
+
+                    $redirect->with('warning', 'La cuenta fue habilitada, pero no fue posible enviar el correo de bienvenida.');
+                }
+            }
+        }
+
+        return $redirect;
     }
 
     public function disablePortalAccess(Supplier $supplier): \Illuminate\Http\RedirectResponse

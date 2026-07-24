@@ -149,8 +149,21 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solcom')
+            @hasanyrole('admin|Solcom|Solmat')
             @can('read')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('material_request_changes.*') ? 'active' : '' }}"
+                   href="{{ route('material_request_changes.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-edit-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Cambios SOLMAT</span>
+                    @if(($materialRequestChangesPendingCount ?? 0) > 0)
+                        <span class="badge bg-warning badge-pill">{{ $materialRequestChangesPendingCount }}</span>
+                    @endif
+                </a>
+            </li>
+
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
                    href="{{ route('warehouse.solmat_pile') }}">
@@ -191,7 +204,7 @@
                     <span class="nav-icon">
                         <i class="ri-edit-circle-line"></i>
                     </span>
-                    <span class="nav-text">Solicitudes de Cambio</span>
+                    <span class="nav-text">Cambios SOLCOM</span>
                     @if(($purchaseRequestChangesPendingCount ?? 0) > 0)
                         <span class="badge bg-warning badge-pill">{{ $purchaseRequestChangesPendingCount }}</span>
                     @endif

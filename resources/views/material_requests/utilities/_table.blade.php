@@ -10,11 +10,12 @@
         ? 'archived'
         : (request()->routeIs('material_requests.soft_deleted') ? 'trashed' : 'index');
 
-    $colspan = 10 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
 
     $statusMap = [
         'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
         'sent_to_warehouse' => ['label' => 'Enviado a Almacén', 'class' => 'bg-secondary-subtle text-secondary'],
+        'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
         'linked'            => ['label' => 'Ligado',            'class' => 'bg-info-subtle text-info'],
         'completed'         => ['label' => 'Finalizado',        'class' => 'bg-success-subtle text-success'],
     ];
@@ -33,6 +34,7 @@
                 <th>F. Solicitud</th>
                 <th>Categoría</th>
                 <th>Elaborada por</th>
+                <th>Compromiso</th>
                 <th>Estado</th>
                 @if ($mode === 'archived')
                     <th>Archivada el</th>
@@ -50,6 +52,10 @@
                     $obra = $obra !== '' ? $obra : null;
                     $firstSolcom = $mr->purchaseRequests->first() ?? null;
                     $firstOc     = $firstSolcom?->purchaseOrders->first() ?? null;
+                    $committedPercent = $mr->committed_percent;
+                    $commitmentClass = $committedPercent >= 100
+                        ? 'bg-danger-subtle text-danger'
+                        : ($committedPercent > 0 ? 'bg-warning-subtle text-warning' : 'bg-light text-muted border');
                 @endphp
                 <tr @if ($mode === 'trashed') class="table-danger" @endif>
 
@@ -82,7 +88,11 @@
                                         <li>
                                             <form action="{{ route('material_requests.force_destroy', $mr->id) }}"
                                                   method="POST"
-                                                  onsubmit="return confirm('¿Seguro que deseas ELIMINAR PERMANENTEMENTE la SOLMAT #{{ $mr->folio }}? Esta acción no se puede deshacer.');">
+                                                  class="js-solmat-force-delete-form"
+                                                  data-solmat-folio="{{ $mr->folio }}"
+                                                  data-solmat-id="{{ $mr->id }}"
+                                                  data-solcom-count="{{ $mr->purchaseRequests->count() }}"
+                                                  data-oc-count="{{ $mr->purchaseRequests->flatMap->purchaseOrders->count() }}">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="dropdown-item text-danger fw-semibold">
@@ -225,6 +235,11 @@
                     <td>{{ $mr->request_date?->format('d/m/Y') }}</td>
                     <td>{{ $mr->supply_category }}</td>
                     <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
+                    <td>
+                        <span class="badge {{ $commitmentClass }} py-1 px-2 fs-12">
+                            {{ number_format($committedPercent, 0) }}%
+                        </span>
+                    </td>
                     <td>
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                     </td>

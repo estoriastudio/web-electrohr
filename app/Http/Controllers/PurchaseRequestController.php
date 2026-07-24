@@ -149,6 +149,8 @@ class PurchaseRequestController extends Controller
             'material_request_id' => 'nullable|exists:material_requests,id',
             'material_request_ids' => 'nullable|array|min:1',
             'material_request_ids.*' => 'integer|exists:material_requests,id',
+            'selected_item_keys' => 'nullable|array|min:1',
+            'selected_item_keys.*' => 'required|string|max:255',
             'project_id'          => 'required|exists:projects,id',
             'project_work_id'     => 'nullable|exists:project_works,id',
             'project_work_ids'    => 'nullable|array|min:1',
@@ -177,6 +179,7 @@ class PurchaseRequestController extends Controller
         }
 
         $sourceMaterialRequests = collect();
+        $selectedItemKeys = collect();
 
         $materialRequestIds = collect($data['material_request_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -216,11 +219,30 @@ class PurchaseRequestController extends Controller
                     'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a las SOLMAT origen.',
                 ]);
             }
+
+            $availableItems = $this->aggregateMaterialRequestItems($sourceMaterialRequests, $selectedWorkIds);
+            $selectedItemKeys = collect($data['selected_item_keys'] ?? [])
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($selectedItemKeys->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'selected_item_keys' => 'Debes seleccionar al menos un concepto disponible.',
+                ]);
+            }
+
+            if ($selectedItemKeys->diff($availableItems->pluck('item_key'))->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'selected_item_keys' => 'La selección de conceptos no es válida para las obras elegidas.',
+                ]);
+            }
         }
 
         $data['project_work_id'] = $selectedWorkIds->first();
         unset($data['project_work_ids']);
         unset($data['material_request_ids']);
+        unset($data['selected_item_keys']);
 
         $data['requested_by'] = Auth::id();
         $data['status']       = 'pending';
@@ -229,12 +251,14 @@ class PurchaseRequestController extends Controller
             $data['material_request_id'] = (int) $sourceMaterialRequests->first()->id;
         }
 
-        $pr = DB::transaction(function () use ($data, $selectedWorkIds, $sourceMaterialRequests) {
+        $pr = DB::transaction(function () use ($data, $selectedWorkIds, $sourceMaterialRequests, $selectedItemKeys) {
             $purchaseRequest = PurchaseRequest::create($data);
             $purchaseRequest->projectWorks()->sync($selectedWorkIds->all());
 
             if ($sourceMaterialRequests->isNotEmpty()) {
-                $aggregatedItems = $this->aggregateMaterialRequestItems($sourceMaterialRequests, $selectedWorkIds);
+                $aggregatedItems = $this->aggregateMaterialRequestItems($sourceMaterialRequests, $selectedWorkIds)
+                    ->whereIn('item_key', $selectedItemKeys)
+                    ->values();
 
                 foreach ($aggregatedItems as $item) {
                     if ((float) $item['resolved_quantity'] <= 0) {
@@ -280,11 +304,18 @@ class PurchaseRequestController extends Controller
                     $purchaseRequest->update(['observations' => $firstMaterialRequest->observations]);
                 }
 
-                $sourceMaterialRequests->each(function ($materialRequest) {
+                $contributingMaterialRequestIds = $aggregatedItems
+                    ->flatMap(fn ($item) => $item['source_material_request_ids'])
+                    ->unique()
+                    ->values();
+
+                $sourceMaterialRequests
+                    ->whereIn('id', $contributingMaterialRequestIds)
+                    ->each(function ($materialRequest) {
                     $materialRequest->update(['status' => 'linked']);
                 });
 
-                $purchaseRequest->materialRequests()->sync($sourceMaterialRequests->pluck('id')->all());
+                $purchaseRequest->materialRequests()->sync($contributingMaterialRequestIds->all());
             }
 
             return $purchaseRequest;
@@ -710,10 +741,9 @@ class PurchaseRequestController extends Controller
         $search  = $request->input('search', '');
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
 
-        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items'])
+        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities'])
             ->withCount('purchaseRequests')
-            ->withMax('purchaseRequests', 'created_at')
-            ->orderByDesc('folio');
+            ->withMax('purchaseRequests', 'created_at');
 
         if ($section === 'entrada') {
             $query->where('status', 'sent_to_warehouse');
@@ -730,6 +760,10 @@ class PurchaseRequestController extends Controller
                   ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
+
+          // Prioridad operativa: atender primero las SOLMAT liberadas antes a Almacen.
+          $query->orderByRaw('COALESCE(sent_to_warehouse_at, request_date, created_at) asc')
+              ->orderBy('folio');
 
         $materialRequests = $query->paginate(20)->withQueryString();
 
@@ -767,6 +801,20 @@ class PurchaseRequestController extends Controller
 
     private function renderCreateFromSolmatView(Collection $sourceMaterialRequests)
     {
+        $sourceMaterialRequests = $sourceMaterialRequests->filter(function ($materialRequest) {
+            $allWorkIds = $materialRequest->projectWorks->pluck('id')->map(fn ($id) => (int) $id);
+
+            return $materialRequest->items->contains(function ($item) use ($allWorkIds) {
+                return $this->resolveItemQuantityForWorks($item, $allWorkIds) > 0;
+            });
+        })->values();
+
+        if ($sourceMaterialRequests->isEmpty()) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Las SOLMAT seleccionadas no tienen conceptos disponibles para crear una SOLCOM.',
+            ]);
+        }
+
         $materialRequest = $sourceMaterialRequests->first();
 
         $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
@@ -783,6 +831,12 @@ class PurchaseRequestController extends Controller
             $sourceMaterialRequests,
             $availableProjectWorks->pluck('id')->map(fn ($id) => (int) $id)
         )->values();
+
+        if ($previewItems->isEmpty()) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Las SOLMAT seleccionadas no tienen conceptos disponibles para crear una SOLCOM.',
+            ]);
+        }
 
         $defaultSelectedWorks = $availableProjectWorks
             ->pluck('id')
@@ -1095,18 +1149,25 @@ class PurchaseRequestController extends Controller
     private function resolveItemQuantityForWorks($materialRequestItem, $selectedWorkIds): float
     {
         if ($materialRequestItem->relationLoaded('workQuantities') && $materialRequestItem->workQuantities->isNotEmpty()) {
-            $selected = $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
-                return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
-            });
-
-            if ($selected->isNotEmpty()) {
-                return (float) $selected->sum('quantity');
-            }
-
-            return (float) $materialRequestItem->workQuantities->sum('quantity');
+            return (float) $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
+                return $selectedWorkIds->contains((int) $workQuantity->project_work_id)
+                    && !$workQuantity->is_committed;
+            })->sum('quantity');
         }
 
         return (float) $materialRequestItem->quantity;
+    }
+
+    private function resolveCommittedItemQuantityForWorks($materialRequestItem, $selectedWorkIds): float
+    {
+        if (!$materialRequestItem->relationLoaded('workQuantities') || $materialRequestItem->workQuantities->isEmpty()) {
+            return 0;
+        }
+
+        return (float) $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
+            return $selectedWorkIds->contains((int) $workQuantity->project_work_id)
+                && $workQuantity->is_committed;
+        })->sum('quantity');
     }
 
     private function loadSourceMaterialRequestsByIds($ids): Collection
@@ -1172,6 +1233,11 @@ class PurchaseRequestController extends Controller
         foreach ($sourceMaterialRequests as $materialRequest) {
             foreach ($materialRequest->items as $item) {
                 $resolvedQuantity = $this->resolveItemQuantityForWorks($item, $selectedWorkIds);
+                $committedQuantity = $this->resolveCommittedItemQuantityForWorks($item, $selectedWorkIds);
+
+                if ($resolvedQuantity <= 0 && $committedQuantity <= 0) {
+                    continue;
+                }
 
                 $itemKey = $item->concept_id
                     ? 'concept:' . (int) $item->concept_id
@@ -1184,24 +1250,38 @@ class PurchaseRequestController extends Controller
                         'description' => $item->description,
                         'unit' => $item->unit,
                         'resolved_quantity' => 0,
+                        'committed_quantity' => 0,
                         'file_path' => $item->file_path,
                         'work_quantities' => [],
+                        'committed_work_quantities' => [],
                         'source_folios' => [],
+                        'source_material_request_ids' => [],
                     ];
                 }
 
                 $aggregatedItems[$itemKey]['resolved_quantity'] += (float) $resolvedQuantity;
+                $aggregatedItems[$itemKey]['committed_quantity'] += (float) $committedQuantity;
                 if (empty($aggregatedItems[$itemKey]['file_path']) && !empty($item->file_path)) {
                     $aggregatedItems[$itemKey]['file_path'] = $item->file_path;
                 }
 
                 $aggregatedItems[$itemKey]['source_folios'][(int) $materialRequest->id] = (int) $materialRequest->folio;
+                $aggregatedItems[$itemKey]['source_material_request_ids'][(int) $materialRequest->id] = (int) $materialRequest->id;
 
                 if ($item->relationLoaded('workQuantities') && $item->workQuantities->isNotEmpty()) {
                     foreach ($item->workQuantities as $workQuantity) {
                         $workId = (int) $workQuantity->project_work_id;
 
                         if ($selectedWorkIds->isNotEmpty() && !$selectedWorkIds->contains($workId)) {
+                            continue;
+                        }
+
+                        if ($workQuantity->is_committed) {
+                            if (!isset($aggregatedItems[$itemKey]['committed_work_quantities'][$workId])) {
+                                $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] = 0;
+                            }
+
+                            $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] += (float) $workQuantity->quantity;
                             continue;
                         }
 
@@ -1224,11 +1304,23 @@ class PurchaseRequestController extends Controller
         }
 
         return collect($aggregatedItems)
-            ->map(function ($item) {
+            ->filter(fn ($item) => (float) $item['resolved_quantity'] > 0)
+            ->map(function ($item, $itemKey) {
                 ksort($item['work_quantities']);
+                ksort($item['committed_work_quantities']);
                 sort($item['source_folios']);
+                $item['source_material_request_ids'] = array_values($item['source_material_request_ids']);
+                $item['item_key'] = $itemKey;
 
                 $item['work_quantities'] = collect($item['work_quantities'])
+                    ->map(fn ($quantity, $workId) => [
+                        'work_id' => (string) $workId,
+                        'quantity' => (float) $quantity,
+                    ])
+                    ->values()
+                    ->all();
+
+                $item['committed_work_quantities'] = collect($item['committed_work_quantities'])
                     ->map(fn ($quantity, $workId) => [
                         'work_id' => (string) $workId,
                         'quantity' => (float) $quantity,

@@ -15,6 +15,12 @@ class MaterialRequestItemProjectWork extends Model
         'material_request_item_id',
         'project_work_id',
         'quantity',
+        'is_committed',
+    ];
+
+    protected $casts = [
+        'quantity' => 'decimal:2',
+        'is_committed' => 'boolean',
     ];
 
     public function materialRequestItem(): BelongsTo

@@ -30,10 +30,12 @@
     $statusMap = [
         'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
         'sent_to_warehouse' => ['label' => 'Enviado a Almacén', 'class' => 'bg-secondary-subtle text-secondary'],
+        'changes_requested' => ['label' => 'Cambios Solicitados','class' => 'bg-danger-subtle text-danger'],
         'linked'            => ['label' => 'Ligado',            'class' => 'bg-info-subtle text-info'],
         'completed'         => ['label' => 'Finalizado',        'class' => 'bg-success-subtle text-success'],
     ];
     $s = $statusMap[$materialRequest->status] ?? ['label' => $materialRequest->status, 'class' => 'bg-secondary-subtle text-secondary'];
+    $canEditSolmatContent = in_array($materialRequest->status, ['pending', 'changes_requested'], true);
 @endphp
 
 {{-- ── Header ── --}}
@@ -53,6 +55,15 @@
                         @endif
                         <div class="d-flex gap-2 flex-wrap mt-2">
                             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                            @if ($canEditSolmatContent)
+                                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">
+                                    <i class="ri-lock-unlock-line me-1"></i>Edición habilitada
+                                </span>
+                            @else
+                                <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">
+                                    <i class="ri-lock-line me-1"></i>Edición bloqueada
+                                </span>
+                            @endif
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">
                                 <i class="ri-calendar-event-line me-1"></i>
                                 Solicitud: {{ $materialRequest->request_date?->format('d/m/Y') }}
@@ -74,10 +85,12 @@
                         </a>
                         
                         @hasanyrole('admin|Solmat')
+                        @if ($canEditSolmatContent)
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
+                        @endif
                         @if ($materialRequest->status === 'pending')
                         <form action="{{ route('material_requests.send_to_warehouse', $materialRequest) }}"
                               method="POST" onsubmit="return confirm('¿Enviar SOLMAT #{{ $materialRequest->folio }} a Almacén?')">
@@ -88,6 +101,16 @@
                         </form>
                         @endif
                         @endhasanyrole
+
+                        @hasanyrole('admin|Solcom|Solmat')
+                        @if ($materialRequest->status === 'sent_to_warehouse')
+                        <button type="button" class="btn btn-warning btn-sm"
+                                data-bs-toggle="modal" data-bs-target="#modalRequestChangesSolmat">
+                            <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
+                        </button>
+                        @endif
+                        @endhasanyrole
+
                         <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
@@ -100,18 +123,18 @@
 
 {{-- ── Datos Generales ── --}}
 <div class="row mb-3">
-    <div class="col-md-8">
+    <div class="col-md-12">
         <div class="card h-100">
             <div class="card-header border-bottom">
                 <h5 class="card-title mb-0"><i class="ri-information-line me-2 text-primary"></i>Datos Generales</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Proyecto</p>
                         <p class="fw-semibold mb-0">{{ $materialRequest->project?->name ?? '—' }}</p>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Obras</p>
                         <div class="d-flex flex-wrap gap-1">
                             @forelse ($materialRequest->projectWorks as $pw)
@@ -121,21 +144,21 @@
                             @endforelse
                         </div>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Ubicación</p>
                         <p class="fw-semibold mb-0">{{ $materialRequest->zone }}</p>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Dirección de Entrega</p>
                         <p class="fw-semibold mb-0">{{ $materialRequest->delivery_address }}</p>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Categoría de Suministros</p>
                         <p class="fw-semibold mb-0">
                             {{ $materialRequest->conceptCategory?->name ?? $materialRequest->supply_category ?? '—' }}
                         </p>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <p class="text-muted fs-12 mb-1">Solicitud Elaborada Por</p>
                         <p class="fw-semibold mb-0">{{ $materialRequest->requestedBy?->name ?? '—' }}</p>
                     </div>
@@ -144,7 +167,7 @@
         </div>
     </div>
 
-    {{-- SOLCOMs vinculadas --}}
+    {{-- SOLCOMs vinculadas 
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header border-bottom">
@@ -164,6 +187,7 @@
             </div>
         </div>
     </div>
+    --}}
 </div>
 
 {{-- ── Conceptos ── --}}
@@ -197,6 +221,7 @@
                                         'work_id' => $workQuantity->project_work_id,
                                         'work_name' => $workQuantity->projectWork?->name,
                                         'quantity' => number_format((float) $workQuantity->quantity, 2, '.', ''),
+                                        'is_committed' => $workQuantity->is_committed,
                                     ])->values();
                                 @endphp
                                 <tr class="solmat-item-row" data-item-id="{{ $item->id }}">
@@ -214,6 +239,10 @@
                                                 <i class="ri-information-line fs-13 text-primary"></i>
                                             </span>
                                         </button>
+                                        <span class="badge bg-warning-subtle text-warning ms-1 js-solmat-commitment-badge {{ $item->workQuantities->where('is_committed', true)->isEmpty() ? 'd-none' : '' }}"
+                                              title="Incluye cantidades comprometidas">
+                                                <i class="ri-lock-line"></i>
+                                        </span>
                                     </td>
                                     <td>
                                         <div class="d-flex flex-wrap gap-1">
@@ -231,6 +260,7 @@
                                     </td>
                                     <td>
                                         @hasanyrole('admin|Solmat')
+                                        @if ($canEditSolmatContent)
                                         <div class="d-flex gap-1">
                                             @if ($item->workQuantities->isNotEmpty())
                                                 <button type="button"
@@ -249,11 +279,13 @@
                                                 </button>
                                             </form>
                                         </div>
+                                        @endif
                                         @endhasanyrole
                                     </td>
                                 </tr>
                                 @if ($item->workQuantities->isNotEmpty())
                                     @hasanyrole('admin|Solmat')
+                                    @if ($canEditSolmatContent)
                                         <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
                                             <td colspan="7" class="py-2">
                                                 <form action="{{ route('material_requests.items.update', [$materialRequest, $item]) }}"
@@ -280,6 +312,20 @@
                                                                 <input type="hidden"
                                                                        name="work_quantities[{{ $loop->index }}][work_id]"
                                                                        value="{{ $workQuantity->project_work_id }}">
+                                                                 <input type="hidden"
+                                                                     name="work_quantities[{{ $loop->index }}][is_committed]"
+                                                                     value="0">
+                                                                 <div class="form-check mt-1">
+                                                                     <input type="checkbox"
+                                                                         class="form-check-input"
+                                                                         id="solmat_commitment_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
+                                                                         name="work_quantities[{{ $loop->index }}][is_committed]"
+                                                                         value="1"
+                                                                         @checked($workQuantity->is_committed)>
+                                                                     <label class="form-check-label fs-12" for="solmat_commitment_{{ $item->id }}_{{ $workQuantity->project_work_id }}">
+                                                                      Comprometido
+                                                                     </label>
+                                                                 </div>
                                                             </div>
                                                         @endforeach
                                                     </div>
@@ -294,6 +340,7 @@
                                                 </form>
                                             </td>
                                         </tr>
+                                    @endif
                                     @endhasanyrole
                                 @endif
                             @empty
@@ -310,6 +357,7 @@
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
             @hasanyrole('admin|Solmat')
+            @if ($canEditSolmatContent)
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
                 {{-- Estado A: Búsqueda --}}
@@ -355,7 +403,7 @@
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label fw-medium mb-0">Cantidad por obra <span class="text-danger">*</span></label>
+                            <label class="form-label fw-medium mb-0">Cantidad y compromiso por obra <span class="text-danger">*</span></label>
                             <span class="badge bg-primary-subtle text-primary" id="solmat_total_preview">Total: 0.00</span>
                         </div>
                         <div id="solmat_works_quantities" class="vstack gap-2"></div>
@@ -382,11 +430,73 @@
                 </div>
 
             </div>
+            @endif
             @endhasanyrole
 
         </div>
     </div>
 </div>
+
+{{-- ── Solicitudes de Cambios ── --}}
+@if ($materialRequest->changeNotes->count() > 0)
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-warning">
+                    <i class="ri-edit-circle-line me-2"></i>Solicitudes de Cambios
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                        {{ $materialRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
+                    </span>
+                    <a href="{{ route('material_request_changes.index', ['search' => $materialRequest->folio]) }}"
+                       class="btn btn-sm btn-light">
+                        <i class="ri-external-link-line me-1"></i>Ver panel
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                @foreach ($materialRequest->changeNotes as $note)
+                <div class="d-flex gap-3 mb-3 {{ $note->isResolved() ? 'opacity-50' : '' }}">
+                    <div class="avatar-sm shrink-0">
+                        <span class="avatar-title {{ $note->isResolved() ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} rounded-circle fs-14 fw-bold">
+                            {{ strtoupper(substr($note->requestedBy?->name ?? '?', 0, 1)) }}
+                        </span>
+                    </div>
+                    <div class="grow">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <span class="fw-semibold fs-13">{{ $note->requestedBy?->name ?? 'Usuario' }}</span>
+                                <span class="text-muted fs-12 ms-2">{{ $note->created_at->format('d/m/Y H:i') }}</span>
+                            </div>
+                            @if ($note->isResolved())
+                                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">
+                                    <i class="ri-check-line me-1"></i>Resuelto por {{ $note->resolvedBy?->name }}
+                                    · {{ $note->resolved_at->format('d/m/Y H:i') }}
+                                </span>
+                            @else
+                                @hasanyrole('admin|Solcom|Solmat')
+                                <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
+                                      method="POST">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="ri-check-line me-1"></i>Marcar como resuelta
+                                    </button>
+                                </form>
+                                @endhasanyrole
+                            @endif
+                        </div>
+                        <p class="mb-0 text-body">{{ $note->text }}</p>
+                    </div>
+                </div>
+                @if (! $loop->last)<hr class="my-2">@endif
+                @endforeach
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ── Observaciones ── --}}
 <div class="row">
@@ -474,6 +584,43 @@
     </div>
 </div>
 
+{{-- ── Modal: Solicitar Cambios ── --}}
+@hasanyrole('admin|Solcom|Solmat')
+<div class="modal fade" id="modalRequestChangesSolmat" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('material_requests.request_changes', $materialRequest) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ri-edit-circle-line me-2 text-warning"></i>Solicitar Cambios en SOLMAT #{{ $materialRequest->folio }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Describe los cambios que necesitas en esta SOLMAT. El documento quedará marcado con ajustes
+                        pendientes para corrección antes de generar SOLCOM.
+                    </p>
+                    <label class="form-label fw-medium">Descripción del cambio requerido <span class="text-danger">*</span></label>
+                    <textarea name="change_text" rows="4"
+                              class="form-control"
+                              placeholder="Ej. Ajustar cantidades por obra, validar código de concepto…"
+                              required maxlength="2000"></textarea>
+                    <div class="form-text text-end"><span id="solmatChangeTextCount">0</span>/2000 caracteres</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endhasanyrole
+
 @endsection
 
 @push('scripts')
@@ -499,6 +646,16 @@
 .solmat-breakdown-name { max-width: 200px; }
 </style>
 <script>
+    (function () {
+        var textarea  = document.querySelector('#modalRequestChangesSolmat textarea[name="change_text"]');
+        var counter   = document.getElementById('solmatChangeTextCount');
+        if (textarea && counter) {
+            textarea.addEventListener('input', function () {
+                counter.textContent = this.value.length;
+            });
+        }
+    }());
+
     // Configuración inyectada desde el servidor para material_request.js
     window.solmatConfig = {
         storeUrl: '{{ route('material_requests.items.store', $materialRequest) }}',

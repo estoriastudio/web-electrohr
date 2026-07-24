@@ -26,6 +26,10 @@
         ?? $availableProjectWorks->pluck('id')->map(fn ($id) => (string) $id)->all();
 
     $selectedWorks = old('project_work_ids', $defaultSelectedWorks);
+    $selectedItemKeys = array_map('strval', (array) old(
+        'selected_item_keys',
+        $previewItems->pluck('item_key')->all()
+    ));
 
     $pageTitle = $isMultiSource
         ? 'Crear SOLCOM consolidada (' . $sourceMaterialRequests->count() . ' SOLMAT)'
@@ -259,19 +263,25 @@
                             <hr>
                             <h6 class="fw-semibold mb-3">
                                 <i class="ri-list-check me-1 text-primary"></i>
-                                Conceptos a importar
+                                Conceptos disponibles para importar
                                 <span class="badge bg-primary-subtle text-primary ms-1">{{ $previewItems->count() }}</span>
+                                <span class="badge bg-light text-dark border ms-1" id="selected_items_badge">{{ count($selectedItemKeys) }} seleccionados</span>
                             </h6>
+                            <div id="selected_items_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                Debes seleccionar al menos un concepto disponible para crear la SOLCOM.
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
                                     <thead class="bg-light-subtle">
                                         <tr>
+                                            <th style="width:42px;"></th>
                                             <th>#</th>
                                             <th>Código</th>
                                             <th>Descripción</th>
                                             <th>Origen</th>
                                             <th>Unidad</th>
-                                            <th class="text-end">Cantidad SOLMAT</th>
+                                            <th class="text-end">Comprometido</th>
+                                            <th class="text-end">Cantidad disponible</th>
                                             <th class="text-end">Cantidad SOLCOM</th>
                                         </tr>
                                     </thead>
@@ -282,10 +292,28 @@
                                                     'work_id' => (string) ($row['work_id'] ?? ''),
                                                     'quantity' => (float) ($row['quantity'] ?? 0),
                                                 ])->values();
+                                                $itemCommittedWorkQuantities = collect($item['committed_work_quantities'] ?? [])->map(fn ($row) => [
+                                                    'work_id' => (string) ($row['work_id'] ?? ''),
+                                                    'quantity' => (float) ($row['quantity'] ?? 0),
+                                                ])->values();
                                                 $sourceFolios = collect($item['source_folios'] ?? [])->values();
                                                 $resolvedQuantity = (float) ($item['resolved_quantity'] ?? 0);
+                                                $committedQuantity = (float) ($item['committed_quantity'] ?? 0);
+                                                $itemKey = (string) ($item['item_key'] ?? 'item:' . $i);
+                                                $isSelected = in_array($itemKey, $selectedItemKeys, true);
                                             @endphp
-                                            <tr class="js-solcom-item-row" data-item-total="{{ $resolvedQuantity }}" data-item-work-quantities='@json($itemWorkQuantities)'>
+                                            <tr class="js-solcom-item-row"
+                                                data-item-total="{{ $resolvedQuantity }}"
+                                                data-item-work-quantities='@json($itemWorkQuantities)'
+                                                data-item-committed-work-quantities='@json($itemCommittedWorkQuantities)'>
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input js-solcom-item"
+                                                           name="selected_item_keys[]"
+                                                           value="{{ $itemKey }}"
+                                                           id="solcom_item_{{ $i }}"
+                                                           @checked($isSelected)>
+                                                </td>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
                                                 <td><span class="fw-semibold">{{ $item['code'] ?? '—' }}</span></td>
                                                 <td>{{ $item['description'] ?? '—' }}</td>
@@ -299,13 +327,20 @@
                                                     @endif
                                                 </td>
                                                 <td>{{ $item['unit'] ?? '—' }}</td>
+                                                <td class="text-end js-solmat-committed-qty">
+                                                    @if ($committedQuantity > 0)
+                                                        <span class="badge bg-warning-subtle text-warning">{{ number_format($committedQuantity, 2, '.', '') }}</span>
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
                                                 <td class="text-end js-solmat-total-qty">{{ number_format($resolvedQuantity, 2, '.', '') }}</td>
                                                 <td class="text-end fw-semibold text-primary js-solcom-total-qty">0.00</td>
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="7" class="text-center text-muted py-3">
-                                                    Esta SOLMAT no tiene conceptos registrados.
+                                                <td colspan="9" class="text-center text-muted py-3">
+                                                    No hay conceptos disponibles para las obras seleccionadas.
                                                 </td>
                                             </tr>
                                         @endforelse
@@ -342,6 +377,9 @@
     const btnClearAllWorks = document.getElementById('btn_clear_all_works');
     const form = document.getElementById('formCreateSolcom');
     const itemRows = Array.from(document.querySelectorAll('.js-solcom-item-row'));
+    const itemCheckboxes = Array.from(document.querySelectorAll('.js-solcom-item'));
+    const selectedItemsBadge = document.getElementById('selected_items_badge');
+    const selectedItemsError = document.getElementById('selected_items_error');
 
     function selectedWorkIds() {
         return workCheckboxes.filter(function (cb) { return cb.checked; }).map(function (cb) {
@@ -358,17 +396,28 @@
 
         itemRows.forEach(function (row) {
             const totalCell = row.querySelector('.js-solcom-total-qty');
+            const committedCell = row.querySelector('.js-solmat-committed-qty');
             const total = parseFloat(row.getAttribute('data-item-total') || '0');
             let selectedTotal = 0;
+            let selectedCommitted = 0;
 
             try {
                 const workQuantities = JSON.parse(row.getAttribute('data-item-work-quantities') || '[]');
                 if (Array.isArray(workQuantities) && workQuantities.length > 0) {
                     selectedTotal = workQuantities.reduce(function (acc, entry) {
-                        return selectedIds.includes(String(entry.work_id)) ? acc + parseFloat(entry.quantity || 0) : acc;
+                        return selectedIds.includes(String(entry.work_id))
+                            ? acc + parseFloat(entry.quantity || 0)
+                            : acc;
+                    }, 0);
+                    const committedWorkQuantities = JSON.parse(row.getAttribute('data-item-committed-work-quantities') || '[]');
+                    selectedCommitted = committedWorkQuantities.reduce(function (acc, entry) {
+                        return selectedIds.includes(String(entry.work_id))
+                            ? acc + parseFloat(entry.quantity || 0)
+                            : acc;
                     }, 0);
                     if (selectedIds.length === 0) {
                         selectedTotal = 0;
+                        selectedCommitted = 0;
                     }
                 } else {
                     selectedTotal = total;
@@ -380,7 +429,38 @@
             if (totalCell) {
                 totalCell.textContent = formatQty(selectedTotal);
             }
+            if (committedCell) {
+                committedCell.innerHTML = selectedCommitted > 0
+                    ? '<span class="badge bg-warning-subtle text-warning">' + formatQty(selectedCommitted) + '</span>'
+                    : '<span class="text-muted">—</span>';
+            }
+
+            const itemCheckbox = row.querySelector('.js-solcom-item');
+            if (itemCheckbox) {
+                itemCheckbox.disabled = selectedTotal <= 0;
+                if (itemCheckbox.disabled) {
+                    itemCheckbox.checked = false;
+                }
+                row.classList.toggle('opacity-50', itemCheckbox.disabled);
+            }
         });
+
+        updateSelectedItems();
+    }
+
+    function updateSelectedItems() {
+        const selectedCount = itemCheckboxes.filter(function (checkbox) {
+            return !checkbox.disabled && checkbox.checked;
+        }).length;
+
+        if (selectedItemsBadge) {
+            selectedItemsBadge.textContent = String(selectedCount) + ' seleccionados';
+        }
+        if (selectedItemsError) {
+            selectedItemsError.classList.toggle('d-none', selectedCount > 0);
+        }
+
+        return selectedCount;
     }
 
     function updateSelectedWorks() {
@@ -399,6 +479,10 @@
         cb.addEventListener('change', updateSelectedWorks);
     });
 
+    itemCheckboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateSelectedItems);
+    });
+
     if (btnSelectAllWorks) {
         btnSelectAllWorks.addEventListener('click', function () {
             workCheckboxes.forEach(function (cb) { cb.checked = true; });
@@ -415,13 +499,17 @@
 
     if (form) {
         form.addEventListener('submit', function (event) {
-            if (updateSelectedWorks() > 0) {
+            if (updateSelectedWorks() > 0 && updateSelectedItems() > 0) {
                 return;
             }
             event.preventDefault();
             if (selectedWorksError) {
                 selectedWorksError.classList.remove('d-none');
                 selectedWorksError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (updateSelectedItems() === 0 && selectedItemsError) {
+                selectedItemsError.classList.remove('d-none');
+                selectedItemsError.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
     }

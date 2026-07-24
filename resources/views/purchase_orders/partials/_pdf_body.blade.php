@@ -64,7 +64,11 @@
         <!-- Columna izquierda: lugar de entrega + proyecto + factura + obra -->
         <td width="55%" style="padding: 8px; vertical-align: top; border: 1px solid #999;">
             <strong>Lugar de entrega o ejecución:</strong><br>
-            {{ $lugarEntrega }}<br><br>
+            {{ $lugarEntrega }}
+            @if ($po->type === 'mantenimiento' && $po->mobileAsset)
+                <br><strong>Bien Móvil:</strong> {{ $po->mobileAsset->name }}{{ $po->mobileAsset->folio ? ' — ' . $po->mobileAsset->folio : '' }}
+            @endif
+            <br><br>
             <strong>Proyecto:</strong> {{ $proyecto }}<br><br>
             <strong>Lugar de entrega de factura (Original y 3 ejemplares)</strong><br>
             KUKULKAN KM 9, Piso 1 - Of. 2, Zona Hotelera, Cancún, Q. Roo<br><br>

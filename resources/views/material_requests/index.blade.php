@@ -102,6 +102,7 @@
                             <option value="">Todos los estados</option>
                             <option value="pending"   {{ $status === 'pending'   ? 'selected' : '' }}>Pendiente</option>
                             <option value="sent_to_warehouse" {{ $status === 'sent_to_warehouse' ? 'selected' : '' }}>Enviado a Almacén</option>
+                            <option value="changes_requested" {{ $status === 'changes_requested' ? 'selected' : '' }}>Cambios Solicitados</option>
                             <option value="linked"    {{ $status === 'linked'    ? 'selected' : '' }}>Ligado</option>
                             <option value="completed" {{ $status === 'completed' ? 'selected' : '' }}>Finalizado</option>
                         </select>

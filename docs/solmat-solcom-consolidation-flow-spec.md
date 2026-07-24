@@ -88,6 +88,15 @@ Campos principales:
 - Debe existir al menos una obra seleccionada para crear SOLCOM.
 - La consolidacion suma cantidades por concepto y por obras elegidas.
 
+## Compromisos por obra
+
+- Cada cantidad de un concepto por obra puede marcarse como comprometida desde una SOLMAT editable (`pending` o `changes_requested`).
+- La marca compromete el 100% de la cantidad de esa combinacion concepto-obra; no modifica la cantidad original de la SOLMAT.
+- El porcentaje mostrado en los listados se calcula por cantidad: cantidad comprometida entre cantidad total solicitada.
+- Al crear una SOLCOM, solo se heredan cantidades de obras seleccionadas que no esten comprometidas.
+- Los conceptos con saldo disponible se muestran preseleccionados y el usuario puede desmarcarlos antes de crear la SOLCOM.
+- Una SOLMAT sin saldo disponible no puede ser origen de una SOLCOM individual ni consolidada. El servidor tambien excluye esas fuentes aunque se intente manipular la solicitud.
+
 ## Impacto tecnico
 Archivos principales involucrados:
 - Vista de pila SOLMAT con seleccion multiple.

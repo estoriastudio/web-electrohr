@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Models\MaterialRequestChangeNote;
 use App\Models\PurchaseRequestChangeNote;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -34,12 +35,19 @@ class AppServiceProvider extends ServiceProvider
                     $query->whereNull('archived_at');
                 })
                 ->count();
+            $materialRequestChangesPendingCount = MaterialRequestChangeNote::query()
+                ->whereNull('resolved_at')
+                ->whereHas('materialRequest', function ($query) {
+                    $query->whereNull('archived_at');
+                })
+                ->count();
 
             $view->with(compact(
                 'activeProjectsCount',
                 'paymentsToAuthorizeCount',
                 'paymentsToPayCount',
                 'purchaseRequestChangesPendingCount',
+                'materialRequestChangesPendingCount',
             ));
         });
 

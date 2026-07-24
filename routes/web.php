@@ -493,6 +493,20 @@ Route::namespace('App\Http\Controllers')->group(function () {
                  ->name('material_requests.send_to_warehouse');
         });
 
+             Route::middleware('role:admin|Solmat|Solcom')->group(function () {
+                 Route::get('/solicitudes-material/solicitudes-cambio',
+                      [MaterialRequestController::class, 'changeRequestsPanel'])
+                   ->name('material_request_changes.index');
+
+                 Route::post('/solicitudes-material/{materialRequest}/request-changes',
+                       [MaterialRequestController::class, 'requestChanges'])
+                   ->name('material_requests.request_changes');
+
+                 Route::post('/solicitudes-material/{materialRequest}/change-notes/{changeNote}/resolve',
+                       [MaterialRequestController::class, 'resolveChangeNote'])
+                   ->name('material_requests.change_notes.resolve');
+             });
+
         // ── Vales de Material ───────────────────────────────────────────────
         Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
