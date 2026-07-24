@@ -1,11 +1,47 @@
 @extends('layouts.app')
 
-@section('page_title', 'Crear SOLCOM desde SOLMAT #' . $materialRequest->folio)
+@php
+    $isMultiSource = $isMultiSource ?? false;
+    $sourceMaterialRequests = $sourceMaterialRequests ?? collect([$materialRequest]);
+    $availableProjectWorks = $availableProjectWorks ?? $materialRequest->projectWorks;
+    $previewItems = $previewItems ?? $materialRequest->items->map(function ($item) {
+        return [
+            'concept_id' => $item->concept_id,
+            'code' => $item->code,
+            'description' => $item->description,
+            'unit' => $item->unit,
+            'resolved_quantity' => (float) $item->total_quantity,
+            'work_quantities' => $item->workQuantities->map(fn ($row) => [
+                'work_id' => (string) $row->project_work_id,
+                'quantity' => (float) $row->quantity,
+            ])->values()->all(),
+            'source_folios' => [(int) $materialRequest->folio],
+        ];
+    });
+
+    $sourceMaterialRequestIds = $sourceMaterialRequestIds
+        ?? $sourceMaterialRequests->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+    $defaultSelectedWorks = $defaultSelectedWorks
+        ?? $availableProjectWorks->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+    $selectedWorks = old('project_work_ids', $defaultSelectedWorks);
+
+    $pageTitle = $isMultiSource
+        ? 'Crear SOLCOM consolidada (' . $sourceMaterialRequests->count() . ' SOLMAT)'
+        : 'Crear SOLCOM desde SOLMAT #' . $materialRequest->folio;
+@endphp
+
+@section('page_title', $pageTitle)
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
     <li class="breadcrumb-item"><a href="{{ route('warehouse.solmat_pile') }}">Pila SOLMAT</a></li>
-    <li class="breadcrumb-item active">Crear SOLCOM desde SOLMAT #{{ $materialRequest->folio }}</li>
+    @if ($isMultiSource)
+        <li class="breadcrumb-item active">Crear SOLCOM consolidada</li>
+    @else
+        <li class="breadcrumb-item active">Crear SOLCOM desde SOLMAT #{{ $materialRequest->folio }}</li>
+    @endif
 @endsection
 
 @section('content')
@@ -26,24 +62,33 @@
     <i class="ri-links-line fs-20 shrink-0 text-info"></i>
     <div>
         <p class="mb-0 fw-semibold fs-13">
-            Generando SOLCOM a partir de
-            <a href="{{ route('material_requests.show', $materialRequest) }}" class="text-info" target="_blank">
-                SOLMAT #{{ $materialRequest->folio }}
-            </a>
-            — {{ $materialRequest->supply_category }}
+            @if ($isMultiSource)
+                Generando SOLCOM consolidada a partir de {{ $sourceMaterialRequests->count() }} SOLMAT
+            @else
+                Generando SOLCOM a partir de
+                <a href="{{ route('material_requests.show', $materialRequest) }}" class="text-info" target="_blank">
+                    SOLMAT #{{ $materialRequest->folio }}
+                </a>
+                — {{ $materialRequest->supply_category }}
+            @endif
         </p>
         <p class="mb-0 text-muted fs-12">
-            Los {{ $materialRequest->items->count() }} concepto(s) se importarán automáticamente al crear la SOLCOM.
+            Se importarán {{ $previewItems->count() }} concepto(s) en la SOLCOM resultante.
         </p>
+        @if ($isMultiSource)
+            <div class="mt-2 d-flex flex-wrap gap-1">
+                @foreach ($sourceMaterialRequests as $sourceMaterialRequest)
+                    <a href="{{ route('material_requests.show', $sourceMaterialRequest) }}" class="badge bg-info-subtle text-info border" target="_blank">
+                        SOLMAT #{{ $sourceMaterialRequest->folio }}
+                    </a>
+                @endforeach
+            </div>
+        @endif
     </div>
 </div>
 
 <div class="row justify-content-center">
     <div class="col-xl-10">
-        @php
-            $defaultSelectedWorks = $materialRequest->projectWorks->pluck('id')->map(fn($id) => (string) $id)->all();
-            $selectedWorks = old('project_work_ids', $defaultSelectedWorks);
-        @endphp
         <div class="card">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h4 class="card-title mb-0">
@@ -58,7 +103,13 @@
                     @csrf
 
                     {{-- Campos ocultos --}}
-                    <input type="hidden" name="material_request_id" value="{{ $materialRequest->id }}">
+                    @if ($isMultiSource)
+                        @foreach ($sourceMaterialRequestIds as $sourceMaterialRequestId)
+                            <input type="hidden" name="material_request_ids[]" value="{{ $sourceMaterialRequestId }}">
+                        @endforeach
+                    @else
+                        <input type="hidden" name="material_request_id" value="{{ $materialRequest->id }}">
+                    @endif
 
                     <div class="row g-3">
 
@@ -139,7 +190,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @forelse ($materialRequest->projectWorks as $pw)
+                                        @forelse ($availableProjectWorks as $pw)
                                             @php
                                                 $checked = in_array((string) $pw->id, array_map('strval', (array) $selectedWorks), true);
                                             @endphp
@@ -167,7 +218,7 @@
                             @error('project_work_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                             @error('project_work_ids.*') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                             <div class="form-text">
-                                La SOLCOM puede cubrir una o varias obras de esta SOLMAT.
+                                La SOLCOM puede cubrir una o varias obras de las SOLMAT seleccionadas.
                             </div>
                         </div>
 
@@ -209,7 +260,7 @@
                             <h6 class="fw-semibold mb-3">
                                 <i class="ri-list-check me-1 text-primary"></i>
                                 Conceptos a importar
-                                <span class="badge bg-primary-subtle text-primary ms-1">{{ $materialRequest->items->count() }}</span>
+                                <span class="badge bg-primary-subtle text-primary ms-1">{{ $previewItems->count() }}</span>
                             </h6>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
@@ -218,30 +269,42 @@
                                             <th>#</th>
                                             <th>Código</th>
                                             <th>Descripción</th>
+                                            <th>Origen</th>
                                             <th>Unidad</th>
                                             <th class="text-end">Cantidad SOLMAT</th>
                                             <th class="text-end">Cantidad SOLCOM</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @forelse ($materialRequest->items as $i => $item)
+                                        @forelse ($previewItems as $i => $item)
                                             @php
-                                                $itemWorkQuantities = $item->workQuantities->map(fn ($row) => [
-                                                    'work_id' => (string) $row->project_work_id,
-                                                    'quantity' => (float) $row->quantity,
+                                                $itemWorkQuantities = collect($item['work_quantities'] ?? [])->map(fn ($row) => [
+                                                    'work_id' => (string) ($row['work_id'] ?? ''),
+                                                    'quantity' => (float) ($row['quantity'] ?? 0),
                                                 ])->values();
+                                                $sourceFolios = collect($item['source_folios'] ?? [])->values();
+                                                $resolvedQuantity = (float) ($item['resolved_quantity'] ?? 0);
                                             @endphp
-                                            <tr class="js-solcom-item-row" data-item-total="{{ (float) $item->total_quantity }}" data-item-work-quantities='@json($itemWorkQuantities)'>
+                                            <tr class="js-solcom-item-row" data-item-total="{{ $resolvedQuantity }}" data-item-work-quantities='@json($itemWorkQuantities)'>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
-                                                <td><span class="fw-semibold">{{ $item->code }}</span></td>
-                                                <td>{{ $item->description }}</td>
-                                                <td>{{ $item->unit }}</td>
-                                                <td class="text-end js-solmat-total-qty">{{ number_format((float) $item->total_quantity, 2, '.', '') }}</td>
+                                                <td><span class="fw-semibold">{{ $item['code'] ?? '—' }}</span></td>
+                                                <td>{{ $item['description'] ?? '—' }}</td>
+                                                <td>
+                                                    @if ($sourceFolios->isNotEmpty())
+                                                        @foreach ($sourceFolios as $folio)
+                                                            <span class="badge bg-light text-muted border">#{{ $folio }}</span>
+                                                        @endforeach
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
+                                                <td>{{ $item['unit'] ?? '—' }}</td>
+                                                <td class="text-end js-solmat-total-qty">{{ number_format($resolvedQuantity, 2, '.', '') }}</td>
                                                 <td class="text-end fw-semibold text-primary js-solcom-total-qty">0.00</td>
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="6" class="text-center text-muted py-3">
+                                                <td colspan="7" class="text-center text-muted py-3">
                                                     Esta SOLMAT no tiene conceptos registrados.
                                                 </td>
                                             </tr>

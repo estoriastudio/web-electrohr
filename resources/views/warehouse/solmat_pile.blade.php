@@ -28,9 +28,19 @@
                         Solicitudes de Material enviadas a Almacén, listas para generar SOLCOM.
                     </p>
                 </div>
-                <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
-                    <i class="ri-arrow-left-line me-1"></i>Ver todas las SOLMAT
-                </a>
+                <div class="d-flex flex-wrap justify-content-end gap-2">
+                    <button type="submit"
+                            form="formCreateConsolidatedSolcom"
+                            id="btnCreateConsolidatedSolcom"
+                            class="btn btn-warning btn-sm"
+                            disabled>
+                        <i class="ri-stack-line me-1"></i>Crear SOLCOM consolidada
+                        <span class="badge bg-light text-dark ms-1" id="selectedSolmatCount">0</span>
+                    </button>
+                    <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
+                        <i class="ri-arrow-left-line me-1"></i>Ver todas las SOLMAT
+                    </a>
+                </div>
             </div>
 
             {{-- Bandeja + Búsqueda --}}
@@ -86,10 +96,22 @@
             </div>
 
             <div class="card-body p-0">
+                <div id="solmatSelectionProjectError" class="alert alert-danger m-3 py-2 fs-12 d-none">
+                    Solo puedes seleccionar SOLMAT del mismo proyecto para crear una SOLCOM consolidada.
+                </div>
+                <form id="formCreateConsolidatedSolcom"
+                      method="GET"
+                      action="{{ route('purchase_requests.create_from_solmat_multi') }}">
                 <div class="table-responsive">
                     <table class="table align-middle table-hover table-centered mb-0">
                         <thead class="bg-light-subtle">
                             <tr>
+                                <th style="width:44px;">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           id="selectAllSolmat"
+                                           title="Seleccionar todo en esta página">
+                                </th>
                                 <th>Folio</th>
                                 <th>Proyecto / Obras</th>
                                 <th>Ubicación</th>
@@ -105,6 +127,15 @@
                         <tbody>
                             @forelse ($materialRequests as $mr)
                                 <tr>
+                                    <td>
+                                        <input type="checkbox"
+                                               class="form-check-input js-solmat-select"
+                                               name="material_request_ids[]"
+                                               value="{{ $mr->id }}"
+                                               data-project-id="{{ (int) ($mr->project_id ?? 0) }}"
+                                               data-project-name="{{ $mr->project?->name ?? 'Sin proyecto' }}"
+                                               title="Seleccionar SOLMAT #{{ $mr->folio }}">
+                                    </td>
                                     <td>
                                         <a href="{{ route('material_requests.show', $mr) }}"
                                            class="fw-semibold text-primary text-decoration-none">
@@ -176,7 +207,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-5">
+                                    <td colspan="11" class="text-center text-muted py-5">
                                         <i class="ri-inbox-2-line fs-24 d-block mb-2 opacity-50"></i>
                                         No hay SOLMAT en esta bandeja.<br>
                                         <small>Cambia de sección o ajusta los filtros para ver más resultados.</small>
@@ -186,6 +217,7 @@
                         </tbody>
                     </table>
                 </div>
+                </form>
             </div>
 
             @if ($materialRequests->hasPages())
@@ -198,3 +230,132 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const checkboxes = Array.from(document.querySelectorAll('.js-solmat-select'));
+    const selectAll = document.getElementById('selectAllSolmat');
+    const createButton = document.getElementById('btnCreateConsolidatedSolcom');
+    const selectedCount = document.getElementById('selectedSolmatCount');
+    const projectError = document.getElementById('solmatSelectionProjectError');
+    const form = document.getElementById('formCreateConsolidatedSolcom');
+
+    function getCheckedBoxes() {
+        return checkboxes.filter(function (checkbox) { return checkbox.checked; });
+    }
+
+    function updateSelectionState() {
+        const checked = getCheckedBoxes();
+
+        if (selectedCount) {
+            selectedCount.textContent = String(checked.length);
+        }
+
+        if (createButton) {
+            createButton.disabled = checked.length === 0;
+        }
+
+        if (selectAll) {
+            selectAll.checked = checked.length > 0 && checked.length === checkboxes.length;
+            selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+        }
+    }
+
+    function hideProjectError() {
+        if (projectError) {
+            projectError.classList.add('d-none');
+        }
+    }
+
+    function showProjectError() {
+        if (!projectError) {
+            return;
+        }
+
+        projectError.classList.remove('d-none');
+        projectError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function canSelectCheckbox(targetCheckbox) {
+        const checked = getCheckedBoxes();
+        if (checked.length === 0) {
+            return true;
+        }
+
+        const expectedProjectId = String(checked[0].getAttribute('data-project-id') || '');
+        const targetProjectId = String(targetCheckbox.getAttribute('data-project-id') || '');
+
+        return expectedProjectId === targetProjectId;
+    }
+
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            if (checkbox.checked && !canSelectCheckbox(checkbox)) {
+                checkbox.checked = false;
+                showProjectError();
+            } else {
+                hideProjectError();
+            }
+
+            updateSelectionState();
+        });
+    });
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            if (!selectAll.checked) {
+                checkboxes.forEach(function (checkbox) { checkbox.checked = false; });
+                hideProjectError();
+                updateSelectionState();
+                return;
+            }
+
+            const firstProjectId = checkboxes.length > 0
+                ? String(checkboxes[0].getAttribute('data-project-id') || '')
+                : '';
+
+            checkboxes.forEach(function (checkbox) {
+                const projectId = String(checkbox.getAttribute('data-project-id') || '');
+                checkbox.checked = projectId === firstProjectId;
+            });
+
+            const hasDifferentProjects = checkboxes.some(function (checkbox) {
+                return String(checkbox.getAttribute('data-project-id') || '') !== firstProjectId;
+            });
+
+            if (hasDifferentProjects) {
+                showProjectError();
+            } else {
+                hideProjectError();
+            }
+
+            updateSelectionState();
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            const checked = getCheckedBoxes();
+
+            if (checked.length === 0) {
+                event.preventDefault();
+                return;
+            }
+
+            const projectIds = checked
+                .map(function (checkbox) { return String(checkbox.getAttribute('data-project-id') || ''); })
+                .filter(function (value) { return value !== ''; });
+
+            const uniqueProjectIds = Array.from(new Set(projectIds));
+            if (uniqueProjectIds.length > 1) {
+                event.preventDefault();
+                showProjectError();
+            }
+        });
+    }
+
+    updateSelectionState();
+}());
+</script>
+@endpush

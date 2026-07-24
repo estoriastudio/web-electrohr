@@ -64,7 +64,7 @@
                         </div>
 
                         <div class="mt-2">
-                            @include('material_requests.partials._process_map')
+                            @include('layouts.partials._process_map', ['materialRequest' => $materialRequest])
                         </div>
                     </div>
                     <div class="d-flex gap-2">

@@ -186,6 +186,23 @@
             @hasanyrole('admin|Solcom|Orden de compra')
             @can('read')
             <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchase_request_changes.*') ? 'active' : '' }}"
+                   href="{{ route('purchase_request_changes.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-edit-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Solicitudes de Cambio</span>
+                    @if(($purchaseRequestChangesPendingCount ?? 0) > 0)
+                        <span class="badge bg-warning badge-pill">{{ $purchaseRequestChangesPendingCount }}</span>
+                    @endif
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
+            @hasanyrole('admin|Solcom|Orden de compra')
+            @can('read')
+            <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
                    href="{{ route('purchasing.solcom_pile') }}">
                     <span class="nav-icon">
@@ -211,7 +228,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Pagos|Orden de compra')
+            @hasanyrole('admin|Pagos|Orden de compra|Solmat')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"

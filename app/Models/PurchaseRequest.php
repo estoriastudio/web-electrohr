@@ -56,6 +56,16 @@ class PurchaseRequest extends Model
         return $this->belongsTo(MaterialRequest::class);
     }
 
+    public function materialRequests(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            MaterialRequest::class,
+            'purchase_request_material_requests',
+            'purchase_request_id',
+            'material_request_id'
+        );
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

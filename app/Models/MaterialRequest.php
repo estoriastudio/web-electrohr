@@ -83,4 +83,14 @@ class MaterialRequest extends Model
     {
         return $this->hasMany(PurchaseRequest::class);
     }
+
+    public function linkedPurchaseRequests(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            PurchaseRequest::class,
+            'purchase_request_material_requests',
+            'material_request_id',
+            'purchase_request_id'
+        );
+    }
 }

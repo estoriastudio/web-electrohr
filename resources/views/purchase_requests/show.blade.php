@@ -66,7 +66,7 @@
                         </div>
 
                         <div class="mt-2">
-                            @include('purchase_requests.partials._process_map')
+                            @include('layouts.partials._process_map', ['purchaseRequest' => $purchaseRequest])
                         </div>
                     </div>
                     <div class="d-flex gap-2">
@@ -306,9 +306,15 @@
                 <h5 class="card-title mb-0 text-warning">
                     <i class="ri-edit-circle-line me-2"></i>Solicitudes de Cambios
                 </h5>
-                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
-                    {{ $purchaseRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                        {{ $purchaseRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
+                    </span>
+                    <a href="{{ route('purchase_request_changes.index', ['search' => $purchaseRequest->folio]) }}"
+                       class="btn btn-sm btn-light">
+                        <i class="ri-external-link-line me-1"></i>Ver panel
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 @foreach ($purchaseRequest->changeNotes as $note)

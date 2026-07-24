@@ -11,7 +11,7 @@
         : (request()->routeIs('purchase_orders.soft_deleted') ? 'trashed' : 'index');
 
     // Número de columnas para el colspan del empty-state
-    $colspan = 9 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 10 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -32,6 +32,7 @@
                 @elseif ($mode === 'trashed')
                     <th>Eliminada el</th>
                 @endif
+                <th>Estatus de entrega</th>
             </tr>
         </thead>
         <tbody>
@@ -54,6 +55,9 @@
                         'EUR' => '€',
                         default => '$',
                     };
+                    $deliveryBadge = $order->is_delivered
+                        ? ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line']
+                        : ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'];
 
                 @endphp
                 <tr @if ($mode === 'trashed') class="table-danger" @endif>
@@ -239,6 +243,12 @@
                             <small class="text-danger">{{ $order->deleted_at->format('d/m/Y H:i') }}</small>
                         </td>
                     @endif
+
+                    <td>
+                        <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
+                            <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
+                        </span>
+                    </td>
 
                 </tr>
             @empty

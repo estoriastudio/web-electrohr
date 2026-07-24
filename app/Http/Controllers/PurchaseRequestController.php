@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +21,91 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseRequestController extends Controller
 {
+    public function changeRequestsPanel(Request $request)
+    {
+        $search = trim($request->input('search', ''));
+        $assignedTo = $request->input('assigned_to', '');
+        $requestedBy = $request->input('requested_by', '');
+
+        $baseQuery = PurchaseRequestChangeNote::query()
+            ->with([
+                'requestedBy',
+                'purchaseRequest.project',
+                'purchaseRequest.projectWork',
+                'purchaseRequest.projectWorks',
+                'purchaseRequest.materialRequest',
+                'purchaseRequest.assignedTo',
+            ])
+            ->whereNull('resolved_at')
+            ->whereHas('purchaseRequest', function ($query) {
+                $query->whereNull('archived_at');
+            });
+
+        $query = clone $baseQuery;
+
+        if ($search !== '') {
+            $query->where(function ($noteQuery) use ($search) {
+                $noteQuery->where('text', 'like', "%{$search}%")
+                    ->orWhereHas('purchaseRequest', function ($purchaseRequestQuery) use ($search) {
+                        $purchaseRequestQuery->where('folio', 'like', "%{$search}%")
+                            ->orWhere('short_description', 'like', "%{$search}%")
+                            ->orWhere('zone', 'like', "%{$search}%")
+                            ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                    });
+            });
+        }
+
+        if ($assignedTo !== '') {
+            $query->whereHas('purchaseRequest', function ($purchaseRequestQuery) use ($assignedTo) {
+                $purchaseRequestQuery->where('assigned_to', $assignedTo);
+            });
+        }
+
+        if ($requestedBy !== '') {
+            $query->where('requested_by', $requestedBy);
+        }
+
+        $changeNotes = $query
+            ->orderBy('created_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        $summaryQuery = clone $baseQuery;
+        $pendingCount = (clone $summaryQuery)->count();
+        $affectedSolcomCount = (clone $summaryQuery)->distinct('purchase_request_id')->count('purchase_request_id');
+        $urgentCount = (clone $summaryQuery)
+            ->whereHas('purchaseRequest', function ($purchaseRequestQuery) {
+                $purchaseRequestQuery->whereDate('need_date', '<=', now()->addDays(5)->toDateString());
+            })
+            ->count();
+        $unassignedCount = (clone $summaryQuery)
+            ->whereHas('purchaseRequest', function ($purchaseRequestQuery) {
+                $purchaseRequestQuery->whereNull('assigned_to');
+            })
+            ->count();
+
+        $purchasingUsers = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
+        $requesterUsers = User::whereIn('id', PurchaseRequestChangeNote::query()
+            ->whereNull('resolved_at')
+            ->select('requested_by')
+            ->distinct())
+            ->orderBy('name')
+            ->get();
+
+        return view('purchase_request_changes.index', compact(
+            'changeNotes',
+            'search',
+            'assignedTo',
+            'requestedBy',
+            'pendingCount',
+            'affectedSolcomCount',
+            'urgentCount',
+            'unassignedCount',
+            'purchasingUsers',
+            'requesterUsers'
+        ));
+    }
+
     public function index(Request $request)
     {
         $search = $request->input('search', '');
@@ -61,6 +147,8 @@ class PurchaseRequestController extends Controller
             'folio'               => 'required|integer|min:18000|unique:purchase_requests,folio',
             'code'                => 'nullable|string|max:100',
             'material_request_id' => 'nullable|exists:material_requests,id',
+            'material_request_ids' => 'nullable|array|min:1',
+            'material_request_ids.*' => 'integer|exists:material_requests,id',
             'project_id'          => 'required|exists:projects,id',
             'project_work_id'     => 'nullable|exists:project_works,id',
             'project_work_ids'    => 'nullable|array|min:1',
@@ -88,6 +176,23 @@ class PurchaseRequestController extends Controller
             ]);
         }
 
+        $sourceMaterialRequests = collect();
+
+        $materialRequestIds = collect($data['material_request_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($materialRequestIds->isEmpty() && !empty($data['material_request_id'])) {
+            $materialRequestIds = collect([(int) $data['material_request_id']]);
+        }
+
+        if ($materialRequestIds->isNotEmpty()) {
+            $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds($materialRequestIds);
+            $data['project_id'] = (int) $sourceMaterialRequests->first()->project_id;
+        }
+
         $validWorksCount = ProjectWork::where('project_id', (int) $data['project_id'])
             ->whereIn('id', $selectedWorkIds)
             ->count();
@@ -98,57 +203,62 @@ class PurchaseRequestController extends Controller
             ]);
         }
 
-        $mr = null;
-        if (! empty($data['material_request_id'])) {
-            $mr = MaterialRequest::with(['items.concept.category', 'items.workQuantities', 'projectWorks'])
-                ->find($data['material_request_id']);
+        if ($sourceMaterialRequests->isNotEmpty()) {
+            $allowedWorkIds = $sourceMaterialRequests
+                ->flatMap(fn ($materialRequest) => $materialRequest->projectWorks->pluck('id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
 
-            if ($mr) {
-                // El proyecto de la SOLCOM se hereda de la SOLMAT origen.
-                $data['project_id'] = (int) $mr->project_id;
-
-                $allowedWorkIds = $mr->projectWorks->pluck('id')->map(fn ($id) => (int) $id);
-                $outside = $selectedWorkIds->diff($allowedWorkIds);
-                if ($outside->isNotEmpty()) {
-                    throw ValidationException::withMessages([
-                        'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a la SOLMAT origen.',
-                    ]);
-                }
+            $outside = $selectedWorkIds->diff($allowedWorkIds);
+            if ($outside->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'project_work_ids' => 'Solo puedes seleccionar obras vinculadas a las SOLMAT origen.',
+                ]);
             }
         }
 
         $data['project_work_id'] = $selectedWorkIds->first();
         unset($data['project_work_ids']);
+        unset($data['material_request_ids']);
 
         $data['requested_by'] = Auth::id();
         $data['status']       = 'pending';
 
-        $pr = PurchaseRequest::create($data);
-        $pr->projectWorks()->sync($selectedWorkIds->all());
+        if ($sourceMaterialRequests->isNotEmpty()) {
+            $data['material_request_id'] = (int) $sourceMaterialRequests->first()->id;
+        }
 
-        // Si viene vinculada a una SOLMAT: copiar sus items y marcarla como 'linked'
-        if (! empty($data['material_request_id'])) {
-            if ($mr) {
-                foreach ($mr->items as $item) {
-                    $resolvedQuantity = $this->resolveItemQuantityForWorks($item, $selectedWorkIds);
+        $pr = DB::transaction(function () use ($data, $selectedWorkIds, $sourceMaterialRequests) {
+            $purchaseRequest = PurchaseRequest::create($data);
+            $purchaseRequest->projectWorks()->sync($selectedWorkIds->all());
+
+            if ($sourceMaterialRequests->isNotEmpty()) {
+                $aggregatedItems = $this->aggregateMaterialRequestItems($sourceMaterialRequests, $selectedWorkIds);
+
+                foreach ($aggregatedItems as $item) {
+                    if ((float) $item['resolved_quantity'] <= 0) {
+                        continue;
+                    }
 
                     PurchaseRequestItem::create([
-                        'purchase_request_id' => $pr->id,
-                        'concept_id'          => $item->concept_id,
-                        'code'                => $item->code,
-                        'description'         => $item->description,
-                        'unit'                => $item->unit,
-                        'requested_quantity'  => $resolvedQuantity,
-                        'purchase_quantity'   => $resolvedQuantity,
-                        'file_path'           => $item->file_path,
+                        'purchase_request_id' => $purchaseRequest->id,
+                        'concept_id'          => $item['concept_id'],
+                        'code'                => $item['code'],
+                        'description'         => $item['description'],
+                        'unit'                => $item['unit'],
+                        'requested_quantity'  => $item['resolved_quantity'],
+                        'purchase_quantity'   => $item['resolved_quantity'],
+                        'file_path'           => $item['file_path'],
                     ]);
                 }
 
-                // Si no se eligió un comprador manualmente, sugerir desde la categoría
-                if (empty($pr->assigned_to)) {
-                    $categoryId = $mr->items
+                // Si no se eligió un comprador manualmente, sugerir desde la primera categoría encontrada.
+                if (empty($purchaseRequest->assigned_to)) {
+                    $categoryId = $sourceMaterialRequests
+                        ->flatMap(fn ($materialRequest) => $materialRequest->items)
                         ->whereNotNull('concept_id')
-                        ->map(fn($i) => optional($i->concept)->concept_category_id)
+                        ->map(fn($item) => optional($item->concept)->concept_category_id)
                         ->filter()
                         ->first();
 
@@ -159,19 +269,26 @@ class PurchaseRequestController extends Controller
                             ->first();
 
                         if ($suggestedUser) {
-                            $pr->update(['assigned_to' => $suggestedUser->id]);
+                            $purchaseRequest->update(['assigned_to' => $suggestedUser->id]);
                         }
                     }
                 }
 
-                // Heredar observaciones de SOLMAT a SOLCOM para mantener trazabilidad.
-                if (!empty($mr->observations) && empty($pr->observations)) {
-                    $pr->update(['observations' => $mr->observations]);
+                // Heredar observaciones de la primera SOLMAT para mantener compatibilidad del flujo actual.
+                $firstMaterialRequest = $sourceMaterialRequests->first();
+                if (!empty($firstMaterialRequest?->observations) && empty($purchaseRequest->observations)) {
+                    $purchaseRequest->update(['observations' => $firstMaterialRequest->observations]);
                 }
 
-                $mr->update(['status' => 'linked']);
+                $sourceMaterialRequests->each(function ($materialRequest) {
+                    $materialRequest->update(['status' => 'linked']);
+                });
+
+                $purchaseRequest->materialRequests()->sync($sourceMaterialRequests->pluck('id')->all());
             }
-        }
+
+            return $purchaseRequest;
+        });
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
@@ -194,7 +311,9 @@ class PurchaseRequestController extends Controller
             'requestedBy',
             'assignedTo',
             'items',
+            'purchaseOrders',
             'materialRequest.items.workQuantities.projectWork',
+            'materialRequests.items.workQuantities.projectWork',
             'changeNotes.requestedBy',
             'changeNotes.resolvedBy',
         ]);
@@ -208,44 +327,60 @@ class PurchaseRequestController extends Controller
             $selectedWorkIds = collect([(int) $purchaseRequest->project_work_id]);
         }
 
-        $sourceItems = $purchaseRequest->materialRequest?->items ?? collect();
-        $usedSourceItemIds = [];
+        $sourceMaterialRequests = $purchaseRequest->materialRequests;
+        if ($sourceMaterialRequests->isEmpty() && $purchaseRequest->materialRequest) {
+            $sourceMaterialRequests = collect([$purchaseRequest->materialRequest]);
+        }
 
-        $purchaseRequest->items->each(function ($purchaseItem) use ($sourceItems, $selectedWorkIds, &$usedSourceItemIds) {
-            $sourceItem = $sourceItems->first(function ($materialItem) use ($purchaseItem, &$usedSourceItemIds) {
-                if (in_array((int) $materialItem->id, $usedSourceItemIds, true)) {
-                    return false;
-                }
+        $sourceItems = $sourceMaterialRequests
+            ->flatMap(fn ($materialRequest) => $materialRequest->items)
+            ->values();
 
-                if (!empty($purchaseItem->concept_id) && !empty($materialItem->concept_id)) {
-                    return (int) $purchaseItem->concept_id === (int) $materialItem->concept_id;
-                }
+        $sourceItemsByKey = $sourceItems->groupBy(function ($materialItem) {
+            return $this->materialItemGroupingKey($materialItem);
+        });
 
-                return (string) $purchaseItem->code === (string) $materialItem->code
-                    && (string) $purchaseItem->description === (string) $materialItem->description
-                    && (string) $purchaseItem->unit === (string) $materialItem->unit;
-            });
+        $purchaseRequest->items->each(function ($purchaseItem) use ($sourceItemsByKey, $selectedWorkIds) {
+            $groupKey = $this->purchaseItemGroupingKey($purchaseItem);
+            $matchingSourceItems = $sourceItemsByKey->get($groupKey, collect());
 
-            if (!$sourceItem || $sourceItem->workQuantities->isEmpty()) {
+            if ($matchingSourceItems->isEmpty()) {
                 $purchaseItem->setAttribute('selected_work_breakdown', []);
                 return;
             }
 
-            $usedSourceItemIds[] = (int) $sourceItem->id;
+            $workTotals = [];
 
-            $breakdown = $sourceItem->workQuantities
-                ->filter(function ($workQuantity) use ($selectedWorkIds) {
-                    if ($selectedWorkIds->isEmpty()) {
-                        return true;
+            $matchingSourceItems->each(function ($sourceItem) use ($selectedWorkIds, &$workTotals) {
+                if ($sourceItem->workQuantities->isEmpty()) {
+                    return;
+                }
+
+                $sourceItem->workQuantities->each(function ($workQuantity) use ($selectedWorkIds, &$workTotals) {
+                    $workId = (int) $workQuantity->project_work_id;
+
+                    if ($selectedWorkIds->isNotEmpty() && !$selectedWorkIds->contains($workId)) {
+                        return;
                     }
 
-                    return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
+                    if (!isset($workTotals[$workId])) {
+                        $workTotals[$workId] = [
+                            'work_id' => (string) $workId,
+                            'work_name' => $workQuantity->projectWork?->name,
+                            'quantity' => 0,
+                        ];
+                    }
+
+                    $workTotals[$workId]['quantity'] += (float) $workQuantity->quantity;
+                });
+            });
+
+            $breakdown = collect($workTotals)
+                ->sortBy('work_name')
+                ->map(function ($row) {
+                    $row['quantity'] = number_format((float) $row['quantity'], 2, '.', '');
+                    return $row;
                 })
-                ->map(fn ($workQuantity) => [
-                    'work_id' => (string) $workQuantity->project_work_id,
-                    'work_name' => $workQuantity->projectWork?->name,
-                    'quantity' => number_format((float) $workQuantity->quantity, 2, '.', ''),
-                ])
                 ->values()
                 ->all();
 
@@ -613,12 +748,65 @@ class PurchaseRequestController extends Controller
     // ── Crear SOLCOM desde SOLMAT (formulario pre-llenado) ───────────────────
     public function createFromSolmat(MaterialRequest $materialRequest)
     {
-        $materialRequest->load(['project', 'projectWorks', 'items.workQuantities.projectWork']);
+        $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds([(int) $materialRequest->id]);
+
+        return $this->renderCreateFromSolmatView($sourceMaterialRequests);
+    }
+
+    public function createFromSolmatMulti(Request $request)
+    {
+        $data = $request->validate([
+            'material_request_ids' => 'required|array|min:1',
+            'material_request_ids.*' => 'integer|exists:material_requests,id',
+        ]);
+
+        $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds($data['material_request_ids']);
+
+        return $this->renderCreateFromSolmatView($sourceMaterialRequests);
+    }
+
+    private function renderCreateFromSolmatView(Collection $sourceMaterialRequests)
+    {
+        $materialRequest = $sourceMaterialRequests->first();
+
         $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
         $projects  = Project::where('status', 'active')->orderBy('name')->get();
+        $isMultiSource = $sourceMaterialRequests->count() > 1;
+
+        $availableProjectWorks = $sourceMaterialRequests
+            ->flatMap(fn ($mr) => $mr->projectWorks)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
+        $previewItems = $this->aggregateMaterialRequestItems(
+            $sourceMaterialRequests,
+            $availableProjectWorks->pluck('id')->map(fn ($id) => (int) $id)
+        )->values();
+
+        $defaultSelectedWorks = $availableProjectWorks
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $sourceMaterialRequestIds = $sourceMaterialRequests
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         return view('purchase_requests.create_from_solmat',
-                    compact('materialRequest', 'nextFolio', 'projects'));
+            compact(
+                'materialRequest',
+                'nextFolio',
+                'projects',
+                'isMultiSource',
+                'sourceMaterialRequests',
+                'availableProjectWorks',
+                'previewItems',
+                'defaultSelectedWorks',
+                'sourceMaterialRequestIds'
+            )
+        );
     }
 
     // ── Enviar SOLCOM a Compras ──────────────────────────────────────────────
@@ -919,5 +1107,168 @@ class PurchaseRequestController extends Controller
         }
 
         return (float) $materialRequestItem->quantity;
+    }
+
+    private function loadSourceMaterialRequestsByIds($ids): Collection
+    {
+        $requestedIds = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($requestedIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Debes seleccionar al menos una SOLMAT.',
+            ]);
+        }
+
+        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'items.concept.category', 'items.workQuantities.projectWork'])
+            ->whereIn('id', $requestedIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($materialRequests->count() !== $requestedIds->count()) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Una o más SOLMAT seleccionadas no existen.',
+            ]);
+        }
+
+        $orderedMaterialRequests = $requestedIds
+            ->map(fn ($id) => $materialRequests->get($id))
+            ->filter()
+            ->values();
+
+        $invalidStatusFolios = $orderedMaterialRequests
+            ->filter(fn ($materialRequest) => !in_array((string) $materialRequest->status, ['sent_to_warehouse', 'linked'], true))
+            ->pluck('folio')
+            ->values();
+
+        if ($invalidStatusFolios->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Solo puedes usar SOLMAT en estatus Entrada o Con salida.',
+            ]);
+        }
+
+        $projectIds = $orderedMaterialRequests
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($projectIds->count() > 1) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Todas las SOLMAT seleccionadas deben pertenecer al mismo proyecto.',
+            ]);
+        }
+
+        return $orderedMaterialRequests;
+    }
+
+    private function aggregateMaterialRequestItems(Collection $sourceMaterialRequests, Collection $selectedWorkIds): Collection
+    {
+        $aggregatedItems = [];
+
+        foreach ($sourceMaterialRequests as $materialRequest) {
+            foreach ($materialRequest->items as $item) {
+                $resolvedQuantity = $this->resolveItemQuantityForWorks($item, $selectedWorkIds);
+
+                $itemKey = $item->concept_id
+                    ? 'concept:' . (int) $item->concept_id
+                    : 'legacy:' . $this->normalizeText($item->code) . '|' . $this->normalizeText($item->description) . '|' . $this->normalizeText($item->unit);
+
+                if (!isset($aggregatedItems[$itemKey])) {
+                    $aggregatedItems[$itemKey] = [
+                        'concept_id' => $item->concept_id,
+                        'code' => $item->code,
+                        'description' => $item->description,
+                        'unit' => $item->unit,
+                        'resolved_quantity' => 0,
+                        'file_path' => $item->file_path,
+                        'work_quantities' => [],
+                        'source_folios' => [],
+                    ];
+                }
+
+                $aggregatedItems[$itemKey]['resolved_quantity'] += (float) $resolvedQuantity;
+                if (empty($aggregatedItems[$itemKey]['file_path']) && !empty($item->file_path)) {
+                    $aggregatedItems[$itemKey]['file_path'] = $item->file_path;
+                }
+
+                $aggregatedItems[$itemKey]['source_folios'][(int) $materialRequest->id] = (int) $materialRequest->folio;
+
+                if ($item->relationLoaded('workQuantities') && $item->workQuantities->isNotEmpty()) {
+                    foreach ($item->workQuantities as $workQuantity) {
+                        $workId = (int) $workQuantity->project_work_id;
+
+                        if ($selectedWorkIds->isNotEmpty() && !$selectedWorkIds->contains($workId)) {
+                            continue;
+                        }
+
+                        if (!isset($aggregatedItems[$itemKey]['work_quantities'][$workId])) {
+                            $aggregatedItems[$itemKey]['work_quantities'][$workId] = 0;
+                        }
+
+                        $aggregatedItems[$itemKey]['work_quantities'][$workId] += (float) $workQuantity->quantity;
+                    }
+                } else {
+                    $legacyWorkId = $selectedWorkIds->first();
+                    if ($legacyWorkId) {
+                        if (!isset($aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId])) {
+                            $aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId] = 0;
+                        }
+                        $aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId] += (float) $item->quantity;
+                    }
+                }
+            }
+        }
+
+        return collect($aggregatedItems)
+            ->map(function ($item) {
+                ksort($item['work_quantities']);
+                sort($item['source_folios']);
+
+                $item['work_quantities'] = collect($item['work_quantities'])
+                    ->map(fn ($quantity, $workId) => [
+                        'work_id' => (string) $workId,
+                        'quantity' => (float) $quantity,
+                    ])
+                    ->values()
+                    ->all();
+
+                return $item;
+            })
+            ->sortBy(fn ($item) => strtoupper((string) ($item['code'] ?? '') . '|' . (string) ($item['description'] ?? '')))
+            ->values();
+    }
+
+    private function normalizeText(?string $value): string
+    {
+        $text = trim((string) ($value ?? ''));
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        return strtolower($text ?? '');
+    }
+
+    private function materialItemGroupingKey($materialItem): string
+    {
+        if (!empty($materialItem->concept_id)) {
+            return 'concept:' . (int) $materialItem->concept_id;
+        }
+
+        return 'legacy:' . $this->normalizeText($materialItem->code)
+            . '|' . $this->normalizeText($materialItem->description)
+            . '|' . $this->normalizeText($materialItem->unit);
+    }
+
+    private function purchaseItemGroupingKey($purchaseItem): string
+    {
+        if (!empty($purchaseItem->concept_id)) {
+            return 'concept:' . (int) $purchaseItem->concept_id;
+        }
+
+        return 'legacy:' . $this->normalizeText($purchaseItem->code)
+            . '|' . $this->normalizeText($purchaseItem->description)
+            . '|' . $this->normalizeText($purchaseItem->unit);
     }
 }

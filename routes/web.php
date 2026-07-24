@@ -311,10 +311,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Admin + Payments + Orders ─────────────────────────────────────────
 
-        // Órdenes de Compra — lectura: admin, Pagos, Orden de compra
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        // Órdenes de Compra — lectura: admin, Pagos, Orden de compra, Solmat
+        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
-            Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
@@ -408,6 +407,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/evidencias', [PurchaseOrderEvidenceController::class, 'store'])->name('evidences.store');
             Route::get('/evidencias/{evidence}/download', [PurchaseOrderEvidenceController::class, 'download'])->name('evidences.download');
             Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])->name('evidences.destroy');
+        });
+
+        // Estatus de entrega (manual)
+        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+            Route::patch('/ordenes-de-compra/{purchase_order}/estatus-entrega', [PurchaseOrderController::class, 'updateDeliveryStatus'])
+                ->name('purchase_orders.delivery_status.update');
         });
 
         // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra
@@ -535,6 +540,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
                        [PurchaseRequestController::class, 'itemsJsonByFolio'])
                  ->name('purchase_requests.items_json_by_folio');
 
+            Route::get('/solicitudes-compra/solicitudes-cambio',
+                     [PurchaseRequestController::class, 'changeRequestsPanel'])
+                 ->name('purchase_request_changes.index');
+
             Route::get('/solicitudes-compra/archivadas',
                        [PurchaseRequestController::class, 'archived'])
                  ->name('purchase_requests.archived');
@@ -635,6 +644,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/almacen/pila-solmat',
                        [PurchaseRequestController::class, 'solmatPile'])
                  ->name('warehouse.solmat_pile');
+
+            Route::get('/almacen/pila-solmat/crear-solcom-consolidada',
+                     [PurchaseRequestController::class, 'createFromSolmatMulti'])
+                 ->name('purchase_requests.create_from_solmat_multi');
 
             Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom',
                        [PurchaseRequestController::class, 'createFromSolmat'])

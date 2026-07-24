@@ -59,6 +59,10 @@
         ->groupBy(fn ($e) => optional($e->created_at)->format('Y-m-d') ?? 'sin-fecha');
     $minDueDate = now()->format('Y-m-d');
     $conceptSearchType = $purchaseOrder->type === 'mantenimiento' ? 'mantenimiento' : 'materiales';
+    $isDelivered = (bool) $purchaseOrder->is_delivered;
+    $deliveryBadge = $isDelivered
+        ? ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line']
+        : ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'];
 @endphp
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
@@ -102,6 +106,9 @@
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">{{ $tipoLabel }}</span>
                             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                            <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
+                                <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
+                            </span>
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $purchaseOrder->currency }}</span>
                         </div>
                         @if ($purchaseOrder->project || $purchaseOrder->site)
@@ -113,7 +120,7 @@
                         @endif
 
                         <div class="mt-2">
-                            @include('purchase_orders.partials._process_map')
+                            @include('layouts.partials._process_map', ['purchaseOrder' => $purchaseOrder])
                         </div>
                     </div>
                     <div class="text-end">
@@ -135,6 +142,12 @@
                                 data-bs-toggle="modal" data-bs-target="#modalPdfAnnexes">
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
                         </button>
+                        @hasanyrole('admin|Solmat|Orden de compra')
+                        <button type="button" class="btn btn-sm btn-outline-success"
+                                data-bs-toggle="modal" data-bs-target="#modalDeliveryStatus">
+                            <i class="ri-truck-line me-1"></i> Cambiar entrega
+                        </button>
+                        @endhasanyrole
                         @hasanyrole('admin|Orden de compra')
                         @if ($canModifyPurchaseOrder)
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
@@ -211,6 +224,43 @@
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-info">
                         <i class="ri-upload-2-line me-1"></i> Subir evidencia
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endhasanyrole
+
+{{-- MODAL Cambiar Estatus de Entrega --}}
+@hasanyrole('admin|Solmat|Orden de compra')
+<div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('purchase_orders.delivery_status.update', $purchaseOrder) }}" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDeliveryStatusLabel">
+                        <i class="ri-truck-line me-1 text-success"></i> Estatus de entrega
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Define manualmente el estatus de entrega para la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}.
+                    </p>
+                    <label for="is_delivered" class="form-label fw-medium">Estatus de entrega <span class="text-danger">*</span></label>
+                    <select id="is_delivered" name="is_delivered" class="form-select" required>
+                        <option value="0" {{ $isDelivered ? '' : 'selected' }}>Por entregar</option>
+                        <option value="1" {{ $isDelivered ? 'selected' : '' }}>Entregado</option>
+                    </select>
+                    <div class="form-text">Este estatus es independiente del estatus de la OC (Emitida, Pendiente, Autorizada).</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="ri-save-line me-1"></i> Guardar estatus de entrega
                     </button>
                 </div>
             </form>
@@ -1865,6 +1915,14 @@
 
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
+
+        // Notificar a otros módulos (ej. modal de hitos) que el total cambió.
+        var totalNumber = parseFloat(tot);
+        if (isFinite(totalNumber)) {
+            document.dispatchEvent(new CustomEvent('oc:totals-updated', {
+                detail: { total: totalNumber }
+            }));
+        }
     }
 
     function removeEmptyRow() {
@@ -2207,7 +2265,24 @@ $(function () {
     // ── Validación dinámica del campo Valor en Nuevo Hito ──
     var ocAmount = {{ $importeTotal }};
 
+    function syncMilestoneAmountFromDom() {
+        var totalText = ($('#oc_total').text() || '').replace(/[^\d.,-]/g, '').replace(/,/g, '');
+        var parsed = parseFloat(totalText);
+        if (isFinite(parsed)) {
+            ocAmount = parsed;
+        }
+    }
+
+    document.addEventListener('oc:totals-updated', function (e) {
+        var nextTotal = parseFloat(e?.detail?.total);
+        if (isFinite(nextTotal)) {
+            ocAmount = nextTotal;
+            updateMilestoneValueConstraints();
+        }
+    });
+
     function updateMilestoneValueConstraints() {
+        syncMilestoneAmountFromDom();
         var type  = $('#milestoneValueType').val();
         var $input = $('#milestoneValue');
 
@@ -2224,6 +2299,7 @@ $(function () {
     }
 
     function validateMilestoneValue() {
+        syncMilestoneAmountFromDom();
         var type   = $('#milestoneValueType').val();
         var val    = parseFloat($('#milestoneValue').val());
         var $input = $('#milestoneValue');

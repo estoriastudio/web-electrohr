@@ -506,6 +506,30 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' autorizada correctamente.');
     }
 
+    public function updateDeliveryStatus(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'is_delivered' => 'required|boolean',
+        ]);
+
+        $isDelivered = (bool) $validated['is_delivered'];
+        $purchaseOrder->update(['is_delivered' => $isDelivered]);
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $deliveryLabel = $isDelivered ? 'Entregado' : 'Por entregar';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'actualizó el estatus de entrega a "' . $deliveryLabel . '" en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Estatus de entrega actualizado a "' . $deliveryLabel . '".');
+    }
+
     public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {

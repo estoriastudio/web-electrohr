@@ -55,6 +55,10 @@ class PurchaseOrderEvidenceController extends Controller
             'description' => $validated['description'] ?? null,
         ]);
 
+        if (! $purchaseOrder->is_delivered) {
+            $purchaseOrder->update(['is_delivered' => true]);
+        }
+
         $this->notification->send([
             'type' => 'PurchaseOrderEvidence',
             'action_by' => Auth::id(),
@@ -96,6 +100,10 @@ class PurchaseOrderEvidenceController extends Controller
         }
 
         $evidence->delete();
+
+        if ($purchaseOrder && ! $purchaseOrder->evidences()->exists() && $purchaseOrder->is_delivered) {
+            $purchaseOrder->update(['is_delivered' => false]);
+        }
 
         $this->notification->send([
             'type' => 'PurchaseOrderEvidence',

@@ -52,9 +52,11 @@
                     <a href="{{ route('concepts.awarded_prices') }}" class="btn btn-sm btn-soft-info ms-1" title="Precios adjudicados">
                         <i class="ri-price-tag-3-line me-1"></i> Precios adjudicados
                     </a>
+                    @hasanyrole('admin|Pagos|Orden de compra')
                     <a href="{{ route('purchase_orders.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
+                    @endhasanyrole
                     @hasrole('admin')
                     <a href="{{ route('purchase_orders.soft_deleted') }}" class="btn btn-sm btn-outline-danger ms-1" title="Papelera">
                         <i class="ri-delete-bin-line me-1"></i> Papelera
