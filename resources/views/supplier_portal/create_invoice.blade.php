@@ -29,7 +29,7 @@
 </style>
 @endpush
 
-@section('page_title', 'Subir Factura por Hito')
+@section('page_title', 'Subir Factura')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('supplier_portal.dashboard') }}">Portal</a></li>
@@ -68,7 +68,7 @@
         <div class="row g-3 align-items-center">
             <div class="col-md-8">
                 <h5 class="mb-1">OC {{ $purchaseOrder->folio }}</h5>
-                <p class="text-muted mb-0">{{ $purchaseOrder->currency }} {{ number_format($purchaseOrder->amount, 2) }}</p>
+                <p class="text-muted mb-0">{{ $purchaseOrder->project ?: 'Sin proyecto' }}{{ $purchaseOrder->site ? ' · ' . $purchaseOrder->site : '' }}</p>
             </div>
             <div class="col-md-4 text-md-end">
                 <span class="badge bg-info-subtle text-info py-1 px-2 fs-12">Proveedor: {{ $supplier->commercial_name ?? $supplier->rfc_name }}</span>
@@ -79,36 +79,44 @@
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center border-bottom">
-        <h5 class="card-title mb-0"><i class="ri-upload-2-line me-1"></i> Cargar factura por hito</h5>
+        <h5 class="card-title mb-0"><i class="ri-upload-2-line me-1"></i> Cargar factura de la orden de compra</h5>
     </div>
     <div class="card-body">
-        @if ($eligibleMilestones->isEmpty() || !$selectedMilestone)
+        @if ($pendingAmount <= 0)
             <div class="text-center text-muted py-4">
-                <i class="ri-time-line fs-24 d-block mb-2"></i>
-                No hay hitos disponibles todavía. Solo puedes subir factura cuando el hito ya aconteció.
+                <i class="ri-checkbox-circle-line fs-24 d-block mb-2 text-success"></i>
+                Esta orden de compra ya está facturada por completo.
             </div>
         @else
             <form method="POST" action="{{ route('supplier_portal.invoices.store', $purchaseOrder) }}" enctype="multipart/form-data" id="portalInvoiceForm">
                 @csrf
-                <input type="hidden" name="milestone_id" value="{{ $selectedMilestone->id }}">
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">Hito seleccionado</label>
+                        <label class="form-label fw-medium">Importe total de la OC</label>
                         <input type="text" class="form-control bg-light"
-                               value="Hito #{{ $selectedMilestone->id }} · {{ $selectedMilestone->due_date?->format('d/m/Y') }}"
+                               value="{{ $purchaseOrder->currency }} {{ number_format((float) $purchaseOrder->amount, 2) }}"
                                disabled>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">Moneda</label>
+                        <label class="form-label fw-medium">Importe facturado</label>
                         <input type="text" class="form-control bg-light"
-                               value="{{ $prefilledCurrency }}" disabled>
+                               value="{{ $purchaseOrder->currency }} {{ number_format($invoicedAmount, 2) }}" disabled>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">Importe precargado</label>
+                        <label class="form-label fw-medium">Importe pendiente</label>
                         <input type="text" class="form-control bg-light"
-                               value="{{ $prefilledCurrency }} {{ number_format((float) $prefilledAmount, 2) }}"
+                               value="{{ $purchaseOrder->currency }} {{ number_format($pendingAmount, 2) }}"
                                disabled>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Importe de esta factura <span class="text-danger">*</span></label>
+                        <input type="number" name="amount" class="form-control @error('amount') is-invalid @enderror"
+                               value="{{ old('amount') }}" min="0.01" max="{{ number_format($pendingAmount, 2, '.', '') }}" step="0.01" required>
+                        <div class="form-text">No puede exceder el importe pendiente de la OC.</div>
+                        @error('amount')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
 

@@ -16,29 +16,16 @@ class SupplierPortalInvoiceController extends Controller
         $supplier = $request->user()->supplier;
 
         abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
+        abort_unless($purchaseOrder->status === 'autorizada', 403);
 
-        $purchaseOrder->load(['milestones' => function ($q) {
-            $q->orderBy('id');
-        }]);
-
-        $eligibleMilestones = $purchaseOrder->milestones
-            ->filter(function ($milestone) {
-                return $milestone->due_date
-                    && ($milestone->due_date->isPast() || $milestone->due_date->isToday());
-            })
-            ->values();
-
-        $requestedMilestoneId = (int) $request->input('milestone_id');
-        $selectedMilestone = $eligibleMilestones->firstWhere('id', $requestedMilestoneId)
-            ?? $eligibleMilestones->first();
+        $invoicedAmount = (float) $purchaseOrder->invoices()->sum('amount');
+        $pendingAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmount);
 
         return view('supplier_portal.create_invoice', [
             'supplier' => $supplier,
             'purchaseOrder' => $purchaseOrder,
-            'eligibleMilestones' => $eligibleMilestones,
-            'selectedMilestone' => $selectedMilestone,
-            'prefilledCurrency' => $purchaseOrder->currency,
-            'prefilledAmount' => $selectedMilestone?->effective_amount,
+            'invoicedAmount' => $invoicedAmount,
+            'pendingAmount' => $pendingAmount,
         ]);
     }
 
@@ -47,32 +34,24 @@ class SupplierPortalInvoiceController extends Controller
         $supplier = $request->user()->supplier;
 
         abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
+        abort_unless($purchaseOrder->status === 'autorizada', 403);
+
+        $invoicedAmount = (float) $purchaseOrder->invoices()->sum('amount');
+        $pendingAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmount);
 
         $validated = $request->validate([
-            'milestone_id' => 'required|exists:purchase_order_milestones,id',
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:' . $pendingAmount],
             'pdf_file' => 'required|file|mimes:pdf|max:10240',
             'xml_file' => 'nullable|file|mimes:xml,text/xml|max:10240',
             'evidence_file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ], [
+            'amount.max' => 'El importe no puede exceder el saldo pendiente de la orden de compra (' . number_format($pendingAmount, 2) . ' ' . $purchaseOrder->currency . ').',
         ]);
 
-        $milestone = $purchaseOrder->milestones()
-            ->whereKey($validated['milestone_id'])
-            ->first();
-
-        if (!$milestone) {
-            return redirect()->route('supplier_portal.purchase_orders.index')
-                ->with('error', 'El hito seleccionado no pertenece a esta orden de compra.');
-        }
-
-        if (!$milestone->due_date || $milestone->due_date->isFuture()) {
+        $resolvedAmount = (float) $validated['amount'];
+        if ($pendingAmount <= 0) {
             return redirect()->back()->withInput()
-                ->with('error', 'Solo se permite subir factura para hitos ya acontecidos.');
-        }
-
-        $resolvedAmount = (float) $milestone->effective_amount;
-        if ($resolvedAmount <= 0) {
-            return redirect()->back()->withInput()
-                ->with('error', 'El hito seleccionado no tiene un importe válido para facturar.');
+                ->with('error', 'La orden de compra ya está facturada por completo.');
         }
 
         $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
@@ -102,7 +81,6 @@ class SupplierPortalInvoiceController extends Controller
             $evidenceName,
             $evidencePath,
             $resolvedAmount,
-            $milestone,
             $request
         ) {
             $invoice = PurchaseOrderInvoice::create([
@@ -118,11 +96,9 @@ class SupplierPortalInvoiceController extends Controller
                 'currency' => $purchaseOrder->currency,
             ]);
 
-            $invoice->milestones()->sync([$milestone->id]);
-
             PurchaseOrderEvidence::create([
                 'purchase_order_id' => $purchaseOrder->id,
-                'purchase_order_milestone_id' => $milestone->id,
+                'purchase_order_milestone_id' => null,
                 'purchase_order_invoice_id' => $invoice->id,
                 'uploaded_by' => $request->user()->id,
                 'file_name' => $evidenceName,
@@ -134,6 +110,6 @@ class SupplierPortalInvoiceController extends Controller
         });
 
         return redirect()->route('supplier_portal.purchase_orders.index')
-            ->with('success', 'Factura registrada correctamente para el hito seleccionado.');
+            ->with('success', 'Factura registrada correctamente para la orden de compra.');
     }
 }

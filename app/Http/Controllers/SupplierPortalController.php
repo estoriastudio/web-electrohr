@@ -16,6 +16,7 @@ class SupplierPortalController extends Controller
 
         $purchaseOrdersCount = PurchaseOrder::query()
             ->where('supplier_id', $supplier->id)
+            ->where('status', 'autorizada')
             ->count();
 
         $materialVouchersCount = MaterialVoucher::query()
@@ -24,7 +25,8 @@ class SupplierPortalController extends Controller
 
         $pendingMilestones = PurchaseOrderMilestone::query()
             ->whereHas('purchaseOrder', function ($q) use ($supplier) {
-                $q->where('supplier_id', $supplier->id);
+                $q->where('supplier_id', $supplier->id)
+                    ->where('status', 'autorizada');
             })
             ->whereNotNull('due_date')
             ->whereDate('due_date', '<=', now()->toDateString())
@@ -33,6 +35,7 @@ class SupplierPortalController extends Controller
 
         $recentOrders = PurchaseOrder::query()
             ->where('supplier_id', $supplier->id)
+            ->where('status', 'autorizada')
             ->latest()
             ->limit(5)
             ->get();
@@ -58,31 +61,24 @@ class SupplierPortalController extends Controller
         $supplier = $request->user()->supplier;
         $search = trim((string) $request->input('search', ''));
 
-        $milestones = PurchaseOrderMilestone::query()
-            ->with([
-                'purchaseOrder',
-                'invoices:id,file_path,evidence_file_path',
-            ])
-            ->whereHas('purchaseOrder', function ($q) use ($supplier) {
-                $q->where('supplier_id', $supplier->id);
-            })
+        $purchaseOrders = PurchaseOrder::query()
+            ->with(['projectRelation', 'workRelation'])
+            ->withSum('invoices as invoiced_amount', 'amount')
+            ->where('supplier_id', $supplier->id)
+            ->where('status', 'autorizada')
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
-                    $sub->where('concept', 'like', '%' . $search . '%')
-                        ->orWhereHas('purchaseOrder', function ($orderQuery) use ($search) {
-                            $orderQuery->where('folio', 'like', '%' . $search . '%')
-                                ->orWhere('project', 'like', '%' . $search . '%')
-                                ->orWhere('site', 'like', '%' . $search . '%');
-                        });
+                    $sub->where('folio', 'like', '%' . $search . '%')
+                        ->orWhere('project', 'like', '%' . $search . '%')
+                        ->orWhere('site', 'like', '%' . $search . '%');
                 });
             })
-            ->orderByRaw('due_date IS NULL ASC')
-            ->orderBy('due_date')
-            ->orderBy('id')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
 
-        return view('supplier_portal.purchase_orders', compact('supplier', 'milestones', 'search'));
+        return view('supplier_portal.purchase_orders', compact('supplier', 'purchaseOrders', 'search'));
     }
 
     public function materialVouchers(Request $request): View

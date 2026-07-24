@@ -16,6 +16,13 @@
     </div>
 @endif
 
+@if (session('status') === 'password-updated')
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Contraseña actualizada correctamente.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @if ($errors->any())
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <ul class="mb-0">
@@ -109,33 +116,35 @@
                 <h5 class="card-title mb-0"><i class="ri-lock-line me-1 text-muted"></i> Cambiar contraseña</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ route('usuarios.update', $user) }}">
+                <form method="POST" action="{{ route('user-password.update') }}">
                     @csrf
                     @method('PUT')
 
-                    {{-- Mantener nombre y email para pasar validación --}}
-                    <input type="hidden" name="name"  value="{{ $user->name }}">
-                    <input type="hidden" name="email" value="{{ $user->email }}">
-                    @foreach ($user->roles->pluck('name') as $role)
-                        <input type="hidden" name="roles[]" value="{{ $role }}">
-                    @endforeach
-                    @foreach ($user->permissions->pluck('name') as $perm)
-                        <input type="hidden" name="permissions[]" value="{{ $perm }}">
-                    @endforeach
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña actual</label>
+                        <input type="password" name="current_password"
+                               class="form-control @error('current_password', 'updatePassword') is-invalid @enderror"
+                               autocomplete="current-password" required>
+                        @error('current_password', 'updatePassword')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
                     <div class="mb-3">
                         <label class="form-label">Nueva contraseña</label>
                         <input type="password" name="password"
-                               class="form-control @error('password') is-invalid @enderror"
-                               autocomplete="new-password">
-                        @error('password') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        <div class="form-text">Mínimo 8 caracteres, mayúsculas, minúsculas y números.</div>
+                               class="form-control @error('password', 'updatePassword') is-invalid @enderror"
+                               autocomplete="new-password" required>
+                        @error('password', 'updatePassword')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="form-text">Mínimo 8 caracteres.</div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Confirmar contraseña</label>
                         <input type="password" name="password_confirmation"
-                               class="form-control" autocomplete="new-password">
+                               class="form-control" autocomplete="new-password" required>
                     </div>
 
                     <div class="text-end">

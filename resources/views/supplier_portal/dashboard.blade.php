@@ -48,7 +48,6 @@
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Folio</th>
-                                <th>Estatus</th>
                                 <th>Importe</th>
                             </tr>
                         </thead>
@@ -56,11 +55,10 @@
                             @forelse($recentOrders as $order)
                                 <tr>
                                     <td>{{ $order->folio }}</td>
-                                    <td>{{ ucfirst($order->status) }}</td>
                                     <td>{{ $order->currency }} {{ number_format($order->amount, 2) }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="3" class="text-center text-muted py-4">Sin órdenes registradas.</td></tr>
+                                <tr><td colspan="2" class="text-center text-muted py-4">Sin órdenes autorizadas registradas.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

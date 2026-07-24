@@ -738,7 +738,7 @@
                             @endif
                         </label>
                         <input type="password" name="portal_password" class="form-control @error('portal_password') is-invalid @enderror"
-                               placeholder="Mínimo 8 caracteres" @if (!$supplier->portal_user_id) required @endif>
+                               placeholder="Mínimo 8 caracteres" autocomplete="new-password" @if (!$supplier->portal_user_id) required @endif>
                         <div class="form-text">
                             @if ($supplier->portal_user_id)
                                 Déjalo vacío para conservar la contraseña actual.
@@ -752,9 +752,9 @@
                     </div>
 
                     <div class="mb-0">
-                        <label class="form-label fw-medium">Confirmar contraseña</label>
-                        <input type="password" name="portal_password_confirmation" class="form-control"
-                               placeholder="Repite la contraseña">
+                           <label class="form-label fw-medium">Confirmar contraseña <span class="text-danger">*</span></label>
+                           <input type="password" name="portal_password_confirmation" class="form-control"
+                               placeholder="Repite la contraseña" autocomplete="new-password" @if (!$supplier->portal_user_id) required @endif>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1189,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     const portalConfigModalEl = document.getElementById('modalPortalAccessConfig');
-    const shouldOpenPortalConfig = @json($errors->has('portal_email') || request()->boolean('setup_portal'));
+    const shouldOpenPortalConfig = @json($errors->hasAny(['portal_name', 'portal_email', 'portal_password']) || request()->boolean('setup_portal'));
     if (portalConfigModalEl && shouldOpenPortalConfig) {
         bootstrap.Modal.getOrCreateInstance(portalConfigModalEl).show();
     }
