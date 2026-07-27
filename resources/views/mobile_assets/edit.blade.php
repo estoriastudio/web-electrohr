@@ -86,7 +86,7 @@
                             <input type="text"
                                    class="form-control @error('milage') is-invalid @enderror"
                                    id="milage" name="milage"
-                                   value="{{ old('milage', $mobileAsset->milage) }}"
+                                   value="{{ old('milage', is_numeric($mobileAsset->milage) ? number_format($mobileAsset->milage) : $mobileAsset->milage) }}"
                                    placeholder="Ej. 120000">
                             @error('milage')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -278,6 +278,29 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     typeSelect.addEventListener('change', togglePlates);
+
+    // ── Máscara de kilometraje ────────────────────────────────────────
+    (function () {
+        var milageInput = document.getElementById('milage');
+        if (!milageInput) return;
+
+        function formatMilage(el) {
+            var raw = el.value.replace(/[^0-9]/g, '');
+            if (raw === '') { el.value = ''; return; }
+            var num = parseInt(raw, 10);
+            var formatted = num.toLocaleString('en-US');
+            var pos = el.selectionStart + (formatted.length - el.value.length);
+            el.value = formatted;
+            try { el.setSelectionRange(pos, pos); } catch (e) {}
+        }
+
+        milageInput.addEventListener('input', function () { formatMilage(this); });
+
+        // Limpiar comas antes de enviar
+        milageInput.closest('form').addEventListener('submit', function () {
+            milageInput.value = milageInput.value.replace(/[^0-9]/g, '');
+        });
+    }());
 });
 </script>
 @endpush

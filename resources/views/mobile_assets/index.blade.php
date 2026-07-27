@@ -191,7 +191,7 @@
                                             <span class="me-2"><i class="ri-car-line me-1"></i>Placas: {{ $asset->plates }}</span>
                                         @endif
                                         @if ($asset->milage)
-                                            <span><i class="ri-speed-up-line me-1"></i>{{ number_format($asset->milage) }} Km</span>
+                                            <span><i class="ri-speed-up-line me-1"></i> {{ is_numeric($asset->milage) ? number_format($asset->milage) : $asset->milage}} Km</span>
                                         @endif
                                     </p>
                                 @endif
@@ -363,6 +363,32 @@
         modal.show();
     }
     @endif
+
+    // ── Máscara de kilometraje (modal crear) ──────────────────────────
+    (function () {
+        var milageInput = document.getElementById('create_milage');
+        if (!milageInput) return;
+
+        function formatMilage(el) {
+            var raw = el.value.replace(/[^0-9]/g, '');
+            if (raw === '') { el.value = ''; return; }
+            var num = parseInt(raw, 10);
+            var formatted = num.toLocaleString('en-US');
+            var pos = el.selectionStart + (formatted.length - el.value.length);
+            el.value = formatted;
+            try { el.setSelectionRange(pos, pos); } catch (e) {}
+        }
+
+        milageInput.addEventListener('input', function () { formatMilage(this); });
+
+        // Pre-formatear si viene con old()
+        if (milageInput.value) formatMilage(milageInput);
+
+        // Limpiar comas antes de enviar
+        milageInput.closest('form').addEventListener('submit', function () {
+            milageInput.value = milageInput.value.replace(/[^0-9]/g, '');
+        });
+    }());
 })();
 </script>
 @endpush

@@ -96,6 +96,11 @@ class MobileAssetController extends Controller
             $validated['plates'] = null;
         }
 
+        if (isset($validated['milage']) && $validated['milage'] !== null && $validated['milage'] !== '') {
+            $cleaned = preg_replace('/[^0-9]/', '', $validated['milage']);
+            $validated['milage'] = $cleaned !== '' ? $cleaned : null;
+        }
+
         $asset = MobileAsset::create($validated);
 
         $this->notification->send([
@@ -280,6 +285,11 @@ class MobileAssetController extends Controller
 
         if (($validated['type'] ?? null) !== 'parque_vehicular') {
             $validated['plates'] = null;
+        }
+
+        if (isset($validated['milage']) && $validated['milage'] !== null && $validated['milage'] !== '') {
+            $cleaned = preg_replace('/[^0-9]/', '', $validated['milage']);
+            $validated['milage'] = $cleaned !== '' ? $cleaned : null;
         }
 
         $mobileAsset->update($validated);

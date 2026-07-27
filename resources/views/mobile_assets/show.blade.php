@@ -248,13 +248,22 @@
                                         @elseif ($docRecord && $docRecord->expiry_date)
                                             @php
                                                 $daysLeft = now()->diffInDays($docRecord->expiry_date, false);
+                                                if ($daysLeft > 60) {
+                                                    $expiryLabel = round($daysLeft / 30) . ' meses restantes';
+                                                } elseif ($daysLeft > 14) {
+                                                    $expiryLabel = round($daysLeft / 7) . ' semanas restantes';
+                                                } elseif ($daysLeft > 0) {
+                                                    $expiryLabel = $daysLeft . ' día' . ($daysLeft === 1 ? '' : 's') . ' restante' . ($daysLeft === 1 ? '' : 's');
+                                                } else {
+                                                    $expiryLabel = null;
+                                                }
                                             @endphp
                                             <span class="{{ $ds === 'red' ? 'text-danger fw-semibold' : ($ds === 'yellow' ? 'text-warning fw-semibold' : '') }}">
                                                 {{ $docRecord->expiry_date->format('d/m/Y') }}
                                                 @if ($daysLeft <= 0)
                                                     <small class="d-block text-danger">Vencido</small>
                                                 @elseif ($daysLeft <= 90)
-                                                    <small class="d-block text-warning">{{ $daysLeft }} días restantes</small>
+                                                    <small class="d-block text-warning">{{ $expiryLabel }}</small>
                                                 @endif
                                             </span>
                                         @else
@@ -333,9 +342,19 @@
                                         @if ($log->next_maintenance_date)
                                             @php
                                                 $daysToNext = now()->diffInDays($log->next_maintenance_date, false);
+                                                if ($daysToNext > 60) {
+                                                    $nextLabel = round($daysToNext / 30) . ' meses';
+                                                } elseif ($daysToNext > 14) {
+                                                    $nextLabel = round($daysToNext / 7) . ' semanas';
+                                                } elseif ($daysToNext > 0) {
+                                                    $nextLabel = $daysToNext . ' día' . ($daysToNext === 1 ? '' : 's');
+                                                } else {
+                                                    $nextLabel = 'Vencido';
+                                                }
                                             @endphp
                                             <span class="{{ $daysToNext < 0 ? 'text-danger' : ($daysToNext <= 14 ? 'text-warning' : 'text-muted') }}">
                                                 {{ $log->next_maintenance_date->format('d/m/Y') }}
+                                                <small class="d-block">{{ $nextLabel }}</small>
                                             </span>
                                         @else
                                             <span class="text-muted">—</span>
@@ -406,7 +425,7 @@
                     <dd class="col-sm-7">{{ $mobileAsset->card_number ?? '—' }}</dd>
 
                     <dt class="col-sm-5 text-muted fw-normal">Kilometraje</dt>
-                    <dd class="col-sm-7">{{ $mobileAsset->milage ?? '—' }}</dd>
+                    <dd class="col-sm-7">{{ $mobileAsset->milage ? (is_numeric($mobileAsset->milage) ? number_format($mobileAsset->milage) . ' km' : $mobileAsset->milage) : '—' }}</dd>
 
                     <dt class="col-sm-5 text-muted fw-normal">Nombre</dt>
                     <dd class="col-sm-7 fw-medium">{{ $mobileAsset->name }}</dd>

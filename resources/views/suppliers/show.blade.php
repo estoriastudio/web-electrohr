@@ -1193,7 +1193,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (portalConfigModalEl && shouldOpenPortalConfig) {
         bootstrap.Modal.getOrCreateInstance(portalConfigModalEl).show();
     }
-
 });
 </script>
 @endpush

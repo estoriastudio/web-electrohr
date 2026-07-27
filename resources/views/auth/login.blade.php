@@ -53,7 +53,12 @@
                                             <a href="{{ route('password.request') }}" class="float-end text-muted text-unline-dashed ms-1">Restablecer contraseña</a>
                                         @endif
                                         <label class="form-label" for="password">Contraseña</label>
-                                        <input type="password" id="password" name="password" class="form-control bg-light bg-opacity-50 border-light py-2 @error('password') is-invalid @enderror" placeholder="Ingrese su contraseña" required autocomplete="current-password">
+                                        <div class="input-group">
+                                            <input type="password" id="password" name="password" class="form-control bg-light bg-opacity-50 border-light py-2 @error('password') is-invalid @enderror" placeholder="Ingrese su contraseña" required autocomplete="current-password">
+                                            <button class="btn btn-light border-light bg-opacity-50" type="button" id="toggle-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                                                <i class="ri-eye-line"></i>
+                                            </button>
+                                        </div>
                                         @error('password')
                                             <span class="text-danger small">{{ $message }}</span>
                                         @enderror
@@ -82,4 +87,28 @@
 @endsection
 
 @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const passwordInput = document.getElementById('password');
+            const toggleButton = document.getElementById('toggle-password');
+
+            if (!passwordInput || !toggleButton) {
+                return;
+            }
+
+            const toggleIcon = toggleButton.querySelector('i');
+
+            toggleButton.addEventListener('click', function () {
+                const isPasswordHidden = passwordInput.getAttribute('type') === 'password';
+                passwordInput.setAttribute('type', isPasswordHidden ? 'text' : 'password');
+                toggleButton.setAttribute('aria-pressed', String(isPasswordHidden));
+                toggleButton.setAttribute('aria-label', isPasswordHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+
+                if (toggleIcon) {
+                    toggleIcon.classList.toggle('ri-eye-line', !isPasswordHidden);
+                    toggleIcon.classList.toggle('ri-eye-off-line', isPasswordHidden);
+                }
+            });
+        });
+    </script>
 @endpush
