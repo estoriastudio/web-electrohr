@@ -158,7 +158,7 @@ class PurchaseOrderController extends Controller
         }
 
         if ($request->type === 'mantenimiento') {
-            $rules['mobile_asset_id'] = 'nullable|exists:mobile_assets,id';
+            $rules['mobile_asset_id'] = 'required|exists:mobile_assets,id';
         }
 
         // Solo admin puede asignar el estatus «autorizada» directamente
@@ -325,6 +325,7 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder->load([
             'supplier',
+            'mobileAsset',
             'milestones.payments',
             'milestones.invoices',
             'invoices.milestones',
@@ -346,9 +347,10 @@ class PurchaseOrderController extends Controller
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
+        $mobileAssets          = MobileAsset::where('status', 'activo')->orderBy('name')->get();
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
 
-        return view('purchase_orders.edit', compact('purchaseOrder', 'suppliers', 'projects', 'authorizedSignatories'));
+        return view('purchase_orders.edit', compact('purchaseOrder', 'suppliers', 'projects', 'mobileAssets', 'authorizedSignatories'));
     }
 
     public function update(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
@@ -380,7 +382,7 @@ class PurchaseOrderController extends Controller
         }
 
         if ($request->type === 'mantenimiento') {
-            $rules['mobile_asset_id'] = 'nullable|exists:mobile_assets,id';
+            $rules['mobile_asset_id'] = 'required|exists:mobile_assets,id';
         }
 
         $validated = $request->validate($rules);

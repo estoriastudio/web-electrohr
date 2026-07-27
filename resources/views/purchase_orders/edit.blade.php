@@ -93,6 +93,20 @@
                             @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
+                        <div class="col-md-8 campo-mobile-asset" style="display:none;">
+                            <label for="mobile_asset_id" class="form-label fw-medium">Bien Móvil <span class="text-danger">*</span></label>
+                            <select class="form-control @error('mobile_asset_id') is-invalid @enderror"
+                                    id="mobile_asset_id" name="mobile_asset_id">
+                                <option value="">Buscar bien móvil...</option>
+                                @foreach ($mobileAssets as $asset)
+                                    <option value="{{ $asset->id }}" {{ old('mobile_asset_id', $purchaseOrder->mobile_asset_id) == $asset->id ? 'selected' : '' }}>
+                                        {{ $asset->name }}{{ $asset->folio ? ' — ' . $asset->folio : '' }}{{ $asset->brand ? ' (' . $asset->brand . ')' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('mobile_asset_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
                         {{-- Moneda --}}
                         <div class="col-md-4">
                             <label for="currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
@@ -277,8 +291,12 @@ $(function () {
     function toggleProyectoObra() {
         if ($('#type').val() === 'materiales_servicios') {
             $('.campo-project, .campo-site').show();
+            $('.campo-mobile-asset').hide();
+            $('#mobile_asset_id').prop('required', false);
         } else {
             $('.campo-project, .campo-site').hide();
+            $('.campo-mobile-asset').show();
+            $('#mobile_asset_id').prop('required', true);
         }
     }
 

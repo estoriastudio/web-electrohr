@@ -202,7 +202,7 @@
                     <div id="section-mantenimiento" class="col-12" style="display:none;">
                         <div class="row g-3">
                             <div class="col-md-8">
-                                <label for="mobile_asset_id" class="form-label fw-medium">Bien Móvil</label>
+                                <label for="mobile_asset_id" class="form-label fw-medium">Bien Móvil <span class="text-danger">*</span></label>
                                 <select class="form-control @error('mobile_asset_id') is-invalid @enderror"
                                         id="mobile_asset_id" name="mobile_asset_id">
                                     <option value="">Buscar bien móvil...</option>
@@ -396,6 +396,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var sectionMant        = document.getElementById('section-mantenimiento');
     var projectSelect      = document.getElementById('project_id');
     var siteSelect         = document.getElementById('project_work_id');
+    var mobileAssetSelect  = document.getElementById('mobile_asset_id');
     var supplierChoices    = null;
     var projectChoices     = null;
     var mobileAssetChoices = null;
@@ -429,6 +430,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (type === 'materiales_servicios') {
             sectionMat.style.display  = '';
             sectionMant.style.display = 'none';
+            if (mobileAssetSelect) mobileAssetSelect.required = false;
             initSupplierChoices();
             if (!projectChoices) {
                 projectChoices = new Choices(projectSelect, {
@@ -442,6 +444,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             sectionMant.style.display = '';
             sectionMat.style.display  = 'none';
+            if (mobileAssetSelect) mobileAssetSelect.required = true;
             initSupplierChoices();
             if (!mobileAssetChoices) {
                 mobileAssetChoices = new Choices(document.getElementById('mobile_asset_id'), {
