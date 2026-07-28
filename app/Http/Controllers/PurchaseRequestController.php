@@ -21,6 +21,8 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseRequestController extends Controller
 {
+    private const SOLMAT_PILE_SELECTION_SESSION_KEY = 'warehouse.solmat_pile.selection';
+
     public function changeRequestsPanel(Request $request)
     {
         $search = trim($request->input('search', ''));
@@ -161,7 +163,11 @@ class PurchaseRequestController extends Controller
             'request_date'        => 'required|date',
             'need_date'           => 'required|date|after_or_equal:request_date',
             'assigned_to'         => 'nullable|exists:users,id',
+            'clear_solmat_pile_selection_on_success' => 'nullable|boolean',
         ]);
+
+        $clearSolmatPileSelectionOnSuccess = (bool) ($data['clear_solmat_pile_selection_on_success'] ?? false);
+        unset($data['clear_solmat_pile_selection_on_success']);
 
         $selectedWorkIds = collect($data['project_work_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -328,6 +334,10 @@ class PurchaseRequestController extends Controller
             'type'         => 'purchase_request',
             'data'         => "SOLCOM #{$pr->folio} creada.",
         ]);
+
+        if ($clearSolmatPileSelectionOnSuccess) {
+            $request->session()->forget(self::SOLMAT_PILE_SELECTION_SESSION_KEY);
+        }
 
         return redirect()->route('purchase_requests.show', $pr)
                          ->with('success', "Solicitud de Compra #{$pr->folio} creada correctamente.");
@@ -740,6 +750,7 @@ class PurchaseRequestController extends Controller
     {
         $search  = $request->input('search', '');
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
+        $selectionState = $this->getSolmatPileSelectionState($request);
 
         $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities'])
             ->withCount('purchaseRequests')
@@ -775,7 +786,8 @@ class PurchaseRequestController extends Controller
             'search',
             'section',
             'entryCount',
-            'outCount'
+            'outCount',
+            'selectionState'
         ));
     }
 
@@ -784,22 +796,77 @@ class PurchaseRequestController extends Controller
     {
         $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds([(int) $materialRequest->id]);
 
-        return $this->renderCreateFromSolmatView($sourceMaterialRequests);
+        return $this->renderCreateFromSolmatView($sourceMaterialRequests, false);
     }
 
     public function createFromSolmatMulti(Request $request)
     {
         $data = $request->validate([
-            'material_request_ids' => 'required|array|min:1',
+            'material_request_ids' => 'nullable|array|min:1',
             'material_request_ids.*' => 'integer|exists:material_requests,id',
         ]);
 
-        $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds($data['material_request_ids']);
+        $materialRequestIds = collect($data['material_request_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        return $this->renderCreateFromSolmatView($sourceMaterialRequests);
+        if (empty($materialRequestIds)) {
+            $selectionState = $this->getSolmatPileSelectionState($request);
+            $materialRequestIds = $selectionState['selected_ids'];
+        }
+
+        if (empty($materialRequestIds)) {
+            throw ValidationException::withMessages([
+                'material_request_ids' => 'Debes seleccionar al menos una SOLMAT para crear una SOLCOM consolidada.',
+            ]);
+        }
+
+        $sourceMaterialRequests = $this->loadSourceMaterialRequestsByIds($materialRequestIds);
+
+        return $this->renderCreateFromSolmatView($sourceMaterialRequests, true);
     }
 
-    private function renderCreateFromSolmatView(Collection $sourceMaterialRequests)
+    public function syncSolmatPileSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'selected_ids' => 'required|array|max:500',
+            'selected_ids.*' => 'integer|distinct',
+            'selected_project_id' => 'nullable|integer|min:1',
+        ]);
+
+        $selectionState = $this->sanitizeSolmatPileSelection(
+            $data['selected_ids'],
+            isset($data['selected_project_id']) ? (int) $data['selected_project_id'] : null
+        );
+
+        $this->persistSolmatPileSelectionState($request, $selectionState);
+
+        return response()->json([
+            'selected_ids' => $selectionState['selected_ids'],
+            'selected_count' => $selectionState['selected_count'],
+            'selected_project_id' => $selectionState['selected_project_id'],
+        ]);
+    }
+
+    public function clearSolmatPileSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->persistSolmatPileSelectionState($request, [
+            'selected_ids' => [],
+            'selected_project_id' => null,
+            'selected_count' => 0,
+        ]);
+
+        return response()->json([
+            'selected_ids' => [],
+            'selected_count' => 0,
+            'selected_project_id' => null,
+        ]);
+    }
+
+    private function renderCreateFromSolmatView(Collection $sourceMaterialRequests, bool $clearSolmatPileSelectionOnSuccess = false)
     {
         $sourceMaterialRequests = $sourceMaterialRequests->filter(function ($materialRequest) {
             $allWorkIds = $materialRequest->projectWorks->pluck('id')->map(fn ($id) => (int) $id);
@@ -858,9 +925,117 @@ class PurchaseRequestController extends Controller
                 'availableProjectWorks',
                 'previewItems',
                 'defaultSelectedWorks',
-                'sourceMaterialRequestIds'
+                'sourceMaterialRequestIds',
+                'clearSolmatPileSelectionOnSuccess'
             )
         );
+    }
+
+    private function getSolmatPileSelectionState(Request $request): array
+    {
+        $rawState = $request->session()->get(self::SOLMAT_PILE_SELECTION_SESSION_KEY, []);
+
+        $selectionState = $this->sanitizeSolmatPileSelection(
+            $rawState['selected_ids'] ?? [],
+            isset($rawState['selected_project_id']) ? (int) $rawState['selected_project_id'] : null
+        );
+
+        $this->persistSolmatPileSelectionState($request, $selectionState);
+
+        return $selectionState;
+    }
+
+    private function sanitizeSolmatPileSelection(array $ids, ?int $selectedProjectId = null): array
+    {
+        $normalizedIds = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalizedIds->isEmpty()) {
+            return [
+                'selected_ids' => [],
+                'selected_project_id' => null,
+                'selected_count' => 0,
+            ];
+        }
+
+        $allowedMaterialRequests = MaterialRequest::query()
+            ->select(['id', 'project_id', 'status'])
+            ->whereIn('id', $normalizedIds)
+            ->get()
+            ->filter(function (MaterialRequest $materialRequest) {
+                return in_array((string) $materialRequest->status, ['sent_to_warehouse', 'linked'], true);
+            })
+            ->keyBy('id');
+
+        if ($allowedMaterialRequests->isEmpty()) {
+            return [
+                'selected_ids' => [],
+                'selected_project_id' => null,
+                'selected_count' => 0,
+            ];
+        }
+
+        $orderedSelection = $normalizedIds
+            ->map(fn ($id) => $allowedMaterialRequests->get($id))
+            ->filter()
+            ->values();
+
+        if ($orderedSelection->isEmpty()) {
+            return [
+                'selected_ids' => [],
+                'selected_project_id' => null,
+                'selected_count' => 0,
+            ];
+        }
+
+        $availableProjectIds = $orderedSelection
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($availableProjectIds->isEmpty()) {
+            return [
+                'selected_ids' => [],
+                'selected_project_id' => null,
+                'selected_count' => 0,
+            ];
+        }
+
+        $anchorProjectId = $selectedProjectId && $availableProjectIds->contains($selectedProjectId)
+            ? $selectedProjectId
+            : (int) $availableProjectIds->first();
+
+        $selectedIds = $orderedSelection
+            ->filter(fn (MaterialRequest $materialRequest) => (int) $materialRequest->project_id === $anchorProjectId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        return [
+            'selected_ids' => $selectedIds,
+            'selected_project_id' => $anchorProjectId,
+            'selected_count' => count($selectedIds),
+        ];
+    }
+
+    private function persistSolmatPileSelectionState(Request $request, array $selectionState): void
+    {
+        if (empty($selectionState['selected_ids'])) {
+            $request->session()->forget(self::SOLMAT_PILE_SELECTION_SESSION_KEY);
+            return;
+        }
+
+        $request->session()->put(self::SOLMAT_PILE_SELECTION_SESSION_KEY, [
+            'selected_ids' => array_values(array_map('intval', $selectionState['selected_ids'])),
+            'selected_project_id' => (int) ($selectionState['selected_project_id'] ?? 0),
+            'updated_at' => now()->toIso8601String(),
+        ]);
     }
 
     // ── Enviar SOLCOM a Compras ──────────────────────────────────────────────

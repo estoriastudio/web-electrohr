@@ -114,6 +114,9 @@
                     @else
                         <input type="hidden" name="material_request_id" value="{{ $materialRequest->id }}">
                     @endif
+                    <input type="hidden"
+                           name="clear_solmat_pile_selection_on_success"
+                           value="{{ !empty($clearSolmatPileSelectionOnSuccess) ? 1 : 0 }}">
 
                     <div class="row g-3">
 

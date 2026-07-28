@@ -659,6 +659,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                        [PurchaseRequestController::class, 'solmatPile'])
                  ->name('warehouse.solmat_pile');
 
+            Route::post('/almacen/pila-solmat/seleccion/sincronizar',
+                        [PurchaseRequestController::class, 'syncSolmatPileSelection'])
+                 ->name('warehouse.solmat_pile.selection.sync');
+
+            Route::post('/almacen/pila-solmat/seleccion/limpiar',
+                        [PurchaseRequestController::class, 'clearSolmatPileSelection'])
+                 ->name('warehouse.solmat_pile.selection.clear');
+
             Route::get('/almacen/pila-solmat/crear-solcom-consolidada',
                      [PurchaseRequestController::class, 'createFromSolmatMulti'])
                  ->name('purchase_requests.create_from_solmat_multi');

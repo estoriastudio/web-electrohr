@@ -16,6 +16,16 @@
     </div>
 @endif
 
+@php
+    $persistedSelectedIds = collect(data_get($selectionState ?? [], 'selected_ids', []))
+        ->map(fn ($id) => (int) $id)
+        ->unique()
+        ->values()
+        ->all();
+    $persistedSelectedCount = (int) data_get($selectionState ?? [], 'selected_count', count($persistedSelectedIds));
+    $persistedSelectedProjectId = data_get($selectionState ?? [], 'selected_project_id');
+@endphp
+
 <div class="row">
     <div class="col-xl-12">
         <div class="card">
@@ -29,13 +39,19 @@
                     </p>
                 </div>
                 <div class="d-flex flex-wrap justify-content-end gap-2">
+                    <button type="button"
+                            id="btnClearSolmatSelection"
+                            class="btn btn-outline-secondary btn-sm"
+                            @disabled($persistedSelectedCount === 0)>
+                        <i class="ri-delete-bin-line me-1"></i>Limpiar selección
+                    </button>
                     <button type="submit"
                             form="formCreateConsolidatedSolcom"
                             id="btnCreateConsolidatedSolcom"
                             class="btn btn-warning btn-sm"
-                            disabled>
+                            @disabled($persistedSelectedCount === 0)>
                         <i class="ri-stack-line me-1"></i>Crear SOLCOM consolidada
-                        <span class="badge bg-light text-dark ms-1" id="selectedSolmatCount">0</span>
+                        <span class="badge bg-light text-dark ms-1" id="selectedSolmatCount">{{ $persistedSelectedCount }}</span>
                     </button>
                     <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                         <i class="ri-arrow-left-line me-1"></i>Ver todas las SOLMAT
@@ -136,12 +152,16 @@
                                 @endphp
                                 <tr>
                                     <td>
+                                        @php
+                                            $isPersistedSelected = in_array((int) $mr->id, $persistedSelectedIds, true);
+                                        @endphp
                                         <input type="checkbox"
                                                class="form-check-input js-solmat-select"
                                                name="material_request_ids[]"
                                                value="{{ $mr->id }}"
                                                data-project-id="{{ (int) ($mr->project_id ?? 0) }}"
                                                data-project-name="{{ $mr->project?->name ?? 'Sin proyecto' }}"
+                                               @checked($isPersistedSelected && !$isFullyCommitted)
                                                @disabled($isFullyCommitted)
                                                title="Seleccionar SOLMAT #{{ $mr->folio }}">
                                     </td>
@@ -255,31 +275,80 @@
 @push('scripts')
 <script>
 (function () {
+    const initialSelectedIds = @json($persistedSelectedIds);
+    const initialSelectedProjectId = @json($persistedSelectedProjectId);
+    const syncUrl = @json(route('warehouse.solmat_pile.selection.sync'));
+    const clearUrl = @json(route('warehouse.solmat_pile.selection.clear'));
+    const csrfToken = @json(csrf_token());
+
     const checkboxes = Array.from(document.querySelectorAll('.js-solmat-select'));
     const selectAll = document.getElementById('selectAllSolmat');
     const createButton = document.getElementById('btnCreateConsolidatedSolcom');
+    const clearButton = document.getElementById('btnClearSolmatSelection');
     const selectedCount = document.getElementById('selectedSolmatCount');
     const projectError = document.getElementById('solmatSelectionProjectError');
     const form = document.getElementById('formCreateConsolidatedSolcom');
+    const selectedIds = new Set((initialSelectedIds || []).map(function (id) { return String(id); }));
+    let selectedProjectId = initialSelectedProjectId ? String(initialSelectedProjectId) : null;
 
-    function getCheckedBoxes() {
-        return checkboxes.filter(function (checkbox) { return !checkbox.disabled && checkbox.checked; });
+    function getProjectId(checkbox) {
+        return String(checkbox.getAttribute('data-project-id') || '');
+    }
+
+    function getSelectableCheckboxesOnPage() {
+        return checkboxes.filter(function (checkbox) {
+            if (checkbox.disabled) {
+                return false;
+            }
+            if (!selectedProjectId) {
+                return true;
+            }
+            return getProjectId(checkbox) === selectedProjectId;
+        });
+    }
+
+    function getCheckedBoxesOnPage() {
+        return getSelectableCheckboxesOnPage().filter(function (checkbox) {
+            return checkbox.checked;
+        });
+    }
+
+    function applySelectedIdsToPage() {
+        checkboxes.forEach(function (checkbox) {
+            if (checkbox.disabled) {
+                checkbox.checked = false;
+                return;
+            }
+
+            checkbox.checked = selectedIds.has(String(checkbox.value));
+        });
     }
 
     function updateSelectionState() {
-        const checked = getCheckedBoxes();
+        const checkedOnPage = getCheckedBoxesOnPage();
+        const selectableOnPage = getSelectableCheckboxesOnPage();
+        const count = selectedIds.size;
 
         if (selectedCount) {
-            selectedCount.textContent = String(checked.length);
+            selectedCount.textContent = String(count);
         }
 
         if (createButton) {
-            createButton.disabled = checked.length === 0;
+            createButton.disabled = count === 0;
+        }
+
+        if (clearButton) {
+            clearButton.disabled = count === 0;
         }
 
         if (selectAll) {
-            selectAll.checked = checked.length > 0 && checked.length === checkboxes.length;
-            selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+            if (selectableOnPage.length === 0) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            } else {
+                selectAll.checked = checkedOnPage.length > 0 && checkedOnPage.length === selectableOnPage.length;
+                selectAll.indeterminate = checkedOnPage.length > 0 && checkedOnPage.length < selectableOnPage.length;
+            }
         }
     }
 
@@ -298,16 +367,67 @@
         projectError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    function setSelectedProjectIdFromCurrentSelection() {
+        if (selectedIds.size === 0) {
+            selectedProjectId = null;
+            return;
+        }
+
+        if (selectedProjectId) {
+            return;
+        }
+
+        const firstChecked = checkboxes.find(function (checkbox) {
+            return checkbox.checked && !checkbox.disabled;
+        });
+
+        if (firstChecked) {
+            selectedProjectId = getProjectId(firstChecked);
+        }
+    }
+
     function canSelectCheckbox(targetCheckbox) {
-        const checked = getCheckedBoxes();
-        if (checked.length === 0) {
+        if (!selectedProjectId) {
             return true;
         }
 
-        const expectedProjectId = String(checked[0].getAttribute('data-project-id') || '');
-        const targetProjectId = String(targetCheckbox.getAttribute('data-project-id') || '');
+        return getProjectId(targetCheckbox) === selectedProjectId;
+    }
 
-        return expectedProjectId === targetProjectId;
+    function syncSelectionToServer() {
+        return fetch(syncUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                selected_ids: Array.from(selectedIds).map(function (id) { return Number(id); }),
+                selected_project_id: selectedProjectId ? Number(selectedProjectId) : null
+            })
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('No se pudo sincronizar la selección.');
+                }
+
+                return response.json();
+            })
+            .then(function (payload) {
+                selectedIds.clear();
+                (payload.selected_ids || []).forEach(function (id) {
+                    selectedIds.add(String(id));
+                });
+                selectedProjectId = payload.selected_project_id ? String(payload.selected_project_id) : null;
+                applySelectedIdsToPage();
+                updateSelectionState();
+            })
+            .catch(function () {
+                // Si falla la sincronización, se conserva estado local de página sin interrumpir flujo.
+                updateSelectionState();
+            });
     }
 
     checkboxes.forEach(function (checkbox) {
@@ -315,67 +435,147 @@
             if (checkbox.checked && !canSelectCheckbox(checkbox)) {
                 checkbox.checked = false;
                 showProjectError();
-            } else {
-                hideProjectError();
+                updateSelectionState();
+                return;
             }
 
-            updateSelectionState();
+            if (checkbox.checked) {
+                selectedIds.add(String(checkbox.value));
+                if (!selectedProjectId) {
+                    selectedProjectId = getProjectId(checkbox);
+                }
+            } else {
+                selectedIds.delete(String(checkbox.value));
+                if (selectedIds.size === 0) {
+                    selectedProjectId = null;
+                }
+            }
+
+            hideProjectError();
+            syncSelectionToServer();
         });
     });
 
     if (selectAll) {
         selectAll.addEventListener('change', function () {
             if (!selectAll.checked) {
-                checkboxes.forEach(function (checkbox) { checkbox.checked = false; });
+                getSelectableCheckboxesOnPage().forEach(function (checkbox) {
+                    checkbox.checked = false;
+                    selectedIds.delete(String(checkbox.value));
+                });
+
+                if (selectedIds.size === 0) {
+                    selectedProjectId = null;
+                }
+
                 hideProjectError();
+                syncSelectionToServer();
+                return;
+            }
+
+            const selectable = checkboxes.filter(function (checkbox) {
+                return !checkbox.disabled;
+            });
+
+            if (selectable.length === 0) {
                 updateSelectionState();
                 return;
             }
 
-            const firstProjectId = checkboxes.length > 0
-                ? String(checkboxes[0].getAttribute('data-project-id') || '')
-                : '';
-
-            checkboxes.forEach(function (checkbox) {
-                const projectId = String(checkbox.getAttribute('data-project-id') || '');
-                checkbox.checked = !checkbox.disabled && projectId === firstProjectId;
-            });
-
-            const hasDifferentProjects = checkboxes.some(function (checkbox) {
-                return String(checkbox.getAttribute('data-project-id') || '') !== firstProjectId;
-            });
-
-            if (hasDifferentProjects) {
-                showProjectError();
-            } else {
-                hideProjectError();
+            let targetProjectId = selectedProjectId;
+            if (!targetProjectId) {
+                targetProjectId = getProjectId(selectable[0]);
             }
 
-            updateSelectionState();
+            const pageProjectMatches = selectable.filter(function (checkbox) {
+                return getProjectId(checkbox) === targetProjectId;
+            });
+
+            if (pageProjectMatches.length === 0) {
+                showProjectError();
+                selectAll.checked = false;
+                updateSelectionState();
+                return;
+            }
+
+            selectedProjectId = targetProjectId;
+
+            checkboxes.forEach(function (checkbox) {
+                if (checkbox.disabled) {
+                    checkbox.checked = false;
+                    return;
+                }
+
+                const shouldSelect = getProjectId(checkbox) === selectedProjectId;
+                checkbox.checked = shouldSelect;
+
+                if (shouldSelect) {
+                    selectedIds.add(String(checkbox.value));
+                }
+            });
+
+            hideProjectError();
+            syncSelectionToServer();
         });
     }
 
+    if (clearButton) {
+        clearButton.addEventListener('click', function () {
+            fetch(clearUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('No se pudo limpiar la selección.');
+                }
+
+                selectedIds.clear();
+                selectedProjectId = null;
+                hideProjectError();
+                applySelectedIdsToPage();
+                updateSelectionState();
+            }).catch(function () {
+                updateSelectionState();
+            });
+        });
+    }
+
+    setSelectedProjectIdFromCurrentSelection();
+
     if (form) {
         form.addEventListener('submit', function (event) {
-            const checked = getCheckedBoxes();
-
-            if (checked.length === 0) {
+            if (selectedIds.size === 0) {
                 event.preventDefault();
                 return;
             }
 
-            const projectIds = checked
-                .map(function (checkbox) { return String(checkbox.getAttribute('data-project-id') || ''); })
-                .filter(function (value) { return value !== ''; });
-
-            const uniqueProjectIds = Array.from(new Set(projectIds));
-            if (uniqueProjectIds.length > 1) {
+            if (!selectedProjectId) {
                 event.preventDefault();
                 showProjectError();
+                return;
             }
+
+            Array.from(form.querySelectorAll('.js-solmat-hidden-id')).forEach(function (input) {
+                input.remove();
+            });
+
+            Array.from(selectedIds).forEach(function (id) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'material_request_ids[]';
+                input.value = id;
+                input.className = 'js-solmat-hidden-id';
+                form.appendChild(input);
+            });
         });
     }
 
+    applySelectedIdsToPage();
     updateSelectionState();
 }());
 </script>
