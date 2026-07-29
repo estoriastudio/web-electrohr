@@ -174,9 +174,16 @@
         <div class="card">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0"><i class="ri-list-check me-2 text-primary"></i>Conceptos</h5>
-                <span id="solcom_items_count" class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
-                    {{ $purchaseRequest->items->count() }} ítem(s)
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span id="solcom_items_count" class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
+                        {{ $purchaseRequest->items->count() }} ítem(s)
+                    </span>
+                    @hasanyrole('admin|Solcom')
+                    <button type="button" class="btn btn-sm btn-primary" id="solcom_btn_toggle_add_concept">
+                        <i class="ri-add-line me-1"></i>Agregar concepto
+                    </button>
+                    @endhasanyrole
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -293,6 +300,71 @@
                     </table>
                 </div>
             </div>
+
+            @hasanyrole('admin|Solcom')
+            <div id="solcom_add_panel" class="border-top px-3 py-3" style="display:none;">
+                <p class="text-muted fs-12 fw-medium mb-2">
+                    <i class="ri-add-circle-line me-1 text-primary"></i>Nuevo concepto
+                </p>
+
+                <div id="solcom_state_search">
+                    <div class="position-relative">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="ri-search-line text-muted"></i>
+                            </span>
+                            <input type="text" id="solcom_search_input"
+                                   class="form-control border-start-0 ps-0"
+                                   placeholder="Buscar concepto por código o descripción…"
+                                   autocomplete="off">
+                        </div>
+                        <ul id="solcom_search_dropdown"
+                            class="list-group position-absolute w-100 shadow d-none"
+                            style="top:100%;left:0;max-height:260px;overflow-y:auto;z-index:1050;"></ul>
+                    </div>
+                </div>
+
+                <div id="solcom_state_selected" class="d-none">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-success fs-13 fw-medium">
+                            <i class="ri-checkbox-circle-line me-1"></i>Concepto seleccionado
+                        </span>
+                        <button type="button" id="solcom_btn_change" class="btn btn-link btn-sm p-0 text-muted text-decoration-none">
+                            <i class="ri-close-line me-1"></i>Cambiar
+                        </button>
+                    </div>
+
+                    <div class="rounded-2 border bg-primary-subtle p-3 mb-3">
+                        <p class="fw-bold mb-1 fs-15" id="solcom_preview_code"></p>
+                        <p class="mb-2 text-body-secondary lh-sm" id="solcom_preview_desc"></p>
+                        <span class="badge bg-white text-dark border" id="solcom_preview_unit"></span>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fs-12 fw-medium mb-1">Cantidad a comprar <span class="text-danger">*</span></label>
+                            <input type="number" id="solcom_pur_qty" class="form-control" step="1" min="0" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="solcom_spec_file" class="form-label fs-12 fw-medium mb-1">
+                                Especificaciones técnicas <span class="text-muted fw-normal">(opcional)</span>
+                            </label>
+                            <input type="file"
+                                   id="solcom_spec_file"
+                                   class="form-control"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                        </div>
+                    </div>
+
+                    <div id="solcom_add_error" class="text-danger fs-12 mb-2 d-none"></div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" id="solcom_btn_add" class="btn btn-primary">
+                            <i class="ri-add-line me-1"></i>Agregar concepto
+                        </button>
+                    </div>
+                </div>
+            </div>
+            @endhasanyrole
         </div>
     </div>
 </div>
@@ -882,19 +954,27 @@
     // ── Panel Agregar Concepto ───────────────────────────────────────
     var stateSearch   = document.getElementById('solcom_state_search');
     var stateSelected = document.getElementById('solcom_state_selected');
+    var addPanel      = document.getElementById('solcom_add_panel');
+    var btnToggle     = document.getElementById('solcom_btn_toggle_add_concept');
 
     if (!stateSearch) return; // sin permiso admin|Solcom
 
     var searchInput  = document.getElementById('solcom_search_input');
     var dropdown     = document.getElementById('solcom_search_dropdown');
-    var reqQtyInput  = document.getElementById('solcom_req_qty');
     var purQtyInput  = document.getElementById('solcom_pur_qty');
+    var specFileInput = document.getElementById('solcom_spec_file');
     var btnAdd       = document.getElementById('solcom_btn_add');
     var btnChange    = document.getElementById('solcom_btn_change');
     var previewCode  = document.getElementById('solcom_preview_code');
     var previewDesc  = document.getElementById('solcom_preview_desc');
     var previewUnit  = document.getElementById('solcom_preview_unit');
     var addError     = document.getElementById('solcom_add_error');
+
+    if (btnToggle && addPanel) {
+        btnToggle.addEventListener('click', function () {
+            addPanel.style.display = addPanel.style.display === 'none' ? '' : 'none';
+        });
+    }
 
     var currentConcept = null;
     var debounceTimer;
@@ -903,6 +983,8 @@
         stateSelected.classList.add('d-none');
         stateSearch.classList.remove('d-none');
         searchInput.value  = '';
+        purQtyInput.value  = '';
+        if (specFileInput) specFileInput.value = '';
         currentConcept     = null;
         dropdown.innerHTML = '';
         dropdown.classList.add('d-none');
@@ -913,12 +995,11 @@
         previewCode.textContent = c.code;
         previewDesc.textContent = c.description;
         previewUnit.textContent = c.unit;
-        reqQtyInput.value    = '';
         purQtyInput.value    = '';
         addError.classList.add('d-none');
         stateSearch.classList.add('d-none');
         stateSelected.classList.remove('d-none');
-        reqQtyInput.focus();
+        purQtyInput.focus();
     }
 
     // Búsqueda con debounce
@@ -966,13 +1047,6 @@
 
     btnChange.addEventListener('click', showSearch);
 
-    // Al llenar "Solicitada", auto-rellenar "A Comprar" si está vacío
-    reqQtyInput.addEventListener('input', function () {
-        if (!purQtyInput.value.trim()) {
-            purQtyInput.value = this.value;
-        }
-    });
-
     // Confirmar con Enter desde "A Comprar"
     purQtyInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); doAdd(); }
@@ -983,17 +1057,9 @@
     function doAdd() {
         if (!currentConcept) return;
 
-        var req = parseFloat(reqQtyInput.value);
         var pur = parseFloat(purQtyInput.value);
 
         addError.classList.add('d-none');
-
-        if (isNaN(req) || req <= 0) {
-            reqQtyInput.classList.add('is-invalid');
-            setTimeout(function () { reqQtyInput.classList.remove('is-invalid'); }, 1500);
-            reqQtyInput.focus();
-            return;
-        }
         if (isNaN(pur) || pur < 0) {
             purQtyInput.classList.add('is-invalid');
             setTimeout(function () { purQtyInput.classList.remove('is-invalid'); }, 1500);
@@ -1009,8 +1075,10 @@
         fd.append('code',                currentConcept.code);
         fd.append('description',         currentConcept.description);
         fd.append('unit',                currentConcept.unit);
-        fd.append('requested_quantity',  Math.round(req));
         fd.append('purchase_quantity',   Math.round(pur));
+        if (specFileInput && specFileInput.files && specFileInput.files.length > 0) {
+            fd.append('spec_file', specFileInput.files[0]);
+        }
 
         fetch(storeUrl, {
             method: 'POST',

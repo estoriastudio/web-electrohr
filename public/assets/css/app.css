@@ -6014,8 +6014,8 @@ textarea.form-control-lg {
   font-weight: var(--bs-badge-font-weight);
   line-height: 1;
   color: var(--bs-badge-color);
-  text-align: center;
-  white-space: nowrap;
+  text-align: left;
+  /*white-space: nowrap;*/
   vertical-align: baseline;
   border-radius: var(--bs-badge-border-radius);
 }

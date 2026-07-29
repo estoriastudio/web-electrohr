@@ -556,13 +556,28 @@ class PurchaseRequestController extends Controller
             'code'               => 'required|string|max:100',
             'description'        => 'required|string|max:500',
             'unit'               => 'required|string|max:50',
-            'requested_quantity' => 'required|integer|min:1',
             'purchase_quantity'  => 'required|integer|min:0',
+            'spec_file'          => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
-        $data['purchase_request_id'] = $purchaseRequest->id;
+        $item = DB::transaction(function () use ($request, $purchaseRequest, $data) {
+            $item = PurchaseRequestItem::create([
+                'purchase_request_id' => $purchaseRequest->id,
+                'concept_id'          => $data['concept_id'] ?? null,
+                'code'                => $data['code'],
+                'description'         => $data['description'],
+                'unit'                => $data['unit'],
+                'requested_quantity'  => 0,
+                'purchase_quantity'   => $data['purchase_quantity'],
+            ]);
 
-        $item = PurchaseRequestItem::create($data);
+            if ($request->hasFile('spec_file')) {
+                $path = $request->file('spec_file')->store('solcom_specs', 's3');
+                $item->update(['file_path' => $path]);
+            }
+
+            return $item->fresh();
+        });
 
         if ($request->wantsJson()) {
             return response()->json([

@@ -30,12 +30,13 @@
     <style>
         @page { size: letter portrait; margin: 15mm; }
         body { margin: 0; padding: 0; }
+        table { border-collapse: collapse; }
     </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 11px; color: #000;">
 
 <!-- Tabla principal contenedora -->
-<table width="750" cellpadding="0" cellspacing="0" border="0" style="width: 750px; margin: 0 auto;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 100%; margin: 0 auto; table-layout: fixed;">
 
     <!-- FILA 1: Encabezado - Logo + Título + Folio + Código -->
     <tr>
