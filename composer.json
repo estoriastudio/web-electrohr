@@ -11,6 +11,7 @@
         "fpdf/fpdf": "^1.86",
         "laravel/fortify": "^1.36",
         "laravel/framework": "^13.0",
+        "laravel/nightwatch": "^1.28",
         "laravel/tinker": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.34",
         "maatwebsite/excel": "^3.1",
