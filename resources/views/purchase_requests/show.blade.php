@@ -391,12 +391,12 @@
             <div class="card-body">
                 @foreach ($purchaseRequest->changeNotes as $note)
                 <div class="d-flex gap-3 mb-3 {{ $note->isResolved() ? 'opacity-50' : '' }}">
-                    <div class="avatar-sm flex-shrink-0">
+                    <div class="avatar-sm">
                         <span class="avatar-title {{ $note->isResolved() ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} rounded-circle fs-14 fw-bold">
                             {{ strtoupper(substr($note->requestedBy?->name ?? '?', 0, 1)) }}
                         </span>
                     </div>
-                    <div class="flex-grow-1">
+                    <div class="">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <div>
                                 <span class="fw-semibold fs-13">{{ $note->requestedBy?->name ?? 'Usuario' }}</span>
@@ -464,7 +464,7 @@
                                 <td class="text-muted fs-12 text-nowrap">{{ $event->created_at->format('d/m/Y H:i') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <div class="avatar-xs {{ $bgClass }} rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                        <div class="avatar-xs {{ $bgClass }} rounded-circle d-flex align-items-center justify-content-center">
                                             <i class="{{ $icon }} fs-12"></i>
                                         </div>
                                         <span class="fs-13">{{ $event->user?->name ?? 'Sistema' }}</span>
@@ -492,12 +492,12 @@
             <div class="card-body">
                 @forelse ($purchaseRequest->observations ?? [] as $noteIndex => $note)
                     <div class="d-flex gap-3 mb-3">
-                        <div class="avatar-sm flex-shrink-0">
+                        <div class="avatar-sm">
                             <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
                                 {{ strtoupper(substr($note['user_name'] ?? '?', 0, 1)) }}
                             </span>
                         </div>
-                        <div class="flex-grow-1">
+                        <div class="">
                             <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">

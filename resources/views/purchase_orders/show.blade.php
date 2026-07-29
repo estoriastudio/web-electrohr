@@ -68,8 +68,8 @@
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
 @if (in_array($purchaseOrder->status, ['emitida', 'pendiente']))
     <div class="alert alert-warning alert-dismissible d-flex align-items-start gap-3 mb-3" role="alert">
-        <i class="ri-shield-check-line fs-22 flex-shrink-0 mt-1 text-warning"></i>
-        <div class="flex-grow-1">
+        <i class="ri-shield-check-line fs-22 mt-1 text-warning"></i>
+        <div class="">
             <h6 class="alert-heading mb-1 fw-semibold">Orden de compra pendiente de autorización</h6>
             <p class="mb-0 fs-13">
                 Esta OC se encuentra en estatus
@@ -78,7 +78,7 @@
             </p>
         </div>
         @role('admin')
-        <form action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class="flex-shrink-0 align-self-center">
+        <form action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class= align-self-center">
             @csrf @method('PATCH')
             <button type="submit"
                     class="btn btn-success btn-sm"
@@ -1224,12 +1224,12 @@
             <div class="card-body" id="oc_obs_container">
                 @forelse ($purchaseOrder->observations ?? [] as $noteIndex => $note)
                     <div class="d-flex gap-3 mb-3">
-                        <div class="avatar-sm flex-shrink-0">
+                        <div class="avatar-sm">
                             <span class="avatar-title bg-primary-subtle text-primary rounded-circle fs-14 fw-bold">
                                 {{ strtoupper(substr($note['user_name'] ?? '?', 0, 1)) }}
                             </span>
                         </div>
-                        <div class="flex-grow-1">
+                        <div class="">
                             <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
@@ -2115,11 +2115,11 @@
                         li.style.cursor = 'pointer';
                         li.innerHTML =
                             '<div class="d-flex justify-content-between align-items-start gap-2">'
-                            + '<div class="flex-grow-1 overflow-hidden">'
+                            + '<div class=" overflow-hidden">'
                             + '<span class="fw-bold d-block">' + escHtml(c.code) + '</span>'
                             + '<span class="text-muted fs-13 d-block text-truncate">' + escHtml(c.description) + '</span>'
                             + '</div>'
-                            + '<span class="badge bg-light text-dark border flex-shrink-0 align-self-center">'
+                            + '<span class="badge bg-light text-dark border align-self-center">'
                             + escHtml(c.unit) + '</span>'
                             + '</div>';
                         // pointerdown evita que el input pierda foco antes del click en móvil
