@@ -347,10 +347,10 @@
                                                    data-original="{{ $item->unit_price }}">
                                         </div>
                                         @else
-                                        ${{ number_format($item->unit_price, 2) }}
+                                        ${{ $item->unit_price }}
                                         @endif
                                         @else
-                                        ${{ number_format($item->unit_price, 2) }}
+                                        ${{ $item->unit_price }}
                                         @endhasanyrole
                                     </td>
                                     <td class="text-end fw-semibold oc-importe">
@@ -493,7 +493,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
-                                <input type="number" id="oc_inp_price" class="form-control" step="0.01" min="0" placeholder="0.00">
+                                <input type="number" id="oc_inp_price" class="form-control" step="any" min="0" placeholder="0.00">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
@@ -533,7 +533,7 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
-                                <input type="number" id="oc_inp_manual_price" class="form-control" step="0.01" min="0" placeholder="0.00">
+                                <input type="number" id="oc_inp_manual_price" class="form-control" step="any" min="0" placeholder="0.00">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
@@ -1830,11 +1830,15 @@
     }
 
     function fmtPriceInput(n) {
-        var num = Number(n);
+        var raw = String(n == null ? '' : n).replace(/,/g, '').trim();
+        if (raw === '') return '';
+        var num = Number(raw);
         if (!isFinite(num)) return '';
+        var decimalPart = raw.split('.')[1] || '';
+        var decimals = decimalPart.length;
         return num.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: Math.max(decimals, 8)
         });
     }
 
@@ -1963,7 +1967,11 @@
             formatPriceInput(input);
             return;
         }
-        if (Math.abs(val - parseFloat(input.dataset.original)) < 0.0001) {
+        var originalVal = input.dataset.field === 'unit_price'
+            ? parsePrice(input.dataset.original)
+            : parseFloat(input.dataset.original);
+        var deltaTolerance = input.dataset.field === 'unit_price' ? 1e-9 : 1e-4;
+        if (Math.abs(val - originalVal) < deltaTolerance) {
             formatPriceInput(input);
             return;
         }
@@ -1979,7 +1987,12 @@
         fetch(url, { method: 'PATCH', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify(body) })
         .then(function (r) { if (!r.ok) throw r; return r.json(); })
         .then(function (data) {
-            input.dataset.original = val;
+            if (field === 'unit_price' && data.unit_price !== undefined) {
+                input.dataset.original = String(data.unit_price);
+                input.value = String(data.unit_price);
+            } else {
+                input.dataset.original = val;
+            }
             input.disabled = false;
             formatPriceInput(input);
             input.classList.add('is-saved');

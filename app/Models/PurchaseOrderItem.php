@@ -20,7 +20,7 @@ class PurchaseOrderItem extends Model
 
     protected $casts = [
         'quantity'   => 'decimal:2',
-        'unit_price' => 'decimal:2',
+        'unit_price' => 'decimal:8',
     ];
 
     public function getTotalAttribute(): float

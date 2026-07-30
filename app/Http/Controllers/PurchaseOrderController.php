@@ -726,7 +726,7 @@ class PurchaseOrderController extends Controller
                 'description'    => $item->description,
                 'unit'           => $item->unit,
                 'quantity'       => (float) $item->quantity,
-                'unit_price'     => (float) $item->unit_price,
+                'unit_price'     => $item->unit_price,
                 'total'          => $item->total,
                 'delivery_date'  => $item->delivery_date,
                 'subtotal'       => $purchaseOrder->subtotal,
@@ -772,7 +772,7 @@ class PurchaseOrderController extends Controller
             return response()->json([
                 'id'             => $item->id,
                 'quantity'       => (float) $item->quantity,
-                'unit_price'     => (float) $item->unit_price,
+                'unit_price'     => $item->unit_price,
                 'total'          => $item->total,
                 'delivery_date'  => $item->delivery_date,
                 'subtotal'       => $purchaseOrder->subtotal,
