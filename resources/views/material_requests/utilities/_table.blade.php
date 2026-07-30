@@ -21,7 +21,7 @@
     ];
 @endphp
 
-<div class="table-responsive solmat-table-responsive">
+<div class="solmat-table-wrap">
     <table class="table align-middle table-hover table-centered mb-0 app-list-table">
         <thead class="bg-light-subtle">
             <tr>
@@ -216,22 +216,22 @@
                     <td>
                         <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
                     </td>
-                    <td style="max-width: 220px;">
+                    <td>
                         @if ($proj)
-                            <div class="hover-marquee" title="{{ $proj }}">
-                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
+                            <div class="solmat-cell-text" title="{{ $proj }}">
+                                {{ $proj }}
                             </div>
                         @endif
                         @if ($obra)
-                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
-                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
+                            <small class="text-muted d-block solmat-cell-text mt-1" title="{{ $obra }}">
+                                {{ $obra }}
                             </small>
                         @endif
                         @if (!$proj && !$obra)
                             <span class="text-muted">—</span>
                         @endif
                     </td>
-                    <td class="text-wrap" style="max-width: 200px;">{{ $mr->zone }}</td>
+                    <td class="solmat-cell-text">{{ $mr->zone }}</td>
                     <td>{{ $mr->request_date?->format('d/m/Y') }}</td>
                     <td>{{ $mr->supply_category }}</td>
                     <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
@@ -276,11 +276,59 @@
 @once
     @push('styles')
     <style>
-    .solmat-table-responsive {
-        overflow: visible;
+    .solmat-table-wrap {
+        width: 100%;
     }
 
-    .solmat-table-responsive .dropdown-menu {
+    .solmat-table-wrap .app-list-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .solmat-table-wrap .app-list-table th,
+    .solmat-table-wrap .app-list-table td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .solmat-table-wrap .app-list-table th:nth-child(1),
+    .solmat-table-wrap .app-list-table td:nth-child(1) {
+        width: 90px;
+    }
+
+    .solmat-table-wrap .app-list-table th:nth-child(2),
+    .solmat-table-wrap .app-list-table td:nth-child(2) {
+        width: 90px;
+    }
+
+    .solmat-table-wrap .app-list-table th:nth-child(3),
+    .solmat-table-wrap .app-list-table td:nth-child(3) {
+        width: 88px;
+    }
+
+    .solmat-table-wrap .app-list-table th:nth-child(4),
+    .solmat-table-wrap .app-list-table td:nth-child(4) {
+        width: 95px;
+    }
+
+    .solmat-table-wrap .app-list-table th:nth-child(7),
+    .solmat-table-wrap .app-list-table td:nth-child(7),
+    .solmat-table-wrap .app-list-table th:nth-child(10),
+    .solmat-table-wrap .app-list-table td:nth-child(10),
+    .solmat-table-wrap .app-list-table th:nth-child(11),
+    .solmat-table-wrap .app-list-table td:nth-child(11) {
+        width: 98px;
+    }
+
+    .solmat-cell-text {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .solmat-table-wrap .dropdown-menu {
         z-index: 1085;
     }
 
@@ -334,11 +382,6 @@
     }
 
     @media (max-width: 1199.98px) {
-        .solmat-table-responsive {
-            overflow-x: auto;
-            overflow-y: visible;
-        }
-
         .po-trace-map {
             min-width: 56px;
         }

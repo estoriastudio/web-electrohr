@@ -16,6 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -92,17 +93,35 @@ class MaterialRequestController extends Controller
         $data['status']        = 'pending';
         $data['location_type'] = $data['location_type'] ?? 'sitio';
 
-        // El folio se asigna dentro de una transacción con bloqueo para garantizar
-        // que dos solicitudes concurrentes nunca obtengan el mismo número.
-        $mr = DB::transaction(function () use ($data, $workIds) {
-            $lastFolio    = MaterialRequest::orderByDesc('folio')->lockForUpdate()->value('folio') ?? 16499;
-            $data['folio'] = max($lastFolio + 1, 16500);
+        $mr = null;
+        $maxAttempts = 5;
 
-            $mr = MaterialRequest::create($data);
-            $mr->projectWorks()->sync($workIds);
+        // Reintentar ante colisión de índice único en folio para garantizar consecutivo.
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $mr = DB::transaction(function () use ($data, $workIds) {
+                    $lastFolio = MaterialRequest::withTrashed()
+                        ->orderByDesc('folio')
+                        ->lockForUpdate()
+                        ->value('folio') ?? 16499;
+                    $data['folio'] = max($lastFolio + 1, 16500);
 
-            return $mr;
-        });
+                    $mr = MaterialRequest::create($data);
+                    $mr->projectWorks()->sync($workIds);
+
+                    return $mr;
+                });
+
+                break;
+            } catch (QueryException $e) {
+                $isDuplicateFolio = (int) ($e->errorInfo[1] ?? 0) === 1062
+                    && str_contains((string) $e->getMessage(), 'material_requests_folio_unique');
+
+                if (! $isDuplicateFolio || $attempt === $maxAttempts) {
+                    throw $e;
+                }
+            }
+        }
 
         app(NotificationService::class)->send([
             'action_by'    => Auth::id(),
