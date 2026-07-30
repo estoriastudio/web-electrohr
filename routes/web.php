@@ -616,6 +616,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
                         [PurchaseRequestController::class, 'sendToPurchasing'])
                  ->name('purchase_requests.send_to_purchasing');
 
+                 Route::post('/solicitudes-compra/{purchaseRequest}/reassign-purchasing',
+                       [PurchaseRequestController::class, 'reassignPurchasing'])
+                   ->name('purchase_requests.reassign_purchasing');
+
             Route::post('/solicitudes-compra/{purchaseRequest}/request-changes',
                         [PurchaseRequestController::class, 'requestChanges'])
                  ->name('purchase_requests.request_changes');

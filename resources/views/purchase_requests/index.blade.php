@@ -40,6 +40,7 @@
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Solicitudes de Compra</h4>
                 <div>
+                    {{--  
                     @hasanyrole('admin|Solcom')
                     @can('create')
                     <button type="button" class="btn btn-sm btn-primary"
@@ -48,6 +49,7 @@
                     </button>
                     @endcan
                     @endhasanyrole
+                    --}}
                     <a href="{{ route('purchase_requests.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>

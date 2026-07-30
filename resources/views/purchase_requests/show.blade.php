@@ -155,11 +155,23 @@
                     @if ($purchaseRequest->assignedTo)
                     <div class="col-sm-6 col-md-4">
                         <p class="text-muted fs-12 mb-1">Asignado a Compras</p>
-                        <p class="fw-semibold mb-0">
+                        <div class="d-flex align-items-center gap-2 flex-wrap fw-semibold mb-0">
                             <span class="badge bg-primary-subtle text-primary py-1 px-2">
                                 <i class="ri-user-line me-1"></i>{{ $purchaseRequest->assignedTo->name }}
                             </span>
-                        </p>
+                            @hasanyrole('admin|Solcom|Orden de compra')
+                            @if ($purchaseRequest->status === 'sent_to_purchasing')
+                            <button type="button"
+                                    class="btn btn-sm btn-light border"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalReassignPurchasing"
+                                    title="Reasignar usuario de Compras"
+                                    aria-label="Reasignar usuario de Compras">
+                                <i class="ri-edit-line"></i>
+                            </button>
+                            @endif
+                            @endhasanyrole
+                        </div>
                     </div>
                     @endif
                 </div>
@@ -605,6 +617,50 @@
         </div>
     </div>
 </div>
+@endhasanyrole
+
+{{-- ── Modal: Reasignar en Compras ── --}}
+@hasanyrole('admin|Solcom|Orden de compra')
+@if ($purchaseRequest->assignedTo && $purchaseRequest->status === 'sent_to_purchasing')
+<div class="modal fade" id="modalReassignPurchasing" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('purchase_requests.reassign_purchasing', $purchaseRequest) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ri-user-settings-line me-2 text-primary"></i>Reasignar SOLCOM en Compras
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Esta SOLCOM está asignada actualmente a <strong>{{ $purchaseRequest->assignedTo->name }}</strong>.
+                        Selecciona otro usuario de Compras para reasignarla.
+                    </p>
+                    <label class="form-label fw-medium">Nuevo usuario de Compras <span class="text-danger">*</span></label>
+                    <select name="assigned_to" class="form-select" required>
+                        <option value="">— Selecciona un usuario —</option>
+                        @foreach ($purchasingUsers as $user)
+                            @continue($user->id == $purchaseRequest->assigned_to)
+                            <option value="{{ $user->id }}" {{ old('assigned_to') == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">La reasignación quedará registrada en el histórico de movimientos.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-check-line me-1"></i>Reasignar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 @endhasanyrole
 
 {{-- ── Modal: Solicitar Cambios ── --}}

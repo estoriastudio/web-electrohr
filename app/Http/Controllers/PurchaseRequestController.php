@@ -1079,6 +1079,50 @@ class PurchaseRequestController extends Controller
                          ->with('success', "SOLCOM #{$purchaseRequest->folio} enviada a Compras.");
     }
 
+    // ── Reasignar SOLCOM en Compras ────────────────────────────────────────
+    public function reassignPurchasing(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        if ($purchaseRequest->status !== 'sent_to_purchasing') {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                ->with('error', 'Solo puedes reasignar una SOLCOM que esté en Compras.');
+        }
+
+        if (empty($purchaseRequest->assigned_to)) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                ->with('error', 'La SOLCOM no tiene un usuario de Compras asignado actualmente.');
+        }
+
+        $data = $request->validate([
+            'assigned_to' => 'required|exists:users,id',
+        ]);
+
+        $currentAssignedId = (int) $purchaseRequest->assigned_to;
+        $newAssignedId = (int) $data['assigned_to'];
+
+        if ($currentAssignedId === $newAssignedId) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                ->with('error', 'Selecciona un usuario diferente al actual para reasignar la SOLCOM.');
+        }
+
+        $previousAssignedUser = User::find($currentAssignedId);
+        $newAssignedUser = User::find($newAssignedId);
+
+        $purchaseRequest->update([
+            'assigned_to' => $newAssignedId,
+        ]);
+
+        app(NotificationService::class)->send([
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseRequest->id,
+            'type'         => 'purchase_request',
+            'data'         => "SOLCOM #{$purchaseRequest->folio} reasignada en Compras de {$previousAssignedUser?->name} a {$newAssignedUser?->name}.",
+        ]);
+
+        return redirect()->route('purchase_requests.show', $purchaseRequest)
+            ->with('success', "SOLCOM #{$purchaseRequest->folio} reasignada a {$newAssignedUser?->name}.");
+    }
+
     // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
     public function workload(): \Illuminate\View\View
     {
