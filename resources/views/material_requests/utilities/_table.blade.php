@@ -10,7 +10,7 @@
         ? 'archived'
         : (request()->routeIs('material_requests.soft_deleted') ? 'trashed' : 'index');
 
-    $colspan = 10 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
 
     $statusMap = [
         'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
@@ -21,13 +21,14 @@
     ];
 @endphp
 
-<div class="solmat-table-wrap">
+<div class="table-responsive solmat-table-responsive">
     <table class="table align-middle table-hover table-centered mb-0 app-list-table">
         <thead class="bg-light-subtle">
             <tr>
                 <th>Acciones</th>
                 <th>Trazabilidad</th>
                 <th>Folio</th>
+                <th>Código</th>
                 <th>Proyecto / Obras</th>
                 <th>Ubicación</th>
                 <th>F. Solicitud</th>
@@ -210,12 +211,12 @@
 
                     <td>
                         <div class="fw-semibold">#{{ $mr->folio }}</div>
-                        @if ($mr->code)
-                            <small class="badge bg-light text-dark border mt-1">COD: {{ $mr->code }}</small>
-                        @endif
                         <small class="text-muted">{{ $mr->need_date?->format('d/m/Y') ?: '—' }}</small>
                     </td>
                     <td>
+                        <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
+                    </td>
+                    <td style="max-width: 220px;">
                         @if ($proj)
                             <div class="hover-marquee" title="{{ $proj }}">
                                 <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
@@ -230,7 +231,7 @@
                             <span class="text-muted">—</span>
                         @endif
                     </td>
-                    <td class="solmat-cell-text">{{ $mr->zone }}</td>
+                    <td class="text-wrap" style="max-width: 200px;">{{ $mr->zone }}</td>
                     <td>{{ $mr->request_date?->format('d/m/Y') }}</td>
                     <td>{{ $mr->supply_category }}</td>
                     <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
@@ -275,84 +276,11 @@
 @once
     @push('styles')
     <style>
-    .solmat-table-wrap {
-        width: 100%;
+    .solmat-table-responsive {
+        overflow: visible;
     }
 
-    .solmat-table-wrap .app-list-table {
-        width: 100%;
-        table-layout: fixed;
-    }
-
-    .solmat-table-wrap .app-list-table th,
-    .solmat-table-wrap .app-list-table td {
-        white-space: normal;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-    }
-
-    .solmat-table-wrap .app-list-table th:nth-child(1),
-    .solmat-table-wrap .app-list-table td:nth-child(1) {
-        width: 90px;
-    }
-
-    .solmat-table-wrap .app-list-table th:nth-child(2),
-    .solmat-table-wrap .app-list-table td:nth-child(2) {
-        width: 90px;
-    }
-
-    .solmat-table-wrap .app-list-table th:nth-child(3),
-    .solmat-table-wrap .app-list-table td:nth-child(3) {
-        width: 88px;
-    }
-
-    .solmat-table-wrap .app-list-table th:nth-child(3),
-    .solmat-table-wrap .app-list-table td:nth-child(3) {
-        width: 120px;
-    }
-
-    .solmat-table-wrap .app-list-table th:nth-child(6),
-    .solmat-table-wrap .app-list-table td:nth-child(6),
-    .solmat-table-wrap .app-list-table th:nth-child(9),
-    .solmat-table-wrap .app-list-table td:nth-child(9),
-    .solmat-table-wrap .app-list-table th:nth-child(10),
-    .solmat-table-wrap .app-list-table td:nth-child(10) {
-        width: 98px;
-    }
-
-    .solmat-cell-text {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .hover-marquee {
-        overflow: hidden;
-        white-space: nowrap;
-    }
-
-    .hover-marquee .track {
-        display: inline-flex;
-        gap: 2rem;
-        min-width: 100%;
-        transform: translateX(0);
-    }
-
-    .hover-marquee:hover .track {
-        animation: solmat-marquee 7s linear infinite;
-    }
-
-    @keyframes solmat-marquee {
-        0% {
-            transform: translateX(0);
-        }
-        100% {
-            transform: translateX(calc(-50% - 1rem));
-        }
-    }
-
-    .solmat-table-wrap .dropdown-menu {
+    .solmat-table-responsive .dropdown-menu {
         z-index: 1085;
     }
 
@@ -406,6 +334,11 @@
     }
 
     @media (max-width: 1199.98px) {
+        .solmat-table-responsive {
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
         .po-trace-map {
             min-width: 56px;
         }
