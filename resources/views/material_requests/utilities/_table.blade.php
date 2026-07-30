@@ -10,7 +10,7 @@
         ? 'archived'
         : (request()->routeIs('material_requests.soft_deleted') ? 'trashed' : 'index');
 
-    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 10 + ($mode !== 'index' ? 1 : 0);
 
     $statusMap = [
         'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
@@ -28,7 +28,6 @@
                 <th>Acciones</th>
                 <th>Trazabilidad</th>
                 <th>Folio</th>
-                <th>Código</th>
                 <th>Proyecto / Obras</th>
                 <th>Ubicación</th>
                 <th>F. Solicitud</th>
@@ -211,20 +210,20 @@
 
                     <td>
                         <div class="fw-semibold">#{{ $mr->folio }}</div>
+                        @if ($mr->code)
+                            <small class="badge bg-light text-dark border mt-1">COD: {{ $mr->code }}</small>
+                        @endif
                         <small class="text-muted">{{ $mr->need_date?->format('d/m/Y') ?: '—' }}</small>
                     </td>
                     <td>
-                        <span class="badge bg-light text-dark border">{{ $mr->code ?? '—' }}</span>
-                    </td>
-                    <td>
                         @if ($proj)
-                            <div class="solmat-cell-text" title="{{ $proj }}">
-                                {{ $proj }}
+                            <div class="hover-marquee" title="{{ $proj }}">
+                                <span class="track"><span>{{ $proj }}</span><span aria-hidden="true">{{ $proj }}</span></span>
                             </div>
                         @endif
                         @if ($obra)
-                            <small class="text-muted d-block solmat-cell-text mt-1" title="{{ $obra }}">
-                                {{ $obra }}
+                            <small class="text-muted d-block hover-marquee mt-1" title="{{ $obra }}">
+                                <span class="track"><span>{{ $obra }}</span><span aria-hidden="true">{{ $obra }}</span></span>
                             </small>
                         @endif
                         @if (!$proj && !$obra)
@@ -307,17 +306,17 @@
         width: 88px;
     }
 
-    .solmat-table-wrap .app-list-table th:nth-child(4),
-    .solmat-table-wrap .app-list-table td:nth-child(4) {
-        width: 95px;
+    .solmat-table-wrap .app-list-table th:nth-child(3),
+    .solmat-table-wrap .app-list-table td:nth-child(3) {
+        width: 120px;
     }
 
-    .solmat-table-wrap .app-list-table th:nth-child(7),
-    .solmat-table-wrap .app-list-table td:nth-child(7),
+    .solmat-table-wrap .app-list-table th:nth-child(6),
+    .solmat-table-wrap .app-list-table td:nth-child(6),
+    .solmat-table-wrap .app-list-table th:nth-child(9),
+    .solmat-table-wrap .app-list-table td:nth-child(9),
     .solmat-table-wrap .app-list-table th:nth-child(10),
-    .solmat-table-wrap .app-list-table td:nth-child(10),
-    .solmat-table-wrap .app-list-table th:nth-child(11),
-    .solmat-table-wrap .app-list-table td:nth-child(11) {
+    .solmat-table-wrap .app-list-table td:nth-child(10) {
         width: 98px;
     }
 
@@ -326,6 +325,31 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
+    }
+
+    .hover-marquee {
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    .hover-marquee .track {
+        display: inline-flex;
+        gap: 2rem;
+        min-width: 100%;
+        transform: translateX(0);
+    }
+
+    .hover-marquee:hover .track {
+        animation: solmat-marquee 7s linear infinite;
+    }
+
+    @keyframes solmat-marquee {
+        0% {
+            transform: translateX(0);
+        }
+        100% {
+            transform: translateX(calc(-50% - 1rem));
+        }
     }
 
     .solmat-table-wrap .dropdown-menu {
