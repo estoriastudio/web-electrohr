@@ -27,7 +27,12 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('layouts.partials._navbar', function ($view) {
             $activeProjectsCount = Project::where('status', 'active')->count();
-            $paymentsToAuthorizeCount = Payment::where('status', 'por_autorizar')->count();
+            $paymentsToAuthorizeCount = Payment::query()
+                ->where('status', 'por_autorizar')
+                ->whereHas('milestone.purchaseOrder', function ($query) {
+                    $query->where('status', 'autorizada');
+                })
+                ->count();
             $paymentsToPayCount = Payment::where('status', 'autorizado')->count();
             $purchaseRequestChangesPendingCount = PurchaseRequestChangeNote::query()
                 ->whereNull('resolved_at')
