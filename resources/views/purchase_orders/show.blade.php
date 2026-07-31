@@ -67,27 +67,43 @@
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
 @if (in_array($purchaseOrder->status, ['emitida', 'pendiente']))
-    <div class="alert alert-warning alert-dismissible d-flex align-items-start gap-3 mb-3" role="alert">
+    <div id="purchaseOrderApproveAlert" class="alert alert-warning alert-dismissible d-flex align-items-start gap-3 mb-3 oc-approve-alert" role="alert">
         <i class="ri-shield-check-line fs-22 mt-1 text-warning"></i>
-        <div class="">
+        <div class="flex-grow-1">
             <h6 class="alert-heading mb-1 fw-semibold">Orden de compra pendiente de autorización</h6>
             <p class="mb-0 fs-13">
                 Esta OC se encuentra en estatus
                 <span class="badge {{ $s['class'] }} py-1 px-2 fs-12 ms-1">{{ $s['label'] }}</span>.
                 Requiere revisión y aprobación de un administrador antes de proceder con los pagos.
             </p>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                <span class="badge bg-dark-subtle text-dark py-1 px-2 fs-12">
+                    Pendientes por autorizar: {{ $pendingAuthCount ?? 0 }}
+                </span>
+                @if (!empty($nextPendingPurchaseOrder))
+                    <a href="{{ route('purchase_orders.show', $nextPendingPurchaseOrder->id) }}"
+                       class="btn btn-sm btn-outline-dark py-1 px-2"
+                       title="Ir a la siguiente OC pendiente">
+                        <i class="ri-arrow-right-line me-1"></i>Siguiente OC
+                    </a>
+                @endif
+            </div>
         </div>
         @role('admin')
-        <form action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class= align-self-center">
+        <form id="approvePurchaseOrderForm" action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class="align-self-center">
             @csrf @method('PATCH')
             <button type="submit"
-                    class="btn btn-success btn-sm"
-                    onclick="return confirm('¿Autorizar la OC #{{ $purchaseOrder->id }}? El estatus cambiará a Autorizada.')">
+                    id="approvePurchaseOrderBtn"
+                    class="btn btn-success btn-sm">
                 <i class="ri-check-double-line me-1"></i> Autorizar OC
             </button>
         </form>
         @endrole
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div id="approveInlineProgress" class="oc-approve-inline-progress" aria-hidden="true">
+            <div class="oc-approve-inline-progress-bar" aria-hidden="true"></div>
+            <span id="approveInlineProgressText" class="oc-approve-inline-progress-text">Avanzando a la siguiente...</span>
+        </div>
     </div>
 @endif
 
@@ -1806,6 +1822,47 @@
     border-top-right-radius: .5rem;
     border-bottom: 1px solid var(--bs-border-color);
 }
+.oc-approve-alert {
+    position: relative;
+    overflow: hidden;
+}
+.oc-approve-inline-progress {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .56);
+    z-index: 4;
+    pointer-events: none;
+}
+.oc-approve-alert.is-processing .oc-approve-inline-progress {
+    display: flex;
+}
+.oc-approve-inline-progress-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28%;
+    left: -28%;
+    background: linear-gradient(90deg, rgba(var(--bs-success-rgb), .08), rgba(var(--bs-success-rgb), .26), rgba(var(--bs-primary-rgb), .08));
+    animation: oc-approve-slide 1.15s ease-in-out infinite;
+}
+.oc-approve-inline-progress-text {
+    position: relative;
+    z-index: 1;
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--bs-dark);
+    background: rgba(255, 255, 255, .95);
+    border: 1px solid rgba(var(--bs-success-rgb), .2);
+    border-radius: 999px;
+    padding: .3rem .75rem;
+    box-shadow: 0 .2rem .7rem rgba(0,0,0,.08);
+}
+@keyframes oc-approve-slide {
+    to { transform: translateX(460%); }
+}
 </style>
 @endpush
 
@@ -1819,6 +1876,52 @@
     var badge    = document.getElementById('oc_items_badge');
     var addPanel = document.getElementById('oc_add_panel');
     var btnToggle = document.getElementById('btn_toggle_add_concept');
+    var approveForm = document.getElementById('approvePurchaseOrderForm');
+    var approveAlert = document.getElementById('purchaseOrderApproveAlert');
+    var approveInlineProgress = document.getElementById('approveInlineProgress');
+    var approveInlineProgressText = document.getElementById('approveInlineProgressText');
+    var approveBtn = document.getElementById('approvePurchaseOrderBtn');
+    var approveSubmitArmed = false;
+
+    function startApproveInlineEffect(onComplete) {
+        if (approveInlineProgressText) {
+            var hasNextPending = !!document.querySelector('[href*="/purchase_orders/"][title="Ir a la siguiente OC pendiente"]');
+            approveInlineProgressText.textContent = hasNextPending
+                ? 'Avanzando a la siguiente...'
+                : 'Finalizando autorización...';
+        }
+
+        if (approveAlert) {
+            approveAlert.classList.add('is-processing');
+        }
+        if (approveInlineProgress) {
+            approveInlineProgress.setAttribute('aria-hidden', 'false');
+        }
+
+        window.setTimeout(function () {
+            if (typeof onComplete === 'function') onComplete();
+        }, 480);
+    }
+
+    if (approveForm) {
+        approveForm.addEventListener('submit', function (e) {
+            if (approveSubmitArmed) {
+                return;
+            }
+
+            e.preventDefault();
+            var submitBtn = approveForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            if (approveBtn) {
+                approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Autorizando...';
+            }
+
+            startApproveInlineEffect(function () {
+                approveSubmitArmed = true;
+                approveForm.submit();
+            });
+        });
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────
     function fmtMoney(n) { return parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
