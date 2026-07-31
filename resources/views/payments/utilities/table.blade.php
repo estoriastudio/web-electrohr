@@ -2,7 +2,7 @@
     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
         <thead class="bg-light-subtle">
             <tr>
-                <th>Urgencia</th>
+                <th>Semáforo</th>
                 <th>Orden de Compra</th>
                 <th>Proveedor</th>
                 <th>Proyecto / Obra</th>
@@ -21,9 +21,33 @@
                     $supplierName = $supplier->rfc_name ?? $supplier->commercial_name ?? '—';
                     $proj = $order->projectRelation?->name ?? $order->project ?? null;
                     $obra = $order->workRelation?->name ?? $order->site ?? null;
-                    $isUrgent   = $milestone->due_date
-                                    && $milestone->due_date->lte($urgentDate)
-                                    && $payment->status !== 'pagado';
+                    $today       = \Carbon\Carbon::today();
+                    $dueDate     = $milestone->due_date;
+                    $isOverdue   = $dueDate && $dueDate->lt($today);
+                    $isNearlyDue = $dueDate && !$isOverdue && $dueDate->lte($urgentDate);
+
+                    if ($isOverdue) {
+                        $trafficLight = [
+                            'label' => 'Vencido',
+                            'class' => 'bg-danger-subtle text-danger',
+                            'dot'   => '#dc3545',
+                            'icon'  => 'ri-alarm-warning-line',
+                        ];
+                    } elseif ($isNearlyDue) {
+                        $trafficLight = [
+                            'label' => 'Próximo a vencer',
+                            'class' => 'bg-warning-subtle text-warning',
+                            'dot'   => '#ffc107',
+                            'icon'  => 'ri-time-line',
+                        ];
+                    } else {
+                        $trafficLight = [
+                            'label' => 'Al día',
+                            'class' => 'bg-success-subtle text-success',
+                            'dot'   => '#28a745',
+                            'icon'  => 'ri-check-line',
+                        ];
+                    }
 
                     $payStatusMap = [
                         'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
@@ -32,15 +56,12 @@
                     ];
                     $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
                 @endphp
-                <tr class="{{ $isUrgent ? 'table-warning' : '' }}" {{ $isUrgent ? 'data-bs-theme="light"' : '' }}>
+                <tr>
                     <td>
-                        @if ($isUrgent)
-                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">
-                                <i class="ri-alarm-warning-line me-1"></i> Urgente
-                            </span>
-                        @else
-                            <span class="text-muted fs-12">—</span>
-                        @endif
+                        <span class="badge {{ $trafficLight['class'] }} py-1 px-2 fs-12">
+                            <i class="ri-checkbox-blank-circle-fill me-1" style="color: {{ $trafficLight['dot'] }};"></i>
+                            <i class="{{ $trafficLight['icon'] }} me-1"></i>{{ $trafficLight['label'] }}
+                        </span>
                     </td>
                     <td class="fw-semibold">
                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-decoration-none" title="Ver OC #{{ $order->folio ?? '—' }}">
