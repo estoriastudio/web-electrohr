@@ -48,11 +48,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->group(function () {
                 Route::get('/', [SupplierPortalController::class, 'dashboard'])->name('dashboard');
                 Route::get('/ordenes-compra', [SupplierPortalController::class, 'purchaseOrders'])->name('purchase_orders.index');
+                Route::get('/ordenes-compra/{purchaseOrder}/preview', [SupplierPortalController::class, 'purchaseOrderPreview'])
+                    ->whereNumber('purchaseOrder')
+                    ->name('purchase_orders.preview');
                 Route::get('/vales-material', [SupplierPortalController::class, 'materialVouchers'])->name('material_vouchers.index');
                 Route::get('/ordenes-compra/{purchaseOrder}/facturas/nueva', [SupplierPortalInvoiceController::class, 'create'])
                     ->name('invoices.create');
                 Route::post('/ordenes-compra/{purchaseOrder}/facturas', [SupplierPortalInvoiceController::class, 'store'])
                     ->name('invoices.store');
+                Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/archivo/{type}', [SupplierPortalInvoiceController::class, 'downloadFile'])
+                    ->whereNumber('purchaseOrder')
+                    ->whereNumber('invoice')
+                    ->whereIn('type', ['pdf', 'xml', 'evidence'])
+                    ->name('invoices.download_file');
             });
 
                 // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado

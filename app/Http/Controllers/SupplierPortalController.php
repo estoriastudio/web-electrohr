@@ -62,7 +62,13 @@ class SupplierPortalController extends Controller
         $search = trim((string) $request->input('search', ''));
 
         $purchaseOrders = PurchaseOrder::query()
-            ->with(['projectRelation', 'workRelation'])
+            ->with([
+                'projectRelation',
+                'workRelation',
+                'invoices' => function ($q) {
+                    $q->orderByDesc('attached_at')->orderByDesc('id');
+                },
+            ])
             ->withSum('invoices as invoiced_amount', 'amount')
             ->where('supplier_id', $supplier->id)
             ->where('status', 'autorizada')
@@ -79,6 +85,27 @@ class SupplierPortalController extends Controller
             ->withQueryString();
 
         return view('supplier_portal.purchase_orders', compact('supplier', 'purchaseOrders', 'search'));
+    }
+
+    public function purchaseOrderPreview(Request $request, PurchaseOrder $purchaseOrder): View
+    {
+        $supplier = $request->user()->supplier;
+
+        abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
+
+        $purchaseOrder->load([
+            'supplier',
+            'mobileAsset',
+            'items.concept',
+            'milestones',
+            'purchaseRequest.materialRequest.requestedBy',
+            'projectRelation',
+            'workRelation',
+        ]);
+
+        return view('supplier_portal.purchase_order_preview', [
+            'purchaseOrder' => $purchaseOrder,
+        ]);
     }
 
     public function materialVouchers(Request $request): View

@@ -1397,7 +1397,7 @@
 <div class="modal fade" id="modalCreateInvoice" tabindex="-1" aria-labelledby="modalCreateInvoiceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <form action="{{ route('invoices.store') }}" method="POST" enctype="multipart/form-data">
+            <form id="adminInvoiceForm" action="{{ route('invoices.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
                 <div class="modal-header">
@@ -1417,20 +1417,28 @@
                             </label>
                             <input type="file" class="form-control @error('pdf_file') is-invalid @enderror"
                                    name="pdf_file" accept=".pdf">
-                            <div class="form-text">
-                                Si adjuntas un PDF, se guardará como:
-                                <strong>OC{{ $purchaseOrder->id }}-FACT{{ $purchaseOrder->invoices->count() + 1 }}.pdf</strong>
-                            </div>
                             @error('pdf_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        {{-- Archivo XML --}}
+                        <div class="col-12">
+                            <label class="form-label fw-medium">
+                                Archivo XML
+                                <small class="text-muted fw-normal">(CFDI timbrado)</small>
+                            </label>
+                            <input id="adminInvoiceXmlFile" type="file" class="form-control @error('xml_file') is-invalid @enderror"
+                                   name="xml_file" accept=".xml,text/xml">
+                            <div class="form-text">Al cargar el XML se autocompletará el folio fiscal (UUID).</div>
+                            @error('xml_file')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
 
                         {{-- Folio --}}
                         <div class="col-12">
-                            <label class="form-label fw-medium">Folio de factura</label>
-                            <input type="text" class="form-control @error('folio') is-invalid @enderror"
+                            <label class="form-label fw-medium">Folio fiscal (UUID)</label>
+                            <input id="adminInvoiceFolio" type="text" class="form-control @error('folio') is-invalid @enderror"
                                    name="folio" maxlength="100"
-                                   placeholder="Ej. A-001, FAC-2026-0123">
-                            <div class="form-text">Número de folio fiscal o interno de la factura (opcional).</div>
+                                   placeholder="Se autocompleta con el XML (puedes editarlo si aplica)">
+                            <div class="form-text">Se toma del nodo TimbreFiscalDigital UUID del XML.</div>
                             @error('folio')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
@@ -2570,6 +2578,70 @@ $(function () {
             if (evidenceDownloadAction) evidenceDownloadAction.setAttribute('href', '#');
         });
     }
+});
+</script>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('adminInvoiceForm');
+    if (!form) return;
+
+    var xmlInput = document.getElementById('adminInvoiceXmlFile');
+    var folioInput = document.getElementById('adminInvoiceFolio');
+    if (!xmlInput || !folioInput) return;
+
+    function readFiscalFolioFromXmlText(xmlText) {
+        try {
+            var parser = new DOMParser();
+            var xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+            if (xmlDoc.querySelector('parsererror')) return null;
+
+            var nodes = xmlDoc.getElementsByTagName('*');
+            for (var i = 0; i < nodes.length; i++) {
+                var node = nodes[i];
+                if (node.localName !== 'TimbreFiscalDigital') continue;
+
+                var uuid = (node.getAttribute('UUID') || node.getAttribute('Uuid') || node.getAttribute('uuid') || '').trim();
+                if (!uuid) return null;
+
+                var normalized = uuid.toUpperCase();
+                var uuidRegex = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+                return uuidRegex.test(normalized) ? normalized : null;
+            }
+        } catch (err) {
+            return null;
+        }
+
+        return null;
+    }
+
+    xmlInput.addEventListener('change', function () {
+        var file = this.files && this.files.length ? this.files[0] : null;
+        if (!file) return;
+
+        var fileName = String(file.name || '').toLowerCase();
+        if (!fileName.endsWith('.xml')) return;
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            var xmlText = String((e.target && e.target.result) || '');
+            var uuid = readFiscalFolioFromXmlText(xmlText);
+
+            if (!uuid) {
+                xmlInput.classList.add('is-invalid');
+                return;
+            }
+
+            xmlInput.classList.remove('is-invalid');
+            folioInput.value = uuid;
+        };
+        reader.onerror = function () {
+            xmlInput.classList.add('is-invalid');
+        };
+        reader.readAsText(file);
+    });
 });
 </script>
 @endpush

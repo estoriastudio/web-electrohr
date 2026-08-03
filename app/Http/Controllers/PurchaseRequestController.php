@@ -1130,37 +1130,42 @@ class PurchaseRequestController extends Controller
         $ordersUsers = User::role('Orden de compra')->orderBy('name')->get();
         $ordersUserIds = $ordersUsers->pluck('id');
 
-        // SOLCOMs pendientes (sent_to_purchasing) agrupadas por assigned_to
+        // SOLCOMs pendientes de OC (sin órdenes de compra vinculadas) agrupadas por assigned_to
         $pendingCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
             ->where('status', 'sent_to_purchasing')
+            ->doesntHave('purchaseOrders')
             ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
 
-        // Conteos adicionales por usuario (histórico)
+        // Conteos adicionales por usuario dentro de SOLCOMs pendientes de OC
         $allCounts = PurchaseRequest::selectRaw('assigned_to, status, count(*) as total')
+            ->doesntHave('purchaseOrders')
             ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to', 'status')
             ->get()
             ->groupBy('assigned_to');
 
-        // SOLCOMs sin asignar
+        // SOLCOMs sin asignar y pendientes de OC
         $unassignedCount = PurchaseRequest::whereNull('assigned_to')
             ->where('status', 'sent_to_purchasing')
+            ->doesntHave('purchaseOrders')
             ->count();
 
-        // Listado detallado de SOLCOMs pendientes por usuario para el drill-down
+        // Listado detallado de SOLCOMs pendientes de OC por usuario para el drill-down
         $pendingByUser = PurchaseRequest::with(['project', 'projectWork'])
             ->where('status', 'sent_to_purchasing')
+            ->doesntHave('purchaseOrders')
             ->whereIn('assigned_to', $ordersUserIds)
             ->orderByDesc('folio')
             ->get()
             ->groupBy('assigned_to');
 
-        // SOLCOMs sin asignar (detalle)
+        // SOLCOMs sin asignar pendientes de OC (detalle)
         $unassignedSolcoms = PurchaseRequest::with(['project', 'projectWork'])
             ->whereNull('assigned_to')
             ->where('status', 'sent_to_purchasing')
+            ->doesntHave('purchaseOrders')
             ->orderByDesc('folio')
             ->get();
 

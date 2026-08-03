@@ -30,17 +30,44 @@ class PurchaseOrderInvoiceController extends Controller
             'milestone_ids'     => 'nullable|array',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
             'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
+            'xml_file'          => 'nullable|file|mimes:xml,text/xml|max:10240',
         ], [
             'amount.max' => 'El importe no puede exceder el total de la orden de compra (' . number_format($purchaseOrder->amount, 2) . ' ' . $purchaseOrder->currency . ').',
         ]);
 
+        $xmlFiscalFolio = null;
+        if ($request->hasFile('xml_file')) {
+            $xmlFiscalFolio = $this->extractFiscalFolioFromXml($request->file('xml_file')->getRealPath());
+
+            if (!$xmlFiscalFolio) {
+                return redirect()->back()->withInput()->withErrors([
+                    'xml_file' => 'No fue posible leer el folio fiscal (UUID) del XML. Verifica que sea un CFDI timbrado válido.',
+                ]);
+            }
+
+            $inputFolio = strtoupper(trim((string) ($validated['folio'] ?? '')));
+            if ($inputFolio !== '' && $inputFolio !== $xmlFiscalFolio) {
+                return redirect()->back()->withInput()->withErrors([
+                    'folio' => 'El folio capturado no coincide con el folio fiscal (UUID) del XML.',
+                ]);
+            }
+
+            $validated['folio'] = $xmlFiscalFolio;
+        }
+
         $fileName    = null;
         $storagePath = null;
+        $xmlFileName = null;
+        $xmlStoragePath = null;
+        $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
+        $folioForFile = strtoupper(trim((string) ($validated['folio'] ?? '')));
+        $baseName = $folioForFile !== ''
+            ? $this->sanitizeFileToken($folioForFile)
+            : 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber;
 
         if ($request->hasFile('pdf_file')) {
             // Generar nombre de archivo: OC{id}-FACT{n+1}
-            $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
-            $fileName      = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '.pdf';
+            $fileName      = $baseName . '.pdf';
             $storagePath   = 'invoices/' . $purchaseOrder->id . '/' . $fileName;
 
             $request->file('pdf_file')->storeAs(
@@ -49,11 +76,23 @@ class PurchaseOrderInvoiceController extends Controller
             );
         }
 
+        if ($request->hasFile('xml_file')) {
+            $xmlFileName = $baseName . '.xml';
+            $xmlStoragePath = 'invoices/' . $purchaseOrder->id . '/' . $xmlFileName;
+
+            $request->file('xml_file')->storeAs(
+                'invoices/' . $purchaseOrder->id,
+                $xmlFileName
+            );
+        }
+
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $purchaseOrder->id,
             'folio'             => $validated['folio'] ?? null,
             'file_name'         => $fileName,
             'file_path'         => $storagePath,
+            'xml_file_name'     => $xmlFileName,
+            'xml_file_path'     => $xmlStoragePath,
             'amount'            => $validated['amount'],
             'currency'          => $validated['currency'],
         ]);
@@ -107,6 +146,9 @@ class PurchaseOrderInvoiceController extends Controller
         if ($invoice->file_path && Storage::exists($invoice->file_path)) {
             Storage::delete($invoice->file_path);
         }
+        if ($invoice->xml_file_path && Storage::exists($invoice->xml_file_path)) {
+            Storage::delete($invoice->xml_file_path);
+        }
 
         $invoice->delete();
 
@@ -121,5 +163,50 @@ class PurchaseOrderInvoiceController extends Controller
         return redirect()
             ->route('purchase_orders.show', $purchaseOrderId)
             ->with('success', 'Factura eliminada correctamente.');
+    }
+
+    private function extractFiscalFolioFromXml(string $xmlPath): ?string
+    {
+        $raw = @file_get_contents($xmlPath);
+        if ($raw === false || trim($raw) === '') {
+            return null;
+        }
+
+        $dom = new \DOMDocument();
+        $loaded = @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS);
+        if (!$loaded) {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query("//*[local-name()='TimbreFiscalDigital']");
+        if (!$nodes || $nodes->length === 0) {
+            return null;
+        }
+
+        $uuid = trim((string) (
+            $nodes->item(0)?->attributes?->getNamedItem('UUID')?->nodeValue
+            ?? $nodes->item(0)?->attributes?->getNamedItem('Uuid')?->nodeValue
+            ?? $nodes->item(0)?->attributes?->getNamedItem('uuid')?->nodeValue
+            ?? ''
+        ));
+
+        if ($uuid === '') {
+            return null;
+        }
+
+        $uuid = strtoupper($uuid);
+        if (!preg_match('/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/', $uuid)) {
+            return null;
+        }
+
+        return $uuid;
+    }
+
+    private function sanitizeFileToken(string $token): string
+    {
+        $normalized = strtoupper(trim($token));
+        $sanitized = preg_replace('/[^A-Z0-9\-]+/', '_', $normalized) ?? '';
+        return trim($sanitized, '_-') !== '' ? trim($sanitized, '_-') : 'SIN-FOLIO';
     }
 }

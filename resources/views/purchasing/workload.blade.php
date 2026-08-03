@@ -34,6 +34,11 @@
         $chartLabels[] = 'Sin asignar';
         $chartData[]   = (int) $unassignedCount;
     }
+
+    $summaryUsers = $ordersUsers
+        ->sortBy(fn($u) => strtolower($u->name))
+        ->sortByDesc(fn($u) => (int) $pendingCounts->get($u->id, 0))
+        ->values();
 @endphp
 
 {{-- ── Tarjetas resumen ───────────────────────────────────────────────────── --}}
@@ -162,7 +167,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($ordersUsers as $u)
+                            @foreach ($summaryUsers as $u)
                             @php
                                 $counts    = $allCounts->get($u->id, collect());
                                 $byStatus  = $counts->pluck('total', 'status');

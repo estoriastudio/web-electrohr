@@ -118,6 +118,15 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Folio fiscal (UUID) <span class="text-danger">*</span></label>
+                        <input type="text" name="folio" class="form-control @error('folio') is-invalid @enderror"
+                               value="{{ old('folio') }}" maxlength="100" placeholder="Se llena automáticamente desde el XML" required readonly>
+                        <div class="form-text">Se obtiene automáticamente del XML de la factura (TimbreFiscalDigital UUID).</div>
+                        @error('folio')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
 
                 <div class="row g-3">
@@ -136,9 +145,12 @@
                             </div>
 
                             <div class="mb-0">
-                                <label class="form-label fw-medium">Factura XML</label>
-                                <input type="file" name="xml_file" accept=".xml,text/xml" class="form-control @error('xml_file') is-invalid @enderror">
-                                <div class="form-text">Opcional.</div>
+                                <label class="form-label fw-medium">Factura XML <span class="text-danger">*</span></label>
+                                <input type="file" name="xml_file" accept=".xml,text/xml" class="form-control @error('xml_file') is-invalid @enderror" required>
+                                <div class="form-text">Obligatorio. De aquí se leerá el folio fiscal (UUID).</div>
+                                @error('xml_file')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
                             </div>
                         </div>
                     </div>
@@ -176,7 +188,68 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('portalInvoiceForm');
+    const folioInput = form ? form.querySelector('input[name="folio"]') : null;
+    const xmlInput = form ? form.querySelector('input[name="xml_file"]') : null;
     const drops = document.querySelectorAll('.drop-column');
+
+    function readFiscalFolioFromXmlText(xmlText) {
+        try {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+            if (xmlDoc.querySelector('parsererror')) return null;
+
+            const nodes = xmlDoc.getElementsByTagName('*');
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                if (node.localName !== 'TimbreFiscalDigital') continue;
+
+                const uuid = (node.getAttribute('UUID') || node.getAttribute('Uuid') || node.getAttribute('uuid') || '').trim();
+                if (!uuid) return null;
+
+                const normalized = uuid.toUpperCase();
+                const uuidRegex = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+                return uuidRegex.test(normalized) ? normalized : null;
+            }
+        } catch (err) {
+            return null;
+        }
+
+        return null;
+    }
+
+    function fillFolioFromXmlFile(file) {
+        if (!file || !folioInput) return;
+
+        const fileName = String(file.name || '').toLowerCase();
+        if (!fileName.endsWith('.xml')) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const xmlText = String(e.target?.result || '');
+            const uuid = readFiscalFolioFromXmlText(xmlText);
+            if (!uuid) {
+                folioInput.value = '';
+                folioInput.classList.add('is-invalid');
+                return;
+            }
+
+            folioInput.classList.remove('is-invalid');
+            folioInput.value = uuid;
+        };
+        reader.onerror = function () {
+            folioInput.value = '';
+            folioInput.classList.add('is-invalid');
+        };
+        reader.readAsText(file);
+    }
+
+    if (xmlInput) {
+        xmlInput.addEventListener('change', function () {
+            const file = this.files && this.files.length ? this.files[0] : null;
+            fillFolioFromXmlFile(file);
+        });
+    }
 
     drops.forEach(function (drop) {
         drop.addEventListener('dragover', function (e) {
@@ -208,6 +281,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     pdfInput.files = dt.files;
                 } else if (name.endsWith('.xml')) {
                     xmlInput.files = dt.files;
+                    xmlInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             }
 
