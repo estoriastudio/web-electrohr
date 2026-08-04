@@ -92,7 +92,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('suppliers.show');
         });
 
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
             Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
             Route::resource('/proveedores', SupplierController::class, [

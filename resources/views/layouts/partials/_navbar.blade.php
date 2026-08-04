@@ -55,7 +55,7 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Orden de compra')
+            @hasanyrole('admin|Orden de compra|Pagos')
                 @can('read')
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('suppliers.index') }}">
