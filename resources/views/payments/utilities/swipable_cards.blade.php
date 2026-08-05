@@ -22,6 +22,7 @@
         return [
             'id'             => $payment->id,
             'folio'          => $payment->folio,
+            'concept'        => trim((string) ($milestone?->concept ?? '')),
             'amount'         => number_format($payment->amount, 2),
             'amount_raw'     => $payment->amount,
             'currency'       => $purchaseOrder?->currency ?? 'MXN',
@@ -69,6 +70,9 @@
         <button class="swipe-btn btn-rechazar" id="btnRechazar" aria-label="Rechazar">
             <i class="ri-close-line"></i>
         </button>
+        <button class="swipe-btn btn-posponer" id="btnPosponer" aria-label="Posponer">
+            <i class="ri-time-line"></i>
+        </button>
         <button class="swipe-btn btn-autorizar" id="btnAutorizar" aria-label="Autorizar">
             <i class="ri-check-line"></i>
         </button>
@@ -91,6 +95,10 @@
             <div class="stat-pill pill-autorizado">
                 <span class="stat-number" id="countAutorizado">0</span>
                 <span class="stat-label">Autorizados</span>
+            </div>
+            <div class="stat-pill pill-pospuesto">
+                <span class="stat-number" id="countPospuesto">0</span>
+                <span class="stat-label">Pospuestos</span>
             </div>
             <div class="stat-pill pill-rechazado">
                 <span class="stat-number" id="countRechazado">0</span>

@@ -114,9 +114,13 @@ class PaymentController extends Controller
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
             ->select('payments.*')
-            ->where('payments.status', 'por_autorizar')
+            ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
             ->orderByRaw("
+                CASE
+                    WHEN payments.status = 'pospuesto' THEN 1
+                    ELSE 0
+                END ASC,
                 CASE
                     WHEN purchase_order_milestones.due_date <= ? THEN 0
                     ELSE 1
@@ -131,13 +135,13 @@ class PaymentController extends Controller
     public function swipe(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:autorizado,rechazado,por_autorizar',
+            'status' => 'required|in:autorizado,rechazado,pospuesto,por_autorizar',
         ]);
 
         $payment->update(['status' => $validated['status']]);
 
         // Solo notificar si no es un undo (revertir a por_autorizar)
-        if ($validated['status'] !== 'por_autorizar') {
+        if (!in_array($validated['status'], ['por_autorizar', 'pospuesto'])) {
             $milestone = $payment->milestone;
             $this->notification->send([
                 'type'         => 'Payment',
@@ -183,7 +187,7 @@ class PaymentController extends Controller
     public function update(Request $request, Payment $payment): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado',
+            'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado,pospuesto',
             'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
@@ -242,7 +246,8 @@ class PaymentController extends Controller
         $isAdmin = Auth::user()->hasRole('admin');
 
         $allowed = match ($previousStatus) {
-            'por_autorizar' => $isAdmin ? ['autorizado', 'rechazado'] : [],
+            'por_autorizar' => $isAdmin ? ['autorizado', 'rechazado', 'pospuesto'] : [],
+            'pospuesto'     => $isAdmin ? ['por_autorizar', 'autorizado', 'rechazado'] : [],
             'autorizado'    => $isAdmin ? ['pagado', 'por_autorizar'] : ['pagado'],
             'pagado'        => [],                                      // pagado es estado final
             'rechazado'     => $isAdmin ? ['por_autorizar'] : [],       // solo admin puede reactivar
@@ -265,13 +270,15 @@ class PaymentController extends Controller
         }
 
         // Notificación
-        $this->notification->send([
-            'type'         => 'Payment',
-            'action_by'    => Auth::id(),
-            'model_action' => 'update',
-            'model_id'     => $payment->id,
-            'data'         => 'actualizó el estatus del pago #' . $payment->folio . ' a «' . $newStatus . '» en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
-        ]);
+        if ($newStatus !== 'pospuesto') {
+            $this->notification->send([
+                'type'         => 'Payment',
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $payment->id,
+                'data'         => 'actualizó el estatus del pago #' . $payment->folio . ' a «' . $newStatus . '» en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
+            ]);
+        }
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Estatus del pago actualizado.');

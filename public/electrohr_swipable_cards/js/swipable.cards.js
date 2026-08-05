@@ -4,6 +4,7 @@
 
     let currentIndex = 0;
     let autorizadoCount = 0;
+    let pospuestoCount  = 0;
     let rechazadoCount  = 0;
 
     // Estado de drag
@@ -24,11 +25,13 @@
     const swipeButtons   = document.getElementById('swipeButtons');
     const swipeComplete  = document.getElementById('swipeComplete');
     const btnAutorizar   = document.getElementById('btnAutorizar');
+    const btnPosponer    = document.getElementById('btnPosponer');
     const btnRechazar    = document.getElementById('btnRechazar');
     const btnUndo        = document.getElementById('btnUndo');
     const undoTimerBar   = document.getElementById('undoTimerBar');
     const undoTimerFill  = document.getElementById('undoTimerFill');
     const countAutorizado = document.getElementById('countAutorizado');
+    const countPospuesto  = document.getElementById('countPospuesto');
     const countRechazado  = document.getElementById('countRechazado');
 
     const CSRF = document.querySelector('meta[name="csrf-token"]').content;
@@ -57,11 +60,11 @@
             </div>
             <div class="card-inner">
                 <div class="card-amount-section">
+                    <div class="card-concept-label"><i class="ri-bookmark-3-line"></i> Concepto del hito</div>
+                    <div class="card-concept">${data.concept && data.concept.length ? data.concept : 'Sin concepto definido'}</div>
                     <div class="card-amount-label">Monto a autorizar</div>
-                    <div class="card-amount-wrapper">
-                        <div class="card-amount">
-                            $${data.amount}<span class="card-amount-currency">${data.currency}</span>
-                        </div>
+                    <div class="card-amount">
+                        $${data.amount}<span class="card-amount-currency">${data.currency}</span>
                     </div>
                     ${data.due_date_long ? `<div class="card-due-date">${urgencyLabel(data.urgency)}<span><i class="ri-calendar-event-line"></i> ${data.due_date_long}</span></div>` : ''}
                 </div>
@@ -93,28 +96,23 @@
     function renderCards() {
         cardStack.innerHTML = '';
         const slice = CARD_DATA.slice(currentIndex, currentIndex + 3);
-        const cards = [];
         for (let i = slice.length - 1; i >= 0; i--) {
             const card = createCard(slice[i]);
             cardStack.appendChild(card);
-            cards.push(card);
         }
-        cards.forEach(setupMarquee);
+        syncStackHeight();
         updateProgress();
     }
 
-    function setupMarquee(card) {
+    function syncStackHeight() {
         requestAnimationFrame(() => {
-            const wrapper  = card.querySelector('.card-amount-wrapper');
-            const amountEl = card.querySelector('.card-amount');
-            if (!wrapper || !amountEl) return;
-            const overflow = amountEl.scrollWidth - wrapper.clientWidth;
-            if (overflow > 0) {
-                const half = Math.ceil(overflow / 2) + 6;
-                amountEl.style.setProperty('--marquee-start', `${half}px`);
-                amountEl.style.setProperty('--marquee-end',   `-${half}px`);
-                amountEl.classList.add('marquee-active');
+            const card = getTopCard();
+            if (!card) {
+                cardStack.style.height = '';
+                return;
             }
+            const stackPadding = 26; // reserva el offset visual de las tarjetas en segundo plano
+            cardStack.style.height = `${Math.ceil(card.offsetHeight + stackPadding)}px`;
         });
     }
 
@@ -236,11 +234,14 @@
         isAnimating = true;
         card.classList.add('swiping');
 
-        const flyX    = status === 'autorizado' ? 600 : -600;
-        const rotation = status === 'autorizado' ? 30 : -30;
+        const motion = {
+            autorizado: { flyX: 600, flyY: 0, rotation: 30 },
+            rechazado:   { flyX: -600, flyY: 0, rotation: -30 },
+            pospuesto:   { flyX: 0, flyY: 520, rotation: 0 },
+        }[status] || { flyX: 0, flyY: 0, rotation: 0 };
 
         card.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-        card.style.transform  = `translateX(${flyX}px) rotate(${rotation}deg)`;
+        card.style.transform  = `translate(${motion.flyX}px, ${motion.flyY}px) rotate(${motion.rotation}deg)`;
         card.style.opacity    = '0';
 
         // Guardar estado para undo
@@ -249,9 +250,15 @@
 
         isDragging = false;
         currentX   = 0;
-        currentIndex++;
+        if (status === 'pospuesto') {
+            CARD_DATA.splice(paymentIndex, 1);
+            CARD_DATA.push(cardData);
+        } else {
+            currentIndex++;
+        }
 
         if (status === 'autorizado') autorizadoCount++;
+        else if (status === 'pospuesto') pospuestoCount++;
         else rechazadoCount++;
 
         // AJAX
@@ -321,7 +328,15 @@
 
         // Revertir contadores
         if (action.status === 'autorizado') autorizadoCount--;
+        else if (action.status === 'pospuesto') pospuestoCount--;
         else rechazadoCount--;
+
+        if (action.status === 'pospuesto') {
+            const movedCard = CARD_DATA.pop();
+            if (movedCard) {
+                CARD_DATA.splice(action.paymentIndex, 0, movedCard);
+            }
+        }
 
         currentIndex = action.paymentIndex;
 
@@ -347,6 +362,14 @@
         swipeCard('autorizado');
     });
 
+    if (btnPosponer) {
+        btnPosponer.addEventListener('click', () => {
+            if (!getTopCard() || isAnimating) return;
+            currentX = 0;
+            swipeCard('pospuesto');
+        });
+    }
+
     btnRechazar.addEventListener('click', () => {
         if (!getTopCard() || isAnimating) return;
         currentX = 0;
@@ -362,10 +385,12 @@
         undoTimerBar.style.display = 'none';
         document.querySelector('.swipe-progress').style.display = 'none';
         countAutorizado.textContent = autorizadoCount;
+        countPospuesto.textContent  = pospuestoCount;
         countRechazado.textContent  = rechazadoCount;
         swipeComplete.classList.add('show');
     }
 
     /* ── Init ── */
+    window.addEventListener('resize', syncStackHeight);
     renderCards();
 })();

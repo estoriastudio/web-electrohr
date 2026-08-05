@@ -570,7 +570,6 @@
 
 {{-- ── HITOS (CONDICIONES DE PAGO) ── --}}
 <div class="row" id="hitos-container">
-
     @forelse ($orderedMilestones as $milestone)
         @php
             $milestonePosition = $loop->iteration;
@@ -1005,7 +1004,6 @@
             </div>
         </div>
     @endforelse
-
 </div>
 
 {{-- ── FACTURAS ── --}}
