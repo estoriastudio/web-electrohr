@@ -15,7 +15,12 @@ class UserController extends Controller
 
     public function index()
     {
-        $users       = User::with('roles', 'permissions')->orderBy('name')->get();
+        $users       = User::with('roles', 'permissions')
+            ->whereDoesntHave('roles', function ($query) {
+                $query->where('name', 'supplier_portal_access');
+            })
+            ->orderBy('name')
+            ->get();
         $roles       = Role::with('permissions')->orderBy('name')->get();
         $permissions = Permission::orderBy('name')->pluck('name');
 
