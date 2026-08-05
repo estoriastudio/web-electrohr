@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\MaterialVoucher;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -46,6 +48,30 @@ class SupplierPortalController extends Controller
             ->limit(5)
             ->get();
 
+        $invoiceStatusCounts = PurchaseOrderInvoice::query()
+            ->whereHas('purchaseOrder', function ($q) use ($supplier) {
+                $q->where('supplier_id', $supplier->id);
+            })
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $invoiceStatusSummary = [
+            PurchaseOrderInvoice::STATUS_EN_PROCESO => (int) ($invoiceStatusCounts[PurchaseOrderInvoice::STATUS_EN_PROCESO] ?? 0),
+            PurchaseOrderInvoice::STATUS_ACEPTADA => (int) ($invoiceStatusCounts[PurchaseOrderInvoice::STATUS_ACEPTADA] ?? 0),
+            PurchaseOrderInvoice::STATUS_RECHAZADA => (int) ($invoiceStatusCounts[PurchaseOrderInvoice::STATUS_RECHAZADA] ?? 0),
+        ];
+
+        $recentInvoiceNotifications = PurchaseOrderInvoice::query()
+            ->with('purchaseOrder:id,folio,supplier_id')
+            ->whereHas('purchaseOrder', function ($q) use ($supplier) {
+                $q->where('supplier_id', $supplier->id);
+            })
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(6)
+            ->get();
+
         return view('supplier_portal.dashboard', compact(
             'supplier',
             'purchaseOrdersCount',
@@ -53,7 +79,17 @@ class SupplierPortalController extends Controller
             'pendingMilestones',
             'recentOrders',
             'recentVouchers',
+            'invoiceStatusSummary',
+            'recentInvoiceNotifications',
         ));
+    }
+
+    public function downloadInvoiceGuide()
+    {
+        $pdf = Pdf::loadView('supplier_portal.invoice_guide_pdf')
+            ->setPaper('letter', 'portrait');
+
+        return $pdf->download('instructivo-carga-facturas.pdf');
     }
 
     public function purchaseOrders(Request $request): View
@@ -69,7 +105,6 @@ class SupplierPortalController extends Controller
                     $q->orderByDesc('attached_at')->orderByDesc('id');
                 },
             ])
-            ->withSum('invoices as invoiced_amount', 'amount')
             ->where('supplier_id', $supplier->id)
             ->where('status', 'autorizada')
             ->when($search !== '', function ($q) use ($search) {
@@ -85,6 +120,23 @@ class SupplierPortalController extends Controller
             ->withQueryString();
 
         return view('supplier_portal.purchase_orders', compact('supplier', 'purchaseOrders', 'search'));
+    }
+
+    public function accountStatement(Request $request): View
+    {
+        $supplier = $request->user()->supplier;
+
+        $invoices = PurchaseOrderInvoice::query()
+            ->with(['purchaseOrder:id,folio,elaborated_by,supplier_id'])
+            ->whereHas('purchaseOrder', function ($q) use ($supplier) {
+                $q->where('supplier_id', $supplier->id);
+            })
+            ->orderByDesc('attached_at')
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('supplier_portal.account_statement', compact('supplier', 'invoices'));
     }
 
     public function purchaseOrderPreview(Request $request, PurchaseOrder $purchaseOrder): View

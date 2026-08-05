@@ -53,6 +53,16 @@
                     <span class="nav-text">Mis Vales de Material</span>
                 </a>
             </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('supplier_portal.account_statement.*') ? 'active' : '' }}"
+                   href="{{ route('supplier_portal.account_statement.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-bank-card-line"></i>
+                    </span>
+                    <span class="nav-text">Estado de Cuenta</span>
+                </a>
+            </li>
             @endhasanyrole
 
             @hasanyrole('admin|Orden de compra|Pagos')
@@ -253,6 +263,16 @@
                 </a>
             </li>
             @endcan
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}"
+                   href="{{ route('invoices.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-file-list-3-line"></i>
+                    </span>
+                    <span class="nav-text">Facturas</span>
+                </a>
+            </li>
             @endhasanyrole
 
             @hasanyrole('admin|Pagos|Orden de compra')

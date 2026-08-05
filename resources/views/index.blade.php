@@ -44,17 +44,10 @@
 
 @php
     $authUser = auth()->user();
-    $isSupplierPortal = $authUser->hasRole('supplier_portal_access');
     $primaryRoleSlug = \Illuminate\Support\Str::slug((string) optional($authUser->roles->first())->name ?: 'general');
-    $welcomeBannerFile = $isSupplierPortal
-        ? 'welcome-supplier.jpg'
-        : 'welcome-' . $primaryRoleSlug . '.jpg';
-    $welcomeTitle = $isSupplierPortal
-        ? 'Bienvenido al Portal de Proveedores SAHR 2.0.'
-        : 'Bienvenido al SAHR 2.0.';
-    $welcomeDescription = $isSupplierPortal
-        ? 'Desde este portal puedes revisar tus hitos habilitados y subir la documentación requerida para tus facturas. El equipo de ElectroHR dará seguimiento a cada entrega.'
-        : 'Da seguimiento a tus procesos y usa el tablero para priorizar pendientes del día.';
+    $welcomeBannerFile = 'welcome-' . $primaryRoleSlug . '.jpg';
+    $welcomeTitle = 'Bienvenido al SAHR 2.0.';
+    $welcomeDescription = 'Da seguimiento a tus procesos y usa el tablero para priorizar pendientes del día.';
 @endphp
 
 <div class="welcome-hero text-white p-4 p-lg-5 mb-4"

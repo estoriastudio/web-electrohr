@@ -1028,18 +1028,55 @@
                     <table class="table table-sm table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th>Estatus</th>
                                 <th>Folio</th>
                                 <th>Archivo</th>
                                 <th>Fecha</th>
                                 <th>Moneda</th>
                                 <th class="text-end">Importe</th>
+                                <th class="text-end">Nota credito</th>
+                                <th class="text-end">Alcance liquido</th>
+                                <th>Vencimiento</th>
                                 <th>Hitos vinculados</th>
                                 <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($purchaseOrder->invoices as $invoice)
+                                @php
+                                    $statusMap = [
+                                        'en_proceso' => ['label' => 'En Proceso', 'class' => 'bg-warning-subtle text-warning'],
+                                        'aceptada' => ['label' => 'Aceptada', 'class' => 'bg-success-subtle text-success'],
+                                        'rechazada' => ['label' => 'Rechazada', 'class' => 'bg-danger-subtle text-danger'],
+                                    ];
+                                    $statusMeta = $statusMap[$invoice->status] ?? $statusMap['en_proceso'];
+                                @endphp
                                 <tr>
+                                    <td>
+                                        <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+                                        @hasanyrole('admin|Orden de compra')
+                                            <form action="{{ route('invoices.status.update', $invoice) }}" method="POST" class="mt-1">
+                                                @csrf
+                                                @method('PATCH')
+                                                <select name="status" class="form-select form-select-sm">
+                                                    <option value="en_proceso" {{ $invoice->status === 'en_proceso' ? 'selected' : '' }}>En Proceso</option>
+                                                    <option value="aceptada" {{ $invoice->status === 'aceptada' ? 'selected' : '' }}>Aceptada</option>
+                                                    <option value="rechazada" {{ $invoice->status === 'rechazada' ? 'selected' : '' }}>Rechazada</option>
+                                                </select>
+                                                <select name="purchase_order_milestone_id" class="form-select form-select-sm mt-1">
+                                                    <option value="">Seleccionar hito...</option>
+                                                    @foreach ($purchaseOrder->milestones as $milestoneOption)
+                                                        <option value="{{ $milestoneOption->id }}" {{ optional($invoice->milestones->first())->id === $milestoneOption->id ? 'selected' : '' }}>
+                                                            {{ $milestoneOption->concept ?: $milestoneOption->payment_condition ?: ('Hito #' . $milestoneOption->id) }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                                <button type="submit" class="btn btn-xs btn-primary mt-1 w-100" style="padding: 2px 8px;">
+                                                    Guardar
+                                                </button>
+                                            </form>
+                                        @endhasanyrole
+                                    </td>
                                     <td class="fw-medium fs-12">
                                         {{ $invoice->folio ?: '—' }}
                                     </td>
@@ -1061,6 +1098,15 @@
                                     </td>
                                     <td class="text-end fw-semibold">
                                         {{ number_format($invoice->amount, 2) }}
+                                    </td>
+                                    <td class="text-end">
+                                        {{ $invoice->credit_note_amount !== null ? number_format((float) $invoice->credit_note_amount, 2) : '—' }}
+                                    </td>
+                                    <td class="text-end fw-semibold text-primary">
+                                        {{ number_format((float) ($invoice->net_scope ?? $invoice->amount), 2) }}
+                                    </td>
+                                    <td class="text-nowrap fs-12">
+                                        {{ optional($invoice->due_date)->format('d/m/Y') ?: '—' }}
                                     </td>
                                     <td>
                                         @forelse ($invoice->milestones as $im)
@@ -1098,11 +1144,11 @@
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="4" class="text-end fw-semibold fs-13">Total facturado:</td>
+                                <td colspan="5" class="text-end fw-semibold fs-13">Total facturado (solo aceptadas):</td>
                                 <td class="text-end fw-bold text-primary">
-                                    {{ number_format($purchaseOrder->invoices->sum('amount'), 2) }}
+                                    {{ number_format((float) $purchaseOrder->invoices->where('status', 'aceptada')->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}
                                 </td>
-                                <td colspan="2"></td>
+                                <td colspan="5"></td>
             </tr>
                         </tfoot>
                     </table>

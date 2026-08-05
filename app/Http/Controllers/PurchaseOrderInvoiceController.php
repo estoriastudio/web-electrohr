@@ -5,14 +5,100 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
 
 class PurchaseOrderInvoiceController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
+
+    public function index(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+        $section = trim((string) $request->input('section', PurchaseOrderInvoice::STATUS_EN_PROCESO));
+
+        $validSections = array_merge(PurchaseOrderInvoice::STATUSES, ['todas']);
+        if (!in_array($section, $validSections, true)) {
+            $section = PurchaseOrderInvoice::STATUS_EN_PROCESO;
+        }
+
+        $pendingCount = PurchaseOrderInvoice::query()
+            ->where('status', PurchaseOrderInvoice::STATUS_EN_PROCESO)
+            ->count();
+        $acceptedCount = PurchaseOrderInvoice::query()
+            ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+            ->count();
+        $rejectedCount = PurchaseOrderInvoice::query()
+            ->where('status', PurchaseOrderInvoice::STATUS_RECHAZADA)
+            ->count();
+
+        $invoicesQuery = PurchaseOrderInvoice::query()
+            ->with([
+                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder.supplier:id,rfc_name,commercial_name',
+                'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
+                'milestones:id,concept,payment_condition',
+            ])
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('folio', 'like', '%' . $search . '%')
+                        ->orWhereHas('purchaseOrder', function ($po) use ($search) {
+                            $po->where('folio', 'like', '%' . $search . '%')
+                                ->orWhere('elaborated_by', 'like', '%' . $search . '%')
+                                ->orWhereHas('supplier', function ($sup) use ($search) {
+                                    $sup->where('rfc_name', 'like', '%' . $search . '%')
+                                        ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                                });
+                        });
+                });
+            });
+
+        if ($section !== 'todas') {
+            $invoicesQuery->where('status', $section);
+        }
+
+        if ($section === PurchaseOrderInvoice::STATUS_EN_PROCESO) {
+            // Prioritize pending invoices by earliest due date; null due dates go last.
+            $invoicesQuery
+                ->orderByRaw('due_date IS NULL ASC')
+                ->orderBy('due_date')
+                ->orderByDesc('attached_at')
+                ->orderByDesc('id');
+        } else {
+            $invoicesQuery
+                ->orderByDesc('attached_at')
+                ->orderByDesc('id');
+        }
+
+        $invoices = $invoicesQuery
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('invoices.index', compact(
+            'invoices',
+            'search',
+            'section',
+            'pendingCount',
+            'acceptedCount',
+            'rejectedCount'
+        ));
+    }
+
+    public function show(PurchaseOrderInvoice $invoice): View
+    {
+        $invoice->load([
+            'purchaseOrder:id,folio,supplier_id,elaborated_by,currency,amount',
+            'purchaseOrder.supplier:id,rfc_name,commercial_name',
+            'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
+            'milestones:id,concept,payment_condition',
+        ]);
+
+        return view('invoices.show', compact('invoice'));
+    }
 
     /**
      * Almacenar una nueva factura vinculada a una OC.
@@ -36,8 +122,11 @@ class PurchaseOrderInvoiceController extends Controller
         ]);
 
         $xmlFiscalFolio = null;
+        $xmlIssueDate = null;
         if ($request->hasFile('xml_file')) {
-            $xmlFiscalFolio = $this->extractFiscalFolioFromXml($request->file('xml_file')->getRealPath());
+            $invoiceMetadata = $this->extractInvoiceMetadataFromXml($request->file('xml_file')->getRealPath());
+            $xmlFiscalFolio = $invoiceMetadata['uuid'] ?? null;
+            $xmlIssueDate = $invoiceMetadata['issue_date'] ?? null;
 
             if (!$xmlFiscalFolio) {
                 return redirect()->back()->withInput()->withErrors([
@@ -89,6 +178,8 @@ class PurchaseOrderInvoiceController extends Controller
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $purchaseOrder->id,
             'folio'             => $validated['folio'] ?? null,
+            'status'            => PurchaseOrderInvoice::STATUS_EN_PROCESO,
+            'issue_date'        => $xmlIssueDate,
             'file_name'         => $fileName,
             'file_path'         => $storagePath,
             'xml_file_name'     => $xmlFileName,
@@ -135,6 +226,38 @@ class PurchaseOrderInvoiceController extends Controller
         );
     }
 
+    public function downloadFile(PurchaseOrderInvoice $invoice, string $type)
+    {
+        $fieldMap = [
+            'pdf' => ['path' => 'file_path', 'name' => 'file_name', 'mime' => 'application/pdf'],
+            'xml' => ['path' => 'xml_file_path', 'name' => 'xml_file_name', 'mime' => 'application/xml'],
+            'evidence' => ['path' => 'evidence_file_path', 'name' => 'evidence_file_name', 'mime' => null],
+            'credit_note_pdf' => ['path' => 'credit_note_file_path', 'name' => 'credit_note_file_name', 'mime' => 'application/pdf'],
+            'credit_note_xml' => ['path' => 'credit_note_xml_file_path', 'name' => 'credit_note_xml_file_name', 'mime' => 'application/xml'],
+        ];
+
+        abort_unless(isset($fieldMap[$type]), 404);
+
+        $pathField = $fieldMap[$type]['path'];
+        $nameField = $fieldMap[$type]['name'];
+        $forcedMime = $fieldMap[$type]['mime'];
+
+        $filePath = (string) ($invoice->{$pathField} ?? '');
+        $fileName = (string) ($invoice->{$nameField} ?? 'archivo');
+
+        if ($filePath === '' || !Storage::exists($filePath)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return response()->file(
+            Storage::path($filePath),
+            [
+                'Content-Type' => $forcedMime ?: (Storage::mimeType($filePath) ?: 'application/octet-stream'),
+                'Content-Disposition' => 'inline; filename="' . str_replace('"', '', $fileName) . '"',
+            ]
+        );
+    }
+
     /**
      * Eliminar una factura y su archivo.
      */
@@ -165,42 +288,124 @@ class PurchaseOrderInvoiceController extends Controller
             ->with('success', 'Factura eliminada correctamente.');
     }
 
-    private function extractFiscalFolioFromXml(string $xmlPath): ?string
+    public function updateStatus(Request $request, PurchaseOrderInvoice $invoice): RedirectResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:' . implode(',', PurchaseOrderInvoice::STATUSES),
+            'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
+            'milestone_ids' => 'nullable|array',
+            'milestone_ids.*' => 'exists:purchase_order_milestones,id',
+        ]);
+
+        if ($validated['status'] === PurchaseOrderInvoice::STATUS_ACEPTADA) {
+            $selectedMilestoneIds = collect($validated['milestone_ids'] ?? [])
+                ->filter(fn ($id) => $id !== null && $id !== '')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            // Backward compatibility for forms still posting a single milestone field.
+            if ($selectedMilestoneIds->isEmpty() && !empty($validated['purchase_order_milestone_id'])) {
+                $selectedMilestoneIds = collect([(int) $validated['purchase_order_milestone_id']]);
+            }
+
+            if ($selectedMilestoneIds->isEmpty()) {
+                return redirect()->back()->withInput()->withErrors([
+                    'milestone_ids' => 'Debes seleccionar al menos un hito relacionado para aprobar la factura.',
+                ]);
+            }
+
+            $validIds = $invoice->purchaseOrder
+                ->milestones()
+                ->whereIn('id', $selectedMilestoneIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            if ($validIds->count() !== $selectedMilestoneIds->count()) {
+                return redirect()->back()->withInput()->withErrors([
+                    'milestone_ids' => 'Uno o más hitos seleccionados no pertenecen a la orden de compra de esta factura.',
+                ]);
+            }
+
+            $invoice->milestones()->sync($validIds->all());
+        }
+
+        $invoice->update([
+            'status' => $validated['status'],
+        ]);
+
+        $statusLabel = match ($validated['status']) {
+            PurchaseOrderInvoice::STATUS_ACEPTADA => 'Aceptada',
+            PurchaseOrderInvoice::STATUS_RECHAZADA => 'Rechazada',
+            default => 'En Proceso',
+        };
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrderInvoice',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $invoice->id,
+            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.',
+        ]);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.');
+    }
+
+    private function extractInvoiceMetadataFromXml(string $xmlPath): array
     {
         $raw = @file_get_contents($xmlPath);
         if ($raw === false || trim($raw) === '') {
-            return null;
+            return ['uuid' => null, 'issue_date' => null];
         }
 
         $dom = new \DOMDocument();
         $loaded = @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS);
         if (!$loaded) {
-            return null;
+            return ['uuid' => null, 'issue_date' => null];
         }
 
         $xpath = new \DOMXPath($dom);
         $nodes = $xpath->query("//*[local-name()='TimbreFiscalDigital']");
-        if (!$nodes || $nodes->length === 0) {
-            return null;
+        $uuid = null;
+        if ($nodes && $nodes->length > 0) {
+            $candidate = trim((string) (
+                $nodes->item(0)?->attributes?->getNamedItem('UUID')?->nodeValue
+                ?? $nodes->item(0)?->attributes?->getNamedItem('Uuid')?->nodeValue
+                ?? $nodes->item(0)?->attributes?->getNamedItem('uuid')?->nodeValue
+                ?? ''
+            ));
+
+            $candidate = strtoupper($candidate);
+            if ($candidate !== '' && preg_match('/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/', $candidate)) {
+                $uuid = $candidate;
+            }
         }
 
-        $uuid = trim((string) (
-            $nodes->item(0)?->attributes?->getNamedItem('UUID')?->nodeValue
-            ?? $nodes->item(0)?->attributes?->getNamedItem('Uuid')?->nodeValue
-            ?? $nodes->item(0)?->attributes?->getNamedItem('uuid')?->nodeValue
-            ?? ''
-        ));
+        $issueDate = null;
+        $comprobanteNodes = $xpath->query("//*[local-name()='Comprobante']");
+        if ($comprobanteNodes && $comprobanteNodes->length > 0) {
+            $fechaRaw = trim((string) (
+                $comprobanteNodes->item(0)?->attributes?->getNamedItem('Fecha')?->nodeValue
+                ?? $comprobanteNodes->item(0)?->attributes?->getNamedItem('fecha')?->nodeValue
+                ?? ''
+            ));
 
-        if ($uuid === '') {
-            return null;
+            if ($fechaRaw !== '') {
+                try {
+                    $issueDate = Carbon::parse($fechaRaw)->toDateString();
+                } catch (\Throwable $e) {
+                    $issueDate = null;
+                }
+            }
         }
 
-        $uuid = strtoupper($uuid);
-        if (!preg_match('/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/', $uuid)) {
-            return null;
-        }
-
-        return $uuid;
+        return [
+            'uuid' => $uuid,
+            'issue_date' => $issueDate,
+        ];
     }
 
     private function sanitizeFileToken(string $token): string

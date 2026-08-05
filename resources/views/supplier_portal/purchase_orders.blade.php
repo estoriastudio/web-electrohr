@@ -115,7 +115,10 @@
                 <tbody>
                     @forelse($purchaseOrders as $order)
                         @php
-                            $invoicedAmount = (float) ($order->invoiced_amount ?? 0);
+                            $acceptedInvoices = $order->invoices->where('status', 'aceptada');
+                            $invoicedAmount = (float) $acceptedInvoices->sum(function ($invoice) {
+                                return (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
+                            });
                             $pendingAmount = max(0, (float) $order->amount - $invoicedAmount);
                             $projectName = $order->projectRelation?->name ?? $order->project;
                             $workName = $order->workRelation?->name ?? $order->site;
@@ -179,7 +182,7 @@
                                                 Desglose de facturas
                                                 <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $order->invoices->count() }}</span>
                                             </h6>
-                                            <span class="text-muted fs-12">Total facturado: <strong>{{ $order->currency }} {{ number_format((float) $order->invoices->sum('amount'), 2) }}</strong></span>
+                                            <span class="text-muted fs-12">Total facturado (aceptadas): <strong>{{ $order->currency }} {{ number_format((float) $acceptedInvoices->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}</strong></span>
                                         </div>
 
                                         @if ($order->invoices->isNotEmpty())
@@ -187,20 +190,38 @@
                                                 <table class="table table-sm align-middle mb-0">
                                                     <thead class="table-light">
                                                         <tr>
+                                                            <th>Estatus</th>
                                                             <th>Folio</th>
                                                             <th>Fecha</th>
+                                                            <th>Vencimiento</th>
                                                             <th class="text-end">Importe</th>
+                                                            <th class="text-end">Nota credito</th>
+                                                            <th class="text-end">Alcance liquido</th>
                                                             <th>PDF</th>
                                                             <th>XML</th>
+                                                            <th>NC PDF</th>
+                                                            <th>NC XML</th>
                                                             <th>Evidencia</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         @foreach ($order->invoices as $invoice)
+                                                            @php
+                                                                $statusMap = [
+                                                                    'en_proceso' => ['label' => 'En Proceso', 'class' => 'bg-warning-subtle text-warning'],
+                                                                    'aceptada' => ['label' => 'Aceptada', 'class' => 'bg-success-subtle text-success'],
+                                                                    'rechazada' => ['label' => 'Rechazada', 'class' => 'bg-danger-subtle text-danger'],
+                                                                ];
+                                                                $statusMeta = $statusMap[$invoice->status] ?? $statusMap['en_proceso'];
+                                                            @endphp
                                                             <tr>
+                                                                <td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
                                                                 <td class="fw-medium">{{ $invoice->folio ?: ('FACT-' . $invoice->id) }}</td>
                                                                 <td>{{ optional($invoice->attached_at ?? $invoice->created_at)->format('d/m/Y H:i') }}</td>
+                                                                <td>{{ optional($invoice->due_date)->format('d/m/Y') ?: '—' }}</td>
                                                                 <td class="text-end">{{ $invoice->currency }} {{ number_format((float) $invoice->amount, 2) }}</td>
+                                                                <td class="text-end">{{ $invoice->credit_note_amount !== null ? ($invoice->currency . ' ' . number_format((float) $invoice->credit_note_amount, 2)) : '—' }}</td>
+                                                                <td class="text-end fw-medium">{{ $invoice->currency }} {{ number_format((float) ($invoice->net_scope ?? $invoice->amount), 2) }}</td>
                                                                 <td>
                                                                     @if ($invoice->file_path)
                                                                         <a href="{{ route('supplier_portal.invoices.download_file', ['purchaseOrder' => $order, 'invoice' => $invoice, 'type' => 'pdf']) }}"
@@ -221,6 +242,32 @@
                                                                            class="btn btn-xs btn-soft-info oc-invoice-actions js-oc-row-ignore"
                                                                            style="padding: 2px 8px;"
                                                                            title="Ver XML de factura">
+                                                                            <i class="ri-code-s-slash-line"></i>
+                                                                        </a>
+                                                                    @else
+                                                                        <span class="text-muted">—</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    @if ($invoice->credit_note_file_path)
+                                                                        <a href="{{ route('supplier_portal.invoices.download_file', ['purchaseOrder' => $order, 'invoice' => $invoice, 'type' => 'credit_note_pdf']) }}"
+                                                                           target="_blank"
+                                                                           class="btn btn-xs btn-soft-warning oc-invoice-actions js-oc-row-ignore"
+                                                                           style="padding: 2px 8px;"
+                                                                           title="Ver PDF de nota de credito">
+                                                                            <i class="ri-file-warning-line"></i>
+                                                                        </a>
+                                                                    @else
+                                                                        <span class="text-muted">—</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    @if ($invoice->credit_note_xml_file_path)
+                                                                        <a href="{{ route('supplier_portal.invoices.download_file', ['purchaseOrder' => $order, 'invoice' => $invoice, 'type' => 'credit_note_xml']) }}"
+                                                                           target="_blank"
+                                                                           class="btn btn-xs btn-soft-warning oc-invoice-actions js-oc-row-ignore"
+                                                                           style="padding: 2px 8px;"
+                                                                           title="Ver XML de nota de credito">
                                                                             <i class="ri-code-s-slash-line"></i>
                                                                         </a>
                                                                     @else

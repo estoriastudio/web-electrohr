@@ -52,6 +52,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     ->whereNumber('purchaseOrder')
                     ->name('purchase_orders.preview');
                 Route::get('/vales-material', [SupplierPortalController::class, 'materialVouchers'])->name('material_vouchers.index');
+                Route::get('/estado-cuenta', [SupplierPortalController::class, 'accountStatement'])->name('account_statement.index');
+                Route::get('/instructivo-carga-facturas', [SupplierPortalController::class, 'downloadInvoiceGuide'])
+                    ->name('invoice_guide.download');
                 Route::get('/ordenes-compra/{purchaseOrder}/facturas/nueva', [SupplierPortalInvoiceController::class, 'create'])
                     ->name('invoices.create');
                 Route::post('/ordenes-compra/{purchaseOrder}/facturas', [SupplierPortalInvoiceController::class, 'store'])
@@ -59,7 +62,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/archivo/{type}', [SupplierPortalInvoiceController::class, 'downloadFile'])
                     ->whereNumber('purchaseOrder')
                     ->whereNumber('invoice')
-                    ->whereIn('type', ['pdf', 'xml', 'evidence'])
+                    ->whereIn('type', ['pdf', 'xml', 'evidence', 'credit_note_pdf', 'credit_note_xml'])
                     ->name('invoices.download_file');
             });
 
@@ -408,6 +411,18 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
+        });
+
+        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+            Route::get('/facturas', [PurchaseOrderInvoiceController::class, 'index'])->name('invoices.index');
+            Route::get('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'show'])->name('invoices.show');
+            Route::get('/facturas/{invoice}/archivo/{type}', [PurchaseOrderInvoiceController::class, 'downloadFile'])
+                ->whereIn('type', ['pdf', 'xml', 'evidence', 'credit_note_pdf', 'credit_note_xml'])
+                ->name('invoices.download_file');
+        });
+
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::patch('/facturas/{invoice}/estatus', [PurchaseOrderInvoiceController::class, 'updateStatus'])->name('invoices.status.update');
         });
 
         // Evidencias de entrega en OC

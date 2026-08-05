@@ -9,9 +9,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderInvoice extends Model
 {
+    public const STATUS_EN_PROCESO = 'en_proceso';
+    public const STATUS_ACEPTADA = 'aceptada';
+    public const STATUS_RECHAZADA = 'rechazada';
+
+    public const STATUSES = [
+        self::STATUS_EN_PROCESO,
+        self::STATUS_ACEPTADA,
+        self::STATUS_RECHAZADA,
+    ];
+
     protected $fillable = [
         'purchase_order_id',
         'folio',
+        'status',
+        'issue_date',
         'file_name',
         'file_path',
         'xml_file_name',
@@ -20,11 +32,22 @@ class PurchaseOrderInvoice extends Model
         'evidence_file_path',
         'amount',
         'currency',
+        'due_date',
+        'credit_note_file_name',
+        'credit_note_file_path',
+        'credit_note_xml_file_name',
+        'credit_note_xml_file_path',
+        'credit_note_amount',
+        'net_scope',
         'attached_at',
     ];
 
     protected $casts = [
         'amount'      => 'decimal:2',
+        'credit_note_amount' => 'decimal:2',
+        'net_scope'   => 'decimal:2',
+        'due_date'    => 'date',
+        'issue_date'  => 'date',
         'attached_at' => 'datetime',
     ];
 

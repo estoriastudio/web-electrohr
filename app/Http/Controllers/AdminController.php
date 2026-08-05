@@ -7,15 +7,20 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\PurchaseRequest;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function dashboard(Request $request): View
+    public function dashboard(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
+
+        if ($user->hasRole('supplier_portal_access')) {
+            return redirect()->route('supplier_portal.dashboard');
+        }
 
         // Valores por defecto (se rellenan según el rol)
         $totalPendientePago             = 0.0;
