@@ -123,6 +123,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('proveedores/{supplier}/contacto-principal', [SupplierContactController::class, 'primaryJson'])
                  ->name('supplier_contacts.primary_json');
 
+            Route::get('proveedores/{supplier}/estado-para-oc', [SupplierController::class, 'purchaseOrderReadiness'])
+                ->name('suppliers.purchase_order_readiness');
+
             Route::resource('proveedores.sucursales', SupplierLocationController::class, [
                 'names' => [
                     'store'   => 'supplier_locations.store',

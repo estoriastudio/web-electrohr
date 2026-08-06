@@ -602,7 +602,7 @@
         <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
-                    <i class="ri-map-pin-line me-1 text-muted"></i> Sucursales / Ubicaciones
+                    <i class="ri-bank-line me-1 text-muted"></i> Datos Bancarios
                 </h5>
                 @if ($canManageSupplier)
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateLocation">
@@ -942,16 +942,16 @@
 
 
 {{-- ══════════════════════════════════════════════════════════════
-     MODALES — Sucursales
+    MODALES — Datos bancarios
 ══════════════════════════════════════════════════════════════════ --}}
 
-{{-- Crear sucursal --}}
+{{-- Registrar datos bancarios --}}
 <div class="modal fade" id="modalCreateLocation" tabindex="-1" aria-labelledby="modalCreateLocationLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalCreateLocationLabel">
-                    <i class="ri-map-pin-line me-1"></i> Registrar sucursal
+                    <i class="ri-bank-line me-1"></i> Registrar Datos Bancarios
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -959,32 +959,8 @@
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Nombre de la sucursal <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" placeholder="Ej. Sucursal Norte" required>
-                    </div>
-                    <hr class="my-3">
-                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
-                    <div class="row g-3">
-                        <div class="col-sm-8">
-                            <label class="form-label fw-medium fs-13">Calle</label>
-                            <input type="text" name="street" class="form-control" placeholder="Calle y número">
-                        </div>
-                        <div class="col-sm-4">
-                            <label class="form-label fw-medium fs-13">Código Postal</label>
-                            <input type="text" name="postal_code" class="form-control" placeholder="00000">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Colonia</label>
-                            <input type="text" name="colony" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Ciudad</label>
-                            <input type="text" name="city" class="form-control">
-                        </div>
-                        <div class="col-sm-12">
-                            <label class="form-label fw-medium fs-13">Estado</label>
-                            <input type="text" name="state" class="form-control">
-                        </div>
+                        <label class="form-label fw-medium fs-13">Nombre de la cuenta <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Ej. Cuenta principal" required>
                     </div>
                     <hr class="my-3">
                     <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Datos bancarios</p>
@@ -1011,23 +987,47 @@
                             <input type="text" name="bank_clabe" class="form-control" maxlength="18">
                         </div>
                     </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
+                    <div class="row g-3">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-medium fs-13">Calle</label>
+                            <input type="text" name="street" class="form-control" placeholder="Calle y número">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-medium fs-13">Código Postal</label>
+                            <input type="text" name="postal_code" class="form-control" placeholder="00000">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Colonia</label>
+                            <input type="text" name="colony" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Ciudad</label>
+                            <input type="text" name="city" class="form-control">
+                        </div>
+                        <div class="col-sm-12">
+                            <label class="form-label fw-medium fs-13">Estado</label>
+                            <input type="text" name="state" class="form-control">
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar sucursal</button>
+                    <button type="submit" class="btn btn-primary">Guardar datos bancarios</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-{{-- Editar sucursal --}}
+{{-- Editar datos bancarios --}}
 <div class="modal fade" id="modalEditLocation" tabindex="-1" aria-labelledby="modalEditLocationLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalEditLocationLabel">
-                    <i class="ri-edit-2-line me-1"></i> Editar sucursal
+                    <i class="ri-edit-2-line me-1"></i> Editar Datos Bancarios
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -1036,32 +1036,8 @@
                 @method('PUT')
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Nombre de la sucursal <span class="text-danger">*</span></label>
+                        <label class="form-label fw-medium fs-13">Nombre de la cuenta <span class="text-danger">*</span></label>
                         <input type="text" name="name" id="editLocationName" class="form-control" required>
-                    </div>
-                    <hr class="my-3">
-                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
-                    <div class="row g-3">
-                        <div class="col-sm-8">
-                            <label class="form-label fw-medium fs-13">Calle</label>
-                            <input type="text" name="street" id="editLocationStreet" class="form-control">
-                        </div>
-                        <div class="col-sm-4">
-                            <label class="form-label fw-medium fs-13">Código Postal</label>
-                            <input type="text" name="postal_code" id="editLocationPostalCode" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Colonia</label>
-                            <input type="text" name="colony" id="editLocationColony" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Ciudad</label>
-                            <input type="text" name="city" id="editLocationCity" class="form-control">
-                        </div>
-                        <div class="col-sm-12">
-                            <label class="form-label fw-medium fs-13">Estado</label>
-                            <input type="text" name="state" id="editLocationState" class="form-control">
-                        </div>
                     </div>
                     <hr class="my-3">
                     <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Datos bancarios</p>
@@ -1086,6 +1062,30 @@
                         <div class="col-sm-6">
                             <label class="form-label fw-medium fs-13">CLABE Interbancaria</label>
                             <input type="text" name="bank_clabe" id="editLocationBankClabe" class="form-control" maxlength="18">
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
+                    <div class="row g-3">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-medium fs-13">Calle</label>
+                            <input type="text" name="street" id="editLocationStreet" class="form-control">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-medium fs-13">Código Postal</label>
+                            <input type="text" name="postal_code" id="editLocationPostalCode" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Colonia</label>
+                            <input type="text" name="colony" id="editLocationColony" class="form-control">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Ciudad</label>
+                            <input type="text" name="city" id="editLocationCity" class="form-control">
+                        </div>
+                        <div class="col-sm-12">
+                            <label class="form-label fw-medium fs-13">Estado</label>
+                            <input type="text" name="state" id="editLocationState" class="form-control">
                         </div>
                     </div>
                 </div>

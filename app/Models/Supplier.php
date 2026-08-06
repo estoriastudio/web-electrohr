@@ -130,6 +130,42 @@ class Supplier extends Model
         return $missing;
     }
 
+    /**
+     * Campos que deben estar completos antes de fincar una orden de compra.
+     */
+    public function purchaseOrderMissingFields(): array
+    {
+        $missing = [];
+
+        $generalFields = [
+            'rfc_name'        => 'Razón social',
+            'commercial_name' => 'Nombre comercial',
+            'rfc_num'         => 'RFC',
+            'email'           => 'Correo electrónico',
+            'phone'           => 'Teléfono',
+            'cellphone'       => 'Celular',
+            'attended_by'     => 'Atendido por',
+            'address'         => 'Dirección',
+            'status'          => 'Estatus',
+        ];
+
+        foreach ($generalFields as $field => $label) {
+            if (empty($this->{$field})) {
+                $missing[] = $label;
+            }
+        }
+
+        if (!$this->contacts()->exists()) {
+            $missing[] = 'Al menos un contacto';
+        }
+
+        if (!$this->locations()->exists()) {
+            $missing[] = 'Al menos un registro de datos bancarios';
+        }
+
+        return $missing;
+    }
+
     public function purchaseOrders()
     {
         return $this->hasMany(PurchaseOrder::class);

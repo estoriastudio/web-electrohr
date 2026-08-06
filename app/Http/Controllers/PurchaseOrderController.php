@@ -9,6 +9,7 @@ use App\Models\MobileAsset;
 use App\Models\Concept;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
+use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
 use App\Models\ProjectWork;
@@ -81,10 +82,20 @@ class PurchaseOrderController extends Controller
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
         $nextFolio             = (PurchaseOrder::withTrashed()->max('folio') ?? 0) + 1;
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
+        $recentPendingInvoices = PurchaseOrderInvoice::query()
+            ->with([
+                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder.supplier:id,rfc_name,commercial_name',
+            ])
+            ->where('status', PurchaseOrderInvoice::STATUS_EN_PROCESO)
+            ->orderByDesc('attached_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
 
         return view('purchase_orders.index', compact(
             'orders', 'suppliers', 'search', 'tipo', 'sortDue',
-            'projects', 'nextFolio', 'authorizedSignatories'
+            'projects', 'nextFolio', 'authorizedSignatories', 'recentPendingInvoices'
         ));
     }
 
@@ -167,6 +178,15 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $supplier = Supplier::findOrFail($validated['supplier_id']);
+        $missingSupplierFields = $supplier->purchaseOrderMissingFields();
+
+        if ($missingSupplierFields !== []) {
+            throw ValidationException::withMessages([
+                'supplier_id' => 'El perfil del proveedor está incompleto: ' . implode(', ', $missingSupplierFields) . '.',
+            ]);
+        }
 
         $selectedWorkIds = collect($validated['project_work_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -324,7 +344,8 @@ class PurchaseOrderController extends Controller
     public function show(PurchaseOrder $purchaseOrder): View
     {
         $purchaseOrder->load([
-            'supplier',
+            'supplier.contacts',
+            'supplier.locations',
             'mobileAsset',
             'milestones.payments',
             'milestones.invoices',

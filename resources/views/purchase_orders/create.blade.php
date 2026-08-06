@@ -381,6 +381,8 @@
     </div>
 </div>
 
+@include('purchase_orders.partials.supplier-profile-incomplete-modal')
+
 @endsection
 
 @push('scripts')
@@ -493,6 +495,63 @@ document.addEventListener('DOMContentLoaded', function () {
         cb.addEventListener('change', function () { toggleExtraTaxField(cb); });
         toggleExtraTaxField(cb);
     });
+
+    // ── Validar el perfil del proveedor para fincar la OC ─────────────────
+    var supplierSelect = document.getElementById('supplier_id');
+    var orderForm = document.getElementById('formCreateOrder');
+    var supplierReadinessUrl = @json(route('suppliers.purchase_order_readiness', ['supplier' => '__supplier__']));
+    var supplierProfileModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSupplierProfileIncomplete'));
+    var supplierProfileLink = document.getElementById('supplierProfileLink');
+    var missingFieldsList = document.getElementById('supplierProfileMissingFields');
+    var checkedSupplierId = '';
+    var supplierIsReady = false;
+    var latestReadiness = null;
+
+    function showSupplierProfileIncomplete(readiness) {
+        missingFieldsList.replaceChildren();
+        readiness.missing_fields.forEach(function (field) {
+            var item = document.createElement('li');
+            item.textContent = field;
+            missingFieldsList.appendChild(item);
+        });
+        supplierProfileLink.href = readiness.profile_url;
+        supplierProfileModal.show();
+    }
+
+    function checkSupplierReadiness() {
+        var supplierId = supplierSelect.value;
+        checkedSupplierId = supplierId;
+        supplierIsReady = false;
+        latestReadiness = null;
+
+        if (!supplierId) return;
+
+        fetch(supplierReadinessUrl.replace('__supplier__', encodeURIComponent(supplierId)), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (readiness) {
+            if (supplierSelect.value !== supplierId) return;
+            latestReadiness = readiness;
+            supplierIsReady = readiness.ready;
+            if (!readiness.ready) showSupplierProfileIncomplete(readiness);
+        })
+        .catch(function () {});
+    }
+
+    supplierSelect.addEventListener('change', checkSupplierReadiness);
+    orderForm.addEventListener('submit', function (event) {
+        if (!supplierSelect.value || (supplierIsReady && checkedSupplierId === supplierSelect.value)) return;
+
+        event.preventDefault();
+        if (latestReadiness && !latestReadiness.ready) {
+            showSupplierProfileIncomplete(latestReadiness);
+        } else {
+            checkSupplierReadiness();
+        }
+    });
+
+    if (supplierSelect.value) checkSupplierReadiness();
 
     // ── Cargar obras al cambiar proyecto (cascade) ────────────────────────
     projectSelect.addEventListener('change', function () {

@@ -63,6 +63,9 @@
     $deliveryBadge = $isDelivered
         ? ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line']
         : ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'];
+    $supplier = $purchaseOrder->supplier;
+    $primarySupplierContact = $supplier?->contacts->firstWhere('is_primary', true) ?? $supplier?->contacts->first();
+    $supplierBankDetails = $supplier?->locations->first();
 @endphp
 
 {{-- ── ALERTA DE AUTORIZACIÓN ── --}}
@@ -127,6 +130,15 @@
                             </span>
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $purchaseOrder->currency }}</span>
                         </div>
+                        @if ($supplier)
+                            <button type="button" class="btn btn-link p-0 mt-2 text-decoration-none text-start"
+                                    data-bs-toggle="modal" data-bs-target="#modalSupplierProfileSummary">
+                                <span class="fw-semibold text-dark">{{ $supplier->commercial_name ?: 'Sin nombre comercial' }}</span>
+                                <span class="text-muted mx-1">|</span>
+                                <span class="text-muted fs-13">RFC: {{ $supplier->rfc_num ?: 'Sin RFC' }}</span>
+                                <i class="ri-external-link-line ms-1 text-primary"></i>
+                            </button>
+                        @endif
                         @if ($purchaseOrder->type === 'materiales_servicios' && ($purchaseOrder->project || $purchaseOrder->site))
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
                                 @if ($purchaseOrder->project)<span><i class="ri-building-2-line me-1"></i>{{ $purchaseOrder->project }}</span>@endif
@@ -189,6 +201,72 @@
         </div>
     </div>
 </div>
+
+@if ($supplier)
+<div class="modal fade" id="modalSupplierProfileSummary" tabindex="-1" aria-labelledby="modalSupplierProfileSummaryLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalSupplierProfileSummaryLabel">
+                    <i class="ri-building-line me-1"></i> Perfil del proveedor
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-semibold fs-13 mb-2"><i class="ri-building-line me-1 text-muted"></i> Información general</h6>
+                        <dl class="row mb-0 fs-13">
+                            <dt class="col-sm-5 text-muted fw-normal">Razón social</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->rfc_name ?: '—' }}</dd>
+                            <dt class="col-sm-5 text-muted fw-normal">Nombre comercial</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->commercial_name ?: '—' }}</dd>
+                            <dt class="col-sm-5 text-muted fw-normal">RFC</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->rfc_num ?: '—' }}</dd>
+                            <dt class="col-sm-5 text-muted fw-normal">Estatus</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->status ? ucfirst($supplier->status) : '—' }}</dd>
+                            <dt class="col-sm-5 text-muted fw-normal">Atendido por</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->attended_by ?: '—' }}</dd>
+                            <dt class="col-sm-5 text-muted fw-normal">Dirección</dt>
+                            <dd class="col-sm-7 fw-medium">{{ $supplier->address ?: '—' }}</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-semibold fs-13 mb-2"><i class="ri-contacts-line me-1 text-muted"></i> Contacto principal</h6>
+                        <dl class="row mb-3 fs-13">
+                            <dt class="col-sm-4 text-muted fw-normal">Nombre</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $primarySupplierContact?->name ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">Teléfono</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $primarySupplierContact?->phone ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">Correo</dt>
+                            <dd class="col-sm-8 fw-medium text-break">{{ $primarySupplierContact?->email ?: '—' }}</dd>
+                        </dl>
+                        <h6 class="fw-semibold fs-13 mb-2"><i class="ri-bank-line me-1 text-muted"></i> Datos bancarios</h6>
+                        <dl class="row mb-0 fs-13">
+                            <dt class="col-sm-4 text-muted fw-normal">Cuenta</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $supplierBankDetails?->name ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">Banco</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $supplierBankDetails?->bank_name ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">Número</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $supplierBankDetails?->bank_account ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">CLABE</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $supplierBankDetails?->bank_clabe ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted fw-normal">Moneda</dt>
+                            <dd class="col-sm-8 fw-medium">{{ $supplierBankDetails?->currency ?: '—' }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ route('suppliers.show', $supplier) }}" class="btn btn-primary">
+                    <i class="ri-user-settings-line me-1"></i> Ver perfil completo
+                </a>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- MODAL Subir Evidencia --}}
 @hasanyrole('admin|Solmat|Pagos|Orden de compra')
@@ -1015,7 +1093,7 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
-                @hasanyrole('admin|Pagos')
+                @hasanyrole('admin|Pagos|Orden de compra')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
@@ -1054,6 +1132,8 @@
                                 <tr>
                                     <td>
                                         <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+
+                                        {{--  
                                         @hasanyrole('admin|Orden de compra')
                                             <form action="{{ route('invoices.status.update', $invoice) }}" method="POST" class="mt-1">
                                                 @csrf
@@ -1076,6 +1156,7 @@
                                                 </button>
                                             </form>
                                         @endhasanyrole
+                                        --}}
                                     </td>
                                     <td class="fw-medium fs-12">
                                         {{ $invoice->folio ?: '—' }}
@@ -1119,7 +1200,6 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
-                                            @hasanyrole('admin|Pagos')
                                             @if ($invoice->file_path)
                                             <a href="{{ route('invoices.download', $invoice) }}"
                                                target="_blank"
@@ -1136,7 +1216,6 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
-                                            @endhasanyrole
                                         </div>
                                     </td>
                                 </tr>
@@ -1149,7 +1228,7 @@
                                     {{ number_format((float) $purchaseOrder->invoices->where('status', 'aceptada')->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}
                                 </td>
                                 <td colspan="5"></td>
-            </tr>
+                            </tr>
                         </tfoot>
                     </table>
                 </div>

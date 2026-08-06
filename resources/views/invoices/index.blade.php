@@ -175,14 +175,16 @@
 								</div>
 							</td>
 							<td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
-							<td>{{ optional($invoice->attached_at ?? $invoice->created_at)->format('d/m/Y H:i') }}</td>
+							<td>
+								<i class="ri-calendar-line me-1 text-muted" aria-hidden="true"></i>{{ optional($invoice->attached_at ?? $invoice->created_at)->format('d/m/Y H:i') }}
+							</td>
 							<td>{{ optional($invoice->issue_date)->format('d/m/Y') ?: '—' }}</td>
 							<td>{{ optional($invoice->due_date)->format('d/m/Y') ?: '—' }}</td>
 							<td class="fw-medium">{{ $invoice->folio ?: ('FACT-' . $invoice->id) }}</td>
 							<td>
 								@if ($po)
 									<a href="{{ route('purchase_orders.show', $po) }}" class="text-decoration-none" target="_blank">
-										{{ $po->folio ?: ('OC #' . $po->id) }}
+										<span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">#{{ $po->folio ?? $po->id }}</span>
 									</a>
 								@else
 									—
@@ -287,12 +289,28 @@
 	z-index: 1085;
 }
 
-@media (max-width: 1199.98px) {
-	.invoice-table-responsive {
-		overflow-x: auto;
-		overflow-y: visible;
-	}
+.invoice-table-responsive .app-list-table {
+	width: 100%;
+	table-layout: fixed;
 }
+
+.invoice-table-responsive .app-list-table th,
+.invoice-table-responsive .app-list-table td {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.invoice-table-responsive .app-list-table th:nth-child(1) { width: 7%; }
+.invoice-table-responsive .app-list-table th:nth-child(2) { width: 7%; }
+.invoice-table-responsive .app-list-table th:nth-child(3) { width: 8%; }
+.invoice-table-responsive .app-list-table th:nth-child(4) { width: 7%; }
+.invoice-table-responsive .app-list-table th:nth-child(5) { width: 8%; }
+.invoice-table-responsive .app-list-table th:nth-child(6) { width: 11%; }
+.invoice-table-responsive .app-list-table th:nth-child(7) { width: 7%; }
+.invoice-table-responsive .app-list-table th:nth-child(8) { width: 15%; }
+.invoice-table-responsive .app-list-table th:nth-child(9) { width: 10%; }
+.invoice-table-responsive .app-list-table th:nth-child(10) { width: 10%; }
+.invoice-table-responsive .app-list-table th:nth-child(11) { width: 10%; }
 </style>
 @endpush
 

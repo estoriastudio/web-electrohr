@@ -11,6 +11,7 @@ use App\Exports\SupplierExport;
 use App\Imports\SupplierImport;
 use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -56,6 +57,20 @@ class SupplierController extends Controller
     }
 
     /**
+     * Devuelve los requisitos de perfil necesarios para fincar una OC.
+     */
+    public function purchaseOrderReadiness(Supplier $supplier): JsonResponse
+    {
+        $missingFields = $supplier->purchaseOrderMissingFields();
+
+        return response()->json([
+            'ready'          => empty($missingFields),
+            'missing_fields' => $missingFields,
+            'profile_url'    => route('suppliers.show', $supplier),
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -64,21 +79,31 @@ class SupplierController extends Controller
             'rfc_name'     => 'required|string|max:255',
             'contact_name' => 'nullable|string|max:255',
             'email'        => 'nullable|email|max:255',
+            'bank_account' => 'required|string|max:50',
             'phone'        => 'nullable|string|max:50',
         ]);
 
-        $supplier = Supplier::create([
-            'rfc_name' => $validated['rfc_name'],
-        ]);
-
-        if ($validated['contact_name'] ?? null) {
-            $supplier->contacts()->create([
-                'name'     => $validated['contact_name'] ?? null,
-                'email'    => $validated['email'] ?? null,
-                'phone'    => $validated['phone'] ?? null,
-                'is_primary' => true,
+        $supplier = DB::transaction(function () use ($validated) {
+            $supplier = Supplier::create([
+                'rfc_name' => $validated['rfc_name'],
             ]);
-        }
+
+            $supplier->locations()->create([
+                'name'         => 'Cuenta Principal',
+                'bank_account' => $validated['bank_account'],
+            ]);
+
+            if ($validated['contact_name'] ?? null) {
+                $supplier->contacts()->create([
+                    'name'       => $validated['contact_name'],
+                    'email'      => $validated['email'] ?? null,
+                    'phone'      => $validated['phone'] ?? null,
+                    'is_primary' => true,
+                ]);
+            }
+
+            return $supplier;
+        });
 
         // Notificación
         $this->notification->send([

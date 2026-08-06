@@ -8,7 +8,6 @@
 @endsection
 
 @section('content')
-
 @php
     $totalPending    = $pendingCounts->sum();
     $totalAssigned   = $pendingCounts->filter(fn($v, $k) => !is_null($k))->sum();
@@ -41,87 +40,11 @@
         ->values();
 @endphp
 
-{{-- ── Tarjetas resumen ───────────────────────────────────────────────────── --}}
-<div class="row g-3 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Total en Compras</p>
-                        <h3 class="mb-0 fw-bold">{{ $totalPending }}</h3>
-                        <p class="text-muted fs-12 mb-0">SOLCOMs pendientes de OC</p>
-                    </div>
-                    <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center"
-                         style="width:56px;height:56px;">
-                        <i class="ri-inbox-archive-line fs-24 text-primary"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Asignadas</p>
-                        <h3 class="mb-0 fw-bold">{{ $totalAssigned }}</h3>
-                        <p class="text-muted fs-12 mb-0">Con responsable definido</p>
-                    </div>
-                    <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
-                         style="width:56px;height:56px;">
-                        <i class="ri-user-received-line fs-24 text-success"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Sin asignar</p>
-                        <h3 class="mb-0 fw-bold {{ $unassignedCount > 0 ? 'text-danger' : '' }}">{{ $unassignedCount }}</h3>
-                        <p class="text-muted fs-12 mb-0">Requieren responsable</p>
-                    </div>
-                    <div class="bg-danger-subtle rounded-circle d-flex align-items-center justify-content-center"
-                         style="width:56px;height:56px;">
-                        <i class="ri-user-unfollow-line fs-24 text-danger"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Compradores Activos</p>
-                        <h3 class="mb-0 fw-bold">{{ $usersWithWork }}</h3>
-                        <p class="text-muted fs-12 mb-0">Con SOLCOMs asignadas</p>
-                    </div>
-                    <div class="bg-warning-subtle rounded-circle d-flex align-items-center justify-content-center"
-                         style="width:56px;height:56px;">
-                        <i class="ri-team-line fs-24 text-warning"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 {{-- ── Gráfico + Tabla resumen ────────────────────────────────────────────── --}}
 <div class="row g-4 mb-4">
-
     {{-- Gráfico de barras --}}
     <div class="col-xl-5">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-header border-bottom">
                 <h5 class="card-title mb-0">
                     <i class="ri-bar-chart-grouped-line me-2 text-primary"></i>
@@ -139,6 +62,70 @@
                         <p class="fs-12 mb-0">Todas las SOLCOMs están al día.</p>
                     </div>
                 @endif
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted fw-medium fs-13 mb-1">Total en Compras</p>
+                        <h3 class="mb-0 fw-bold">{{ $totalPending }}</h3>
+                        <p class="text-muted fs-12 mb-0">SOLCOMs pendientes de OC</p>
+                    </div>
+                    <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;">
+                        <i class="ri-inbox-archive-line fs-24 text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted fw-medium fs-13 mb-1">Asignadas</p>
+                        <h3 class="mb-0 fw-bold">{{ $totalAssigned }}</h3>
+                        <p class="text-muted fs-12 mb-0">Con responsable definido</p>
+                    </div>
+                    <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;">
+                        <i class="ri-user-received-line fs-24 text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted fw-medium fs-13 mb-1">Sin asignar</p>
+                        <h3 class="mb-0 fw-bold {{ $unassignedCount > 0 ? 'text-danger' : '' }}">{{ $unassignedCount }}</h3>
+                        <p class="text-muted fs-12 mb-0">Requieren responsable</p>
+                    </div>
+                    <div class="bg-danger-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;">
+                        <i class="ri-user-unfollow-line fs-24 text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted fw-medium fs-13 mb-1">Compradores Activos</p>
+                        <h3 class="mb-0 fw-bold">{{ $usersWithWork }}</h3>
+                        <p class="text-muted fs-12 mb-0">Con SOLCOMs asignadas</p>
+                    </div>
+                    <div class="bg-warning-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;">
+                        <i class="ri-team-line fs-24 text-warning"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

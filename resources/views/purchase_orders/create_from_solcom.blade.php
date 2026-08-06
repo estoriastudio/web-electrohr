@@ -73,7 +73,7 @@
                 </a>
             </div>
             <div class="card-body">
-                <form action="{{ route('purchase_orders.store') }}" method="POST">
+                <form action="{{ route('purchase_orders.store') }}" method="POST" id="formCreateOrderFromSolcom">
                     @csrf
 
                     {{-- Campos ocultos --}}
@@ -433,6 +433,8 @@
     </div>
 </div>
 
+@include('purchase_orders.partials.supplier-profile-incomplete-modal')
+
 @endsection
 
 @push('scripts')
@@ -467,6 +469,62 @@
         })
         .catch(() => {});
     });
+
+    // Validar el perfil del proveedor para fincar la OC
+    const orderForm = document.getElementById('formCreateOrderFromSolcom');
+    const supplierReadinessUrl = @json(route('suppliers.purchase_order_readiness', ['supplier' => '__supplier__']));
+    const supplierProfileModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSupplierProfileIncomplete'));
+    const supplierProfileLink = document.getElementById('supplierProfileLink');
+    const missingFieldsList = document.getElementById('supplierProfileMissingFields');
+    let checkedSupplierId = '';
+    let supplierIsReady = false;
+    let latestReadiness = null;
+
+    function showSupplierProfileIncomplete(readiness) {
+        missingFieldsList.replaceChildren();
+        readiness.missing_fields.forEach(function (field) {
+            const item = document.createElement('li');
+            item.textContent = field;
+            missingFieldsList.appendChild(item);
+        });
+        supplierProfileLink.href = readiness.profile_url;
+        supplierProfileModal.show();
+    }
+
+    function checkSupplierReadiness() {
+        const supplierId = supplierSel.value;
+        checkedSupplierId = supplierId;
+        supplierIsReady = false;
+        latestReadiness = null;
+
+        if (!supplierId) return;
+
+        fetch(supplierReadinessUrl.replace('__supplier__', encodeURIComponent(supplierId)), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(readiness => {
+            if (supplierSel.value !== supplierId) return;
+            latestReadiness = readiness;
+            supplierIsReady = readiness.ready;
+            if (!readiness.ready) showSupplierProfileIncomplete(readiness);
+        })
+        .catch(() => {});
+    }
+
+    supplierSel.addEventListener('change', checkSupplierReadiness);
+    orderForm.addEventListener('submit', function (event) {
+        if (!supplierSel.value || (supplierIsReady && checkedSupplierId === supplierSel.value)) return;
+
+        event.preventDefault();
+        if (latestReadiness && !latestReadiness.ready) {
+            showSupplierProfileIncomplete(latestReadiness);
+        } else {
+            checkSupplierReadiness();
+        }
+    });
+
+    if (supplierSel.value) checkSupplierReadiness();
 
     // Toggle impuestos adicionales
     function toggleExtraTaxField(checkbox) {

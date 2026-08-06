@@ -288,6 +288,21 @@
                         @enderror
                     </div>
 
+                    <div class="mb-3">
+                        <label for="bank_account" class="form-label fw-medium">
+                            Número de cuenta <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control @error('bank_account') is-invalid @enderror"
+                               id="bank_account" name="bank_account"
+                               value="{{ old('bank_account') }}"
+                               inputmode="numeric"
+                               placeholder="Ej. 0123456789"
+                               required>
+                        @error('bank_account')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
                     <div class="mb-0">
                         <label for="phone" class="form-label fw-medium">Teléfono</label>
                         <input type="text" class="form-control @error('phone') is-invalid @enderror"
