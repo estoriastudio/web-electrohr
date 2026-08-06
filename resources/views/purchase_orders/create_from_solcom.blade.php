@@ -223,7 +223,7 @@
                                         </div>
                                         <div id="isr_rate_wrapper" style="display:none;">
                                             <label for="isr_rate" class="form-label fw-medium">ISR (%)</label>
-                                            <input type="number" step="0.01" min="0" max="100"
+                                            <input type="number" step="0.0001" min="0" max="100"
                                                    class="form-control @error('isr_rate') is-invalid @enderror"
                                                    id="isr_rate" name="isr_rate"
                                                    value="{{ $oldIsrRate }}"
@@ -242,7 +242,7 @@
                                         </div>
                                         <div id="retention_iva_rate_wrapper" style="display:none;">
                                             <label for="retention_iva_rate" class="form-label fw-medium">Retención IVA (%)</label>
-                                            <input type="number" step="0.01" min="0" max="100"
+                                            <input type="number" step="0.0001" min="0" max="100"
                                                    class="form-control @error('retention_iva_rate') is-invalid @enderror"
                                                    id="retention_iva_rate" name="retention_iva_rate"
                                                    value="{{ $oldRetentionIvaRate }}"
@@ -261,7 +261,7 @@
                                         </div>
                                         <div id="retention_isr_rate_wrapper" style="display:none;">
                                             <label for="retention_isr_rate" class="form-label fw-medium">Retención ISR (%)</label>
-                                            <input type="number" step="0.01" min="0" max="100"
+                                            <input type="number" step="0.0001" min="0" max="100"
                                                    class="form-control @error('retention_isr_rate') is-invalid @enderror"
                                                    id="retention_isr_rate" name="retention_isr_rate"
                                                    value="{{ $oldRetentionIsrRate }}"

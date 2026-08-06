@@ -48,9 +48,9 @@ class PurchaseOrder extends Model
     protected $casts = [
         'amount'                => 'decimal:2',
         'tax_rate'              => 'decimal:2',
-        'isr_rate'              => 'decimal:2',
-        'retention_iva_rate'    => 'decimal:2',
-        'retention_isr_rate'    => 'decimal:2',
+        'isr_rate'              => 'decimal:4',
+        'retention_iva_rate'    => 'decimal:4',
+        'retention_isr_rate'    => 'decimal:4',
         'is_delivered'          => 'boolean',
         'recurrence_start_date' => 'date',
         'recurrence_end_date'   => 'date',
@@ -212,7 +212,7 @@ class PurchaseOrder extends Model
 
     public function getTotalWithTaxAttribute(): float
     {
-        return round($this->subtotal + $this->tax_amount + $this->additional_taxes_amount, 2);
+        return round($this->subtotal + $this->tax_amount - $this->additional_taxes_amount, 2);
     }
 
     /**

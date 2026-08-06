@@ -145,14 +145,14 @@
                         </div>
                     </div>
                     <div class="text-end">
-                        <div class="fs-22 fw-semibold text-primary">
+                        <div class="fs-22 fw-semibold text-primary" aria-label="Importe Total de la OC">
                             {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
                         <div class="text-muted fs-13">
                             Cubierto: <strong>{{ number_format($totalCubierto, 2) }}</strong>
                         </div>
                         <div class="mt-1" style="min-width: 160px;">
-                            <div class="progress" style="height: 8px;">
+                            <div class="progress" style="height: 8px;">º
                                 <div class="progress-bar bg-success" style="width: {{ $progressTotal }}%"></div>
                             </div>
                             <small class="text-muted">{{ $progressTotal }}% cubierto</small>
@@ -431,19 +431,19 @@
                             </tr>
                             <tr id="oc_isr_row" @if (is_null($purchaseOrder->isr_rate)) style="display:none;" @endif>
                                 <td class="text-muted fs-12" id="oc_isr_label">
-                                    ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->isr_rate ?? 0), 2), '0'), '.') }}%)
+                                    ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->isr_rate ?? 0), 4), '0'), '.') }}%)
                                 </td>
                                 <td class="text-end fw-medium" id="oc_isr">${{ number_format($purchaseOrder->isr_amount, 2) }}</td>
                             </tr>
                             <tr id="oc_retention_iva_row" @if (is_null($purchaseOrder->retention_iva_rate)) style="display:none;" @endif>
                                 <td class="text-muted fs-12" id="oc_retention_iva_label">
-                                    Retenciones IVA ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_iva_rate ?? 0), 2), '0'), '.') }}%)
+                                    Retenciones IVA ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_iva_rate ?? 0), 4), '0'), '.') }}%)
                                 </td>
                                 <td class="text-end fw-medium" id="oc_retention_iva">${{ number_format($purchaseOrder->retention_iva_amount, 2) }}</td>
                             </tr>
                             <tr id="oc_retention_isr_row" @if (is_null($purchaseOrder->retention_isr_rate)) style="display:none;" @endif>
                                 <td class="text-muted fs-12" id="oc_retention_isr_label">
-                                    Retenciones ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_isr_rate ?? 0), 2), '0'), '.') }}%)
+                                    Retenciones ISR ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->retention_isr_rate ?? 0), 4), '0'), '.') }}%)
                                 </td>
                                 <td class="text-end fw-medium" id="oc_retention_isr">${{ number_format($purchaseOrder->retention_isr_amount, 2) }}</td>
                             </tr>
@@ -2031,7 +2031,7 @@
         var fmtRate = function (rate) {
             var n = parseFloat(rate);
             if (!isFinite(n)) return '0';
-            return (Math.round(n * 100) / 100).toString().replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+            return String(rate).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
         };
         if (data.subtotal !== undefined && el('oc_subtotal')) el('oc_subtotal').textContent = '$' + fmtMoney(data.subtotal);
         if (data.iva      !== undefined && el('oc_iva'))      el('oc_iva').textContent      = '$' + fmtMoney(data.iva);
