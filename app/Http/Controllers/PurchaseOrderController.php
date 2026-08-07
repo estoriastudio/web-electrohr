@@ -979,7 +979,8 @@ class PurchaseOrderController extends Controller
     public function downloadPdf(PurchaseOrder $purchaseOrder): \Illuminate\Http\Response
     {
         $purchaseOrder->load([
-            'supplier',
+            'supplier.contacts',
+            'supplier.locations',
             'mobileAsset',
             'items.concept',
             'milestones',

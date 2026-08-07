@@ -78,10 +78,11 @@
         <td width="45%" style="padding: 8px; vertical-align: top; border: 1px solid #999;">
             <strong>Solicita:</strong> {{ $solmatRequester }}<br><br>
             <strong>{{ $po->supplier->rfc_name ?? $po->supplier->commercial_name ?? '—' }}</strong><br>
-            {{ $po->supplier->address ?? '' }}<br>
-            @if($po->supplier->phone ?? $po->supplier->cellphone ?? '')TEL. {{ $po->supplier->phone ?? $po->supplier->cellphone }}<br>@endif
+            {{ $supplierAddress ?: '—' }}<br>
             RFC: {{ $po->supplier->rfc_num ?? '—' }}<br><br>
-            <strong>Contacto:</strong> {{ $po->supplier->attended_by ?? $po->supplier->email ?? '—' }}
+            <strong>Contacto:</strong> {{ $supplierContact?->name ?? '—' }}<br>
+            @if ($supplierContact?->phone)<strong>Tel.:</strong> {{ $supplierContact->phone }}<br>@endif
+            @if ($supplierContact?->email)<strong>Correo:</strong> {{ $supplierContact->email }}@endif
         </td>
     </tr>
 </table>
