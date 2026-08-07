@@ -195,7 +195,7 @@
                 Esta orden de compra ya está facturada por completo.
             </div>
         @else
-            <form method="POST" action="{{ route('supplier_portal.invoices.store', $purchaseOrder) }}" enctype="multipart/form-data" id="portalInvoiceForm">
+            <form method="POST" action="{{ route('supplier_portal.invoices.store', $purchaseOrder) }}" enctype="multipart/form-data" id="portalInvoiceForm" novalidate>
                 @csrf
 
                 <div class="row g-3 mb-4">
@@ -405,6 +405,35 @@
         @endif
     </div>
 </div>
+
+<div class="modal fade" id="invoiceValidationModal" tabindex="-1" aria-labelledby="invoiceValidationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="invoiceValidationModalLabel">
+                    <i class="ri-error-warning-line text-danger me-1"></i> Revisa la información de tu factura
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Completa los siguientes campos antes de enviar la factura.</p>
+                <ul id="invoiceValidationList" class="list-group mb-3"></ul>
+                <div class="alert alert-info d-flex align-items-center gap-3 mb-0" role="alert">
+                    <i class="ri-question-line fs-20"></i>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">¿Necesitas ayuda para cargar tu factura?</div>
+                        <a href="{{ route('supplier_portal.invoice_guide.download') }}" class="alert-link">
+                            <i class="ri-download-2-line me-1"></i> Descargar instructivo PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Revisar campos</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -427,9 +456,100 @@ document.addEventListener('DOMContentLoaded', function () {
     const invoiceAmountStatus = document.getElementById('invoiceAmountStatus');
     const creditNoteAmountStatus = document.getElementById('creditNoteAmountStatus');
     const netScopeStatus = document.getElementById('netScopeStatus');
+    const invoiceValidationModalElement = document.getElementById('invoiceValidationModal');
+    const invoiceValidationList = document.getElementById('invoiceValidationList');
     const dropzonesByInput = {};
+    const fieldLabels = {
+        due_date: 'Fecha de vencimiento',
+        pdf_file: 'Factura PDF',
+        xml_file: 'Factura XML',
+        folio: 'Folio fiscal (UUID)',
+        amount: 'Importe de esta factura',
+        evidence_file: 'Archivo de evidencia',
+        credit_note_pdf_file: 'Nota de crédito PDF',
+        credit_note_xml_file: 'Nota de crédito XML',
+        credit_note_amount: 'Importe de nota de crédito'
+    };
     let invoiceAmountLoadedFromXml = false;
     let creditNoteAmountLoadedFromXml = false;
+
+    function getDropzoneForInput(input) {
+        if (!input || !input.name || !form) return null;
+        return form.querySelector(`.portal-dropzone[data-input-name="${input.name}"]`);
+    }
+
+    function clearFieldInvalidState(input) {
+        if (!input) return;
+        input.classList.remove('is-invalid');
+        const dropzoneElement = getDropzoneForInput(input);
+        if (dropzoneElement) {
+            dropzoneElement.classList.remove('is-invalid');
+        }
+    }
+
+    function getValidationMessage(input) {
+        const label = fieldLabels[input.name] || 'Este campo';
+
+        if (input.validity.valueMissing) {
+            return `${label} es obligatorio.`;
+        }
+        if (input.validity.rangeUnderflow) {
+            return `${label} debe ser mayor a ${input.min || 0}.`;
+        }
+        if (input.validity.typeMismatch || input.validity.badInput) {
+            return `${label} tiene un formato inválido.`;
+        }
+
+        return `${label} necesita corrección.`;
+    }
+
+    function focusField(input) {
+        const dropzoneElement = getDropzoneForInput(input);
+        const target = dropzoneElement || input;
+
+        if (!target) return;
+
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (dropzoneElement) {
+            dropzoneElement.setAttribute('tabindex', '-1');
+        }
+        target.focus({ preventScroll: true });
+    }
+
+    function showValidationModal(invalidInputs) {
+        if (!invoiceValidationModalElement || !invoiceValidationList || typeof bootstrap === 'undefined') return;
+
+        invoiceValidationList.replaceChildren();
+        invalidInputs.forEach(function (input) {
+            input.classList.add('is-invalid');
+            const dropzoneElement = getDropzoneForInput(input);
+            if (dropzoneElement) {
+                dropzoneElement.classList.add('is-invalid');
+            }
+
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2';
+            button.innerHTML = `<i class="ri-arrow-right-s-line text-primary"></i><span>${getValidationMessage(input)}</span>`;
+            button.addEventListener('click', function () {
+                bootstrap.Modal.getOrCreateInstance(invoiceValidationModalElement).hide();
+                window.setTimeout(function () {
+                    focusField(input);
+                }, 200);
+            });
+            item.appendChild(button);
+            invoiceValidationList.appendChild(item);
+        });
+
+        const validationModal = bootstrap.Modal.getOrCreateInstance(invoiceValidationModalElement);
+        invoiceValidationModalElement.addEventListener('shown.bs.modal', function onShown() {
+            const firstItem = invoiceValidationList.querySelector('button');
+            if (firstItem) firstItem.focus();
+            invoiceValidationModalElement.removeEventListener('shown.bs.modal', onShown);
+        });
+        validationModal.show();
+    }
 
     function parseAmount(value) {
         const parsed = parseFloat(value);
@@ -912,6 +1032,34 @@ document.addEventListener('DOMContentLoaded', function () {
     if (hasCreditNoteSwitch) {
         hasCreditNoteSwitch.addEventListener('change', function () {
             toggleCreditNoteSection(true);
+        });
+    }
+
+    if (form) {
+        form.addEventListener('input', function (event) {
+            if (event.target.matches('input, select, textarea') && event.target.validity.valid) {
+                clearFieldInvalidState(event.target);
+            }
+        });
+
+        form.addEventListener('change', function (event) {
+            if (event.target.matches('input, select, textarea') && event.target.validity.valid) {
+                clearFieldInvalidState(event.target);
+            }
+        });
+
+        form.addEventListener('submit', function (event) {
+            if (form.checkValidity()) return;
+
+            event.preventDefault();
+            const invalidInputs = Array.from(form.querySelectorAll('input:invalid, select:invalid, textarea:invalid'));
+
+            if (typeof bootstrap === 'undefined') {
+                form.reportValidity();
+                return;
+            }
+
+            showValidationModal(invalidInputs);
         });
     }
 

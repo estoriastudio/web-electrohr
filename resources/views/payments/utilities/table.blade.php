@@ -109,7 +109,7 @@
                     <td>
                         <div class="d-flex gap-1 flex-wrap">
                             {{-- Autorizar: solo admin --}}
-                            @if ($payment->status === 'por_autorizar')
+                            @if (in_array($payment->status, ['por_autorizar', 'pospuesto']))
                                 @role('admin')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')

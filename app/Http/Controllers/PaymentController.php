@@ -34,7 +34,7 @@ class PaymentController extends Controller
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
             ->select('payments.*')
-            ->where('payments.status', 'por_autorizar')
+            ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
