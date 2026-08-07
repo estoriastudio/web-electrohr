@@ -228,7 +228,15 @@
                             <dt class="col-sm-5 text-muted fw-normal">Atendido por</dt>
                             <dd class="col-sm-7 fw-medium">{{ $supplier->attended_by ?: '—' }}</dd>
                             <dt class="col-sm-5 text-muted fw-normal">Dirección</dt>
-                            <dd class="col-sm-7 fw-medium">{{ $supplier->address ?: '—' }}</dd>
+                            <dd class="col-sm-7 fw-medium">
+                                {{ implode(', ', array_filter([
+                                    $supplierBankDetails?->street,
+                                    $supplierBankDetails?->colony,
+                                    $supplierBankDetails?->postal_code ? 'CP ' . $supplierBankDetails->postal_code : null,
+                                    $supplierBankDetails?->city,
+                                    $supplierBankDetails?->state,
+                                ])) ?: '—' }}
+                            </dd>
                         </dl>
                     </div>
                     <div class="col-md-6">

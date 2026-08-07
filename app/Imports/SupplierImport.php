@@ -49,10 +49,7 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
         $supplier->rfc_name       = $rfcName;
         $supplier->commercial_name = $supplier->commercial_name ?? $rfcName;
         $supplier->rfc_num        = $rfcNum ?: null;
-        $supplier->email          = trim($row['correo']   ?? '') ?: null;
-        $supplier->phone          = trim($row['telefono'] ?? '') ?: null;
         $supplier->attended_by    = trim($row['atencion'] ?? '') ?: null;
-        $supplier->address        = $address;
         $supplier->bank_name      = trim($row['banco']    ?? '') ?: null;
         $supplier->bank_account   = trim($row['cuenta']   ?? '') ?: null;
         $supplier->bank_clabe     = trim($row['clabe']    ?? '') ?: null;
@@ -61,6 +58,24 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
         $supplier->status         = $supplier->status ?? 'active';
 
         $supplier->save();
+
+        $email = trim($row['correo'] ?? '') ?: null;
+        $phone = trim($row['telefono'] ?? '') ?: null;
+        if ($email || $phone) {
+            $contact = $supplier->contacts()->firstOrNew(['is_primary' => true]);
+            $contact->name = $contact->name ?: 'Contacto principal';
+            $contact->email = $email;
+            $contact->phone = $phone;
+            $contact->save();
+        }
+
+        if ($address) {
+            $location = $supplier->locations()->first();
+            if ($location) {
+                $location->street = $address;
+                $location->save();
+            }
+        }
 
         // Retornamos null para evitar que el paquete intente insertar de nuevo
         return null;

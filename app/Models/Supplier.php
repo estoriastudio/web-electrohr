@@ -11,10 +11,6 @@ class Supplier extends Model
         'commercial_name',
         'rfc_name',
         'rfc_num',
-        'email',
-        'phone',
-        'cellphone',
-        'address',
         'attended_by',
         'bank_name',
         'bank_account',
@@ -58,12 +54,12 @@ class Supplier extends Model
             !empty($this->rfc_num),
             !empty($this->attended_by),
             !empty($this->status),
-            // Teléfono: Supplier o contacto
-            !empty($this->phone)         || !empty($contact?->phone),
-            // Correo: Supplier o contacto
-            !empty($this->email)         || !empty($contact?->email),
-            // Dirección: Supplier o primera sucursal
-            !empty($this->address)       || !empty($location?->street),
+            // Teléfono del contacto
+            !empty($contact?->phone),
+            // Correo del contacto
+            !empty($contact?->email),
+            // Dirección del registro bancario
+            !empty($location?->street),
             // Contacto registrado
             $contact !== null,
             // Sucursal registrada
@@ -112,19 +108,19 @@ class Supplier extends Model
         if ($contact === null) {
             $missing[] = 'Al menos un contacto';
         } else {
-            if (empty($this->phone)  && empty($contact->phone))  $missing[] = 'Teléfono';
-            if (empty($this->email)  && empty($contact->email))  $missing[] = 'Correo electrónico';
+            if (empty($contact->phone))  $missing[] = 'Teléfono';
+            if (empty($contact->email))  $missing[] = 'Correo electrónico';
         }
 
         // Datos bancarios
         if ($location === null) {
             $missing[] = 'Al menos una cuenta bancaria';
         } else {
-            if (empty($this->address)      && empty($location->street))       $missing[] = 'Dirección';
-            if (empty($this->bank_name)    && empty($location->bank_name))    $missing[] = 'Banco';
-            if (empty($this->bank_account) && empty($location->bank_account)) $missing[] = 'Cuenta bancaria';
-            if (empty($this->bank_clabe)   && empty($location->bank_clabe))   $missing[] = 'CLABE interbancaria';
-            if (empty($this->currency)     && empty($location->currency))     $missing[] = 'Moneda';
+            if (empty($location->street))       $missing[] = 'Dirección';
+            if (empty($location->bank_name))    $missing[] = 'Banco';
+            if (empty($location->bank_account)) $missing[] = 'Cuenta bancaria';
+            if (empty($location->bank_clabe))   $missing[] = 'CLABE interbancaria';
+            if (empty($location->currency))     $missing[] = 'Moneda';
         }
 
         return $missing;
@@ -141,12 +137,7 @@ class Supplier extends Model
             'rfc_name'        => 'Razón social',
             'commercial_name' => 'Nombre comercial',
             'rfc_num'         => 'RFC',
-            'email'           => 'Correo electrónico',
-            'phone'           => 'Teléfono',
-            'cellphone'       => 'Celular',
             'attended_by'     => 'Atendido por',
-            'address'         => 'Dirección',
-            'status'          => 'Estatus',
         ];
 
         foreach ($generalFields as $field => $label) {

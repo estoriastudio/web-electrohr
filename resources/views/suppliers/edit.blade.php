@@ -84,17 +84,6 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="email" class="form-label fw-medium">Correo electrónico</label>
-                            <input type="email"
-                                   class="form-control @error('email') is-invalid @enderror"
-                                   id="email" name="email"
-                                   value="{{ old('email', $supplier->email) }}">
-                            @error('email')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-4">
                             <label for="status" class="form-label fw-medium">Estatus</label>
                             <select class="form-select @error('status') is-invalid @enderror"
                                     id="status" name="status">
@@ -109,44 +98,12 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="phone" class="form-label fw-medium">Teléfono</label>
-                            <input type="text"
-                                   class="form-control @error('phone') is-invalid @enderror"
-                                   id="phone" name="phone"
-                                   value="{{ old('phone', $supplier->phone) }}">
-                            @error('phone')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="cellphone" class="form-label fw-medium">Celular</label>
-                            <input type="text"
-                                   class="form-control @error('cellphone') is-invalid @enderror"
-                                   id="cellphone" name="cellphone"
-                                   value="{{ old('cellphone', $supplier->cellphone) }}">
-                            @error('cellphone')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-4">
                             <label for="attended_by" class="form-label fw-medium">Atendido por</label>
                             <input type="text"
                                    class="form-control @error('attended_by') is-invalid @enderror"
                                    id="attended_by" name="attended_by"
                                    value="{{ old('attended_by', $supplier->attended_by) }}">
                             @error('attended_by')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-12">
-                            <label for="address" class="form-label fw-medium">Dirección</label>
-                            <textarea class="form-control @error('address') is-invalid @enderror"
-                                      id="address" name="address"
-                                      rows="3">{{ old('address', $supplier->address) }}</textarea>
-                            @error('address')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
