@@ -116,9 +116,9 @@ class Supplier extends Model
             if (empty($this->email)  && empty($contact->email))  $missing[] = 'Correo electrónico';
         }
 
-        // Datos de sucursal
+        // Datos bancarios
         if ($location === null) {
-            $missing[] = 'Al menos una sucursal';
+            $missing[] = 'Al menos una cuenta bancaria';
         } else {
             if (empty($this->address)      && empty($location->street))       $missing[] = 'Dirección';
             if (empty($this->bank_name)    && empty($location->bank_name))    $missing[] = 'Banco';

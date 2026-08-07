@@ -162,12 +162,6 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @can('update')
-                                                <a href="{{ route('suppliers.edit', $supplier) }}"
-                                                   class="btn btn-soft-primary btn-sm" title="Editar">
-                                                    <i class="ri-edit-line"></i>
-                                                </a>
-                                            @endcan
                                             @can('delete')
                                                 <form action="{{ route('suppliers.destroy', $supplier) }}"
                                                       method="POST"

@@ -72,7 +72,7 @@
 
     {{-- Tarjeta de completitud --}}
     <div class="col-xl-4 col-lg-5">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="card-title mb-0 fw-semibold">Información del perfil</h6>
@@ -113,129 +113,7 @@
                     </p>
                 @endif
             </div>
-        </div>
-    </div>
-
-    {{-- KPI cards --}}
-    <div class="col-xl-8 col-lg-7">
-        <div class="row g-3 h-100">
-
-            {{-- Órdenes de compra --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-file-list-3-line text-primary fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Órdenes de compra</span>
-                        </div>
-                        <h4 class="fw-bold mb-0">{{ $supplier->purchase_orders_count ?? 0 }}</h4>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Hitos (milestones) --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-info bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-flag-line text-info fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Hitos totales</span>
-                        </div>
-                        <h4 class="fw-bold mb-0">{{ $milestonesCount }}</h4>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Saldo pagado --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-success bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-money-dollar-circle-line text-success fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Saldo pagado</span>
-                        </div>
-                        <h4 class="fw-bold mb-0">${{ number_format($saldoPagado, 2) }}</h4>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Saldo pendiente --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-warning bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-time-line text-warning fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Saldo pendiente</span>
-                        </div>
-                        <h4 class="fw-bold mb-0">${{ number_format($saldoPendiente, 2) }}</h4>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Siguiente hito pendiente --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-secondary bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-calendar-event-line text-secondary fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Próximo hito</span>
-                        </div>
-                        <p class="fw-semibold mb-0 fs-14">{{ $proximoHito?->due_date->format('d/m/Y') ?? '—' }}</p>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Fecha de registro --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-calendar-check-line text-primary fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Fecha de registro</span>
-                        </div>
-                        <p class="fw-semibold mb-0 fs-14">{{ $supplier->created_at->format('d/m/Y') }}</p>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Vales de material --}}
-            <div class="col-sm-6 col-xl-4">
-                <div class="card kpi-card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <div class="avatar-sm bg-info bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
-                                <i class="ri-receipt-line text-info fs-18"></i>
-                            </div>
-                            <span class="text-muted fs-12 fw-medium">Vales de material</span>
-                        </div>
-                        <h4 class="fw-bold mb-0">{{ $supplier->material_vouchers_count ?? 0 }}</h4>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</div>
-
-
-{{-- ══════════════════════════════════════════════════════════════
-     FILA 2 — Info general del proveedor
-══════════════════════════════════════════════════════════════════ --}}
-<div class="row g-3 mb-3">
-    <div class="col-xl-5">
-        <div class="card">
+    
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
                     <i class="ri-building-line me-1 text-muted"></i> Información general
@@ -274,11 +152,7 @@
                     </dd>
                 </dl>
             </div>
-        </div>
-    </div>
 
-    <div class="col-xl-7">
-        <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
                     <i class="ri-shield-user-line me-1 text-muted"></i> Acceso a Portal de Proveedores
@@ -289,7 +163,7 @@
                     </button>
                 @elseif ($canManageSupplier && $supplier->portal_access_enabled)
                     <form action="{{ route('suppliers.portal_access.disable', $supplier) }}" method="POST"
-                          onsubmit="return confirm('¿Deshabilitar acceso al Portal para este proveedor?')">
+                        onsubmit="return confirm('¿Deshabilitar acceso al Portal para este proveedor?')">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-danger">
                             <i class="ri-lock-line me-1"></i> Deshabilitar acceso
@@ -297,7 +171,7 @@
                     </form>
                 @elseif ($canManageSupplier)
                     <form action="{{ route('suppliers.portal_access.reactivate', $supplier) }}" method="POST"
-                          onsubmit="return confirm('¿Reactivar acceso al Portal para este proveedor?')">
+                        onsubmit="return confirm('¿Reactivar acceso al Portal para este proveedor?')">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-success">
                             <i class="ri-lock-unlock-line me-1"></i> Reactivar acceso
@@ -343,86 +217,244 @@
                 @endif
             </div>
         </div>
-    </div>
-</div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     FILA 3B — Vales de material
-══════════════════════════════════════════════════════════════════ --}}
-<div class="row mb-3">
-    <div class="col-xl-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
-                <h5 class="card-title mb-0">
-                    <i class="ri-receipt-line me-1 text-muted"></i> Vales de material
-                </h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Fecha</th>
-                                <th>Estatus</th>
-                                <th>Renglones</th>
-                                <th>Proyecto / Obra</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $voucherStatusMap = [
-                                    'emitido'    => ['label' => 'Emitido', 'class' => 'bg-warning-subtle text-warning'],
-                                    'autorizado' => ['label' => 'Autorizado', 'class' => 'bg-info-subtle text-info'],
-                                    'completado' => ['label' => 'Completado', 'class' => 'bg-primary-subtle text-primary'],
-                                    'facturado'  => ['label' => 'Facturado', 'class' => 'bg-secondary-subtle text-secondary'],
-                                    'pagado'     => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
-                                ];
-                            @endphp
-                            @forelse ($supplier->materialVouchers as $voucher)
-                                @php
-                                    $vs = $voucherStatusMap[$voucher->status] ?? ['label' => $voucher->status, 'class' => 'bg-secondary-subtle text-secondary'];
-                                @endphp
-                                <tr>
-                                    <td class="fw-semibold">{{ $voucher->folio }}</td>
-                                    <td>{{ $voucher->voucher_date?->format('d/m/Y') ?? '—' }}</td>
-                                    <td><span class="badge {{ $vs['class'] }} py-1 px-2 fs-12">{{ $vs['label'] }}</span></td>
-                                    <td>{{ $voucher->items_count }}</td>
-                                    <td>
-                                        <span class="d-block">{{ $voucher->project?->name ?? '—' }}</span>
-                                        @if($voucher->projectWork)
-                                            <small class="text-muted">{{ $voucher->projectWork->name }}</small>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('material_vouchers.show', $voucher) }}" class="btn btn-light btn-sm" title="Ver detalle">
-                                            <i class="ri-eye-line"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        <i class="ri-receipt-line fs-24 d-block mb-1 opacity-50"></i>
-                                        Sin vales de material registrados aún.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+        <hr class="my-4">
+
+        <div class="card kpi-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <div class="avatar-sm bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                        <i class="ri-file-list-3-line text-primary fs-18"></i>
+                    </div>
+                    <span class="text-muted fs-12 fw-medium">Órdenes de compra</span>
                 </div>
+                <h4 class="fw-bold mb-0">{{ $supplier->purchase_orders_count ?? 0 }}</h4>
+            </div>
+        </div>
+
+        <div class="card kpi-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <div class="avatar-sm bg-success bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                        <i class="ri-money-dollar-circle-line text-success fs-18"></i>
+                    </div>
+                    <span class="text-muted fs-12 fw-medium">Saldo pagado</span>
+                </div>
+                <h4 class="fw-bold mb-0">${{ number_format($saldoPagado, 2) }}</h4>
+            </div>
+        </div>
+
+        <div class="card kpi-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <div class="avatar-sm bg-warning bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                        <i class="ri-time-line text-warning fs-18"></i>
+                    </div>
+                    <span class="text-muted fs-12 fw-medium">Saldo pendiente</span>
+                </div>
+                <h4 class="fw-bold mb-0">${{ number_format($saldoPendiente, 2) }}</h4>
+            </div>
+        </div>
+
+        <div class="card kpi-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <div class="avatar-sm bg-info bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                        <i class="ri-receipt-line text-info fs-18"></i>
+                    </div>
+                    <span class="text-muted fs-12 fw-medium">Vales de material</span>
+                </div>
+                <h4 class="fw-bold mb-0">{{ $supplier->material_vouchers_count ?? 0 }}</h4>
             </div>
         </div>
     </div>
-</div>
 
+    <div class="col-xl-8">
+        <div class="row">
+            {{-- Tarjeta de Contactos --}}
+            <div class="col-xl-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                        <h5 class="card-title mb-0">
+                            <i class="ri-contacts-line me-1 text-muted"></i> Contactos
+                        </h5>
+                        @if ($canManageSupplier)
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateContact">
+                            <i class="ri-add-line me-1"></i> Registrar nuevo
+                        </button>
+                        @endif
+                    </div>
+                    <div class="card-body p-0">
+                        @if($supplier->contacts->isEmpty())
+                            <p class="text-center text-muted fs-13 py-4 mb-0">
+                                <i class="ri-contacts-line fs-24 d-block mb-1 opacity-50"></i>
+                                Sin contactos registrados.
+                            </p>
+                        @else
+                            @php
+                                $avatarColors = ['primary', 'success', 'danger', 'warning', 'info', 'secondary'];
+                            @endphp
+                            <div class="table-responsive">
+                                <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                                    <thead class="bg-light-subtle">
+                                        <tr>
+                                            <th>Contacto</th>
+                                            <th>Teléfono</th>
+                                            <th>Correo electrónico</th>
+                                            <th>Principal</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($supplier->contacts as $contact)
+                                            @php
+                                                $colorIdx = abs(crc32($contact->name)) % count($avatarColors);
+                                                $color    = $avatarColors[$colorIdx];
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="rounded-circle bg-{{ $color }} bg-opacity-15 d-flex align-items-center justify-content-center text-{{ $color }} fw-bold flex-shrink-0"
+                                                            style="width:36px;height:36px;font-size:14px;">
+                                                            <span class="text-white">{{ strtoupper(substr($contact->name, 0, 1)) }}</span>
+                                                        </div>
+                                                        <span class="fw-medium fs-14">{{ $contact->name }}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="fs-13 text-muted">{{ $contact->phone ?? '—' }}</td>
+                                                <td class="fs-13 text-muted">{{ $contact->email ?? '—' }}</td>
+                                                <td>
+                                                    @if($contact->is_primary)
+                                                        <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                                                            <i class="ri-star-fill me-1"></i> Principal
+                                                        </span>
+                                                    @else
+                                                        <span class="text-muted fs-12">—</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    @if ($canManageSupplier)
+                                                    <div class="d-flex gap-1">
+                                                        <button type="button" class="btn btn-sm btn-light btn-edit-contact"
+                                                            data-name="{{ $contact->name }}"
+                                                            data-phone="{{ $contact->phone }}"
+                                                            data-email="{{ $contact->email }}"
+                                                            data-is-primary="{{ $contact->is_primary ? '1' : '0' }}"
+                                                            data-url="{{ route('supplier_contacts.update', [$supplier, $contact]) }}">
+                                                            <i class="ri-edit-line fs-14"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-light btn-delete-contact"
+                                                            data-name="{{ $contact->name }}"
+                                                            data-url="{{ route('supplier_contacts.destroy', [$supplier, $contact]) }}">
+                                                            <i class="ri-delete-bin-line fs-14 text-danger"></i>
+                                                        </button>
+                                                    </div>
+                                                    @else
+                                                        <span class="text-muted fs-12">Solo lectura</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     FILA 3 — Órdenes de compra
-══════════════════════════════════════════════════════════════════ --}}
-<div class="row">
-    <div class="col-xl-12">
+            {{-- Tarjeta de Sucursales --}}
+            <div class="col-xl-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                        <h5 class="card-title mb-0">
+                            <i class="ri-bank-line me-1 text-muted"></i> Datos Bancarios
+                        </h5>
+                        @if ($canManageSupplier)
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateLocation">
+                            <i class="ri-add-line me-1"></i> Registrar nueva
+                        </button>
+                        @endif
+                    </div>
+                    <div class="card-body p-0">
+                        @if($supplier->locations->isEmpty())
+                            <p class="text-center text-muted fs-13 py-4 mb-0">
+                                <i class="ri-map-pin-line fs-24 d-block mb-1 opacity-50"></i>
+                                Sin sucursales registradas.
+                            </p>
+                        @else
+                            <ul class="list-group list-group-flush">
+                                @foreach($supplier->locations as $location)
+                                    <li class="list-group-item px-3 py-3">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div style="min-width:0;">
+                                                <p class="fw-semibold fs-14 mb-0">{{ $location->name }}</p>
+                                                @php
+                                                    $addrParts = array_filter([
+                                                        $location->street,
+                                                        $location->colony,
+                                                        $location->postal_code ? 'CP ' . $location->postal_code : null,
+                                                        $location->city,
+                                                        $location->state,
+                                                    ]);
+                                                @endphp
+                                                @if($addrParts)
+                                                    <small class="text-muted fs-12 d-block text-truncate">{{ implode(', ', $addrParts) }}</small>
+                                                @endif
+                                                @if($location->bank_name || $location->bank_account || $location->bank_clabe)
+                                                    <div class="mt-1 d-flex flex-wrap gap-2">
+                                                        @if($location->bank_name)
+                                                            <small class="text-muted fs-12"><i class="ri-bank-line me-1"></i>{{ $location->bank_name }}</small>
+                                                        @endif
+                                                        @if($location->currency)
+                                                            <span class="badge bg-info-subtle text-info py-0 px-2 fs-11">{{ $location->currency }}</span>
+                                                        @endif
+                                                        @if($location->bank_account)
+                                                            <small class="text-muted fs-12">Cta: <span class="text-dark fw-medium">{{ $location->bank_account }}</span></small>
+                                                        @endif
+                                                        @if($location->bank_clabe)
+                                                            <small class="text-muted fs-12">CLABE: <span class="text-dark fw-medium">{{ $location->bank_clabe }}</span></small>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div class="d-flex gap-1 flex-shrink-0 ms-3">
+                                                @if ($canManageSupplier)
+                                                <button type="button" class="btn btn-icon btn-sm btn-light btn-edit-location"
+                                                    data-name="{{ $location->name }}"
+                                                    data-street="{{ $location->street }}"
+                                                    data-colony="{{ $location->colony }}"
+                                                    data-postal-code="{{ $location->postal_code }}"
+                                                    data-state="{{ $location->state }}"
+                                                    data-city="{{ $location->city }}"
+                                                    data-bank-name="{{ $location->bank_name }}"
+                                                    data-bank-account="{{ $location->bank_account }}"
+                                                    data-bank-clabe="{{ $location->bank_clabe }}"
+                                                    data-currency="{{ $location->currency }}"
+                                                    data-url="{{ route('supplier_locations.update', [$supplier, $location]) }}"
+                                                    title="Editar">
+                                                    <i class="ri-edit-2-line fs-13"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-icon btn-sm btn-light btn-delete-location"
+                                                    data-name="{{ $location->name }}"
+                                                    data-url="{{ route('supplier_locations.destroy', [$supplier, $location]) }}"
+                                                    title="Eliminar">
+                                                    <i class="ri-delete-bin-line fs-13 text-danger"></i>
+                                                </button>
+                                                @else
+                                                    <span class="text-muted fs-12">Solo lectura</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
@@ -497,197 +529,71 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     FILA 4 — Contactos + Sucursales
-══════════════════════════════════════════════════════════════════ --}}
-<div class="row g-3 mt-0 mb-3">
-
-    {{-- Tarjeta de Contactos --}}
-    <div class="col-xl-6">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h5 class="card-title mb-0">
-                    <i class="ri-contacts-line me-1 text-muted"></i> Contactos
+                    <i class="ri-receipt-line me-1 text-muted"></i> Vales de material
                 </h5>
-                @if ($canManageSupplier)
-                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateContact">
-                    <i class="ri-add-line me-1"></i> Registrar nuevo
-                </button>
-                @endif
             </div>
             <div class="card-body p-0">
-                @if($supplier->contacts->isEmpty())
-                    <p class="text-center text-muted fs-13 py-4 mb-0">
-                        <i class="ri-contacts-line fs-24 d-block mb-1 opacity-50"></i>
-                        Sin contactos registrados.
-                    </p>
-                @else
-                    @php
-                        $avatarColors = ['primary', 'success', 'danger', 'warning', 'info', 'secondary'];
-                    @endphp
-                    <div class="table-responsive">
-                        <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                            <thead class="bg-light-subtle">
+                <div class="table-responsive">
+                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th>Folio</th>
+                                <th>Fecha</th>
+                                <th>Estatus</th>
+                                <th>Renglones</th>
+                                <th>Proyecto / Obra</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $voucherStatusMap = [
+                                    'emitido'    => ['label' => 'Emitido', 'class' => 'bg-warning-subtle text-warning'],
+                                    'autorizado' => ['label' => 'Autorizado', 'class' => 'bg-info-subtle text-info'],
+                                    'completado' => ['label' => 'Completado', 'class' => 'bg-primary-subtle text-primary'],
+                                    'facturado'  => ['label' => 'Facturado', 'class' => 'bg-secondary-subtle text-secondary'],
+                                    'pagado'     => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
+                                ];
+                            @endphp
+                            @forelse ($supplier->materialVouchers as $voucher)
+                                @php
+                                    $vs = $voucherStatusMap[$voucher->status] ?? ['label' => $voucher->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                                @endphp
                                 <tr>
-                                    <th>Contacto</th>
-                                    <th>Teléfono</th>
-                                    <th>Correo electrónico</th>
-                                    <th>Principal</th>
-                                    <th>Acciones</th>
+                                    <td class="fw-semibold">{{ $voucher->folio }}</td>
+                                    <td>{{ $voucher->voucher_date?->format('d/m/Y') ?? '—' }}</td>
+                                    <td><span class="badge {{ $vs['class'] }} py-1 px-2 fs-12">{{ $vs['label'] }}</span></td>
+                                    <td>{{ $voucher->items_count }}</td>
+                                    <td>
+                                        <span class="d-block">{{ $voucher->project?->name ?? '—' }}</span>
+                                        @if($voucher->projectWork)
+                                            <small class="text-muted">{{ $voucher->projectWork->name }}</small>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('material_vouchers.show', $voucher) }}" class="btn btn-light btn-sm" title="Ver detalle">
+                                            <i class="ri-eye-line"></i>
+                                        </a>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($supplier->contacts as $contact)
-                                    @php
-                                        $colorIdx = abs(crc32($contact->name)) % count($avatarColors);
-                                        $color    = $avatarColors[$colorIdx];
-                                    @endphp
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="rounded-circle bg-{{ $color }} bg-opacity-15 d-flex align-items-center justify-content-center text-{{ $color }} fw-bold flex-shrink-0"
-                                                     style="width:36px;height:36px;font-size:14px;">
-                                                    <span class="text-white">{{ strtoupper(substr($contact->name, 0, 1)) }}</span>
-                                                </div>
-                                                <span class="fw-medium fs-14">{{ $contact->name }}</span>
-                                            </div>
-                                        </td>
-                                        <td class="fs-13 text-muted">{{ $contact->phone ?? '—' }}</td>
-                                        <td class="fs-13 text-muted">{{ $contact->email ?? '—' }}</td>
-                                        <td>
-                                            @if($contact->is_primary)
-                                                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
-                                                    <i class="ri-star-fill me-1"></i> Principal
-                                                </span>
-                                            @else
-                                                <span class="text-muted fs-12">—</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if ($canManageSupplier)
-                                            <div class="d-flex gap-1">
-                                                <button type="button" class="btn btn-sm btn-light btn-edit-contact"
-                                                    data-name="{{ $contact->name }}"
-                                                    data-phone="{{ $contact->phone }}"
-                                                    data-email="{{ $contact->email }}"
-                                                    data-is-primary="{{ $contact->is_primary ? '1' : '0' }}"
-                                                    data-url="{{ route('supplier_contacts.update', [$supplier, $contact]) }}">
-                                                    <i class="ri-edit-line fs-14"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-light btn-delete-contact"
-                                                    data-name="{{ $contact->name }}"
-                                                    data-url="{{ route('supplier_contacts.destroy', [$supplier, $contact]) }}">
-                                                    <i class="ri-delete-bin-line fs-14 text-danger"></i>
-                                                </button>
-                                            </div>
-                                            @else
-                                                <span class="text-muted fs-12">Solo lectura</span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="ri-receipt-line fs-24 d-block mb-1 opacity-50"></i>
+                                        Sin vales de material registrados aún.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-
-    {{-- Tarjeta de Sucursales --}}
-    <div class="col-xl-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
-                <h5 class="card-title mb-0">
-                    <i class="ri-bank-line me-1 text-muted"></i> Datos Bancarios
-                </h5>
-                @if ($canManageSupplier)
-                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateLocation">
-                    <i class="ri-add-line me-1"></i> Registrar nueva
-                </button>
-                @endif
-            </div>
-            <div class="card-body p-0">
-                @if($supplier->locations->isEmpty())
-                    <p class="text-center text-muted fs-13 py-4 mb-0">
-                        <i class="ri-map-pin-line fs-24 d-block mb-1 opacity-50"></i>
-                        Sin sucursales registradas.
-                    </p>
-                @else
-                    <ul class="list-group list-group-flush">
-                        @foreach($supplier->locations as $location)
-                            <li class="list-group-item px-3 py-3">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div style="min-width:0;">
-                                        <p class="fw-semibold fs-14 mb-0">{{ $location->name }}</p>
-                                        @php
-                                            $addrParts = array_filter([
-                                                $location->street,
-                                                $location->colony,
-                                                $location->postal_code ? 'CP ' . $location->postal_code : null,
-                                                $location->city,
-                                                $location->state,
-                                            ]);
-                                        @endphp
-                                        @if($addrParts)
-                                            <small class="text-muted fs-12 d-block text-truncate">{{ implode(', ', $addrParts) }}</small>
-                                        @endif
-                                        @if($location->bank_name || $location->bank_account || $location->bank_clabe)
-                                            <div class="mt-1 d-flex flex-wrap gap-2">
-                                                @if($location->bank_name)
-                                                    <small class="text-muted fs-12"><i class="ri-bank-line me-1"></i>{{ $location->bank_name }}</small>
-                                                @endif
-                                                @if($location->currency)
-                                                    <span class="badge bg-info-subtle text-info py-0 px-2 fs-11">{{ $location->currency }}</span>
-                                                @endif
-                                                @if($location->bank_account)
-                                                    <small class="text-muted fs-12">Cta: <span class="text-dark fw-medium">{{ $location->bank_account }}</span></small>
-                                                @endif
-                                                @if($location->bank_clabe)
-                                                    <small class="text-muted fs-12">CLABE: <span class="text-dark fw-medium">{{ $location->bank_clabe }}</span></small>
-                                                @endif
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div class="d-flex gap-1 flex-shrink-0 ms-3">
-                                        @if ($canManageSupplier)
-                                        <button type="button" class="btn btn-icon btn-sm btn-light btn-edit-location"
-                                            data-name="{{ $location->name }}"
-                                            data-street="{{ $location->street }}"
-                                            data-colony="{{ $location->colony }}"
-                                            data-postal-code="{{ $location->postal_code }}"
-                                            data-state="{{ $location->state }}"
-                                            data-city="{{ $location->city }}"
-                                            data-bank-name="{{ $location->bank_name }}"
-                                            data-bank-account="{{ $location->bank_account }}"
-                                            data-bank-clabe="{{ $location->bank_clabe }}"
-                                            data-currency="{{ $location->currency }}"
-                                            data-url="{{ route('supplier_locations.update', [$supplier, $location]) }}"
-                                            title="Editar">
-                                            <i class="ri-edit-2-line fs-13"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-icon btn-sm btn-light btn-delete-location"
-                                            data-name="{{ $location->name }}"
-                                            data-url="{{ route('supplier_locations.destroy', [$supplier, $location]) }}"
-                                            title="Eliminar">
-                                            <i class="ri-delete-bin-line fs-13 text-danger"></i>
-                                        </button>
-                                        @else
-                                            <span class="text-muted fs-12">Solo lectura</span>
-                                        @endif
-                                    </div>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
-            </div>
-        </div>
-    </div>
-
 </div>
 
 @if ($canManageSupplier)

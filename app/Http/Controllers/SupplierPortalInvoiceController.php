@@ -165,6 +165,7 @@ class SupplierPortalInvoiceController extends Controller
             $netScope,
             $request,
             $xmlFiscalFolio,
+            $xmlIssueDate,
             $validated,
             $creditNotePdfName,
             $creditNotePdfPath,
@@ -248,6 +249,14 @@ class SupplierPortalInvoiceController extends Controller
                 ?? $comprobanteNodes->item(0)?->attributes?->getNamedItem('fecha')?->nodeValue
                 ?? ''
             ));
+
+            if ($fechaRaw === '' && $nodes && $nodes->length > 0) {
+                $fechaRaw = trim((string) (
+                    $nodes->item(0)?->attributes?->getNamedItem('FechaTimbrado')?->nodeValue
+                    ?? $nodes->item(0)?->attributes?->getNamedItem('fechaTimbrado')?->nodeValue
+                    ?? ''
+                ));
+            }
 
             if ($fechaRaw !== '') {
                 try {
