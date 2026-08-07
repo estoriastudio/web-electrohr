@@ -24,7 +24,7 @@
 
 @section('content')
 @php
-    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra');
+    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra|Pagos');
 @endphp
 
 @if (session('success'))
@@ -118,11 +118,9 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-building-line me-1 text-muted"></i> Información general
                 </h5>
-                @role('admin')
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditSupplier">
                     <i class="ri-edit-line me-1"></i> Editar perfil
                 </button>
-                @endrole
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
