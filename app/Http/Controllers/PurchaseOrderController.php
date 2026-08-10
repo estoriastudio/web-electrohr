@@ -537,30 +537,6 @@ class PurchaseOrderController extends Controller
                 ->with('error', 'La orden de compra ya está autorizada.');
         }
 
-        $nextPendingPurchaseOrder = PurchaseOrder::query()
-            ->whereNull('archived_at')
-            ->whereIn('status', ['emitida', 'pendiente'])
-            ->where(function ($query) use ($purchaseOrder) {
-                $query->where('created_at', '>', $purchaseOrder->created_at)
-                    ->orWhere(function ($sameCreatedAt) use ($purchaseOrder) {
-                        $sameCreatedAt->where('created_at', $purchaseOrder->created_at)
-                            ->where('id', '>', $purchaseOrder->id);
-                    });
-            })
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->first();
-
-        if (!$nextPendingPurchaseOrder) {
-            $nextPendingPurchaseOrder = PurchaseOrder::query()
-                ->whereNull('archived_at')
-                ->whereIn('status', ['emitida', 'pendiente'])
-                ->where('id', '!=', $purchaseOrder->id)
-                ->orderBy('created_at')
-                ->orderBy('id')
-                ->first();
-        }
-
         $purchaseOrder->update(['status' => 'autorizada']);
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
@@ -573,9 +549,7 @@ class PurchaseOrderController extends Controller
             'data'         => 'autorizó la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
         ]);
 
-        $redirectTarget = $nextPendingPurchaseOrder ?: $purchaseOrder;
-
-        return redirect()->route('purchase_orders.show', $redirectTarget)
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' autorizada correctamente.');
     }
 
