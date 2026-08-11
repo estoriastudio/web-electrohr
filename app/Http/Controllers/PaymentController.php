@@ -12,17 +12,23 @@ use App\Models\PurchaseOrderMilestone;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 use Carbon\Carbon;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\PaymentFolioGenerator;
 
 class PaymentController extends Controller
 {
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private PaymentFolioGenerator $paymentFolioGenerator,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -162,16 +168,90 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $milestoneId = $request->input('milestone_id');
-        $milestone = $milestoneId ? PurchaseOrderMilestone::find($milestoneId) : null;
+        $validated = $request->validate([
+            'milestone_id'            => 'required|exists:purchase_order_milestones,id',
+            'amount'                  => 'required|numeric|min:0.01',
+            'payment_date'            => 'required|date',
+            'invoice_date'            => 'nullable|date',
+            'existing_payment_amount' => 'nullable|numeric|min:0.01',
+        ]);
 
-        if ($milestone) {
-            return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
-                ->with('error', 'Los pagos se generan automáticamente al crear el hito. No se permite crear pagos manuales.');
+        $milestone = PurchaseOrderMilestone::findOrFail($validated['milestone_id']);
+        $orderId = $milestone->purchase_order_id;
+
+        try {
+            $payment = DB::transaction(function () use ($validated, $milestone) {
+                $milestone = PurchaseOrderMilestone::query()
+                    ->with('purchaseOrder')
+                    ->lockForUpdate()
+                    ->findOrFail($milestone->id);
+
+                if ($milestone->purchaseOrder->status !== 'autorizada') {
+                    throw ValidationException::withMessages([
+                        'milestone_id' => 'Solo se pueden registrar pagos en una OC autorizada.',
+                    ]);
+                }
+
+                $payments = $milestone->payments()->lockForUpdate()->orderBy('id')->get();
+                $firstPayment = $payments->first();
+                $targetAmount = round($milestone->effective_amount, 2);
+                $newAmount = round((float) $validated['amount'], 2);
+
+                $canSplitInitialPayment = $payments->count() === 1
+                    && $firstPayment?->status === 'por_autorizar';
+
+                if ($canSplitInitialPayment) {
+                    if (!array_key_exists('existing_payment_amount', $validated) || is_null($validated['existing_payment_amount'])) {
+                        throw ValidationException::withMessages([
+                            'existing_payment_amount' => 'Indica el importe corregido del pago inicial para dividir el hito.',
+                        ]);
+                    }
+
+                    $existingAmount = round((float) $validated['existing_payment_amount'], 2);
+                    if (round($existingAmount + $newAmount, 2) > $targetAmount) {
+                        throw ValidationException::withMessages([
+                            'amount' => 'La suma del pago inicial y el nuevo pago no puede exceder el importe del hito (' . number_format($targetAmount, 2) . ').',
+                        ]);
+                    }
+
+                    $firstPayment->update(['amount' => $existingAmount]);
+                } else {
+                    $committedAmount = round((float) $payments
+                        ->whereIn('status', ['por_autorizar', 'pagado'])
+                        ->sum('amount'), 2);
+                    $availableAmount = round($targetAmount - $committedAmount, 2);
+
+                    if ($newAmount > $availableAmount) {
+                        throw ValidationException::withMessages([
+                            'amount' => 'El importe excede el saldo disponible del hito (' . number_format(max(0, $availableAmount), 2) . ').',
+                        ]);
+                    }
+                }
+
+                return Payment::create([
+                    'milestone_id'     => $milestone->id,
+                    'folio'            => $this->paymentFolioGenerator->generate(),
+                    'amount'           => $newAmount,
+                    'payment_date'     => $validated['payment_date'],
+                    'invoice_date'     => $validated['invoice_date'] ?? null,
+                    'status'           => 'por_autorizar',
+                    'reference_number' => null,
+                ]);
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
         }
 
-        return redirect()->route('payments.index')
-            ->with('error', 'Los pagos se generan automáticamente al crear el hito. No se permite crear pagos manuales.');
+        $this->notification->send([
+            'type'         => 'Payment',
+            'action_by'    => Auth::id(),
+            'model_action' => 'create',
+            'model_id'     => $payment->id,
+            'data'         => 'registró el pago #' . $payment->folio . ' en el hito #' . $payment->milestone_id . ' de la orden de compra #' . $orderId,
+        ]);
+
+        return redirect()->route('purchase_orders.show', $orderId)
+            ->with('success', 'Pago registrado para autorización.');
     }
 
     public function show(Payment $payment)

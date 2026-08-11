@@ -261,11 +261,11 @@
                             <dt class="col-sm-5 text-muted fw-normal">Dirección</dt>
                             <dd class="col-sm-7 fw-medium">
                                 {{ implode(', ', array_filter([
-                                    $supplierBankDetails?->street,
-                                    $supplierBankDetails?->colony,
-                                    $supplierBankDetails?->postal_code ? 'CP ' . $supplierBankDetails->postal_code : null,
-                                    $supplierBankDetails?->city,
-                                    $supplierBankDetails?->state,
+                                    $supplier->street,
+                                    $supplier->colony,
+                                    $supplier->postal_code ? 'CP ' . $supplier->postal_code : null,
+                                    $supplier->city,
+                                    $supplier->state,
                                 ])) ?: '—' }}
                             </dd>
                         </dl>
@@ -774,8 +774,17 @@
             }
 
             $paymentsCount = $milestone->payments->count();
-            $canDeleteMilestone = $paymentsCount === 0
-                || ($paymentsCount === 1 && $milestone->payments->first()?->status !== 'pagado');
+            $initialPayment = $milestone->payments->first();
+            $requiresInitialPaymentSplit = $paymentsCount === 1
+                && $initialPayment?->status === 'por_autorizar';
+            $committedPaymentAmount = (float) $milestone->payments
+                ->whereIn('status', ['por_autorizar', 'pagado'])
+                ->sum('amount');
+            $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
+            $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
+                && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+            $canEditMilestone = $paymentsCount <= 1;
+            $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
 
         <div class="col-md-6 col-xl-6 mb-3">
@@ -800,12 +809,19 @@
                     <div class="d-flex gap-1">
                         @hasanyrole('admin|Orden de compra')
                         @if ($canModifyPurchaseOrder)
+                        @if ($canEditMilestone)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
                                     data-bs-toggle="modal"
                                     data-bs-target="#modalEditMilestone{{ $milestone->id }}">
                                 <i class="ri-edit-line fs-13"></i>
                             </button>
+                        @else
+                            <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
+                                    title="No se puede editar: el hito tiene múltiples pagos registrados" disabled>
+                                <i class="ri-lock-line fs-13"></i>
+                            </button>
+                        @endif
                         @if ($canDeleteMilestone)
                             <form action="{{ route('milestones.destroy', $milestone) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar este hito y todos sus pagos?')">
@@ -816,7 +832,7 @@
                             </form>
                         @else
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
-                                    title="No se puede eliminar: el hito tiene pagos pagados o múltiples pagos registrados" disabled>
+                                    title="No se puede eliminar: el hito tiene pagos pagados registrados" disabled>
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
@@ -997,18 +1013,6 @@
                                                         @endforeach
                                                         @endhasanyrole
 
-                                                        {{-- Contrarecibo PDF (solo hitos crédito) --}}
-                                                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                                                        @hasanyrole('admin|Pagos|Orden de compra')
-                                                        <li>
-                                                            <a href="{{ route('payments.contrarecibo', $payment) }}"
-                                                               target="_blank" class="dropdown-item">
-                                                                <i class="ri-file-download-line me-1"></i>Descargar contrarecibo
-                                                            </a>
-                                                        </li>
-                                                        @endhasanyrole
-                                                        @endif
-
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
                                                         <li>
@@ -1107,7 +1111,17 @@
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
+
+                    @hasanyrole('admin|Pagos')
+                    @if ($canRegisterAdditionalPayment)
+                        <button type="button" class="btn btn-outline-primary btn-sm d-block w-100 mt-2"
+                                data-bs-toggle="modal" data-bs-target="#modalAddPayment{{ $milestone->id }}">
+                            <i class="ri-add-line me-1"></i>Agregar pago por autorizar
+                        </button>
+                    @endif
+                    @endhasanyrole
                 </div>
+
             </div>
         </div>
 
@@ -1487,6 +1501,16 @@
 @foreach ($orderedMilestones as $milestone)
     @php
         $milestonePosition = $loop->iteration;
+        $paymentsCount = $milestone->payments->count();
+        $initialPayment = $milestone->payments->first();
+        $requiresInitialPaymentSplit = $paymentsCount === 1
+            && $initialPayment?->status === 'por_autorizar';
+        $committedPaymentAmount = (float) $milestone->payments
+            ->whereIn('status', ['por_autorizar', 'pagado'])
+            ->sum('amount');
+        $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
+        $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
+            && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
     @endphp
 
     {{-- MODAL Editar Hito --}}
@@ -1552,6 +1576,66 @@
             </div>
         </div>
     </div>
+
+    @hasanyrole('admin|Pagos')
+    @if ($canRegisterAdditionalPayment)
+    <div class="modal fade" id="modalAddPayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('payments.store') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="milestone_id" value="{{ $milestone->id }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="ri-add-circle-line me-1"></i>Agregar pago por autorizar - Hito #{{ $milestonePosition }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if ($requiresInitialPaymentSplit)
+                            <div class="alert alert-info fs-13">
+                                Define cuánto conservará el pago inicial y el importe de este segundo pago. La suma no puede exceder
+                                <strong>{{ $purchaseOrder->currency }} {{ number_format($milestone->effective_amount, 2) }}</strong>;
+                                podrás registrar pagos adicionales con el saldo restante.
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium">Importe que conservará el pago inicial <span class="text-danger">*</span></label>
+                                <input type="number" name="existing_payment_amount" class="form-control"
+                                       step="0.01" min="0.01" value="{{ old('existing_payment_amount', $initialPayment->amount) }}" required>
+                            </div>
+                        @else
+                            <div class="alert alert-light border fs-13">
+                                Saldo disponible del hito: <strong>{{ $purchaseOrder->currency }} {{ number_format($availablePaymentAmount, 2) }}</strong>.
+                            </div>
+                        @endif
+                        <div class="mb-3">
+                            <label class="form-label fw-medium">Importe del nuevo pago <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control" step="0.01" min="0.01"
+                                   max="{{ $requiresInitialPaymentSplit ? $milestone->effective_amount : $availablePaymentAmount }}"
+                                   value="{{ old('amount') }}" required>
+                        </div>
+                        <div class="row g-3">
+                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">Fecha factura</label>
+                                <input type="date" name="invoice_date" class="form-control" value="{{ old('invoice_date') }}">
+                            </div>
+                            @endif
+                            <div class="{{ ($milestone->payment_condition ?? 'credito') === 'credito' ? 'col-md-6' : 'col-12' }}">
+                                <label class="form-label fw-medium">Fecha de pago <span class="text-danger">*</span></label>
+                                <input type="date" name="payment_date" class="form-control"
+                                       value="{{ old('payment_date', $milestone->due_date?->format('Y-m-d')) }}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="ri-add-line me-1"></i>Registrar para autorización</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+    @endhasanyrole
 
 @endforeach
 

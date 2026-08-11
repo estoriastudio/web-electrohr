@@ -108,6 +108,61 @@
                             @enderror
                         </div>
 
+                        <div class="col-md-8">
+                            <label for="street" class="form-label fw-medium">Calle</label>
+                            <input type="text"
+                                   class="form-control @error('street') is-invalid @enderror"
+                                   id="street" name="street"
+                                   value="{{ old('street', $supplier->street) }}">
+                            @error('street')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="postal_code" class="form-label fw-medium">Código Postal</label>
+                            <input type="text"
+                                   class="form-control @error('postal_code') is-invalid @enderror"
+                                   id="postal_code" name="postal_code"
+                                   value="{{ old('postal_code', $supplier->postal_code) }}">
+                            @error('postal_code')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="colony" class="form-label fw-medium">Colonia</label>
+                            <input type="text"
+                                   class="form-control @error('colony') is-invalid @enderror"
+                                   id="colony" name="colony"
+                                   value="{{ old('colony', $supplier->colony) }}">
+                            @error('colony')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="city" class="form-label fw-medium">Ciudad</label>
+                            <input type="text"
+                                   class="form-control @error('city') is-invalid @enderror"
+                                   id="city" name="city"
+                                   value="{{ old('city', $supplier->city) }}">
+                            @error('city')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="state" class="form-label fw-medium">Estado</label>
+                            <input type="text"
+                                   class="form-control @error('state') is-invalid @enderror"
+                                   id="state" name="state"
+                                   value="{{ old('state', $supplier->state) }}">
+                            @error('state')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                     </div>
                 </div>
             </div>

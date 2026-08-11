@@ -51,13 +51,12 @@
 
     $supplierContact = $po->supplier?->contacts->firstWhere('is_primary', true)
         ?? $po->supplier?->contacts->first();
-    $supplierLocation = $po->supplier?->locations->first();
     $supplierAddress = implode(', ', array_filter([
-        $supplierLocation?->street,
-        $supplierLocation?->colony,
-        $supplierLocation?->postal_code ? 'C.P. ' . $supplierLocation->postal_code : null,
-        $supplierLocation?->city,
-        $supplierLocation?->state,
+        $po->supplier?->street,
+        $po->supplier?->colony,
+        $po->supplier?->postal_code ? 'C.P. ' . $po->supplier->postal_code : null,
+        $po->supplier?->city,
+        $po->supplier?->state,
     ]));
 
     $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];

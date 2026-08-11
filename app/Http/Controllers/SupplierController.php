@@ -317,6 +317,11 @@ class SupplierController extends Controller
             'commercial_name' => 'nullable|string|max:255',
             'rfc_num'         => 'nullable|string|max:20',
             'attended_by'     => 'nullable|string|max:255',
+            'street'          => 'nullable|string|max:255',
+            'colony'          => 'nullable|string|max:255',
+            'postal_code'     => 'nullable|string|max:20',
+            'city'            => 'nullable|string|max:100',
+            'state'           => 'nullable|string|max:100',
             'status'          => 'nullable|in:active,inactive,blacklisted',
         ]);
 
@@ -352,6 +357,11 @@ class SupplierController extends Controller
             'rfc_name'        => 'required|string|max:255',
             'rfc_num'         => 'nullable|string|max:20',
             'attended_by'     => 'nullable|string|max:255',
+            'street'          => 'nullable|string|max:255',
+            'colony'          => 'nullable|string|max:255',
+            'postal_code'     => 'nullable|string|max:20',
+            'city'            => 'nullable|string|max:100',
+            'state'           => 'nullable|string|max:100',
             'status'          => 'nullable|in:active,inactive,blacklisted',
             'bank_name'       => 'nullable|string|max:255',
             'bank_account'    => 'nullable|string|max:50',

@@ -25,16 +25,6 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
             return null;
         }
 
-        // Construir dirección completa a partir de los campos separados
-        $addressParts = array_filter([
-            trim($row['domicilio'] ?? ''),
-            trim($row['colonia']   ?? ''),
-            trim($row['codigo']    ?? ''),
-            trim($row['ciudad']    ?? ''),
-            trim($row['estado']    ?? ''),
-        ]);
-        $address = implode(', ', $addressParts) ?: null;
-
         // Buscar registro existente por RFC o por razón social (OR)
         $supplier = Supplier::where(function ($q) use ($rfcNum, $rfcName) {
                 if ($rfcNum) {
@@ -50,6 +40,11 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
         $supplier->commercial_name = $supplier->commercial_name ?? $rfcName;
         $supplier->rfc_num        = $rfcNum ?: null;
         $supplier->attended_by    = trim($row['atencion'] ?? '') ?: null;
+        $supplier->street         = trim($row['domicilio'] ?? '') ?: null;
+        $supplier->colony         = trim($row['colonia'] ?? '') ?: null;
+        $supplier->postal_code    = trim($row['codigo'] ?? '') ?: null;
+        $supplier->city           = trim($row['ciudad'] ?? '') ?: null;
+        $supplier->state          = trim($row['estado'] ?? '') ?: null;
         $supplier->bank_name      = trim($row['banco']    ?? '') ?: null;
         $supplier->bank_account   = trim($row['cuenta']   ?? '') ?: null;
         $supplier->bank_clabe     = trim($row['clabe']    ?? '') ?: null;
@@ -69,12 +64,19 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
             $contact->save();
         }
 
-        if ($address) {
-            $location = $supplier->locations()->first();
-            if ($location) {
-                $location->street = $address;
-                $location->save();
-            }
+        if (array_filter([
+            $supplier->bank_name,
+            $supplier->bank_account,
+            $supplier->bank_clabe,
+            $supplier->currency,
+        ])) {
+            $location = $supplier->locations()->firstOrNew([], ['name' => 'Cuenta Principal']);
+            $location->name = $location->name ?: 'Cuenta Principal';
+            $location->bank_name = $supplier->bank_name;
+            $location->bank_account = $supplier->bank_account;
+            $location->bank_clabe = $supplier->bank_clabe;
+            $location->currency = $supplier->currency;
+            $location->save();
         }
 
         // Retornamos null para evitar que el paquete intente insertar de nuevo

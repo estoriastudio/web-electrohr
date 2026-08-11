@@ -136,6 +136,17 @@
                     <dt class="col-sm-5 text-muted fw-normal fs-13">Atendido por</dt>
                     <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->attended_by ?? '—' }}</dd>
 
+                    <dt class="col-sm-5 text-muted fw-normal fs-13">Domicilio</dt>
+                    <dd class="col-sm-7 fw-medium fs-14">
+                        {{ implode(', ', array_filter([
+                            $supplier->street,
+                            $supplier->colony,
+                            $supplier->postal_code ? 'CP ' . $supplier->postal_code : null,
+                            $supplier->city,
+                            $supplier->state,
+                        ])) ?: '—' }}
+                    </dd>
+
                     <dt class="col-sm-5 text-muted fw-normal fs-13">Estatus</dt>
                     <dd class="col-sm-7">
                         @php
@@ -361,7 +372,7 @@
                 </div>
             </div>
 
-            {{-- Tarjeta de Sucursales --}}
+            {{-- Tarjeta de datos bancarios --}}
             <div class="col-xl-6">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center border-bottom">
@@ -377,8 +388,8 @@
                     <div class="card-body p-0">
                         @if($supplier->locations->isEmpty())
                             <p class="text-center text-muted fs-13 py-4 mb-0">
-                                <i class="ri-map-pin-line fs-24 d-block mb-1 opacity-50"></i>
-                                Sin sucursales registradas.
+                                <i class="ri-bank-line fs-24 d-block mb-1 opacity-50"></i>
+                                Sin datos bancarios registrados.
                             </p>
                         @else
                             <ul class="list-group list-group-flush">
@@ -387,19 +398,7 @@
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div style="min-width:0;">
                                                 <p class="fw-semibold fs-14 mb-0">{{ $location->name }}</p>
-                                                @php
-                                                    $addrParts = array_filter([
-                                                        $location->street,
-                                                        $location->colony,
-                                                        $location->postal_code ? 'CP ' . $location->postal_code : null,
-                                                        $location->city,
-                                                        $location->state,
-                                                    ]);
-                                                @endphp
-                                                @if($addrParts)
-                                                    <small class="text-muted fs-12 d-block text-truncate">{{ implode(', ', $addrParts) }}</small>
-                                                @endif
-                                                @if($location->bank_name || $location->bank_account || $location->bank_clabe)
+                                                @if($location->bank_name || $location->bank_account || $location->bank_clabe || $location->currency || $location->account_statement_path)
                                                     <div class="mt-1 d-flex flex-wrap gap-2">
                                                         @if($location->bank_name)
                                                             <small class="text-muted fs-12"><i class="ri-bank-line me-1"></i>{{ $location->bank_name }}</small>
@@ -413,6 +412,12 @@
                                                         @if($location->bank_clabe)
                                                             <small class="text-muted fs-12">CLABE: <span class="text-dark fw-medium">{{ $location->bank_clabe }}</span></small>
                                                         @endif
+                                                        @if($location->account_statement_path)
+                                                            <a href="{{ \Illuminate\Support\Facades\Storage::disk('s3')->url($location->account_statement_path) }}"
+                                                               target="_blank" class="text-primary fs-12">
+                                                                <i class="ri-file-text-line me-1"></i>Carátula de estado de cuenta
+                                                            </a>
+                                                        @endif
                                                     </div>
                                                 @endif
                                             </div>
@@ -420,11 +425,6 @@
                                                 @if ($canManageSupplier)
                                                 <button type="button" class="btn btn-icon btn-sm btn-light btn-edit-location"
                                                     data-name="{{ $location->name }}"
-                                                    data-street="{{ $location->street }}"
-                                                    data-colony="{{ $location->colony }}"
-                                                    data-postal-code="{{ $location->postal_code }}"
-                                                    data-state="{{ $location->state }}"
-                                                    data-city="{{ $location->city }}"
                                                     data-bank-name="{{ $location->bank_name }}"
                                                     data-bank-account="{{ $location->bank_account }}"
                                                     data-bank-clabe="{{ $location->bank_clabe }}"
@@ -721,6 +721,30 @@
                         <input type="text" name="attended_by" class="form-control"
                                value="{{ old('attended_by', $supplier->attended_by) }}">
                     </div>
+                    <hr class="my-3">
+                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
+                    <div class="row g-3">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-medium fs-13">Calle</label>
+                            <input type="text" name="street" class="form-control" value="{{ old('street', $supplier->street) }}">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-medium fs-13">Código Postal</label>
+                            <input type="text" name="postal_code" class="form-control" value="{{ old('postal_code', $supplier->postal_code) }}">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Colonia</label>
+                            <input type="text" name="colony" class="form-control" value="{{ old('colony', $supplier->colony) }}">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-medium fs-13">Ciudad</label>
+                            <input type="text" name="city" class="form-control" value="{{ old('city', $supplier->city) }}">
+                        </div>
+                        <div class="col-sm-12">
+                            <label class="form-label fw-medium fs-13">Estado</label>
+                            <input type="text" name="state" class="form-control" value="{{ old('state', $supplier->state) }}">
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-medium fs-13">Estatus</label>
                         <select name="status" class="form-select">
@@ -859,7 +883,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ route('supplier_locations.store', $supplier) }}" method="POST">
+            <form action="{{ route('supplier_locations.store', $supplier) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
@@ -890,29 +914,10 @@
                             <label class="form-label fw-medium fs-13">CLABE Interbancaria</label>
                             <input type="text" name="bank_clabe" class="form-control" maxlength="18">
                         </div>
-                    </div>
-                    <hr class="my-3">
-                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
-                    <div class="row g-3">
-                        <div class="col-sm-8">
-                            <label class="form-label fw-medium fs-13">Calle</label>
-                            <input type="text" name="street" class="form-control" placeholder="Calle y número">
-                        </div>
-                        <div class="col-sm-4">
-                            <label class="form-label fw-medium fs-13">Código Postal</label>
-                            <input type="text" name="postal_code" class="form-control" placeholder="00000">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Colonia</label>
-                            <input type="text" name="colony" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Ciudad</label>
-                            <input type="text" name="city" class="form-control">
-                        </div>
                         <div class="col-sm-12">
-                            <label class="form-label fw-medium fs-13">Estado</label>
-                            <input type="text" name="state" class="form-control">
+                            <label class="form-label fw-medium fs-13">Carátula de estado de cuenta</label>
+                            <input type="file" name="account_statement" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                            <div class="form-text">PDF, JPG o PNG. Tamaño máximo: 10 MB.</div>
                         </div>
                     </div>
                 </div>
@@ -935,7 +940,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="formEditLocation" action="" method="POST">
+            <form id="formEditLocation" action="" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
@@ -967,29 +972,10 @@
                             <label class="form-label fw-medium fs-13">CLABE Interbancaria</label>
                             <input type="text" name="bank_clabe" id="editLocationBankClabe" class="form-control" maxlength="18">
                         </div>
-                    </div>
-                    <hr class="my-3">
-                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
-                    <div class="row g-3">
-                        <div class="col-sm-8">
-                            <label class="form-label fw-medium fs-13">Calle</label>
-                            <input type="text" name="street" id="editLocationStreet" class="form-control">
-                        </div>
-                        <div class="col-sm-4">
-                            <label class="form-label fw-medium fs-13">Código Postal</label>
-                            <input type="text" name="postal_code" id="editLocationPostalCode" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Colonia</label>
-                            <input type="text" name="colony" id="editLocationColony" class="form-control">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Ciudad</label>
-                            <input type="text" name="city" id="editLocationCity" class="form-control">
-                        </div>
                         <div class="col-sm-12">
-                            <label class="form-label fw-medium fs-13">Estado</label>
-                            <input type="text" name="state" id="editLocationState" class="form-control">
+                            <label class="form-label fw-medium fs-13">Carátula de estado de cuenta</label>
+                            <input type="file" name="account_statement" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                            <div class="form-text">Selecciona un archivo para reemplazar la carátula actual.</div>
                         </div>
                     </div>
                 </div>
@@ -1002,13 +988,13 @@
     </div>
 </div>
 
-{{-- Eliminar sucursal --}}
+{{-- Eliminar datos bancarios --}}
 <div class="modal fade" id="modalDeleteLocation" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-body text-center py-4">
                 <i class="ri-delete-bin-line fs-36 text-danger mb-2 d-block"></i>
-                <h5 class="mb-1">¿Eliminar sucursal?</h5>
+                <h5 class="mb-1">¿Eliminar datos bancarios?</h5>
                 <p class="text-muted fs-13 mb-0">Se eliminará permanentemente <strong id="deleteLocationName"></strong>.</p>
             </div>
             <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
@@ -1062,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // ── Sucursales ────────────────────────────────────────────────────────────
+    // ── Datos bancarios ───────────────────────────────────────────────────────
 
     document.querySelectorAll('.btn-edit-location').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -1070,11 +1056,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('formEditLocation');
             form.action = d.url;
             document.getElementById('editLocationName').value        = d.name        || '';
-            document.getElementById('editLocationStreet').value      = d.street      || '';
-            document.getElementById('editLocationColony').value      = d.colony      || '';
-            document.getElementById('editLocationPostalCode').value  = d.postalCode  || '';
-            document.getElementById('editLocationCity').value        = d.city        || '';
-            document.getElementById('editLocationState').value       = d.state       || '';
             document.getElementById('editLocationBankName').value    = d.bankName    || '';
             document.getElementById('editLocationBankAccount').value = d.bankAccount || '';
             document.getElementById('editLocationBankClabe').value   = d.bankClabe   || '';

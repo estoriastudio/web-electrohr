@@ -9,15 +9,11 @@ class SupplierLocation extends Model
     protected $fillable = [
         'supplier_id',
         'name',
-        'street',
-        'colony',
-        'postal_code',
-        'state',
-        'city',
         'bank_name',
         'bank_account',
         'bank_clabe',
         'currency',
+        'account_statement_path',
     ];
 
     public function supplier()

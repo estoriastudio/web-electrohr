@@ -18,10 +18,14 @@ use Illuminate\Validation\ValidationException;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\PaymentFolioGenerator;
 
 class PurchaseOrderMilestoneController extends Controller
 {
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private PaymentFolioGenerator $paymentFolioGenerator,
+    ) {}
 
     /**
      * Listado global de hitos con semáforo de urgencia.
@@ -115,7 +119,7 @@ class PurchaseOrderMilestoneController extends Controller
 
             Payment::create([
                 'milestone_id'     => $milestone->id,
-                'folio'            => $this->generatePaymentFolio(),
+                'folio'            => $this->paymentFolioGenerator->generate(),
                 'amount'           => $milestone->effective_amount,
                 'payment_date'     => $milestone->due_date,
                 'invoice_date'     => null,
@@ -202,7 +206,7 @@ class PurchaseOrderMilestoneController extends Controller
             if (!$payment) {
                 Payment::create([
                     'milestone_id'     => $purchaseOrderMilestone->id,
-                    'folio'            => $this->generatePaymentFolio(),
+                    'folio'            => $this->paymentFolioGenerator->generate(),
                     'amount'           => $targetAmount,
                     'payment_date'     => $purchaseOrderMilestone->due_date,
                     'invoice_date'     => null,
@@ -282,15 +286,6 @@ class PurchaseOrderMilestoneController extends Controller
         ]);
     }
 
-    private function generatePaymentFolio(): string
-    {
-        do {
-            $folio = strtoupper('PAY-' . random_int(10000, 99999));
-        } while (Payment::where('folio', $folio)->exists());
-
-        return $folio;
-    }
-
     public function destroy(PurchaseOrderMilestone $purchaseOrderMilestone): RedirectResponse
     {
         $milestoneId = $purchaseOrderMilestone->id;
@@ -304,12 +299,7 @@ class PurchaseOrderMilestoneController extends Controller
 
         $payments = $purchaseOrderMilestone->payments()->orderBy('id')->get();
 
-        if ($payments->count() > 1) {
-            return redirect()->route('purchase_orders.show', $orderId)
-                ->with('error', 'No se puede eliminar un hito con múltiples pagos registrados.');
-        }
-
-        if ($payments->count() === 1 && $payments->first()->status === 'pagado') {
+        if ($payments->contains('status', 'pagado')) {
             return redirect()->route('purchase_orders.show', $orderId)
                 ->with('error', 'No se puede eliminar un hito con pago en estatus pagado.');
         }
