@@ -309,15 +309,13 @@
                         </div>
                     </div>
 
-                    {{-- Estatus --}}
+                    {{-- Estatus inicial --}}
                     <div class="col-md-4">
-                        <label for="status" class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
-                        <select class="form-select @error('status') is-invalid @enderror" id="status" name="status" required>
-                            <option value="emitida"    {{ old('status', 'emitida') === 'emitida'    ? 'selected' : '' }}>Emitida</option>
-                            <option value="pendiente"  {{ old('status') === 'pendiente'  ? 'selected' : '' }}>Pendiente</option>
-                            <option value="autorizada" {{ old('status') === 'autorizada' ? 'selected' : '' }}>Autorizada</option>
-                        </select>
-                        @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label class="form-label fw-medium">Estatus inicial</label>
+                        <div class="form-control bg-light-subtle text-warning-emphasis">
+                            <i class="ri-time-line me-1"></i>Pendiente
+                        </div>
+                        <div class="form-text">La OC deberá emitirse antes de poder autorizarse.</div>
                     </div>
 
                     {{-- ―― Firmas ―― --}}

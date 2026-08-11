@@ -68,21 +68,24 @@
     $supplierBankDetails = $supplier?->locations->first();
 @endphp
 
-{{-- ── ALERTA DE AUTORIZACIÓN ── --}}
+{{-- ── FLUJO DE EMISIÓN Y AUTORIZACIÓN ── --}}
 @if (in_array($purchaseOrder->status, ['emitida', 'pendiente', 'autorizada']))
-    <div id="purchaseOrderApproveAlert" class="alert {{ $purchaseOrder->status === 'autorizada' ? 'alert-success' : 'alert-warning' }} alert-dismissible d-flex align-items-start gap-3 mb-3 oc-approve-alert" role="alert">
-        <i class="{{ $purchaseOrder->status === 'autorizada' ? 'ri-checkbox-circle-line text-success' : 'ri-shield-check-line text-warning' }} fs-22 mt-1"></i>
+    <div id="purchaseOrderApproveAlert" class="alert {{ $purchaseOrder->status === 'autorizada' ? 'alert-success' : ($purchaseOrder->status === 'emitida' ? 'alert-warning' : 'alert-info') }} alert-dismissible d-flex align-items-start gap-3 mb-3 oc-approve-alert" role="alert">
+        <i class="{{ $purchaseOrder->status === 'autorizada' ? 'ri-checkbox-circle-line text-success' : ($purchaseOrder->status === 'emitida' ? 'ri-shield-check-line text-warning' : 'ri-send-plane-line text-info') }} fs-22 mt-1"></i>
         <div class="flex-grow-1">
             <h6 class="alert-heading mb-1 fw-semibold">
-                {{ $purchaseOrder->status === 'autorizada' ? 'Orden de compra autorizada' : 'Orden de compra pendiente de autorización' }}
+                {{ $purchaseOrder->status === 'autorizada' ? 'Orden de compra autorizada' : ($purchaseOrder->status === 'emitida' ? 'Orden de compra pendiente de autorización' : 'Orden de compra pendiente de emisión') }}
             </h6>
             <p class="mb-0 fs-13">
                 Esta OC se encuentra en estatus
                 <span class="badge {{ $s['class'] }} py-1 px-2 fs-12 ms-1">{{ $s['label'] }}</span>.
                 {{ $purchaseOrder->status === 'autorizada'
                     ? 'Puedes continuar manualmente con la siguiente orden pendiente.'
-                    : 'Requiere revisión y aprobación de un administrador antes de proceder con los pagos.' }}
+                    : ($purchaseOrder->status === 'emitida'
+                        ? 'Requiere revisión y aprobación de un administrador antes de proceder con los pagos.'
+                        : 'Compras debe emitirla antes de enviarla a autorización.') }}
             </p>
+            @if ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada')
             <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                 <span class="badge bg-dark-subtle text-dark py-1 px-2 fs-12">
                     Pendientes por autorizar: {{ $pendingAuthCount ?? 0 }}
@@ -95,8 +98,18 @@
                     </a>
                 @endif
             </div>
+            @endif
         </div>
-        @if ($purchaseOrder->status !== 'autorizada')
+        @if ($purchaseOrder->status === 'pendiente')
+        @hasanyrole('admin|Orden de compra')
+        <form action="{{ route('purchase_orders.emit', $purchaseOrder) }}" method="POST" class="align-self-center">
+            @csrf @method('PATCH')
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="ri-send-plane-line me-1"></i> Emitir OC
+            </button>
+        </form>
+        @endhasanyrole
+        @elseif ($purchaseOrder->status === 'emitida')
         @role('admin')
         <form id="approvePurchaseOrderForm" action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class="align-self-center">
             @csrf @method('PATCH')
@@ -109,7 +122,7 @@
         @endrole
         @endif
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        @if ($purchaseOrder->status !== 'autorizada')
+        @if ($purchaseOrder->status === 'emitida')
             <div id="approveInlineProgress" class="oc-approve-inline-progress" aria-hidden="true">
                 <div class="oc-approve-inline-progress-bar" aria-hidden="true"></div>
                 <span id="approveInlineProgressText" class="oc-approve-inline-progress-text">Autorizando Orden de Compra...</span>
@@ -147,6 +160,12 @@
                                 <i class="ri-external-link-line ms-1 text-primary"></i>
                             </button>
                         @endif
+                        @if ($purchaseOrder->elaborated_by)
+                            <p class="card-text text-muted fs-13 mb-0 mt-1">
+                                <i class="ri-user-line me-1"></i>Elabora Orden:
+                                <span class="fw-medium text-dark">{{ $purchaseOrder->elaborated_by }}</span>
+                            </p>
+                        @endif
                         @if ($purchaseOrder->type === 'materiales_servicios' && ($purchaseOrder->project || $purchaseOrder->site))
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
                                 @if ($purchaseOrder->project)<span><i class="ri-building-2-line me-1"></i>{{ $purchaseOrder->project }}</span>@endif
@@ -156,7 +175,11 @@
                         @endif
                         @if ($purchaseOrder->type === 'mantenimiento' && $purchaseOrder->mobileAsset)
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
-                                <span><i class="ri-tools-line me-1"></i>{{ $purchaseOrder->mobileAsset->name }}{{ $purchaseOrder->mobileAsset->folio ? ' — ' . $purchaseOrder->mobileAsset->folio : '' }}</span>
+                                <span><i class="ri-tools-line me-1"></i>Bien Móvil: <span class="fw-medium text-dark">{{ $purchaseOrder->mobileAsset->name }}{{ $purchaseOrder->mobileAsset->folio ? ' — ' . $purchaseOrder->mobileAsset->folio : '' }}</span></span>
+                            </p>
+                        @elseif ($purchaseOrder->type === 'mantenimiento')
+                            <p class="card-text text-muted fs-13 mb-0 mt-1">
+                                <span><i class="ri-tools-line me-1"></i>Bien Móvil: Sin bien móvil asignado</span>
                             </p>
                         @endif
 

@@ -142,7 +142,6 @@ class PurchaseOrderController extends Controller
             'isr_rate'             => 'nullable|numeric|min:0|max:100',
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
-            'status'               => 'required|in:emitida,pendiente,autorizada',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
@@ -170,11 +169,6 @@ class PurchaseOrderController extends Controller
 
         if ($request->type === 'mantenimiento') {
             $rules['mobile_asset_id'] = 'required|exists:mobile_assets,id';
-        }
-
-        // Solo admin puede asignar el estatus «autorizada» directamente
-        if (!Auth::user()->hasRole('admin')) {
-            $rules['status'] = 'required|in:emitida,pendiente';
         }
 
         $validated = $request->validate($rules);
@@ -269,6 +263,7 @@ class PurchaseOrderController extends Controller
         $validated['recurrence_frequency'] = null;
         $validated['recurrence_start_date'] = null;
         $validated['recurrence_end_date'] = null;
+        $validated['status'] = 'pendiente';
 
         unset($validated['folio']);
 
@@ -359,7 +354,7 @@ class PurchaseOrderController extends Controller
 
         $pendingQueue = PurchaseOrder::query()
             ->whereNull('archived_at')
-            ->whereIn('status', ['emitida', 'pendiente'])
+            ->where('status', 'emitida')
             ->orderBy('created_at')
             ->orderBy('id')
             ->get(['id', 'folio']);
@@ -412,7 +407,6 @@ class PurchaseOrderController extends Controller
             'isr_rate'             => 'nullable|numeric|min:0|max:100',
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
-            'status'               => 'required|in:emitida,pendiente,autorizada',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
@@ -431,6 +425,7 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+        $validated['status'] = $purchaseOrder->status;
 
         $selectedWorkIds = collect($validated['project_work_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -479,10 +474,6 @@ class PurchaseOrderController extends Controller
 
         unset($validated['project_work_ids']);
 
-        if (!Auth::user()->hasRole('admin') && ($validated['status'] ?? '') === 'autorizada') {
-            $validated['status'] = 'pendiente';
-        }
-
         // Normalizar tax_rate
         $validated['tax_rate'] = ($validated['tax_rate'] ?? '16') === 'exempt' ? null : (float) ($validated['tax_rate'] ?? 16);
         $validated['isr_rate'] = $this->normalizeOptionalRate($validated['isr_rate'] ?? null);
@@ -530,11 +521,39 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra actualizada correctamente.');
     }
 
+    public function emit(PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        if ($purchaseOrder->status !== 'pendiente') {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'Solo se pueden emitir órdenes de compra pendientes.');
+        }
+
+        $purchaseOrder->update(['status' => 'emitida']);
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'emitió la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' emitida correctamente.');
+    }
+
     public function approve(PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($purchaseOrder->status === 'autorizada') {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
                 ->with('error', 'La orden de compra ya está autorizada.');
+        }
+
+        if ($purchaseOrder->status !== 'emitida') {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La orden de compra debe estar emitida antes de autorizarse.');
         }
 
         $purchaseOrder->update(['status' => 'autorizada']);

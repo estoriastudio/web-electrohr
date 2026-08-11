@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\PurchaseOrderInvoiceExport;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Services\NotificationService;
@@ -10,7 +11,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseOrderInvoiceController extends Controller
 {
@@ -20,19 +23,31 @@ class PurchaseOrderInvoiceController extends Controller
     {
         $search = trim((string) $request->input('search', ''));
         $section = trim((string) $request->input('section', PurchaseOrderInvoice::STATUS_EN_PROCESO));
+        $paymentCondition = trim((string) $request->input('payment_condition', 'todas'));
 
         $validSections = array_merge(PurchaseOrderInvoice::STATUSES, ['todas']);
         if (!in_array($section, $validSections, true)) {
             $section = PurchaseOrderInvoice::STATUS_EN_PROCESO;
         }
 
-        $pendingCount = PurchaseOrderInvoice::query()
+        if (!in_array($paymentCondition, ['contado', 'credito', 'todas'], true)) {
+            $paymentCondition = 'todas';
+        }
+
+        $countsQuery = PurchaseOrderInvoice::query();
+        if ($paymentCondition !== 'todas') {
+            $countsQuery->whereHas('purchaseOrder.milestones', function ($milestones) use ($paymentCondition) {
+                $milestones->where('payment_condition', $paymentCondition);
+            });
+        }
+
+        $pendingCount = (clone $countsQuery)
             ->where('status', PurchaseOrderInvoice::STATUS_EN_PROCESO)
             ->count();
-        $acceptedCount = PurchaseOrderInvoice::query()
+        $acceptedCount = (clone $countsQuery)
             ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
             ->count();
-        $rejectedCount = PurchaseOrderInvoice::query()
+        $rejectedCount = (clone $countsQuery)
             ->where('status', PurchaseOrderInvoice::STATUS_RECHAZADA)
             ->count();
 
@@ -56,6 +71,12 @@ class PurchaseOrderInvoiceController extends Controller
                         });
                 });
             });
+
+        if ($paymentCondition !== 'todas') {
+            $invoicesQuery->whereHas('purchaseOrder.milestones', function ($milestones) use ($paymentCondition) {
+                $milestones->where('payment_condition', $paymentCondition);
+            });
+        }
 
         if ($section !== 'todas') {
             $invoicesQuery->where('status', $section);
@@ -82,6 +103,7 @@ class PurchaseOrderInvoiceController extends Controller
             'invoices',
             'search',
             'section',
+            'paymentCondition',
             'pendingCount',
             'acceptedCount',
             'rejectedCount'
@@ -98,6 +120,30 @@ class PurchaseOrderInvoiceController extends Controller
         ]);
 
         return view('invoices.show', compact('invoice'));
+    }
+
+    public function export(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'payment_conditions' => ['required', 'array', 'min:1'],
+            'payment_conditions.*' => [Rule::in(['contado', 'credito'])],
+        ]);
+
+        $paymentConditions = collect($validated['payment_conditions'])->unique();
+        $paymentCondition = $paymentConditions->count() === 2
+            ? 'ambas'
+            : $paymentConditions->first();
+
+        return Excel::download(
+            new PurchaseOrderInvoiceExport(
+                $validated['start_date'],
+                $validated['end_date'],
+                $paymentCondition
+            ),
+            'facturas-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+        );
     }
 
     /**

@@ -397,6 +397,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ])->parameters(['pagos' => 'payment']);
         });
 
+        // Emisión de Órdenes de Compra — Compras y admin
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
+        });
+
         // Autorización de Órdenes de Compra — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
@@ -418,6 +423,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
             Route::get('/facturas', [PurchaseOrderInvoiceController::class, 'index'])->name('invoices.index');
+            Route::get('/facturas/exportar-excel', [PurchaseOrderInvoiceController::class, 'export'])->name('invoices.export');
             Route::get('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'show'])->name('invoices.show');
             Route::get('/facturas/{invoice}/archivo/{type}', [PurchaseOrderInvoiceController::class, 'downloadFile'])
                 ->whereIn('type', ['pdf', 'xml', 'evidence', 'credit_note_pdf', 'credit_note_xml'])

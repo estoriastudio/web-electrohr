@@ -202,13 +202,11 @@
 
                         {{-- Estatus --}}
                         <div class="col-md-4">
-                            <label for="status" class="form-label fw-medium">Estatus <span class="text-danger">*</span></label>
-                            <select class="form-select @error('status') is-invalid @enderror" id="status" name="status" required>
-                                <option value="emitida"    {{ old('status', $purchaseOrder->status) === 'emitida'    ? 'selected' : '' }}>Emitida</option>
-                                <option value="pendiente"  {{ old('status', $purchaseOrder->status) === 'pendiente'  ? 'selected' : '' }}>Pendiente</option>
-                                <option value="autorizada" {{ old('status', $purchaseOrder->status) === 'autorizada' ? 'selected' : '' }}>Autorizada</option>
-                            </select>
-                            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label class="form-label fw-medium">Estatus</label>
+                            <div class="form-control bg-light-subtle">
+                                {{ ucfirst($purchaseOrder->status) }}
+                            </div>
+                            <div class="form-text">El estatus se modifica mediante el flujo de emisión y autorización.</div>
                         </div>
 
                         {{-- Firmas / Datos administrativos --}}

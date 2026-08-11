@@ -265,13 +265,25 @@
             @endcan
 
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}"
-                   href="{{ route('invoices.index') }}">
+                <a class="nav-link menu-arrow {{ request()->routeIs('invoices.*') ? 'active' : '' }}" href="#sidebarInvoices" data-bs-toggle="collapse" role="button" aria-expanded="{{ request()->routeIs('invoices.*') ? 'true' : 'false' }}" aria-controls="sidebarInvoices">
                     <span class="nav-icon">
                         <i class="ri-file-list-3-line"></i>
                     </span>
                     <span class="nav-text">Facturas</span>
                 </a>
+                <div class="collapse {{ request()->routeIs('invoices.*') ? 'show' : '' }}" id="sidebarInvoices">
+                    <ul class="nav sub-navbar-nav">
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('invoices.*') && request('payment_condition') === 'contado' ? 'active' : '' }}" href="{{ route('invoices.index', ['payment_condition' => 'contado']) }}">Contado</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('invoices.*') && request('payment_condition') === 'credito' ? 'active' : '' }}" href="{{ route('invoices.index', ['payment_condition' => 'credito']) }}">Crédito</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link {{ request()->routeIs('invoices.*') && !in_array(request('payment_condition'), ['contado', 'credito'], true) ? 'active' : '' }}" href="{{ route('invoices.index') }}">Ver Todas</a>
+                        </li>
+                    </ul>
+                </div>
             </li>
             @endhasanyrole
 

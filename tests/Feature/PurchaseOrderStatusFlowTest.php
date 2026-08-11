@@ -1,0 +1,103 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\PurchaseOrder;
+use App\Models\Supplier;
+use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class PurchaseOrderStatusFlowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
+
+    public function test_purchase_order_role_can_emit_a_pending_purchase_order(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Orden de compra');
+        $purchaseOrder = $this->purchaseOrder('pendiente');
+
+        $this->actingAs($user)
+            ->patch(route('purchase_orders.emit', $purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'emitida',
+        ]);
+    }
+
+    public function test_user_without_purchase_order_role_cannot_emit_a_purchase_order(): void
+    {
+        $user = User::factory()->create();
+        $purchaseOrder = $this->purchaseOrder('pendiente');
+
+        $this->actingAs($user)
+            ->patch(route('purchase_orders.emit', $purchaseOrder))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'pendiente',
+        ]);
+    }
+
+    public function test_pending_purchase_order_cannot_be_authorized(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->purchaseOrder('pendiente');
+
+        $this->actingAs($admin)
+            ->patch(route('purchase_orders.approve', $purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder))
+            ->assertSessionHas('error', 'La orden de compra debe estar emitida antes de autorizarse.');
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'pendiente',
+        ]);
+    }
+
+    public function test_admin_can_authorize_an_emitted_purchase_order(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->purchaseOrder('emitida');
+
+        $this->actingAs($admin)
+            ->patch(route('purchase_orders.approve', $purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'autorizada',
+        ]);
+    }
+
+    private function purchaseOrder(string $status): PurchaseOrder
+    {
+        $supplier = Supplier::create([
+            'rfc_name' => 'Proveedor de prueba',
+        ]);
+
+        return PurchaseOrder::create([
+            'folio' => random_int(25000, 99999),
+            'type' => 'materiales_servicios',
+            'supplier_id' => $supplier->id,
+            'currency' => 'MXN',
+            'amount' => 0,
+            'status' => $status,
+            'recurrence_type' => 'unico',
+        ]);
+    }
+}

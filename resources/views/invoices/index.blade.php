@@ -29,7 +29,48 @@
 <div class="card">
 	<div class="card-header d-flex justify-content-between align-items-center border-bottom">
 		<h4 class="card-title mb-0"><i class="ri-file-list-3-line me-1"></i> Facturas de Órdenes de Compra</h4>
-		<span class="badge bg-secondary-subtle text-secondary">{{ $invoices->total() }} registro(s)</span>
+		<div class="d-flex align-items-center gap-2">
+			<span class="badge bg-secondary-subtle text-secondary">{{ $invoices->total() }} registro(s)</span>
+			<div class="dropdown">
+				<button class="btn btn-success btn-sm dropdown-toggle" type="button" id="invoiceExportDropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+					<i class="ri-file-excel-2-line me-1"></i>Exportar a Excel
+				</button>
+				<div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="invoiceExportDropdown" style="min-width: 320px;">
+					@php
+						$exportPaymentConditions = old('payment_conditions', ['credito', 'contado']);
+					@endphp
+					<form method="GET" action="{{ route('invoices.export') }}" class="row g-2" id="invoiceExportForm">
+						<div class="col-6">
+							<label for="export_start_date" class="form-label mb-1">Fecha inicio</label>
+							<input type="date" id="export_start_date" name="start_date" value="{{ old('start_date') }}" class="form-control form-control-sm" required>
+						</div>
+						<div class="col-6">
+							<label for="export_end_date" class="form-label mb-1">Fecha final</label>
+							<input type="date" id="export_end_date" name="end_date" value="{{ old('end_date') }}" class="form-control form-control-sm" required>
+						</div>
+						<div class="col-12">
+							<span class="form-label d-block mb-1">Tipos incluidos</span>
+							<div class="d-flex gap-3">
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" name="payment_conditions[]" value="credito" id="export_payment_condition_credito" @checked(in_array('credito', $exportPaymentConditions, true))>
+									<label class="form-check-label" for="export_payment_condition_credito">Crédito</label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" name="payment_conditions[]" value="contado" id="export_payment_condition_contado" @checked(in_array('contado', $exportPaymentConditions, true))>
+									<label class="form-check-label" for="export_payment_condition_contado">Contado</label>
+								</div>
+							</div>
+						</div>
+						<div class="col-12 d-grid mt-2">
+							<button type="submit" class="btn btn-success" id="invoiceExportSubmit">
+								<span class="js-export-default"><i class="ri-download-2-line me-1"></i>Descargar Excel</span>
+								<span class="js-export-loading d-none"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Preparando Documento (<span class="js-export-countdown">10</span> s)</span>
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<div class="card-body border-bottom py-3">
@@ -38,7 +79,7 @@
 				<label class="form-label form-label-sm mb-2">Bandeja</label>
 				<ul class="nav nav-tabs nav-justified" role="tablist" aria-label="Bandeja de Facturas">
 					<li class="nav-item" role="presentation">
-						<a href="{{ route('invoices.index', ['section' => 'en_proceso', 'search' => $search ?: null]) }}"
+						<a href="{{ route('invoices.index', ['section' => 'en_proceso', 'payment_condition' => $paymentCondition !== 'todas' ? $paymentCondition : null, 'search' => $search ?: null]) }}"
 						   class="nav-link {{ ($section ?? 'en_proceso') === 'en_proceso' ? 'active' : '' }}">
 							<i class="ri-time-line me-1"></i>
 							Pendientes
@@ -46,7 +87,7 @@
 						</a>
 					</li>
 					<li class="nav-item" role="presentation">
-						<a href="{{ route('invoices.index', ['section' => 'aceptada', 'search' => $search ?: null]) }}"
+						<a href="{{ route('invoices.index', ['section' => 'aceptada', 'payment_condition' => $paymentCondition !== 'todas' ? $paymentCondition : null, 'search' => $search ?: null]) }}"
 						   class="nav-link {{ ($section ?? '') === 'aceptada' ? 'active' : '' }}">
 							<i class="ri-checkbox-circle-line me-1"></i>
 							Aprobadas
@@ -54,7 +95,7 @@
 						</a>
 					</li>
 					<li class="nav-item" role="presentation">
-						<a href="{{ route('invoices.index', ['section' => 'rechazada', 'search' => $search ?: null]) }}"
+						<a href="{{ route('invoices.index', ['section' => 'rechazada', 'payment_condition' => $paymentCondition !== 'todas' ? $paymentCondition : null, 'search' => $search ?: null]) }}"
 						   class="nav-link {{ ($section ?? '') === 'rechazada' ? 'active' : '' }}">
 							<i class="ri-close-circle-line me-1"></i>
 							Rechazadas
@@ -62,7 +103,7 @@
 						</a>
 					</li>
 					<li class="nav-item" role="presentation">
-						<a href="{{ route('invoices.index', ['section' => 'todas', 'search' => $search ?: null]) }}"
+						<a href="{{ route('invoices.index', ['section' => 'todas', 'payment_condition' => $paymentCondition !== 'todas' ? $paymentCondition : null, 'search' => $search ?: null]) }}"
 						   class="nav-link {{ ($section ?? '') === 'todas' ? 'active' : '' }}">
 							<i class="ri-stack-line me-1"></i>
 							Todas
@@ -73,6 +114,7 @@
 			</div>
 
 			<input type="hidden" name="section" value="{{ $section ?? 'en_proceso' }}">
+			<input type="hidden" name="payment_condition" value="{{ $paymentCondition }}">
 
 			<div class="col-md-9">
 				<div class="input-group input-group-sm">
@@ -85,7 +127,7 @@
 			<div class="col-md-3 d-flex gap-1">
 				<button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
 				@if ($search)
-					<a href="{{ route('invoices.index', ['section' => $section ?? 'en_proceso']) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
+					<a href="{{ route('invoices.index', ['section' => $section ?? 'en_proceso', 'payment_condition' => $paymentCondition !== 'todas' ? $paymentCondition : null]) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
 						<i class="ri-close-line"></i>
 					</a>
 				@endif
@@ -105,6 +147,7 @@
 						<th>Vencimiento</th>
 						<th>Folio</th>
 						<th>OC</th>
+						<th>Tipo</th>
 						<th>Proveedor</th>
 						<th>Comprador</th>
 						<th class="text-end">Alcance líquido</th>
@@ -122,6 +165,11 @@
 							$statusMeta = $statusMap[$invoice->status] ?? $statusMap['en_proceso'];
 							$po = $invoice->purchaseOrder;
 							$supplierName = $po?->supplier?->commercial_name ?: $po?->supplier?->rfc_name;
+							$paymentConditions = $po?->milestones
+								->pluck('payment_condition')
+								->filter()
+								->unique()
+								->values() ?? collect();
 							$netScope = (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
 							$milestoneOptions = $po
 								? $po->milestones->values()->map(function ($m, $index) use ($invoice, $po) {
@@ -190,6 +238,19 @@
 									—
 								@endif
 							</td>
+							<td>
+								@if ($paymentConditions->isNotEmpty())
+									<div class="d-flex flex-wrap gap-1">
+										@foreach ($paymentConditions as $condition)
+											<span class="badge {{ $condition === 'contado' ? 'bg-info-subtle text-info' : 'bg-primary-subtle text-primary' }}">
+												{{ $condition === 'contado' ? 'Contado' : 'Crédito' }}
+											</span>
+										@endforeach
+									</div>
+								@else
+									—
+								@endif
+							</td>
 							<td>{{ $supplierName ?: '—' }}</td>
 							<td>{{ $po?->elaborated_by ?: '—' }}</td>
 							<td class="text-end fw-semibold">{{ $invoice->currency }} {{ number_format($netScope, 2) }}</td>
@@ -213,7 +274,7 @@
 						</tr>
 					@empty
 						<tr>
-							<td colspan="11" class="text-center text-muted py-4">No hay facturas registradas.</td>
+							<td colspan="12" class="text-center text-muted py-4">No hay facturas registradas.</td>
 						</tr>
 					@endforelse
 				</tbody>
@@ -300,17 +361,18 @@
 	overflow-wrap: anywhere;
 }
 
-.invoice-table-responsive .app-list-table th:nth-child(1) { width: 7%; }
+.invoice-table-responsive .app-list-table th:nth-child(1) { width: 6%; }
 .invoice-table-responsive .app-list-table th:nth-child(2) { width: 7%; }
 .invoice-table-responsive .app-list-table th:nth-child(3) { width: 8%; }
 .invoice-table-responsive .app-list-table th:nth-child(4) { width: 7%; }
 .invoice-table-responsive .app-list-table th:nth-child(5) { width: 8%; }
-.invoice-table-responsive .app-list-table th:nth-child(6) { width: 11%; }
-.invoice-table-responsive .app-list-table th:nth-child(7) { width: 7%; }
-.invoice-table-responsive .app-list-table th:nth-child(8) { width: 15%; }
-.invoice-table-responsive .app-list-table th:nth-child(9) { width: 10%; }
-.invoice-table-responsive .app-list-table th:nth-child(10) { width: 10%; }
+.invoice-table-responsive .app-list-table th:nth-child(6) { width: 9%; }
+.invoice-table-responsive .app-list-table th:nth-child(7) { width: 6%; }
+.invoice-table-responsive .app-list-table th:nth-child(8) { width: 8%; }
+.invoice-table-responsive .app-list-table th:nth-child(9) { width: 12%; }
+.invoice-table-responsive .app-list-table th:nth-child(10) { width: 9%; }
 .invoice-table-responsive .app-list-table th:nth-child(11) { width: 10%; }
+.invoice-table-responsive .app-list-table th:nth-child(12) { width: 10%; }
 </style>
 @endpush
 
@@ -326,6 +388,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	const poFolioEl = document.getElementById('modalPurchaseOrderFolio');
 	const milestonesBlock = document.getElementById('modalMilestonesBlock');
 	const milestonesList = document.getElementById('modalMilestonesList');
+	const exportForm = document.getElementById('invoiceExportForm');
+	const exportSubmit = document.getElementById('invoiceExportSubmit');
 
 	function syncMilestoneBlock() {
 		if (!statusSelect || !milestonesBlock) return;
@@ -423,6 +487,31 @@ document.addEventListener('DOMContentLoaded', function () {
 				e.preventDefault();
 				alert('Para aprobar una factura debes seleccionar al menos un hito relacionado.');
 			}
+		});
+	}
+
+	if (exportForm && exportSubmit) {
+		function setExportButtonLoading(isLoading) {
+			exportSubmit.disabled = isLoading;
+			exportSubmit.querySelector('.js-export-default')?.classList.toggle('d-none', isLoading);
+			exportSubmit.querySelector('.js-export-loading')?.classList.toggle('d-none', !isLoading);
+		}
+
+		exportForm.addEventListener('submit', function () {
+			setExportButtonLoading(true);
+			const countdown = exportSubmit.querySelector('.js-export-countdown');
+			let secondsRemaining = 10;
+			if (countdown) countdown.textContent = secondsRemaining;
+
+			const countdownTimer = window.setInterval(function () {
+				secondsRemaining -= 1;
+				if (countdown) countdown.textContent = secondsRemaining;
+
+				if (secondsRemaining > 0) return;
+
+				window.clearInterval(countdownTimer);
+				setExportButtonLoading(false);
+			}, 1000);
 		});
 	}
 });

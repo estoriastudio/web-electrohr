@@ -66,11 +66,13 @@ Artisan::command('payments:backfill-from-milestones {--dry-run : Simula sin guar
     $this->line("Omitidos por falta de due_date: {$skippedNoDueDate}");
 })->purpose('Genera pagos faltantes para hitos existentes sin pago vinculado');
 
-function generateUniquePaymentFolio(): string
-{
-    do {
-        $folio = strtoupper('PAY-' . random_int(10000, 99999));
-    } while (Payment::where('folio', $folio)->exists());
+if (!function_exists('generateUniquePaymentFolio')) {
+    function generateUniquePaymentFolio(): string
+    {
+        do {
+            $folio = strtoupper('PAY-' . random_int(10000, 99999));
+        } while (Payment::where('folio', $folio)->exists());
 
-    return $folio;
+        return $folio;
+    }
 }
