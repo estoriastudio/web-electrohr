@@ -109,6 +109,16 @@
                             @error('supplier_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch"
+                                           id="is_destajo" name="is_destajo" value="1"
+                                           {{ old('is_destajo') ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-medium" for="is_destajo">OC de destajo</label>
+                                </div>
+                                <div class="form-text">Permite registrar nuevas condiciones de pago y pagos después de autorizar la OC.</div>
+                            </div>
+
                         {{-- Proyecto --}}
                         <div class="col-md-6">
                             <label for="project_id" class="form-label fw-medium">Proyecto</label>

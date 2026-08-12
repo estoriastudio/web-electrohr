@@ -58,14 +58,15 @@ class PurchaseOrderMilestone extends Model
     /**
      * Monto objetivo real del hito en la moneda de la OC.
      * - value_type = 'fijo':       devuelve value directamente.
-     * - value_type = 'porcentaje': devuelve (value / 100) * OC.amount.
+     * - value_type = 'porcentaje': devuelve (value / 100) * total neto de la OC.
      */
     public function getEffectiveAmountAttribute(): float
     {
         if ($this->value_type === 'porcentaje') {
-            $orderAmount = $this->relationLoaded('purchaseOrder')
-                ? (float) $this->purchaseOrder->amount
-                : (float) $this->purchaseOrder()->value('amount');
+            $purchaseOrder = $this->relationLoaded('purchaseOrder')
+                ? $this->purchaseOrder
+                : $this->purchaseOrder()->with('items')->first();
+            $orderAmount = (float) ($purchaseOrder?->total_with_iva ?? 0);
 
             return round($orderAmount * (float) $this->value / 100, 2);
         }

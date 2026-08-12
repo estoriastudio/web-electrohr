@@ -291,43 +291,44 @@
             @can('read')
             <li class="menu-title">Pagos</li>
 
-            @hasanyrole('admin|Pagos')
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
-                   href="{{ route('milestones.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-file-list-3-line"></i>
-                    </span>
-                    <span class="nav-text">Hitos</span>
-                </a>
-            </li>
-            @endhasanyrole
+                @hasanyrole('admin|Pagos')
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
+                    href="{{ route('milestones.index') }}">
+                        <span class="nav-icon">
+                            <i class="ri-file-list-3-line"></i>
+                        </span>
+                        <span class="nav-text">Hitos</span>
+                    </a>
+                </li>
+                
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.index') || request()->routeIs('payments.interactive') ? 'active' : '' }}"
-                   href="{{ route('payments.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-shield-check-line"></i>
-                    </span>
-                    <span class="nav-text">Autorizaciones</span>
-                    @if(($paymentsToAuthorizeCount ?? 0) > 0)
-                        <span class="badge bg-warning badge-pill">{{ $paymentsToAuthorizeCount }}</span>
-                    @endif
-                </a>
-            </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('payments.index') || request()->routeIs('payments.interactive') ? 'active' : '' }}"
+                    href="{{ route('payments.index') }}">
+                        <span class="nav-icon">
+                            <i class="ri-shield-check-line"></i>
+                        </span>
+                        <span class="nav-text">Autorizaciones</span>
+                        @if(($paymentsToAuthorizeCount ?? 0) > 0)
+                            <span class="badge bg-warning badge-pill">{{ $paymentsToAuthorizeCount }}</span>
+                        @endif
+                    </a>
+                </li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.payable') ? 'active' : '' }}"
-                   href="{{ route('payments.payable') }}">
-                    <span class="nav-icon">
-                        <i class="ri-money-dollar-circle-line"></i>
-                    </span>
-                    <span class="nav-text">Por Pagar</span>
-                    @if(($paymentsToPayCount ?? 0) > 0)
-                        <span class="badge bg-info badge-pill">{{ $paymentsToPayCount }}</span>
-                    @endif
-                </a>
-            </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('payments.payable') ? 'active' : '' }}"
+                    href="{{ route('payments.payable') }}">
+                        <span class="nav-icon">
+                            <i class="ri-money-dollar-circle-line"></i>
+                        </span>
+                        <span class="nav-text">Por Pagar</span>
+                        @if(($paymentsToPayCount ?? 0) > 0)
+                            <span class="badge bg-info badge-pill">{{ $paymentsToPayCount }}</span>
+                        @endif
+                    </a>
+                </li>
+                @endhasanyrole
 
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"

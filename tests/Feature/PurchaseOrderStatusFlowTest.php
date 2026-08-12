@@ -84,7 +84,44 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
     }
 
-    private function purchaseOrder(string $status): PurchaseOrder
+    public function test_purchase_order_role_cannot_add_milestone_to_authorized_non_destajo_order(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Orden de compra');
+        $purchaseOrder = $this->purchaseOrder('autorizada');
+
+        $this->actingAs($user)
+            ->post(route('milestones.store'), $this->milestoneData($purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder))
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('purchase_order_milestones', [
+            'purchase_order_id' => $purchaseOrder->id,
+        ]);
+    }
+
+    public function test_purchase_order_role_can_add_milestone_to_authorized_destajo_order(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Orden de compra');
+        $purchaseOrder = $this->purchaseOrder('autorizada', true);
+
+        $this->actingAs($user)
+            ->post(route('milestones.store'), $this->milestoneData($purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('purchase_order_milestones', [
+            'purchase_order_id' => $purchaseOrder->id,
+            'value_type' => 'porcentaje',
+            'value' => 10,
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'status' => 'por_autorizar',
+            'amount' => 100,
+        ]);
+    }
+
+    private function purchaseOrder(string $status, bool $isDestajo = false): PurchaseOrder
     {
         $supplier = Supplier::create([
             'rfc_name' => 'Proveedor de prueba',
@@ -95,9 +132,21 @@ class PurchaseOrderStatusFlowTest extends TestCase
             'type' => 'materiales_servicios',
             'supplier_id' => $supplier->id,
             'currency' => 'MXN',
-            'amount' => 0,
+            'amount' => 1000,
             'status' => $status,
+            'is_destajo' => $isDestajo,
             'recurrence_type' => 'unico',
         ]);
+    }
+
+    private function milestoneData(PurchaseOrder $purchaseOrder): array
+    {
+        return [
+            'purchase_order_id' => $purchaseOrder->id,
+            'payment_condition' => 'credito',
+            'value_type' => 'porcentaje',
+            'value' => 10,
+            'due_date' => '2026-09-01',
+        ];
     }
 }

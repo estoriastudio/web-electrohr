@@ -98,9 +98,11 @@ class PurchaseOrderMilestoneController extends Controller
         ]);
 
         $purchaseOrder = PurchaseOrder::findOrFail((int) $validated['purchase_order_id']);
-        if ($purchaseOrder->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+        if ($purchaseOrder->status === 'autorizada'
+            && !$purchaseOrder->is_destajo
+            && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
-                ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+                ->with('error', 'Solo admin puede agregar hitos a una OC autorizada que no es destajo.');
         }
 
         $this->ensureMilestoneValueIsWithinOrderTotal(

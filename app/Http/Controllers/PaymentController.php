@@ -282,6 +282,11 @@ class PaymentController extends Controller
                 ->with('error', 'No se enviaron cambios para actualizar el pago.');
         }
 
+        if ($hasSpeiFile && $payment->status !== 'autorizado') {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado.');
+        }
+
         if ($hasSpeiFile) {
             $file = $request->file('spei_receipt_file');
             $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) $payment->folio));
@@ -305,18 +310,20 @@ class PaymentController extends Controller
         }
 
         if (!$hasStatusChange) {
+            $payment->status = 'pagado';
             $payment->save();
+            $milestone->increment('covered_amount', $payment->amount);
 
             $this->notification->send([
                 'type'         => 'Payment',
                 'action_by'    => Auth::id(),
                 'model_action' => 'update',
                 'model_id'     => $payment->id,
-                'data'         => 'subió/actualizó el comprobante SPEI del pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
+                'data'         => 'registró el comprobante SPEI y marcó como pagado el pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
             ]);
 
             return redirect()->route('purchase_orders.show', $orderId)
-                ->with('success', 'Comprobante SPEI actualizado correctamente.');
+                ->with('success', 'Comprobante SPEI registrado y pago marcado como pagado.');
         }
 
         $previousStatus = $payment->status;

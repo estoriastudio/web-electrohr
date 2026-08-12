@@ -135,6 +135,7 @@ class PurchaseOrderController extends Controller
         $rules = [
             'folio'                => 'nullable|integer',
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
+            'is_destajo'           => 'boolean',
             'supplier_id'          => 'required|exists:suppliers,id',
             'site'                 => 'nullable|string|max:255',
             'currency'             => 'required|in:MXN,USD,EUR',
@@ -172,6 +173,7 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+        $validated['is_destajo'] = $request->boolean('is_destajo');
 
         $supplier = Supplier::findOrFail($validated['supplier_id']);
         $missingSupplierFields = $supplier->purchaseOrderMissingFields();
@@ -401,6 +403,7 @@ class PurchaseOrderController extends Controller
 
         $rules = [
             'type'                 => 'required|in:materiales_servicios,mantenimiento',
+            'is_destajo'           => 'boolean',
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
             'tax_rate'             => 'required|in:0,8,16,exempt',
@@ -425,6 +428,7 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+    $validated['is_destajo'] = $request->boolean('is_destajo');
         $validated['status'] = $purchaseOrder->status;
 
         $selectedWorkIds = collect($validated['project_work_ids'] ?? [])

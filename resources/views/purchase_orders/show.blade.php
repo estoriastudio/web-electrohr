@@ -52,6 +52,7 @@
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
+    $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
     $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
     $groupedEvidences = $purchaseOrder->evidences
@@ -69,7 +70,7 @@
 @endphp
 
 {{-- ── FLUJO DE EMISIÓN Y AUTORIZACIÓN ── --}}
-@if (in_array($purchaseOrder->status, ['emitida', 'pendiente', 'autorizada']))
+@if (in_array($purchaseOrder->status, ['emitida', 'pendiente']))
     <div id="purchaseOrderApproveAlert" class="alert {{ $purchaseOrder->status === 'autorizada' ? 'alert-success' : ($purchaseOrder->status === 'emitida' ? 'alert-warning' : 'alert-info') }} alert-dismissible d-flex align-items-start gap-3 mb-3 oc-approve-alert" role="alert">
         <i class="{{ $purchaseOrder->status === 'autorizada' ? 'ri-checkbox-circle-line text-success' : ($purchaseOrder->status === 'emitida' ? 'ri-shield-check-line text-warning' : 'ri-send-plane-line text-info') }} fs-22 mt-1"></i>
         <div class="flex-grow-1">
@@ -85,7 +86,7 @@
                         ? 'Requiere revisión y aprobación de un administrador antes de proceder con los pagos.'
                         : 'Compras debe emitirla antes de enviarla a autorización.') }}
             </p>
-            @if ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada')
+            @if ($isAdmin && ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada'))
             <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                 <span class="badge bg-dark-subtle text-dark py-1 px-2 fs-12">
                     Pendientes por autorizar: {{ $pendingAuthCount ?? 0 }}
@@ -145,6 +146,11 @@
                         </h5>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">{{ $tipoLabel }}</span>
+                            @if ($purchaseOrder->is_destajo)
+                                <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
+                                    <i class="ri-hammer-line me-1"></i>Destajo
+                                </span>
+                            @endif
                             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
                             <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
                                 <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
@@ -202,15 +208,19 @@
                         </div>
                     </div>
                     <div class="d-flex flex-column gap-2">
+                        @if ($purchaseOrder->status === 'emitida')
                         <button type="button" class="btn btn-sm btn-outline-danger"
                                 data-bs-toggle="modal" data-bs-target="#modalPdfAnnexes">
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
                         </button>
+                        @endif
                         @hasanyrole('admin|Solmat|Orden de compra')
+                        @if ($purchaseOrder->status === 'autorizada')
                         <button type="button" class="btn btn-sm btn-outline-success"
                                 data-bs-toggle="modal" data-bs-target="#modalDeliveryStatus">
                             <i class="ri-truck-line me-1"></i> Cambiar entrega
                         </button>
+                        @endif
                         @endhasanyrole
                         @hasanyrole('admin|Orden de compra')
                         @if ($canModifyPurchaseOrder)
@@ -222,9 +232,11 @@
                             <i class="ri-lock-line me-1"></i>OC Autorizada
                         </span>
                         @endif
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
-                            <i class="ri-add-line me-1"></i> Agregar condición de pago
-                        </button>
+                        @if ($canCreateMilestone)
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
+                                <i class="ri-add-line me-1"></i> Agregar condición de pago
+                            </button>
+                        @endif
                         @endhasanyrole
                     </div>
                 </div>
@@ -1015,6 +1027,7 @@
 
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
+                                                        @if ($payment->status === 'autorizado')
                                                         <li>
                                                             <button type="button" class="dropdown-item"
                                                                     data-bs-toggle="modal"
@@ -1023,6 +1036,7 @@
                                                                 {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI' }}
                                                             </button>
                                                         </li>
+                                                        @endif
                                                         @endhasanyrole
 
                                                         {{-- SPEI: ver --}}
@@ -1069,6 +1083,7 @@
 
                         @hasanyrole('admin|Pagos')
                         @foreach ($milestone->payments as $payment)
+                        @if ($payment->status === 'autorizado')
                         <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content">
@@ -1106,6 +1121,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
                         @endforeach
                         @endhasanyrole
                     @else
@@ -1636,7 +1652,6 @@
     </div>
     @endif
     @endhasanyrole
-
 @endforeach
 
 {{-- MODAL Subir Factura --}}
@@ -1748,7 +1763,7 @@
 
 {{-- MODAL Crear Hito --}}
 @hasanyrole('admin|Orden de compra')
-@if ($canModifyPurchaseOrder)
+@if ($canCreateMilestone)
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -2629,7 +2644,7 @@
 
 $(function () {
     // Abrir modal de hito si hay errores de validación relacionados
-    @if ($errors->hasBag('default') && old('purchase_order_id') && $canModifyPurchaseOrder)
+    @if ($errors->hasBag('default') && old('purchase_order_id') && $canCreateMilestone)
         var modal = new bootstrap.Modal(document.getElementById('modalCreateMilestone'));
         modal.show();
     @endif
