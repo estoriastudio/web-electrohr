@@ -123,4 +123,24 @@ class MaterialRequest extends Model
 
         return ($this->total_committed_quantity / $this->total_requested_quantity) * 100;
     }
+
+    public function hasAvailableQuantityForProjectWorks(): bool
+    {
+        $projectWorkIds = $this->projectWorks
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id);
+
+        return $this->items->contains(function (MaterialRequestItem $item) use ($projectWorkIds) {
+            if ($item->relationLoaded('workQuantities') && $item->workQuantities->isNotEmpty()) {
+                return (float) $item->workQuantities
+                    ->filter(fn (MaterialRequestItemProjectWork $workQuantity) =>
+                        $projectWorkIds->contains((int) $workQuantity->project_work_id)
+                        && !$workQuantity->is_committed
+                    )
+                    ->sum('quantity') > 0;
+            }
+
+            return (float) $item->quantity > 0;
+        });
+    }
 }
