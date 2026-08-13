@@ -16,6 +16,17 @@
     </div>
 @endif
 
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <ul class="mb-0">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @php
     $persistedSelectedIds = collect(data_get($selectionState ?? [], 'selected_ids', []))
         ->map(fn ($id) => (int) $id)
@@ -146,6 +157,7 @@
                                 @php
                                     $committedPercent = $mr->committed_percent;
                                     $isFullyCommitted = $mr->total_requested_quantity > 0 && $committedPercent >= 100;
+                                    $hasAvailableQuantity = $mr->hasAvailableQuantityForProjectWorks();
                                     $commitmentClass = $isFullyCommitted
                                         ? 'bg-danger-subtle text-danger'
                                         : ($committedPercent > 0 ? 'bg-warning-subtle text-warning' : 'bg-light text-muted border');
@@ -236,6 +248,11 @@
                                                 <button type="button" class="btn btn-light btn-sm" disabled
                                                         title="Todos los conceptos de esta SOLMAT están comprometidos">
                                                     <i class="ri-lock-line me-1"></i>Sin saldo
+                                                </button>
+                                            @elseif (!$hasAvailableQuantity)
+                                                <button type="button" class="btn btn-light btn-sm" disabled
+                                                        title="Esta SOLMAT no tiene conceptos disponibles para crear una SOLCOM">
+                                                    <i class="ri-file-forbid-line me-1"></i>Sin conceptos
                                                 </button>
                                             @else
                                                 <a href="{{ route('purchase_requests.create_from_solmat', $mr) }}"

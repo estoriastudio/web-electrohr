@@ -883,13 +883,9 @@ class PurchaseRequestController extends Controller
 
     private function renderCreateFromSolmatView(Collection $sourceMaterialRequests, bool $clearSolmatPileSelectionOnSuccess = false)
     {
-        $sourceMaterialRequests = $sourceMaterialRequests->filter(function ($materialRequest) {
-            $allWorkIds = $materialRequest->projectWorks->pluck('id')->map(fn ($id) => (int) $id);
-
-            return $materialRequest->items->contains(function ($item) use ($allWorkIds) {
-                return $this->resolveItemQuantityForWorks($item, $allWorkIds) > 0;
-            });
-        })->values();
+        $sourceMaterialRequests = $sourceMaterialRequests
+            ->filter(fn (MaterialRequest $materialRequest) => $materialRequest->hasAvailableQuantityForProjectWorks())
+            ->values();
 
         if ($sourceMaterialRequests->isEmpty()) {
             throw ValidationException::withMessages([
