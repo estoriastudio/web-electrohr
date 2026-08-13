@@ -65,8 +65,30 @@ class PurchaseOrderMilestone extends Model
         if ($this->value_type === 'porcentaje') {
             $purchaseOrder = $this->relationLoaded('purchaseOrder')
                 ? $this->purchaseOrder
-                : $this->purchaseOrder()->with('items')->first();
+                : $this->purchaseOrder()->with(['items', 'milestones'])->first();
+            if ($purchaseOrder
+                && (!$purchaseOrder->relationLoaded('items') || !$purchaseOrder->relationLoaded('milestones'))) {
+                $purchaseOrder->loadMissing(['items', 'milestones']);
+            }
             $orderAmount = (float) ($purchaseOrder?->total_with_iva ?? 0);
+
+            $percentageMilestones = $purchaseOrder?->relationLoaded('milestones')
+                ? $purchaseOrder->milestones->where('value_type', 'porcentaje')->sortBy('id')->values()
+                : collect();
+            $percentageTotal = (float) $percentageMilestones->sum('value');
+            $lastPercentageMilestone = $percentageMilestones->last();
+            $isLastPercentageMilestone = $lastPercentageMilestone === $this
+                || ($this->getKey() !== null && $lastPercentageMilestone?->getKey() === $this->getKey());
+
+            if ($percentageMilestones->isNotEmpty()
+                && abs($percentageTotal - 100) < 0.0001
+                && $isLastPercentageMilestone) {
+                $previousAmounts = $percentageMilestones
+                    ->slice(0, -1)
+                    ->sum(fn (self $milestone) => round($orderAmount * (float) $milestone->value / 100, 2));
+
+                return round($orderAmount - $previousAmounts, 2);
+            }
 
             return round($orderAmount * (float) $this->value / 100, 2);
         }
