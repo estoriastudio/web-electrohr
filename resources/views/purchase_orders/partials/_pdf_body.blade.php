@@ -58,6 +58,22 @@
     </tr>
 </table>
 
+<!-- FILA 2B: Trazabilidad de folios -->
+<table width="100%" cellpadding="4" cellspacing="0" border="1" class="section section-joined avoid-break">
+    <tr>
+        <td style="padding: 5px 8px; border: 1px solid #999;">
+            <strong>Trazabilidad:</strong>
+            @if ($sourceSolmatFolios->isNotEmpty())
+                SOLMAT {{ $sourceSolmatFolios->map(fn ($folio) => '#' . $folio)->implode(', ') }}
+            @else
+                Sin SOLMAT de origen
+            @endif
+            -> SOLCOM #{{ $po->purchaseRequest?->folio ?? '—' }}
+            -> OC #{{ $po->folio ?? $po->id }}
+        </td>
+    </tr>
+</table>
+
 <!-- FILA 3: Lugar de entrega + Solicita -->
 <table width="100%" cellpadding="4" cellspacing="0" border="1" class="section section-joined avoid-break">
     <tr>

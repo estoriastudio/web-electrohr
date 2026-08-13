@@ -25,11 +25,18 @@ class AdminController extends Controller
         // Valores por defecto (se rellenan según el rol)
         $totalPendientePago             = 0.0;
         $totalPorAutorizar              = 0.0;
+        $totalPagado                    = 0.0;
+        $paymentTotalsByCurrency        = [
+            'por_autorizar' => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
+            'autorizado'    => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
+            'pagado'        => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
+        ];
         $chartLabels                    = [];
         $chartValues                    = [];
         $top5PorAutorizar               = collect();
         $urgencyLabels                  = [];
         $urgencyValues                  = [];
+        $totalImporteHitosVencidos       = 0.0;
         $top5Urgencias                  = collect();
         $solcomSearch                   = null;
         $solcomPendientes               = collect();
@@ -42,6 +49,18 @@ class AdminController extends Controller
         if ($user->hasAnyRole(['admin', 'Pagos'])) {
             $totalPendientePago = (float) Payment::where('status', 'autorizado')->sum('amount');
             $totalPorAutorizar  = (float) Payment::where('status', 'por_autorizar')->sum('amount');
+            $totalPagado        = (float) Payment::where('status', 'pagado')->sum('amount');
+
+            Payment::query()
+                ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+                ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+                ->whereIn('payments.status', array_keys($paymentTotalsByCurrency))
+                ->selectRaw('payments.status, purchase_orders.currency, SUM(payments.amount) AS total')
+                ->groupBy('payments.status', 'purchase_orders.currency')
+                ->get()
+                ->each(function ($paymentTotal) use (&$paymentTotalsByCurrency): void {
+                    $paymentTotalsByCurrency[$paymentTotal->status][$paymentTotal->currency] = (float) $paymentTotal->total;
+                });
 
             $porAutorizarRows = Payment::join(
                     'purchase_order_milestones',
@@ -86,12 +105,13 @@ class AdminController extends Controller
 
             PurchaseOrderMilestone::whereNotNull('due_date')
                 ->whereColumn('covered_amount', '<', 'value')
-                ->get(['due_date'])
-                ->each(function ($ms) use (&$urgencyData, $today) {
+                ->get(['due_date', 'value', 'covered_amount'])
+                ->each(function ($ms) use (&$urgencyData, &$totalImporteHitosVencidos, $today) {
                     $due = $ms->due_date;
 
                     if ($due->lt($today)) {
                         $urgencyData['Vencido']++;
+                        $totalImporteHitosVencidos += max(0, (float) $ms->value - (float) $ms->covered_amount);
                     } elseif ($due->lte($today->copy()->addDays(7))) {
                         $urgencyData['Esta semana']++;
                     } elseif ($due->lte($today->copy()->addDays(30))) {
@@ -147,7 +167,7 @@ class AdminController extends Controller
             // ── OCs vencidas en tiempos de entrega ─────────────────────────
             $ocsVencidasEntrega = PurchaseOrder::where('status', 'autorizada')
                 ->whereNull('archived_at')
-                ->with(['supplier', 'purchaseRequest.materialRequest', 'items'])
+                ->with(['supplier', 'purchaseRequest.assignedTo', 'purchaseRequest.materialRequest', 'items'])
                 ->whereHas('items', function ($q) {
                     $q->whereNotNull('delivery_date')
                       ->whereRaw("delivery_date < CURDATE()");
@@ -156,9 +176,9 @@ class AdminController extends Controller
         }
 
         return view('index', compact(
-            'totalPendientePago', 'totalPorAutorizar',
+            'totalPendientePago', 'totalPorAutorizar', 'totalPagado', 'paymentTotalsByCurrency',
             'chartLabels', 'chartValues', 'top5PorAutorizar',
-            'urgencyLabels', 'urgencyValues', 'top5Urgencias',
+            'urgencyLabels', 'urgencyValues', 'totalImporteHitosVencidos', 'top5Urgencias',
             'solcomSearch', 'solcomPendientes',
             'ocsPendientesAutorizar',
             'ocsPendientesEntregarSitio', 'ocsPendientesEntregarElectrohr',

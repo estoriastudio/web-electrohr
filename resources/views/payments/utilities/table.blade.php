@@ -1,7 +1,19 @@
+@php
+    $selectedAuthorizationPaymentIds = collect(data_get($authorizationSelectionState ?? [], 'selected_ids', []))
+        ->map(fn ($id) => (int) $id)
+        ->all();
+@endphp
+
 <div class="table-responsive">
     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
         <thead class="bg-light-subtle">
             <tr>
+                @role('admin')
+                <th style="width:44px;">
+                    <input type="checkbox" class="form-check-input" id="selectAllAuthorizationPayments"
+                           title="Seleccionar todos los pagos">
+                </th>
+                @endrole
                 <th>Semáforo</th>
                 <th>Orden de Compra</th>
                 <th>Proveedor</th>
@@ -57,6 +69,13 @@
                     $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
                 @endphp
                 <tr>
+                    @role('admin')
+                    <td>
+                        <input type="checkbox" class="form-check-input js-authorization-payment-select"
+                               value="{{ $payment->id }}" aria-label="Seleccionar pago {{ $payment->folio }}"
+                               @checked(in_array($payment->id, $selectedAuthorizationPaymentIds, true))>
+                    </td>
+                    @endrole
                     <td>
                         <span class="badge {{ $trafficLight['class'] }} py-1 px-2 fs-12">
                             <i class="ri-checkbox-blank-circle-fill me-1" style="color: {{ $trafficLight['dot'] }};"></i>
@@ -154,7 +173,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-5">
+                    <td colspan="{{ auth()->user()->hasRole('admin') ? 9 : 8 }}" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

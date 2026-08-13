@@ -97,8 +97,8 @@
             </div>
 
             <div class="card-body border-bottom py-3">
-                <form method="GET" action="{{ route('payments.payable') }}" class="d-flex gap-2" id="payableSearchForm">
-                    <div class="input-group input-group-sm">
+                <form method="GET" action="{{ route('payments.payable') }}" class="d-flex flex-wrap gap-2" id="payableSearchForm">
+                    <div class="input-group input-group-sm" style="min-width:260px; flex:1 1 320px;">
                         <span class="input-group-text bg-light">
                             <i class="ri-search-line text-muted"></i>
                         </span>
@@ -113,6 +113,12 @@
                         @endif
                         <button type="submit" class="btn btn-primary">Buscar</button>
                     </div>
+                    <select name="currency" class="form-select form-select-sm" style="max-width:170px;" aria-label="Filtrar por moneda">
+                        <option value="">Todas las monedas</option>
+                        <option value="MXN" @selected($currency === 'MXN')>MXN</option>
+                        <option value="USD" @selected($currency === 'USD')>USD</option>
+                        <option value="EUR" @selected($currency === 'EUR')>EUR</option>
+                    </select>
                 </form>
             </div>
 

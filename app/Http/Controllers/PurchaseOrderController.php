@@ -102,6 +102,31 @@ class PurchaseOrderController extends Controller
         ));
     }
 
+    public function overdueDeliveries(): View
+    {
+        $orders = PurchaseOrder::query()
+            ->select('purchase_orders.*')
+            ->selectSub(
+                PurchaseOrderItem::query()
+                    ->selectRaw('MIN(delivery_date)')
+                    ->whereColumn('purchase_order_items.purchase_order_id', 'purchase_orders.id')
+                    ->whereNotNull('delivery_date')
+                    ->whereRaw('delivery_date < CURDATE()'),
+                'oldest_overdue_delivery_date'
+            )
+            ->where('purchase_orders.status', 'autorizada')
+            ->whereNull('purchase_orders.archived_at')
+            ->with(['supplier', 'purchaseRequest.assignedTo', 'purchaseRequest.materialRequest', 'items'])
+            ->whereHas('items', function ($query) {
+                $query->whereNotNull('delivery_date')
+                    ->whereRaw('delivery_date < CURDATE()');
+            })
+            ->orderBy('oldest_overdue_delivery_date')
+            ->paginate(25);
+
+        return view('purchase_orders.overdue_deliveries', compact('orders'));
+    }
+
     public function create(): View
     {
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
@@ -987,6 +1012,7 @@ class PurchaseOrderController extends Controller
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
+            'purchaseRequest.materialRequests',
         ]);
 
         $pdf = Pdf::loadView('purchase_orders.pdf', compact('purchaseOrder'))
@@ -1047,6 +1073,7 @@ class PurchaseOrderController extends Controller
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
+            'purchaseRequest.materialRequests',
         ]);
 
         $filename = 'OC-' . ($purchaseOrder->folio ?? $purchaseOrder->id);

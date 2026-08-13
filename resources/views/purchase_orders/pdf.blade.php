@@ -59,6 +59,16 @@
         $po->supplier?->state,
     ]));
 
+    $sourceSolmats = $po->purchaseRequest?->materialRequests ?? collect();
+    if ($sourceSolmats->isEmpty() && $po->purchaseRequest?->materialRequest) {
+        $sourceSolmats = collect([$po->purchaseRequest->materialRequest]);
+    }
+    $sourceSolmatFolios = $sourceSolmats
+        ->pluck('folio')
+        ->filter(fn ($folio) => $folio !== null && $folio !== '')
+        ->sort()
+        ->values();
+
     $tipoHitoMap = ['anticipo' => 'Anticipo', 'regular' => 'Pago Regular'];
 @endphp
 <!DOCTYPE html>

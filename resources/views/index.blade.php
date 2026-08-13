@@ -30,6 +30,16 @@
             max-width: 46rem;
             padding: 52px 0;
         }
+
+        .payment-indicator-card {
+            cursor: pointer;
+            transition: box-shadow .2s ease, transform .2s ease;
+        }
+
+        .payment-indicator-card:hover {
+            box-shadow: 0 .75rem 1.5rem rgba(15, 23, 42, .1);
+            transform: translateY(-2px);
+        }
     </style>
 @endpush
 
@@ -65,46 +75,88 @@
 @if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
 <div class="row">
 
-    {{-- Tarjeta 1: Total acumulado pendiente de pago --}}
-    <div class="col-md-6">
-        <div class="card">
+    {{-- Tarjeta 1: Pagos autorizados pendientes de pago --}}
+    <div class="col-md-4">
+        <a href="{{ route('payments.payable') }}" class="card payment-indicator-card text-reset text-decoration-none">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <p class="text-muted mb-1 fs-13">Pendiente de Pago</p>
-                        <h3 class="mb-0 fw-bold">
-                            $ {{ number_format($totalPendientePago, 2) }}
-                        </h3>
-                        <small class="text-muted">Pagos autorizados sin liquidar</small>
+                        @foreach($paymentTotalsByCurrency['autorizado'] as $currency => $total)
+                            <div class="fw-bold">
+                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
+                                $ {{ number_format($total, 2) }}
+                            </div>
+                        @endforeach
+                        <small class="text-muted">Pagos autorizados sin liquidar, por moneda</small>
                     </div>
                     <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
                         <i class="ri-money-dollar-circle-line fs-24 text-success"></i>
                     </div>
                 </div>
+                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
+                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
+                    <i class="ri-arrow-right-line fs-18"></i>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Tarjeta 2: Total acumulado por autorizar --}}
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-md-4">
+        <a href="{{ route('payments.index') }}" class="card payment-indicator-card text-reset text-decoration-none">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <p class="text-muted mb-1 fs-13">Por Autorizar</p>
-                        <h3 class="mb-0 fw-bold">
-                            $ {{ number_format($totalPorAutorizar, 2) }}
-                        </h3>
-                        <small class="text-muted">Pagos en espera de autorización</small>
+                        @foreach($paymentTotalsByCurrency['por_autorizar'] as $currency => $total)
+                            <div class="fw-bold">
+                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
+                                $ {{ number_format($total, 2) }}
+                            </div>
+                        @endforeach
+                        <small class="text-muted">Pagos en espera de autorización, por moneda</small>
                     </div>
                     <div class="bg-warning-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
                         <i class="ri-time-line fs-24 text-warning"></i>
                     </div>
                 </div>
+                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
+                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
+                    <i class="ri-arrow-right-line fs-18"></i>
+                </div>
             </div>
-        </div>
+        </a>
+    </div>
+
+    {{-- Tarjeta 3: Total de pagos pagados --}}
+    <div class="col-md-4">
+        <a href="{{ route('payments.paid') }}" class="card payment-indicator-card text-reset text-decoration-none">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-muted mb-1 fs-13">Total Pagado</p>
+                        @foreach($paymentTotalsByCurrency['pagado'] as $currency => $total)
+                            <div class="fw-bold">
+                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
+                                $ {{ number_format($total, 2) }}
+                            </div>
+                        @endforeach
+                        <small class="text-muted">Pagos liquidados, por moneda</small>
+                    </div>
+                    <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;">
+                        <i class="ri-check-double-line fs-24 text-primary"></i>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
+                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
+                    <i class="ri-arrow-right-line fs-18"></i>
+                </div>
+            </div>
+        </a>
     </div>
 
 </div>
@@ -115,15 +167,18 @@
 {{-- Bloque 2: Urgencias de OC — admin + orders                   --}}
 {{-- ============================================================ --}}
 @if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']) && array_sum($urgencyValues) > 0)
-<div class="row">
+<div class="row mb-3">
 
     {{-- Tarjeta 3: Gráfico de urgencias por vencimiento --}}
     <div class="col-xl-6">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
                     <h4 class="card-title mb-0">Urgencias por Vencimiento de OC</h4>
-                    <p class="text-muted fs-13 mb-0">Hitos pendientes de cubrir agrupados por plazo</p>
+                    <p class="text-muted fs-13 mb-0">
+                        Hitos pendientes de cubrir agrupados por plazo
+                        <span class="text-danger fw-medium ms-1">Importe vencido: $ {{ number_format($totalImporteHitosVencidos, 2) }}</span>
+                    </p>
                 </div>
             </div>
             <div class="card-body">
@@ -141,7 +196,7 @@
 
     {{-- Tarjeta 4: Top 5 urgencias más importantes --}}
     <div class="col-xl-6">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
                     <h4 class="card-title mb-0">Top 5 Hitos más Urgentes</h4>
@@ -171,9 +226,16 @@
                                 <tr>
                                     <td>
                                         <div class="fw-medium fs-14">
-                                            {{ $milestone->purchaseOrder?->supplier?->name ?? '—' }}
+                                            {{ $milestone->purchaseOrder?->supplier?->commercial_name ?: $milestone->purchaseOrder?->supplier?->rfc_name ?: '—' }}
                                         </div>
-                                        <small class="text-muted">OC #{{ $milestone->purchase_order_id }}</small>
+                                        @if($milestone->purchaseOrder)
+                                            <a href="{{ route('purchase_orders.show', $milestone->purchaseOrder) }}"
+                                               class="badge bg-secondary-subtle text-secondary text-decoration-none py-1 px-2 fs-12" title="Ver orden de compra">
+                                                <i class="ri-external-link-line me-1"></i>OC #{{ $milestone->purchaseOrder->folio ?? $milestone->purchase_order_id }}
+                                            </a>
+                                        @else
+                                            <small class="text-muted">OC #{{ $milestone->purchase_order_id }}</small>
+                                        @endif
                                     </td>
                                     <td>{{ $due->format('d/m/Y') }}</td>
                                     <td>$ {{ number_format($saldo, 2) }}</td>
@@ -212,9 +274,8 @@
 {{-- ============================================================ --}}
 @if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
 <div class="row">
-
     {{-- Tarjeta 5: Gráfica de pendientes de autorizar --}}
-    <div class="col-xl-6">
+    <div class="col-xl-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
@@ -234,84 +295,8 @@
             </div>
         </div>
     </div>
-
-    {{-- Tarjeta 6: Top 5 pagos pendientes por autorizar más urgentes --}}
-    <div class="col-xl-6">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
-                <div>
-                    <h4 class="card-title mb-0">Top 5 Pagos Urgentes por Autorizar</h4>
-                    <p class="text-muted fs-13 mb-0">Ordenados por vencimiento del hito</p>
-                </div>
-                <div>
-                    <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="ri-arrow-right-line me-1"></i> Ver todos
-                    </a>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Proveedor</th>
-                                <th>Monto</th>
-                                <th>Vencimiento</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php $today2 = \Carbon\Carbon::today(); @endphp
-                            @forelse ($top5PorAutorizar as $payment)
-                                @php
-                                    $msDue = $payment->milestone?->due_date;
-                                    if ($msDue) {
-                                        $isPastDue = $msDue->lt($today2);
-                                        $dDays     = (int) $msDue->diffInDays($today2);
-                                    }
-                                @endphp
-                                <tr>
-                                    <td class="fw-medium">{{ $payment->folio }}</td>
-                                    <td>
-                                        <div class="fw-medium fs-14">
-                                            {{ optional($payment->milestone?->purchaseOrder?->supplier)->name ?? '—' }}
-                                        </div>
-                                        <small class="text-muted">
-                                            OC #{{ $payment->milestone?->purchase_order_id ?? '—' }}
-                                        </small>
-                                    </td>
-                                    <td>$ {{ number_format($payment->amount, 2) }}</td>
-                                    <td>
-                                        @if(!$msDue)
-                                            <span class="text-muted">Sin fecha</span>
-                                        @elseif($isPastDue)
-                                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">Vencido</span>
-                                        @elseif($dDays === 0)
-                                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">Hoy</span>
-                                        @elseif($dDays <= 7)
-                                            <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">{{ $dDays }} días</span>
-                                        @else
-                                            <span class="badge bg-info-subtle text-info py-1 px-2 fs-12">{{ $dDays }} días</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
-                                        No hay pagos pendientes de autorización.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
 </div>
 @endif
-
 
 {{-- ============================================================ --}}
 {{-- Bloque 4: Vista Orden de Compra — admin + Orden de compra    --}}
@@ -690,7 +675,12 @@
                     </h4>
                     <p class="text-muted fs-13 mb-0">Órdenes autorizadas con fecha de entrega vencida</p>
                 </div>
-                <span class="badge bg-danger">{{ $ocsVencidasEntrega->count() }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-danger">{{ $ocsVencidasEntrega->count() }}</span>
+                    <a href="{{ route('purchase_orders.overdue_deliveries') }}" class="btn btn-sm btn-outline-danger">
+                        <i class="ri-arrow-right-line me-1"></i> Ver todas
+                    </a>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -699,13 +689,14 @@
                             <tr>
                                 <th>Folio</th>
                                 <th>Proveedor</th>
+                                <th>Comprador asignado</th>
                                 <th>Ubicación</th>
                                 <th>Fecha Entrega Vencida</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($ocsVencidasEntrega as $oc)
+                            @foreach($ocsVencidasEntrega->take(5) as $oc)
                                 @php
                                     $oldestOverdue = $oc->items
                                         ->whereNotNull('delivery_date')
@@ -722,7 +713,8 @@
                                 @endphp
                                 <tr>
                                     <td class="fw-semibold">#{{ $oc->folio ?? $oc->id }}</td>
-                                    <td>{{ $oc->supplier?->name ?? '—' }}</td>
+                                    <td>{{ $oc->supplier?->commercial_name ?: $oc->supplier?->rfc_name ?: '—' }}</td>
+                                    <td>{{ $oc->purchaseRequest?->assignedTo?->name ?? 'Sin asignar' }}</td>
                                     <td>
                                         @if($locType === 'electrohr')
                                             <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">

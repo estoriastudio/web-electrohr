@@ -227,6 +227,83 @@ class PaymentMultipleMilestoneTest extends TestCase
             ->assertSessionMissing('payments.payable.selection');
     }
 
+    public function test_admin_can_persist_and_authorize_multiple_pending_payments(): void
+    {
+        $firstMilestone = $this->milestoneWithInitialPayment();
+        $firstPayment = $firstMilestone->payments()->first();
+        $secondPayment = Payment::create([
+            'milestone_id' => $firstMilestone->id,
+            'folio' => 'PAY-' . random_int(10000, 99999),
+            'amount' => 1,
+            'payment_date' => '2026-09-15',
+            'status' => 'pospuesto',
+        ]);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $this->actingAs($admin)
+            ->postJson(route('payments.authorization.selection.sync'), [
+                'selected_ids' => [$firstPayment->id, $secondPayment->id],
+            ])
+            ->assertOk()
+            ->assertJson([
+                'selected_ids' => [$firstPayment->id, $secondPayment->id],
+                'selected_count' => 2,
+            ])
+            ->assertSessionHas('payments.authorization.selection.selected_ids', [$firstPayment->id, $secondPayment->id]);
+
+        $this->get(route('payments.index'))
+            ->assertOk()
+            ->assertViewHas('selectionState', function (array $selectionState) use ($firstPayment, $secondPayment) {
+                return $selectionState['selected_ids'] === [$firstPayment->id, $secondPayment->id]
+                    && $selectionState['selected_count'] === 2;
+            });
+
+        $this->post(route('payments.authorize_multiple'), [
+            'payment_ids' => [$firstPayment->id, $secondPayment->id],
+        ])
+            ->assertRedirect(route('payments.index'));
+
+        $this->assertDatabaseHas('payments', ['id' => $firstPayment->id, 'status' => 'autorizado']);
+        $this->assertDatabaseHas('payments', ['id' => $secondPayment->id, 'status' => 'autorizado']);
+        $this->assertSessionMissing('payments.authorization.selection');
+    }
+
+    public function test_dashboard_separates_payment_indicators_by_currency(): void
+    {
+        $mxnMilestone = $this->milestoneWithInitialPayment('MXN');
+        $usdMilestone = $this->milestoneWithInitialPayment('USD');
+        $mxnMilestone->payments()->first()->update(['status' => 'autorizado']);
+        $usdMilestone->payments()->first()->update(['status' => 'pagado']);
+
+        $this->actingAs($this->paymentsUser())
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertViewHas('paymentTotalsByCurrency', function (array $totals): bool {
+                return $totals['autorizado']['MXN'] === 1000.0
+                    && $totals['pagado']['USD'] === 1000.0
+                    && $totals['pagado']['MXN'] === 0.0;
+            });
+    }
+
+    public function test_paid_payments_can_be_filtered_by_currency(): void
+    {
+        $mxnMilestone = $this->milestoneWithInitialPayment('MXN');
+        $usdMilestone = $this->milestoneWithInitialPayment('USD');
+        $mxnPayment = $mxnMilestone->payments()->first();
+        $usdPayment = $usdMilestone->payments()->first();
+        $mxnPayment->update(['status' => 'pagado']);
+        $usdPayment->update(['status' => 'pagado']);
+
+        $this->actingAs($this->paymentsUser())
+            ->get(route('payments.paid', ['currency' => 'USD']))
+            ->assertOk()
+            ->assertViewHas('currency', 'USD')
+            ->assertViewHas('payments', function ($payments) use ($usdPayment): bool {
+                return $payments->count() === 1 && $payments->first()->is($usdPayment);
+            });
+    }
+
     private function paymentsUser(): User
     {
         $user = User::factory()->create();
@@ -235,14 +312,14 @@ class PaymentMultipleMilestoneTest extends TestCase
         return $user;
     }
 
-    private function milestoneWithInitialPayment(): PurchaseOrderMilestone
+    private function milestoneWithInitialPayment(string $currency = 'MXN'): PurchaseOrderMilestone
     {
         $supplier = Supplier::create(['rfc_name' => 'Proveedor de prueba']);
         $purchaseOrder = PurchaseOrder::create([
             'folio' => random_int(25000, 99999),
             'type' => 'materiales_servicios',
             'supplier_id' => $supplier->id,
-            'currency' => 'MXN',
+            'currency' => $currency,
             'amount' => 1000,
             'status' => 'autorizada',
             'recurrence_type' => 'unico',

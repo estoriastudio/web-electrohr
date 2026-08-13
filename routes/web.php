@@ -331,6 +331,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
+                ->name('purchase_orders.overdue_deliveries');
+        });
+
         // Papelera de OC — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::get('/ordenes-de-compra/eliminadas/papelera', [PurchaseOrderController::class, 'softDeleted'])->name('purchase_orders.soft_deleted');
@@ -387,6 +392,15 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
+            Route::get('/pagos/pagados', [PaymentController::class, 'paid'])->name('payments.paid');
+            Route::middleware('role:admin')->group(function () {
+                Route::post('/pagos/autorizar/seleccion/sincronizar', [PaymentController::class, 'syncAuthorizationSelection'])
+                    ->name('payments.authorization.selection.sync');
+                Route::post('/pagos/autorizar/seleccion/limpiar', [PaymentController::class, 'clearAuthorizationSelection'])
+                    ->name('payments.authorization.selection.clear');
+                Route::post('/pagos/autorizar/multiples', [PaymentController::class, 'authorizeMultiple'])
+                    ->name('payments.authorize_multiple');
+            });
             Route::post('/pagos/por-pagar/seleccion/sincronizar', [PaymentController::class, 'syncPayableSelection'])
                 ->name('payments.payable.selection.sync');
             Route::post('/pagos/por-pagar/seleccion/limpiar', [PaymentController::class, 'clearPayableSelection'])
