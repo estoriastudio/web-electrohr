@@ -172,10 +172,14 @@
                                 <span class="fw-medium text-dark">{{ $purchaseOrder->elaborated_by }}</span>
                             </p>
                         @endif
-                        @if ($purchaseOrder->type === 'materiales_servicios' && ($purchaseOrder->project || $purchaseOrder->site))
+                        @if ($purchaseOrder->projectRelation || $purchaseOrder->project || $purchaseOrder->site)
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
-                                @if ($purchaseOrder->project)<span><i class="ri-building-2-line me-1"></i>{{ $purchaseOrder->project }}</span>@endif
-                                @if ($purchaseOrder->project && $purchaseOrder->site) &nbsp;·&nbsp; @endif
+                                @if ($purchaseOrder->projectRelation)
+                                    <span><i class="ri-building-2-line me-1"></i>Proyecto: {{ $purchaseOrder->projectRelation->name }}</span>
+                                @elseif ($purchaseOrder->project)
+                                    <span><i class="ri-building-2-line me-1"></i>Proyecto: {{ $purchaseOrder->project }}</span>
+                                @endif
+                                @if (($purchaseOrder->projectRelation || $purchaseOrder->project) && $purchaseOrder->site) &nbsp;·&nbsp; @endif
                                 @if ($purchaseOrder->site)<span><i class="ri-tools-line me-1"></i>{{ $purchaseOrder->site }}</span>@endif
                             </p>
                         @endif

@@ -97,8 +97,8 @@ ELECTRO SERVICIOS HR, S.A. DE C.V.
 LA CONTRATADA
 
 \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_  
-Ing. Lorenzo León Chávez  
-HENGTONG GLOBAL BUSINESS CO., LTD.
+\[NOMBRE DE ACEPTACIÓN\]  
+\[NOMBRE DE LA CONTRATADA\]
 
        
                           

@@ -9,6 +9,8 @@ use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PaymentMultipleMilestoneTest extends TestCase
@@ -144,6 +146,85 @@ class PaymentMultipleMilestoneTest extends TestCase
             ->assertSessionHasErrors('milestone_id');
 
         $this->assertSame(1, $milestone->payments()->count());
+    }
+
+    public function test_payments_user_can_mark_multiple_authorized_payments_as_paid_with_one_spei(): void
+    {
+        Storage::fake('s3');
+
+        $firstMilestone = $this->milestoneWithInitialPayment();
+        $firstPayment = $firstMilestone->payments()->first();
+        $firstPayment->update(['status' => 'autorizado']);
+
+        $secondMilestone = PurchaseOrderMilestone::create([
+            'purchase_order_id' => $firstMilestone->purchase_order_id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 300,
+            'covered_amount' => 0,
+            'due_date' => '2026-09-15',
+        ]);
+        $secondPayment = Payment::create([
+            'milestone_id' => $secondMilestone->id,
+            'folio' => 'PAY-' . random_int(10000, 99999),
+            'amount' => 300,
+            'payment_date' => '2026-09-15',
+            'status' => 'autorizado',
+        ]);
+
+        $this->actingAs($this->paymentsUser())
+            ->post(route('payments.mark_multiple_paid_with_spei'), [
+                'payment_ids' => [$firstPayment->id, $secondPayment->id],
+                'spei_receipt_file' => UploadedFile::fake()->create('spei.pdf', 100, 'application/pdf'),
+            ])
+            ->assertRedirect(route('payments.payable'));
+
+        $firstPayment->refresh();
+        $secondPayment->refresh();
+
+        $this->assertSame('pagado', $firstPayment->status);
+        $this->assertSame('pagado', $secondPayment->status);
+        $this->assertNotNull($firstPayment->spei_receipt_path);
+        $this->assertSame($firstPayment->spei_receipt_path, $secondPayment->spei_receipt_path);
+        $this->assertSame($firstPayment->spei_receipt_name, $secondPayment->spei_receipt_name);
+        Storage::disk('s3')->assertExists($firstPayment->spei_receipt_path);
+        $this->assertSame(1000.0, (float) $firstMilestone->fresh()->covered_amount);
+        $this->assertSame(300.0, (float) $secondMilestone->fresh()->covered_amount);
+    }
+
+    public function test_payments_user_can_persist_and_clear_payable_selection_in_session(): void
+    {
+        $milestone = $this->milestoneWithInitialPayment();
+        $payment = $milestone->payments()->first();
+        $payment->update(['status' => 'autorizado']);
+        $user = $this->paymentsUser();
+
+        $this->actingAs($user)
+            ->postJson(route('payments.payable.selection.sync'), [
+                'selected_ids' => [$payment->id],
+            ])
+            ->assertOk()
+            ->assertJson([
+                'selected_ids' => [$payment->id],
+                'selected_count' => 1,
+            ])
+            ->assertSessionHas('payments.payable.selection.selected_ids', [$payment->id]);
+
+        $this->get(route('payments.payable'))
+            ->assertOk()
+            ->assertViewHas('selectionState', function (array $selectionState) use ($payment) {
+                return $selectionState['selected_ids'] === [$payment->id]
+                    && $selectionState['selected_count'] === 1;
+            });
+
+        $this->postJson(route('payments.payable.selection.clear'))
+            ->assertOk()
+            ->assertJson([
+                'selected_ids' => [],
+                'selected_count' => 0,
+            ])
+            ->assertSessionMissing('payments.payable.selection');
     }
 
     private function paymentsUser(): User

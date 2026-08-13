@@ -387,6 +387,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
+            Route::post('/pagos/por-pagar/seleccion/sincronizar', [PaymentController::class, 'syncPayableSelection'])
+                ->name('payments.payable.selection.sync');
+            Route::post('/pagos/por-pagar/seleccion/limpiar', [PaymentController::class, 'clearPayableSelection'])
+                ->name('payments.payable.selection.clear');
+            Route::post('/pagos/marcar-multiples-pagados', [PaymentController::class, 'markMultiplePaidWithSpei'])
+                ->name('payments.mark_multiple_paid_with_spei');
             Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
                 'create'  => 'payments.create',
                 'store'   => 'payments.store',
