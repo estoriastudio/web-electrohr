@@ -13,6 +13,7 @@ use App\Http\Controllers\PurchaseOrderEvidenceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\ProjectWorkEstimateController;
 use App\Http\Controllers\MaterialRequestController;
@@ -218,6 +219,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('projects.document.chunk.finalize');
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/abort', [ProjectController::class, 'abortChunkUpload'])
                 ->name('projects.document.chunk.abort');
+
+            Route::post('/proyectos/{project}/convenios', [ProjectAgreementController::class, 'store'])
+                ->name('projects.agreements.store');
+            Route::post('/proyectos/{project}/convenios/chunk/init', [ProjectAgreementController::class, 'initChunkUpload'])
+                ->name('projects.agreements.chunk.init');
+            Route::post('/proyectos/{project}/convenios/chunk/upload', [ProjectAgreementController::class, 'uploadChunk'])
+                ->name('projects.agreements.chunk.upload');
+            Route::post('/proyectos/{project}/convenios/chunk/finalize', [ProjectAgreementController::class, 'finalizeChunkUpload'])
+                ->name('projects.agreements.chunk.finalize');
+            Route::post('/proyectos/{project}/convenios/chunk/abort', [ProjectAgreementController::class, 'abortChunkUpload'])
+                ->name('projects.agreements.chunk.abort');
+            Route::get('/proyectos/{project}/convenios/{projectAgreement}/nombramientos', [ProjectAgreementController::class, 'downloadAppointments'])
+                ->name('projects.agreements.appointments.download');
 
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');

@@ -169,6 +169,75 @@
                 </tbody>
             </table>
         </div>
+        <div class="border-top">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 bg-light-subtle">
+                <div class="d-flex align-items-center gap-2">
+                    <h6 class="fw-semibold text-uppercase fs-12 text-muted mb-0">
+                        <i class="ri-file-edit-line me-1"></i>Convenios
+                    </h6>
+                    <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
+                </div>
+                @role('admin|Proyectos|Solmat')
+                    @if ($project->works->isNotEmpty())
+                        <button type="button" class="btn btn-sm btn-primary"
+                                data-bs-toggle="modal" data-bs-target="#modalCreateProjectAgreement">
+                            <i class="ri-add-line me-1"></i> Agregar nuevo convenio
+                        </button>
+                    @else
+                        <button type="button" class="btn btn-sm btn-primary" disabled title="Registra una obra antes de crear un convenio">
+                            <i class="ri-add-line me-1"></i> Agregar nuevo convenio
+                        </button>
+                    @endif
+                @endrole
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 table-centered">
+                    <thead>
+                        <tr>
+                            <th>Convenio</th>
+                            <th>Obras aplicables</th>
+                            <th>Importes</th>
+                            <th>Fechas</th>
+                            <th>Nombramientos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($project->agreements as $agreement)
+                            <tr>
+                                <td class="fw-semibold">{{ $agreement->agreement_number }}</td>
+                                <td class="fs-12 text-muted">
+                                    {{ $agreement->works->pluck('name')->implode(', ') }}
+                                </td>
+                                <td class="fs-12 text-muted">
+                                    <div>Contratado: $ {{ number_format((float) $agreement->contracted_amount, 2) }}</div>
+                                    <div>Vigente: $ {{ number_format((float) $agreement->current_amount, 2) }}</div>
+                                    <div class="fw-medium text-primary">Nuevo: $ {{ number_format((float) $agreement->new_amount, 2) }}</div>
+                                </td>
+                                <td class="fs-12 text-muted">
+                                    <div>Contratada: {{ $agreement->contracted_end_date->format('d/m/Y') }}</div>
+                                    <div>Vigente: {{ $agreement->current_end_date->format('d/m/Y') }}</div>
+                                    <div class="fw-medium text-primary">Nueva: {{ $agreement->new_end_date->format('d/m/Y') }}</div>
+                                    <div>Plazo: {{ $agreement->contracted_term_days }} días</div>
+                                </td>
+                                <td>
+                                    <a href="{{ route('projects.agreements.appointments.download', [$project, $agreement]) }}"
+                                       target="_blank" class="btn btn-light btn-sm" title="Ver nombramientos">
+                                        <i class="ri-file-download-line"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="ri-file-edit-line fs-24 d-block mb-1 opacity-50"></i>
+                                    No hay convenios registrados para este proyecto.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -228,6 +297,140 @@
         </div>
     @endforeach
 @endforeach
+@endrole
+
+@role('admin|Proyectos|Solmat')
+@php
+    $defaultAgreementAmount = number_format((float) ($project->current_agreement_value ?? $project->project_value), 2, '.', '');
+    $selectedAgreementWorkIds = old('work_ids', []);
+@endphp
+<div class="modal fade" id="modalCreateProjectAgreement" tabindex="-1" aria-labelledby="modalCreateProjectAgreementLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form action="{{ route('projects.agreements.store', $project) }}"
+                  class="js-project-agreement-form"
+                  data-chunk-init-url="{{ route('projects.agreements.chunk.init', $project) }}"
+                  data-chunk-upload-url="{{ route('projects.agreements.chunk.upload', $project) }}"
+                  data-chunk-finalize-url="{{ route('projects.agreements.chunk.finalize', $project) }}"
+                  data-chunk-abort-url="{{ route('projects.agreements.chunk.abort', $project) }}"
+                  method="POST" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="form_context" value="agreement">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCreateProjectAgreementLabel">
+                        <i class="ri-file-edit-line me-1"></i> Agregar nuevo convenio
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Obras aplicables <span class="text-danger">*</span></label>
+                        <div class="border rounded p-2 js-agreement-works @error('work_ids') border-danger @enderror">
+                            @foreach ($project->works as $work)
+                                <div class="form-check">
+                                    <input class="form-check-input js-agreement-work" type="checkbox"
+                                           name="work_ids[]" value="{{ $work->id }}" id="agreement_work_{{ $work->id }}"
+                                           data-contract-end-date="{{ $work->contract_end_date }}"
+                                           {{ in_array($work->id, $selectedAgreementWorkIds) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="agreement_work_{{ $work->id }}">{{ $work->name }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        @error('work_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="agreement_contracted_amount" class="form-label fw-medium">Importe contratado <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" class="form-control @error('contracted_amount') is-invalid @enderror"
+                                   id="agreement_contracted_amount" name="contracted_amount"
+                                   value="{{ old('contracted_amount', $defaultAgreementAmount) }}" required>
+                            @error('contracted_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="agreement_current_amount" class="form-label fw-medium">Importe vigente <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" class="form-control @error('current_amount') is-invalid @enderror"
+                                   id="agreement_current_amount" name="current_amount"
+                                   value="{{ old('current_amount', $defaultAgreementAmount) }}" required>
+                            @error('current_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="agreement_contracted_end_date" class="form-label fw-medium">Fecha fin contratada <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control js-agreement-reference-date @error('contracted_end_date') is-invalid @enderror"
+                                   id="agreement_contracted_end_date" name="contracted_end_date"
+                                   value="{{ old('contracted_end_date') }}" required>
+                            @error('contracted_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="agreement_contracted_term_days" class="form-label fw-medium">Plazo contratado (días) <span class="text-danger">*</span></label>
+                            <input type="number" min="0" step="1" class="form-control @error('contracted_term_days') is-invalid @enderror"
+                                   id="agreement_contracted_term_days" name="contracted_term_days"
+                                   value="{{ old('contracted_term_days') }}" required>
+                            @error('contracted_term_days')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="agreement_current_end_date" class="form-label fw-medium">Fecha fin vigente <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control js-agreement-reference-date @error('current_end_date') is-invalid @enderror"
+                                   id="agreement_current_end_date" name="current_end_date"
+                                   value="{{ old('current_end_date') }}" required>
+                            @error('current_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="agreement_number" class="form-label fw-medium">Número de convenio <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('agreement_number') is-invalid @enderror"
+                                   id="agreement_number" name="agreement_number"
+                                   value="{{ old('agreement_number') }}" required>
+                            @error('agreement_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="agreement_new_amount" class="form-label fw-medium">Importe nuevo <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" class="form-control @error('new_amount') is-invalid @enderror"
+                                   id="agreement_new_amount" name="new_amount" value="{{ old('new_amount') }}" required>
+                            @error('new_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="agreement_new_end_date" class="form-label fw-medium">Fecha fin nueva <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control @error('new_end_date') is-invalid @enderror"
+                                   id="agreement_new_end_date" name="new_end_date" value="{{ old('new_end_date') }}" required>
+                            @error('new_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="agreement_appointments_file" class="form-label fw-medium">
+                            Nombramientos <span class="text-danger">*</span>
+                            <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 100 MB, carga por partes)</span>
+                        </label>
+                        <input type="file" class="form-control @error('appointments_file') is-invalid @enderror"
+                               id="agreement_appointments_file" name="appointments_file"
+                               accept=".pdf,.jpg,.jpeg,.png" required>
+                        @error('appointments_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="progress mt-3 js-upload-progress-wrap d-none" style="height: 8px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated js-upload-progress"
+                                 role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="form-text mt-2 js-upload-status text-muted d-none"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-save-line me-1"></i> Guardar convenio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endrole
 
 
@@ -637,6 +840,133 @@
                 });
             });
 
+            document.querySelectorAll('.js-project-agreement-form').forEach(function (form) {
+                var referenceDates = form.querySelectorAll('.js-agreement-reference-date');
+
+                function updateReferenceDates() {
+                    var dates = Array.from(form.querySelectorAll('.js-agreement-work:checked'))
+                        .map(function (work) { return work.dataset.contractEndDate; })
+                        .filter(Boolean)
+                        .sort();
+
+                    if (!dates.length) {
+                        return;
+                    }
+
+                    referenceDates.forEach(function (input) {
+                        input.value = dates[0];
+                    });
+                }
+
+                form.querySelectorAll('.js-agreement-work').forEach(function (work) {
+                    work.addEventListener('change', updateReferenceDates);
+                });
+                updateReferenceDates();
+
+                form.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
+                    if (form.dataset.uploading === '1') {
+                        return;
+                    }
+
+                    var fileInput = form.querySelector('input[name="appointments_file"]');
+                    var submitBtn = form.querySelector('button[type="submit"]');
+                    var file = fileInput?.files?.[0];
+                    if (!file) {
+                        setUploadStatus(form, 'Selecciona el archivo de nombramientos para continuar.', true);
+                        return;
+                    }
+
+                    var workIds = Array.from(form.querySelectorAll('.js-agreement-work:checked'))
+                        .map(function (work) { return work.value; });
+                    if (!workIds.length) {
+                        setUploadStatus(form, 'Selecciona al menos una obra aplicable.', true);
+                        return;
+                    }
+
+                    var uploadId = null;
+                    form.dataset.uploading = '1';
+                    submitBtn.disabled = true;
+
+                    try {
+                        setUploadProgress(form, 1);
+                        setUploadStatus(form, 'Iniciando carga por partes...', false);
+
+                        var initData = await postJson(form.dataset.chunkInitUrl, {
+                            work_ids: workIds,
+                            contracted_amount: form.querySelector('[name="contracted_amount"]').value,
+                            current_amount: form.querySelector('[name="current_amount"]').value,
+                            contracted_end_date: form.querySelector('[name="contracted_end_date"]').value,
+                            contracted_term_days: form.querySelector('[name="contracted_term_days"]').value,
+                            current_end_date: form.querySelector('[name="current_end_date"]').value,
+                            agreement_number: form.querySelector('[name="agreement_number"]').value,
+                            new_amount: form.querySelector('[name="new_amount"]').value,
+                            new_end_date: form.querySelector('[name="new_end_date"]').value,
+                            filename: file.name,
+                            size: file.size,
+                        });
+
+                        uploadId = initData.upload_id;
+                        var chunkSize = initData.chunk_size || (5 * 1024 * 1024);
+                        var maxParallel = initData.max_parallel || 3;
+                        var totalParts = Math.ceil(file.size / chunkSize);
+                        var uploadedBytes = 0;
+                        var nextPartNumber = 1;
+
+                        async function uploadWorker() {
+                            while (true) {
+                                var partNumber = nextPartNumber;
+                                nextPartNumber += 1;
+                                if (partNumber > totalParts) {
+                                    return;
+                                }
+
+                                var start = (partNumber - 1) * chunkSize;
+                                var end = Math.min(start + chunkSize, file.size);
+                                var chunk = file.slice(start, end);
+                                var chunkPayload = new FormData();
+                                chunkPayload.append('upload_id', uploadId);
+                                chunkPayload.append('chunk_number', String(partNumber - 1));
+                                chunkPayload.append('chunk', chunk, 'chunk_' + (partNumber - 1));
+
+                                await postChunk(form.dataset.chunkUploadUrl, chunkPayload);
+
+                                uploadedBytes += chunk.size;
+                                var progress = Math.min(99, Math.round((uploadedBytes / file.size) * 100));
+                                setUploadProgress(form, progress);
+                                setUploadStatus(form, 'Subiendo: ' + progress + '%', false);
+                            }
+                        }
+
+                        var workers = [];
+                        var workerCount = Math.min(maxParallel, totalParts);
+                        for (var index = 0; index < workerCount; index++) {
+                            workers.push(uploadWorker());
+                        }
+
+                        await Promise.all(workers);
+                        setUploadStatus(form, 'Finalizando carga...', false);
+                        await postJson(form.dataset.chunkFinalizeUrl, { upload_id: uploadId });
+
+                        setUploadProgress(form, 100);
+                        setUploadStatus(form, 'Convenio registrado correctamente. Actualizando vista...', false);
+                        window.location.reload();
+                    } catch (error) {
+                        if (uploadId) {
+                            try {
+                                await postJson(form.dataset.chunkAbortUrl, { upload_id: uploadId });
+                            } catch (abortError) {
+                            }
+                        }
+
+                        setUploadStatus(form, error.message || 'No se pudo registrar el convenio.', true);
+                        submitBtn.disabled = false;
+                        form.dataset.uploading = '0';
+                    }
+                });
+            });
+
             // Rotar chevron al expandir/colapsar cada categoría
             document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function (trigger) {
                 var target = trigger.getAttribute('data-bs-target');
@@ -653,7 +983,18 @@
         });
     </script>
 
-    @if ($errors->any())
+    @if (old('form_context') === 'agreement')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalElement = document.getElementById('modalCreateProjectAgreement');
+                if (!modalElement || typeof bootstrap === 'undefined') {
+                    return;
+                }
+
+                bootstrap.Modal.getOrCreateInstance(modalElement).show();
+            });
+        </script>
+    @elseif ($errors->any())
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 var modalElement = document.getElementById('modalCreateWork');
