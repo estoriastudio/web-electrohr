@@ -14,6 +14,7 @@ use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectWorkController;
+use App\Http\Controllers\ProjectWorkEstimateController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\MaterialVoucherController;
 use App\Http\Controllers\PurchaseRequestController;
@@ -59,6 +60,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     ->name('invoices.create');
                 Route::post('/ordenes-compra/{purchaseOrder}/facturas', [SupplierPortalInvoiceController::class, 'store'])
                     ->name('invoices.store');
+                Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/nota-credito/editar', [SupplierPortalInvoiceController::class, 'editCreditNote'])
+                    ->whereNumber('purchaseOrder')
+                    ->whereNumber('invoice')
+                    ->name('invoices.credit_note.edit');
+                Route::patch('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/nota-credito', [SupplierPortalInvoiceController::class, 'updateCreditNote'])
+                    ->whereNumber('purchaseOrder')
+                    ->whereNumber('invoice')
+                    ->name('invoices.credit_note.update');
                 Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/archivo/{type}', [SupplierPortalInvoiceController::class, 'downloadFile'])
                     ->whereNumber('purchaseOrder')
                     ->whereNumber('invoice')
@@ -225,6 +234,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['obras' => 'project_work'],
             ]);
+
+            Route::post('/obras/{projectWork}/estimaciones', [ProjectWorkEstimateController::class, 'store'])
+                ->name('estimates.store');
+            Route::put('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'update'])
+                ->name('estimates.update');
+            Route::delete('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'destroy'])
+                ->name('estimates.destroy');
         });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra

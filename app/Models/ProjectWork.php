@@ -25,4 +25,9 @@ class ProjectWork extends Model
     {
         return $this->hasMany(PurchaseOrder::class, 'project_work_id');
     }
+
+    public function estimates(): HasMany
+    {
+        return $this->hasMany(ProjectWorkEstimate::class);
+    }
 }

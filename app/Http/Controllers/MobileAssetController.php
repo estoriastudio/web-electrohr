@@ -36,15 +36,10 @@ class MobileAssetController extends Controller
         $mobileAssets = MobileAsset::with('documents')
             ->where('type', $type)
             ->when($search, function ($q) use ($search) {
-                $q->where(function ($sub) use ($search) {
-                    $sub->where('name', 'like', '%' . $search . '%')
-                        ->orWhere('folio', 'like', '%' . $search . '%')
-                        ->orWhere('brand', 'like', '%' . $search . '%')
-                        ->orWhere('model', 'like', '%' . $search . '%');
-                });
+                $q->where('folio', $search);
             })
             ->orderByRaw('folio IS NULL')
-            ->orderBy('folio')
+            ->orderByRaw('CAST(folio AS UNSIGNED)')
             ->orderBy('name')
             ->paginate(24)
             ->withQueryString();
