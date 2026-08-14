@@ -23,7 +23,7 @@
 
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('payments.paid') }}" class="row g-2">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light">
                                 <i class="ri-search-line text-muted"></i>
@@ -42,9 +42,16 @@
                             <option value="EUR" @selected($currency === 'EUR')>EUR</option>
                         </select>
                     </div>
+                    <div class="col-md-2">
+                        <select name="payment_condition" class="form-select form-select-sm" aria-label="Filtrar por condición de pago">
+                            <option value="">Crédito y contado</option>
+                            <option value="credito" @selected($paymentCondition === 'credito')>Crédito</option>
+                            <option value="contado" @selected($paymentCondition === 'contado')>Contado</option>
+                        </select>
+                    </div>
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-                        @if ($search || $currency)
+                        @if ($search || $currency || $paymentCondition)
                             <a href="{{ route('payments.paid') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>

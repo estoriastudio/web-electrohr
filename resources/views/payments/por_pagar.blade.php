@@ -119,6 +119,11 @@
                         <option value="USD" @selected($currency === 'USD')>USD</option>
                         <option value="EUR" @selected($currency === 'EUR')>EUR</option>
                     </select>
+                    <select name="payment_condition" class="form-select form-select-sm" style="max-width:170px;" aria-label="Filtrar por condición de pago">
+                        <option value="">Crédito y contado</option>
+                        <option value="credito" @selected($paymentCondition === 'credito')>Crédito</option>
+                        <option value="contado" @selected($paymentCondition === 'contado')>Contado</option>
+                    </select>
                 </form>
             </div>
 

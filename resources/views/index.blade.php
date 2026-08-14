@@ -32,7 +32,6 @@
         }
 
         .payment-indicator-card {
-            cursor: pointer;
             transition: box-shadow .2s ease, transform .2s ease;
         }
 
@@ -73,92 +72,164 @@
 {{-- Bloque 1: Indicadores de Pagos — admin + Pagos            --}}
 {{-- ============================================================ --}}
 @if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
-<div class="row">
+@php $paymentCurrencies = ['MXN', 'USD', 'EUR']; @endphp
+<div class="row mb-3">
 
     {{-- Tarjeta 1: Pagos autorizados pendientes de pago --}}
     <div class="col-md-4">
-        <a href="{{ route('payments.payable') }}" class="card payment-indicator-card text-reset text-decoration-none">
+        <div class="card payment-indicator-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
-                    <div>
+                    <div class="pe-2">
                         <p class="text-muted mb-1 fs-13">Pendiente de Pago</p>
-                        @foreach($paymentTotalsByCurrency['autorizado'] as $currency => $total)
-                            <div class="fw-bold">
-                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
-                                $ {{ number_format($total, 2) }}
-                            </div>
-                        @endforeach
-                        <small class="text-muted">Pagos autorizados sin liquidar, por moneda</small>
+                        <small class="text-muted">Autorizados sin liquidar</small>
                     </div>
                     <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
                         <i class="ri-money-dollar-circle-line fs-24 text-success"></i>
                     </div>
                 </div>
-                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
-                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
-                    <i class="ri-arrow-right-line fs-18"></i>
+
+                <ul class="nav nav-tabs nav-fill mt-3" role="tablist" aria-label="Moneda de pagos pendientes">
+                    @foreach($paymentCurrencies as $currency)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1 fs-12 {{ $loop->first ? 'active' : '' }}"
+                                    data-bs-toggle="tab" data-bs-target="#payable-{{ $currency }}" type="button" role="tab">
+                                {{ $currency }}
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+                <div class="tab-content pt-3">
+                    @foreach($paymentCurrencies as $currency)
+                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="payable-{{ $currency }}" role="tabpanel">
+                            @foreach(['credito' => 'Crédito', 'contado' => 'Contado'] as $condition => $label)
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="text-muted fs-13">{{ $label }}</span>
+                                    <a href="{{ route('payments.payable', ['currency' => $currency, 'payment_condition' => $condition]) }}"
+                                       class="fw-bold text-decoration-none" title="Ver pagos {{ strtolower($label) }} en {{ $currency }}">
+                                        $ {{ number_format($paymentTotalsByCondition['autorizado'][$currency][$condition], 2) }}
+                                        <i class="ri-arrow-right-up-line ms-1"></i>
+                                    </a>
+                                </div>
+                            @endforeach
+                            <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
+                                <span class="fw-medium">Total</span>
+                                <a href="{{ route('payments.payable', ['currency' => $currency]) }}" class="fw-bold text-success text-decoration-none" title="Ver pagos pendientes en {{ $currency }}">
+                                    $ {{ number_format($paymentTotalsByCurrency['autorizado'][$currency], 2) }}
+                                    <i class="ri-filter-3-line ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-        </a>
+        </div>
     </div>
 
     {{-- Tarjeta 2: Total acumulado por autorizar --}}
     <div class="col-md-4">
-        <a href="{{ route('payments.index') }}" class="card payment-indicator-card text-reset text-decoration-none">
+        <div class="card payment-indicator-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
-                    <div>
+                    <div class="pe-2">
                         <p class="text-muted mb-1 fs-13">Por Autorizar</p>
-                        @foreach($paymentTotalsByCurrency['por_autorizar'] as $currency => $total)
-                            <div class="fw-bold">
-                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
-                                $ {{ number_format($total, 2) }}
-                            </div>
-                        @endforeach
-                        <small class="text-muted">Pagos en espera de autorización, por moneda</small>
+                        <small class="text-muted">Pendientes de autorización</small>
                     </div>
                     <div class="bg-warning-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
                         <i class="ri-time-line fs-24 text-warning"></i>
                     </div>
                 </div>
-                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
-                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
-                    <i class="ri-arrow-right-line fs-18"></i>
+
+                <ul class="nav nav-tabs nav-fill mt-3" role="tablist" aria-label="Moneda de pagos por autorizar">
+                    @foreach($paymentCurrencies as $currency)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1 fs-12 {{ $loop->first ? 'active' : '' }}"
+                                    data-bs-toggle="tab" data-bs-target="#to-authorize-{{ $currency }}" type="button" role="tab">
+                                {{ $currency }}
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+                <div class="tab-content pt-3">
+                    @foreach($paymentCurrencies as $currency)
+                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="to-authorize-{{ $currency }}" role="tabpanel">
+                            @foreach(['credito' => 'Crédito', 'contado' => 'Contado'] as $condition => $label)
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="text-muted fs-13">{{ $label }}</span>
+                                    <a href="{{ route('payments.index', ['currency' => $currency, 'payment_condition' => $condition]) }}"
+                                       class="fw-bold text-decoration-none" title="Ver pagos {{ strtolower($label) }} por autorizar en {{ $currency }}">
+                                        $ {{ number_format($paymentTotalsByCondition['por_autorizar'][$currency][$condition], 2) }}
+                                        <i class="ri-arrow-right-up-line ms-1"></i>
+                                    </a>
+                                </div>
+                            @endforeach
+                            <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
+                                <span class="fw-medium">Total</span>
+                                <a href="{{ route('payments.index', ['currency' => $currency]) }}" class="fw-bold text-warning text-decoration-none" title="Ver pagos por autorizar en {{ $currency }}">
+                                    $ {{ number_format($paymentTotalsByCurrency['por_autorizar'][$currency], 2) }}
+                                    <i class="ri-filter-3-line ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-        </a>
+        </div>
     </div>
 
     {{-- Tarjeta 3: Total de pagos pagados --}}
     <div class="col-md-4">
-        <a href="{{ route('payments.paid') }}" class="card payment-indicator-card text-reset text-decoration-none">
+        <div class="card payment-indicator-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
-                    <div>
+                    <div class="pe-2">
                         <p class="text-muted mb-1 fs-13">Total Pagado</p>
-                        @foreach($paymentTotalsByCurrency['pagado'] as $currency => $total)
-                            <div class="fw-bold">
-                                <span class="badge bg-secondary-subtle text-secondary me-1">{{ $currency }}</span>
-                                $ {{ number_format($total, 2) }}
-                            </div>
-                        @endforeach
-                        <small class="text-muted">Pagos liquidados, por moneda</small>
+                        <small class="text-muted">Pagos liquidados</small>
                     </div>
                     <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
                         <i class="ri-check-double-line fs-24 text-primary"></i>
                     </div>
                 </div>
-                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top text-primary fs-13 fw-medium">
-                    <span><i class="ri-filter-3-line me-1"></i>Ver detalle filtrado</span>
-                    <i class="ri-arrow-right-line fs-18"></i>
+
+                <ul class="nav nav-tabs nav-fill mt-3" role="tablist" aria-label="Moneda de pagos liquidados">
+                    @foreach($paymentCurrencies as $currency)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1 fs-12 {{ $loop->first ? 'active' : '' }}"
+                                    data-bs-toggle="tab" data-bs-target="#paid-{{ $currency }}" type="button" role="tab">
+                                {{ $currency }}
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+                <div class="tab-content pt-3">
+                    @foreach($paymentCurrencies as $currency)
+                        <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="paid-{{ $currency }}" role="tabpanel">
+                            @foreach(['credito' => 'Crédito', 'contado' => 'Contado'] as $condition => $label)
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="text-muted fs-13">{{ $label }}</span>
+                                    <a href="{{ route('payments.paid', ['currency' => $currency, 'payment_condition' => $condition]) }}"
+                                       class="fw-bold text-decoration-none" title="Ver pagos {{ strtolower($label) }} liquidados en {{ $currency }}">
+                                        $ {{ number_format($paymentTotalsByCondition['pagado'][$currency][$condition], 2) }}
+                                        <i class="ri-arrow-right-up-line ms-1"></i>
+                                    </a>
+                                </div>
+                            @endforeach
+                            <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
+                                <span class="fw-medium">Total</span>
+                                <a href="{{ route('payments.paid', ['currency' => $currency]) }}" class="fw-bold text-primary text-decoration-none" title="Ver pagos liquidados en {{ $currency }}">
+                                    $ {{ number_format($paymentTotalsByCurrency['pagado'][$currency], 2) }}
+                                    <i class="ri-filter-3-line ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-        </a>
+        </div>
     </div>
-
 </div>
 @endif
 

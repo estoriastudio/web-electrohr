@@ -43,11 +43,17 @@ class PaymentController extends Controller
             ? $dueDateFilter
             : '';
         $currency = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
         $selectionState = Auth::user()->hasRole('admin')
             ? $this->getAuthorizationSelectionState($request)
             : ['selected_ids' => [], 'selected_count' => 0];
 
-        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+        $payments = Payment::with([
+            'milestone.purchaseOrder.supplier',
+            'milestone.purchaseOrder.projectRelation',
+            'milestone.purchaseOrder.workRelation',
+            'milestone.purchaseOrder.milestones:id,purchase_order_id,payment_condition',
+        ])
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
@@ -56,6 +62,7 @@ class PaymentController extends Controller
             ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
             ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
@@ -91,7 +98,7 @@ class PaymentController extends Controller
             ])
             ->get();
 
-        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'selectionState'));
+        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState'));
     }
 
     public function syncAuthorizationSelection(Request $request): \Illuminate\Http\JsonResponse
@@ -125,6 +132,7 @@ class PaymentController extends Controller
         $urgentDate = Carbon::now()->addDays(7);
         $search     = trim($request->input('search', ''));
         $currency   = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
         $selectionState = $this->getPayableSelectionState($request);
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
@@ -135,6 +143,7 @@ class PaymentController extends Controller
             ->select('payments.*')
             ->where('payments.status', 'autorizado')
             ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
@@ -153,13 +162,14 @@ class PaymentController extends Controller
             ", [$urgentDate->toDateString()])
             ->get();
 
-        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search', 'currency', 'selectionState'));
+        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search', 'currency', 'paymentCondition', 'selectionState'));
     }
 
     public function paid(Request $request): View
     {
-        $search   = trim($request->input('search', ''));
-        $currency = $this->selectedCurrency($request);
+        $search           = trim($request->input('search', ''));
+        $currency         = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
             ->has('milestone.purchaseOrder')
@@ -169,6 +179,7 @@ class PaymentController extends Controller
             ->select('payments.*')
             ->where('payments.status', 'pagado')
             ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
@@ -182,7 +193,7 @@ class PaymentController extends Controller
             ->orderByDesc('payments.id')
             ->get();
 
-        return view('payments.paid', compact('payments', 'search', 'currency'));
+        return view('payments.paid', compact('payments', 'search', 'currency', 'paymentCondition'));
     }
 
     public function syncPayableSelection(Request $request): \Illuminate\Http\JsonResponse
@@ -689,6 +700,13 @@ class PaymentController extends Controller
         $currency = strtoupper(trim((string) $request->input('currency', '')));
 
         return in_array($currency, self::SUPPORTED_CURRENCIES, true) ? $currency : '';
+    }
+
+    private function selectedPaymentCondition(Request $request): string
+    {
+        $paymentCondition = trim((string) $request->input('payment_condition', ''));
+
+        return in_array($paymentCondition, ['credito', 'contado'], true) ? $paymentCondition : '';
     }
 
     private function getAuthorizationSelectionState(Request $request): array

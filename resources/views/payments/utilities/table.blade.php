@@ -31,6 +31,14 @@
                     $order      = $milestone->purchaseOrder;
                     $supplier   = $order->supplier;
                     $supplierName = $supplier->rfc_name ?? $supplier->commercial_name ?? '—';
+                    $paymentConditions = $order->milestones
+                        ->pluck('payment_condition')
+                        ->filter()
+                        ->unique()
+                        ->values();
+                    $paymentConditionLabel = $paymentConditions->count() > 1
+                        ? 'Ambas'
+                        : ($paymentConditions->first() === 'contado' ? 'Contado' : 'Crédito');
                     $proj = $order->projectRelation?->name ?? $order->project ?? null;
                     $obra = $order->workRelation?->name ?? $order->site ?? null;
                     $today       = \Carbon\Carbon::today();
@@ -86,6 +94,8 @@
                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-decoration-none" title="Ver OC #{{ $order->folio ?? '—' }}">
                             <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">OC #{{ $order->folio ?? '—' }}</span>
                         </a>
+                        <br>
+                        <small class="badge bg-info-subtle text-info fs-10 mt-1">{{ $paymentConditionLabel }}</small>
                     </td>
                     <td>
                         <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark fw-medium text-decoration-none">

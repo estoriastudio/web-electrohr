@@ -81,7 +81,7 @@
                                autocomplete="off">
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <select name="due_date_filter" class="form-select form-select-sm" aria-label="Filtrar por vencimiento">
                             <option value="">Todos los vencimientos</option>
                             <option value="overdue" @selected($dueDateFilter === 'overdue')>Vencidos</option>
@@ -99,9 +99,16 @@
                             <option value="EUR" @selected($currency === 'EUR')>EUR</option>
                         </select>
                     </div>
+                    <div class="col-md-2">
+                        <select name="payment_condition" class="form-select form-select-sm" aria-label="Filtrar por condición de pago">
+                            <option value="">Crédito y contado</option>
+                            <option value="credito" @selected($paymentCondition === 'credito')>Crédito</option>
+                            <option value="contado" @selected($paymentCondition === 'contado')>Contado</option>
+                        </select>
+                    </div>
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-                        @if ($search || $dueDateFilter || $currency)
+                        @if ($search || $dueDateFilter || $currency || $paymentCondition)
                             <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>

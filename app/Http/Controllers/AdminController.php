@@ -31,6 +31,23 @@ class AdminController extends Controller
             'autorizado'    => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
             'pagado'        => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
         ];
+        $paymentTotalsByCondition = [
+            'por_autorizar' => [
+                'MXN' => ['credito' => 0.0, 'contado' => 0.0],
+                'USD' => ['credito' => 0.0, 'contado' => 0.0],
+                'EUR' => ['credito' => 0.0, 'contado' => 0.0],
+            ],
+            'autorizado' => [
+                'MXN' => ['credito' => 0.0, 'contado' => 0.0],
+                'USD' => ['credito' => 0.0, 'contado' => 0.0],
+                'EUR' => ['credito' => 0.0, 'contado' => 0.0],
+            ],
+            'pagado' => [
+                'MXN' => ['credito' => 0.0, 'contado' => 0.0],
+                'USD' => ['credito' => 0.0, 'contado' => 0.0],
+                'EUR' => ['credito' => 0.0, 'contado' => 0.0],
+            ],
+        ];
         $chartLabels                    = [];
         $chartValues                    = [];
         $top5PorAutorizar               = collect();
@@ -55,11 +72,16 @@ class AdminController extends Controller
                 ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
                 ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
                 ->whereIn('payments.status', array_keys($paymentTotalsByCurrency))
-                ->selectRaw('payments.status, purchase_orders.currency, SUM(payments.amount) AS total')
-                ->groupBy('payments.status', 'purchase_orders.currency')
+                ->selectRaw('payments.status, purchase_orders.currency, purchase_order_milestones.payment_condition, SUM(payments.amount) AS total')
+                ->groupBy('payments.status', 'purchase_orders.currency', 'purchase_order_milestones.payment_condition')
                 ->get()
-                ->each(function ($paymentTotal) use (&$paymentTotalsByCurrency): void {
-                    $paymentTotalsByCurrency[$paymentTotal->status][$paymentTotal->currency] = (float) $paymentTotal->total;
+                ->each(function ($paymentTotal) use (&$paymentTotalsByCurrency, &$paymentTotalsByCondition): void {
+                    $total = (float) $paymentTotal->total;
+                    $paymentTotalsByCurrency[$paymentTotal->status][$paymentTotal->currency] += $total;
+
+                    if (isset($paymentTotalsByCondition[$paymentTotal->status][$paymentTotal->currency][$paymentTotal->payment_condition])) {
+                        $paymentTotalsByCondition[$paymentTotal->status][$paymentTotal->currency][$paymentTotal->payment_condition] = $total;
+                    }
                 });
 
             $porAutorizarRows = Payment::join(
@@ -176,7 +198,7 @@ class AdminController extends Controller
         }
 
         return view('index', compact(
-            'totalPendientePago', 'totalPorAutorizar', 'totalPagado', 'paymentTotalsByCurrency',
+            'totalPendientePago', 'totalPorAutorizar', 'totalPagado', 'paymentTotalsByCurrency', 'paymentTotalsByCondition',
             'chartLabels', 'chartValues', 'top5PorAutorizar',
             'urgencyLabels', 'urgencyValues', 'totalImporteHitosVencidos', 'top5Urgencias',
             'solcomSearch', 'solcomPendientes',
