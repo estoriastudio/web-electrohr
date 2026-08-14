@@ -157,13 +157,13 @@
             {{-- Barra de filtros --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('purchase_orders.index') }}" class="row g-2 align-items-end">
-                    {{-- Búsqueda por proveedor --}}
+                    {{-- Búsqueda por proveedor o proyecto --}}
                     <div class="col-md-5">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                             <input type="text" name="search" value="{{ $search }}"
                                    class="form-control"
-                                   placeholder="Buscar por proveedor…"
+                                placeholder="Buscar por proveedor, proyecto o folio…"
                                    autocomplete="off">
                         </div>
                     </div>

@@ -211,6 +211,80 @@ class SupplierPortalInvoiceController extends Controller
             ->with('success', 'Factura registrada correctamente para la orden de compra.');
     }
 
+    public function editCreditNote(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderInvoice $invoice)
+    {
+        $supplier = $request->user()->supplier;
+
+        abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
+        abort_unless((int) $invoice->purchase_order_id === (int) $purchaseOrder->id, 404);
+        abort_unless($purchaseOrder->status === 'autorizada', 403);
+
+        return view('supplier_portal.edit_invoice_credit_note', compact('supplier', 'purchaseOrder', 'invoice'));
+    }
+
+    public function updateCreditNote(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderInvoice $invoice): RedirectResponse
+    {
+        $supplier = $request->user()->supplier;
+
+        abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
+        abort_unless((int) $invoice->purchase_order_id === (int) $purchaseOrder->id, 404);
+        abort_unless($purchaseOrder->status === 'autorizada', 403);
+
+        $validated = $request->validate([
+            'credit_note_amount' => ['required', 'numeric', 'min:0.01'],
+            'credit_note_pdf_file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+            'credit_note_xml_file' => ['required', 'file', 'mimes:xml,text/xml', 'max:10240'],
+        ]);
+
+        $creditNoteAmount = round((float) $validated['credit_note_amount'], 2);
+        $netScope = round((float) $invoice->amount - $creditNoteAmount, 2);
+
+        if ($netScope <= 0) {
+            return redirect()->back()->withInput()->withErrors([
+                'credit_note_amount' => 'El alcance líquido debe ser mayor a 0.00. Verifica que el importe de la nota de crédito no sea igual o mayor al importe de la factura.',
+            ]);
+        }
+
+        $invoicedAmountExcludingCurrent = $this->resolveInvoicedAmount($purchaseOrder, $invoice->id);
+        $availableAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmountExcludingCurrent);
+
+        if ($netScope > $availableAmount) {
+            return redirect()->back()->withInput()->withErrors([
+                'credit_note_amount' => 'El alcance líquido no puede exceder el saldo disponible de la orden de compra (' . number_format($availableAmount, 2) . ' ' . $purchaseOrder->currency . ').',
+            ]);
+        }
+
+        $baseName = $this->sanitizeFileToken((string) ($invoice->folio ?: ('OC' . $purchaseOrder->id . '-FACT' . $invoice->id)));
+        $directory = 'invoices/' . $purchaseOrder->id;
+        $creditNotePdfName = $baseName . '-NC.pdf';
+        $creditNoteXmlName = $baseName . '-NC.xml';
+        $creditNotePdfPath = $request->file('credit_note_pdf_file')->storeAs($directory, $creditNotePdfName);
+        $creditNoteXmlPath = $request->file('credit_note_xml_file')->storeAs($directory, $creditNoteXmlName);
+
+        DB::transaction(function () use (
+            $invoice,
+            $creditNoteAmount,
+            $netScope,
+            $creditNotePdfName,
+            $creditNotePdfPath,
+            $creditNoteXmlName,
+            $creditNoteXmlPath
+        ) {
+            $invoice->update([
+                'credit_note_file_name' => $creditNotePdfName,
+                'credit_note_file_path' => $creditNotePdfPath,
+                'credit_note_xml_file_name' => $creditNoteXmlName,
+                'credit_note_xml_file_path' => $creditNoteXmlPath,
+                'credit_note_amount' => $creditNoteAmount,
+                'net_scope' => $netScope,
+                'status' => PurchaseOrderInvoice::STATUS_EN_PROCESO,
+            ]);
+        });
+
+        return redirect()->route('supplier_portal.purchase_orders.index')
+            ->with('success', 'La nota de crédito se guardó y la factura quedó pendiente de validación.');
+    }
+
     private function extractInvoiceMetadataFromXml(string $xmlPath): array
     {
         $raw = @file_get_contents($xmlPath);
@@ -317,10 +391,13 @@ class SupplierPortalInvoiceController extends Controller
         );
     }
 
-    private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder): float
+    private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder, ?int $excludedInvoiceId = null): float
     {
         return (float) $purchaseOrder->invoices()
             ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+            ->when($excludedInvoiceId !== null, function ($query) use ($excludedInvoiceId) {
+                $query->whereKeyNot($excludedInvoiceId);
+            })
             ->selectRaw('COALESCE(SUM(COALESCE(net_scope, amount)), 0) as total')
             ->value('total');
     }

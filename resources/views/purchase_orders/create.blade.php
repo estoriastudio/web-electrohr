@@ -173,12 +173,26 @@
 
                             {{-- Obra --}}
                             <div class="col-md-6">
-                                <label for="project_work_id" class="form-label fw-medium">Obra</label>
-                                <select class="form-control @error('project_work_id') is-invalid @enderror"
-                                        id="project_work_id" name="project_work_id">
-                                    <option value="">Seleccionar obra...</option>
-                                </select>
-                                @error('project_work_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <label class="form-label fw-medium">Obras a cubrir <span class="text-danger">*</span></label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <button type="button" class="btn btn-sm btn-light" id="btn_select_all_material_works">
+                                        <i class="ri-checkbox-multiple-line me-1"></i>Seleccionar todas
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_all_material_works">
+                                        <i class="ri-checkbox-blank-line me-1"></i>Limpiar selección
+                                    </button>
+                                </div>
+                                <div id="material_selected_works_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                    Debes seleccionar al menos una obra para crear la OC.
+                                </div>
+                                <div id="material_project_works" class="border rounded-2 p-2" style="max-height: 220px; overflow-y: auto;">
+                                    <p class="text-muted fs-12 mb-0">Selecciona un proyecto para ver sus obras.</p>
+                                </div>
+                                <div class="text-muted fs-12 mt-2">
+                                    Seleccionadas: <strong id="material_selected_works_badge">0</strong>
+                                </div>
+                                @error('project_work_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @error('project_work_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
 
                             {{-- Preview conceptos SOLCOM --}}
@@ -211,7 +225,7 @@
                     {{-- ── Sección Mantenimiento ──────────────────────────────────────────── --}}
                     <div id="section-mantenimiento" class="col-12" style="display:none;">
                         <div class="row g-3">
-                            <div class="col-md-8">
+                            <div class="col-md-4">
                                 <label for="mobile_asset_id" class="form-label fw-medium">Bien Móvil <span class="text-danger">*</span></label>
                                 <select class="form-control @error('mobile_asset_id') is-invalid @enderror"
                                         id="mobile_asset_id" name="mobile_asset_id">
@@ -223,6 +237,41 @@
                                     @endforeach
                                 </select>
                                 @error('mobile_asset_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label for="maintenance_project_id" class="form-label fw-medium">Proyecto <span class="text-danger">*</span></label>
+                                <select class="form-control @error('project_id') is-invalid @enderror"
+                                        id="maintenance_project_id" name="project_id" disabled required>
+                                    <option value="">Seleccionar proyecto...</option>
+                                    @foreach ($projects as $proj)
+                                        <option value="{{ $proj->id }}" {{ old('project_id') == $proj->id ? 'selected' : '' }}>
+                                            {{ $proj->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('project_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium">Obras a cubrir <span class="text-danger">*</span></label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <button type="button" class="btn btn-sm btn-light" id="btn_select_all_maintenance_works">
+                                        <i class="ri-checkbox-multiple-line me-1"></i>Seleccionar todas
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_all_maintenance_works">
+                                        <i class="ri-checkbox-blank-line me-1"></i>Limpiar selección
+                                    </button>
+                                </div>
+                                <div id="maintenance_selected_works_error" class="alert alert-danger py-2 fs-12 d-none mb-2">
+                                    Debes seleccionar al menos una obra para crear la OC.
+                                </div>
+                                <div id="maintenance_project_works" class="border rounded-2 p-2" style="max-height: 220px; overflow-y: auto;">
+                                    <p class="text-muted fs-12 mb-0">Selecciona un proyecto para ver sus obras.</p>
+                                </div>
+                                <div class="text-muted fs-12 mt-2">
+                                    Seleccionadas: <strong id="maintenance_selected_works_badge">0</strong>
+                                </div>
+                                @error('project_work_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @error('project_work_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
@@ -405,10 +454,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var sectionMat         = document.getElementById('section-materiales');
     var sectionMant        = document.getElementById('section-mantenimiento');
     var projectSelect      = document.getElementById('project_id');
-    var siteSelect         = document.getElementById('project_work_id');
+    var maintenanceProjectSelect = document.getElementById('maintenance_project_id');
+    var materialWorksContainer = document.getElementById('material_project_works');
+    var maintenanceWorksContainer = document.getElementById('maintenance_project_works');
     var mobileAssetSelect  = document.getElementById('mobile_asset_id');
     var supplierChoices    = null;
     var projectChoices     = null;
+    var maintenanceProjectChoices = null;
     var mobileAssetChoices = null;
 
     var typeConfig = {
@@ -440,6 +492,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (type === 'materiales_servicios') {
             sectionMat.style.display  = '';
             sectionMant.style.display = 'none';
+            projectSelect.disabled = false;
+            maintenanceProjectSelect.disabled = true;
+            setWorksDisabled(materialWorksContainer, false);
+            setWorksDisabled(maintenanceWorksContainer, true);
             if (mobileAssetSelect) mobileAssetSelect.required = false;
             initSupplierChoices();
             if (!projectChoices) {
@@ -454,12 +510,25 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             sectionMant.style.display = '';
             sectionMat.style.display  = 'none';
+            projectSelect.disabled = true;
+            maintenanceProjectSelect.disabled = false;
+            setWorksDisabled(materialWorksContainer, true);
+            setWorksDisabled(maintenanceWorksContainer, false);
             if (mobileAssetSelect) mobileAssetSelect.required = true;
             initSupplierChoices();
             if (!mobileAssetChoices) {
                 mobileAssetChoices = new Choices(document.getElementById('mobile_asset_id'), {
                     searchEnabled: true,
                     searchPlaceholderValue: 'Buscar bien móvil...',
+                    itemSelectText: '',
+                    noResultsText: 'Sin resultados',
+                    noChoicesText: 'Sin opciones disponibles',
+                });
+            }
+            if (!maintenanceProjectChoices) {
+                maintenanceProjectChoices = new Choices(maintenanceProjectSelect, {
+                    searchEnabled: true,
+                    searchPlaceholderValue: 'Buscar proyecto...',
                     itemSelectText: '',
                     noResultsText: 'Sin resultados',
                     noChoicesText: 'Sin opciones disponibles',
@@ -562,23 +631,145 @@ document.addEventListener('DOMContentLoaded', function () {
     if (supplierSelect.value) checkSupplierReadiness();
 
     // ── Cargar obras al cambiar proyecto (cascade) ────────────────────────
-    projectSelect.addEventListener('change', function () {
-        var projectId = this.value;
-        siteSelect.innerHTML = '<option value="">Seleccionar obra...</option>';
-        if (!projectId) return;
+    function getWorkCheckboxes(container) {
+        return Array.prototype.slice.call(container.querySelectorAll('.js-project-work'));
+    }
+
+    function setWorksDisabled(container, disabled) {
+        container.dataset.disabled = disabled ? '1' : '0';
+        getWorkCheckboxes(container).forEach(function (checkbox) {
+            checkbox.disabled = disabled;
+        });
+    }
+
+    function updateSelectedWorks(container, badge, error) {
+        var selected = getWorkCheckboxes(container).filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+
+        badge.textContent = String(selected);
+        error.classList.toggle('d-none', selected > 0);
+        return selected;
+    }
+
+    function loadWorks(projectId, container, selectedWorkIds, update) {
+        container.dataset.projectId = projectId;
+        container.replaceChildren();
+
+        if (!projectId) {
+            var prompt = document.createElement('p');
+            prompt.className = 'text-muted fs-12 mb-0';
+            prompt.textContent = 'Selecciona un proyecto para ver sus obras.';
+            container.appendChild(prompt);
+            update();
+            return;
+        }
 
         fetch('/proyectos/' + projectId + '/obras-json', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(function (r) { return r.json(); })
         .then(function (works) {
-            works.forEach(function (w) {
-                var opt = document.createElement('option');
-                opt.value = w.id;
-                opt.textContent = w.name;
-                siteSelect.appendChild(opt);
+            if (container.dataset.projectId !== projectId) return;
+
+            if (!works.length) {
+                var empty = document.createElement('p');
+                empty.className = 'text-muted fs-12 mb-0';
+                empty.textContent = 'Este proyecto no tiene obras disponibles.';
+                container.appendChild(empty);
+            }
+
+            works.forEach(function (work) {
+                var item = document.createElement('div');
+                var checkbox = document.createElement('input');
+                var label = document.createElement('label');
+
+                item.className = 'form-check mb-2';
+                checkbox.className = 'form-check-input js-project-work';
+                checkbox.type = 'checkbox';
+                checkbox.name = 'project_work_ids[]';
+                checkbox.id = container.id + '_work_' + work.id;
+                checkbox.value = work.id;
+                checkbox.checked = selectedWorkIds.indexOf(String(work.id)) !== -1;
+                checkbox.disabled = container.dataset.disabled === '1';
+                label.className = 'form-check-label';
+                label.htmlFor = checkbox.id;
+                label.textContent = work.name;
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                container.appendChild(item);
             });
+
+            update();
         });
+    }
+
+    function initWorkControls(container, selectAllButton, clearAllButton, badge, error) {
+        function update() {
+            return updateSelectedWorks(container, badge, error);
+        }
+
+        container.addEventListener('change', function (event) {
+            if (event.target.classList.contains('js-project-work')) update();
+        });
+        selectAllButton.addEventListener('click', function () {
+            getWorkCheckboxes(container).forEach(function (checkbox) { checkbox.checked = true; });
+            update();
+        });
+        clearAllButton.addEventListener('click', function () {
+            getWorkCheckboxes(container).forEach(function (checkbox) { checkbox.checked = false; });
+            update();
+        });
+
+        return update;
+    }
+
+    var updateMaterialWorks = initWorkControls(
+        materialWorksContainer,
+        document.getElementById('btn_select_all_material_works'),
+        document.getElementById('btn_clear_all_material_works'),
+        document.getElementById('material_selected_works_badge'),
+        document.getElementById('material_selected_works_error')
+    );
+    var updateMaintenanceWorks = initWorkControls(
+        maintenanceWorksContainer,
+        document.getElementById('btn_select_all_maintenance_works'),
+        document.getElementById('btn_clear_all_maintenance_works'),
+        document.getElementById('maintenance_selected_works_badge'),
+        document.getElementById('maintenance_selected_works_error')
+    );
+
+    projectSelect.addEventListener('change', function () {
+        loadWorks(this.value, materialWorksContainer, [], updateMaterialWorks);
+    });
+
+    maintenanceProjectSelect.addEventListener('change', function () {
+        loadWorks(this.value, maintenanceWorksContainer, [], updateMaintenanceWorks);
+    });
+
+    var oldWorkIds = @json(array_map('strval', (array) old('project_work_ids', old('project_work_id') ? [old('project_work_id')] : [])));
+    if (typeInput.value === 'mantenimiento' && maintenanceProjectSelect.value) {
+        loadWorks(maintenanceProjectSelect.value, maintenanceWorksContainer, oldWorkIds, updateMaintenanceWorks);
+    }
+    if (typeInput.value === 'materiales_servicios' && projectSelect.value) {
+        loadWorks(projectSelect.value, materialWorksContainer, oldWorkIds, updateMaterialWorks);
+    }
+
+    orderForm.addEventListener('submit', function (event) {
+        var isMaintenance = typeInput.value === 'mantenimiento';
+        var container = isMaintenance ? maintenanceWorksContainer : materialWorksContainer;
+        var badge = isMaintenance
+            ? document.getElementById('maintenance_selected_works_badge')
+            : document.getElementById('material_selected_works_badge');
+        var error = isMaintenance
+            ? document.getElementById('maintenance_selected_works_error')
+            : document.getElementById('material_selected_works_error');
+
+        if (updateSelectedWorks(container, badge, error) > 0) return;
+
+        event.preventDefault();
+        error.classList.remove('d-none');
+        error.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
     // ── Búsqueda de SOLCOM por folio ──────────────────────────────────────

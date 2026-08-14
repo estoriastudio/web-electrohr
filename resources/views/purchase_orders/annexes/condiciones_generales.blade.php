@@ -14,6 +14,7 @@
     $html = str_replace('[PENALIDAD EN PORCENTAJE]',   htmlspecialchars((string) $penPct),  $html);
     $html = str_replace('[PENALIDAD EN NUMERO]',       htmlspecialchars((string) $penNum),  $html);
     $html = str_replace('[NOMBRE DE ACEPTACIÓN]',      htmlspecialchars((string) $nomAcep), $html);
+        $html = str_replace('[NOMBRE DE LA CONTRATADA]',   htmlspecialchars((string) $provName), $html);
 @endphp
 <div class="annex-header">CONDICIONES GENERALES DE COMPRA &nbsp;&mdash;&nbsp; OC #{{ $ocFolio }}</div>
 

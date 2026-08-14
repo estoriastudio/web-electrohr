@@ -1,7 +1,19 @@
+@php
+    $selectedAuthorizationPaymentIds = collect(data_get($authorizationSelectionState ?? [], 'selected_ids', []))
+        ->map(fn ($id) => (int) $id)
+        ->all();
+@endphp
+
 <div class="table-responsive">
     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
         <thead class="bg-light-subtle">
             <tr>
+                @role('admin')
+                <th style="width:44px;">
+                    <input type="checkbox" class="form-check-input" id="selectAllAuthorizationPayments"
+                           title="Seleccionar todos los pagos">
+                </th>
+                @endrole
                 <th>Semáforo</th>
                 <th>Orden de Compra</th>
                 <th>Proveedor</th>
@@ -19,6 +31,14 @@
                     $order      = $milestone->purchaseOrder;
                     $supplier   = $order->supplier;
                     $supplierName = $supplier->rfc_name ?? $supplier->commercial_name ?? '—';
+                    $paymentConditions = $order->milestones
+                        ->pluck('payment_condition')
+                        ->filter()
+                        ->unique()
+                        ->values();
+                    $paymentConditionLabel = $paymentConditions->count() > 1
+                        ? 'Ambas'
+                        : ($paymentConditions->first() === 'contado' ? 'Contado' : 'Crédito');
                     $proj = $order->projectRelation?->name ?? $order->project ?? null;
                     $obra = $order->workRelation?->name ?? $order->site ?? null;
                     $today       = \Carbon\Carbon::today();
@@ -57,6 +77,13 @@
                     $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
                 @endphp
                 <tr>
+                    @role('admin')
+                    <td>
+                        <input type="checkbox" class="form-check-input js-authorization-payment-select"
+                               value="{{ $payment->id }}" aria-label="Seleccionar pago {{ $payment->folio }}"
+                               @checked(in_array($payment->id, $selectedAuthorizationPaymentIds, true))>
+                    </td>
+                    @endrole
                     <td>
                         <span class="badge {{ $trafficLight['class'] }} py-1 px-2 fs-12">
                             <i class="ri-checkbox-blank-circle-fill me-1" style="color: {{ $trafficLight['dot'] }};"></i>
@@ -67,6 +94,8 @@
                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-decoration-none" title="Ver OC #{{ $order->folio ?? '—' }}">
                             <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">OC #{{ $order->folio ?? '—' }}</span>
                         </a>
+                        <br>
+                        <small class="badge bg-info-subtle text-info fs-10 mt-1">{{ $paymentConditionLabel }}</small>
                     </td>
                     <td>
                         <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark fw-medium text-decoration-none">
@@ -154,7 +183,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-5">
+                    <td colspan="{{ auth()->user()->hasRole('admin') ? 9 : 8 }}" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

@@ -58,7 +58,10 @@ class PurchaseOrderController extends Controller
                     $sub->whereHas('supplier', function ($s) use ($search) {
                         $s->where('rfc_name', 'like', '%' . $search . '%')
                           ->orWhere('commercial_name', 'like', '%' . $search . '%');
-                    })->orWhere('folio', 'like', '%' . $search . '%');
+                                        })->orWhereHas('projectRelation', function ($project) use ($search) {
+                                                $project->where('name', 'like', '%' . $search . '%');
+                                        })->orWhere('project', 'like', '%' . $search . '%')
+                                            ->orWhere('folio', 'like', '%' . $search . '%');
                 });
             })
             ->when($tipo, fn ($q) => $q->where('type', $tipo))
@@ -97,6 +100,31 @@ class PurchaseOrderController extends Controller
             'orders', 'suppliers', 'search', 'tipo', 'sortDue',
             'projects', 'nextFolio', 'authorizedSignatories', 'recentPendingInvoices'
         ));
+    }
+
+    public function overdueDeliveries(): View
+    {
+        $orders = PurchaseOrder::query()
+            ->select('purchase_orders.*')
+            ->selectSub(
+                PurchaseOrderItem::query()
+                    ->selectRaw('MIN(delivery_date)')
+                    ->whereColumn('purchase_order_items.purchase_order_id', 'purchase_orders.id')
+                    ->whereNotNull('delivery_date')
+                    ->whereRaw('delivery_date < CURDATE()'),
+                'oldest_overdue_delivery_date'
+            )
+            ->where('purchase_orders.status', 'autorizada')
+            ->whereNull('purchase_orders.archived_at')
+            ->with(['supplier', 'purchaseRequest.assignedTo', 'purchaseRequest.materialRequest', 'items'])
+            ->whereHas('items', function ($query) {
+                $query->whereNotNull('delivery_date')
+                    ->whereRaw('delivery_date < CURDATE()');
+            })
+            ->orderBy('oldest_overdue_delivery_date')
+            ->paginate(25);
+
+        return view('purchase_orders.overdue_deliveries', compact('orders'));
     }
 
     public function create(): View
@@ -170,6 +198,9 @@ class PurchaseOrderController extends Controller
 
         if ($request->type === 'mantenimiento') {
             $rules['mobile_asset_id'] = 'required|exists:mobile_assets,id';
+            $rules['project_id'] = 'required|exists:projects,id';
+            $rules['project_work_ids'] = 'required|array|min:1';
+            $rules['project_work_ids.*'] = 'exists:project_works,id';
         }
 
         $validated = $request->validate($rules);
@@ -193,13 +224,13 @@ class PurchaseOrderController extends Controller
             $selectedWorkIds = collect([(int) $validated['project_work_id']]);
         }
 
-        if (($validated['type'] ?? null) === 'materiales_servicios' && $selectedWorkIds->isEmpty()) {
+        if (in_array($validated['type'] ?? null, ['materiales_servicios', 'mantenimiento'], true) && $selectedWorkIds->isEmpty()) {
             throw ValidationException::withMessages([
                 'project_work_ids' => 'Debes seleccionar al menos una obra para crear la OC.',
             ]);
         }
 
-        if (($validated['type'] ?? null) === 'materiales_servicios' && !empty($validated['project_id']) && $selectedWorkIds->isNotEmpty()) {
+        if (!empty($validated['project_id']) && $selectedWorkIds->isNotEmpty()) {
             $validWorksCount = ProjectWork::where('project_id', (int) $validated['project_id'])
                 ->whereIn('id', $selectedWorkIds)
                 ->count();
@@ -233,15 +264,13 @@ class PurchaseOrderController extends Controller
             }
         }
 
-        if (($validated['type'] ?? null) === 'materiales_servicios') {
+        if (in_array($validated['type'] ?? null, ['materiales_servicios', 'mantenimiento'], true)) {
             $validated['project_work_id'] = $selectedWorkIds->first();
         }
 
         unset($validated['project_work_ids']);
 
         if ($request->type === 'mantenimiento') {
-            $validated['project_id']          = null;
-            $validated['project_work_id']     = null;
             $validated['purchase_request_id'] = null;
             unset($validated['selected_item_ids']);
         } else {
@@ -275,7 +304,7 @@ class PurchaseOrderController extends Controller
             $validated['folio'] = $nextFolio;
             $order = PurchaseOrder::create($validated);
 
-            if (($validated['type'] ?? null) === 'materiales_servicios') {
+            if (in_array($validated['type'] ?? null, ['materiales_servicios', 'mantenimiento'], true)) {
                 $order->projectWorks()->sync($selectedWorkIds->all());
             }
 
@@ -344,6 +373,7 @@ class PurchaseOrderController extends Controller
             'supplier.contacts',
             'supplier.locations',
             'mobileAsset',
+            'projectRelation',
             'milestones.payments',
             'milestones.invoices',
             'invoices.milestones',
@@ -982,6 +1012,7 @@ class PurchaseOrderController extends Controller
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
+            'purchaseRequest.materialRequests',
         ]);
 
         $pdf = Pdf::loadView('purchase_orders.pdf', compact('purchaseOrder'))
@@ -1042,6 +1073,7 @@ class PurchaseOrderController extends Controller
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
+            'purchaseRequest.materialRequests',
         ]);
 
         $filename = 'OC-' . ($purchaseOrder->folio ?? $purchaseOrder->id);

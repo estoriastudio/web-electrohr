@@ -38,6 +38,12 @@ class ProjectController extends Controller
             ->paginate(25)
             ->withQueryString();
 
+        $projects->each(function (Project $project) {
+            if ($project->current_agreement_value !== null) {
+                $project->setAttribute('project_value', (float) $project->current_agreement_value);
+            }
+        });
+
         return view('projects.index', compact('projects', 'search'));
     }
 
@@ -73,14 +79,17 @@ class ProjectController extends Controller
     {
         $project->setAttribute(
             'project_value',
-            (float) $project->works()
-                ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0) as total')
-                ->value('total')
+            $project->current_agreement_value !== null
+                ? (float) $project->current_agreement_value
+                : (float) $project->works()
+                    ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0) as total')
+                    ->value('total')
         );
         $project->loadCount('works');
         $project->load([
             'works'     => fn ($q) => $q->withCount('purchaseOrders'),
             'documents',
+            'agreements' => fn ($q) => $q->with('works')->latest(),
         ]);
 
         $docCategories = ProjectDocument::CATEGORIES;

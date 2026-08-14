@@ -202,6 +202,7 @@
                                                             <th>NC PDF</th>
                                                             <th>NC XML</th>
                                                             <th>Evidencia</th>
+                                                            <th>Acciones</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -286,6 +287,14 @@
                                                                     @else
                                                                         <span class="text-muted">—</span>
                                                                     @endif
+                                                                </td>
+                                                                <td>
+                                                                    <a href="{{ route('supplier_portal.invoices.credit_note.edit', ['purchaseOrder' => $order, 'invoice' => $invoice]) }}"
+                                                                       class="btn btn-xs btn-soft-warning js-oc-row-ignore"
+                                                                       style="padding: 2px 8px;"
+                                                                       title="{{ $invoice->credit_note_file_path ? 'Editar nota de crédito' : 'Agregar nota de crédito' }}">
+                                                                        <i class="ri-edit-2-line"></i>
+                                                                    </a>
                                                                 </td>
                                                             </tr>
                                                         @endforeach

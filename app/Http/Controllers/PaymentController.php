@@ -25,6 +25,10 @@ use App\Services\PaymentFolioGenerator;
 
 class PaymentController extends Controller
 {
+    private const AUTHORIZATION_SELECTION_SESSION_KEY = 'payments.authorization.selection';
+    private const PAYABLE_SELECTION_SESSION_KEY = 'payments.payable.selection';
+    private const SUPPORTED_CURRENCIES = ['MXN', 'USD', 'EUR'];
+
     public function __construct(
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
@@ -34,20 +38,44 @@ class PaymentController extends Controller
     {
         $urgentDate = Carbon::now()->addDays(7);
         $search     = trim($request->input('search', ''));
+        $dueDateFilter = $request->input('due_date_filter', '');
+        $dueDateFilter = in_array($dueDateFilter, ['overdue', 'today', 'next_7_days', 'later', 'without_date'], true)
+            ? $dueDateFilter
+            : '';
+        $currency = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
+        $selectionState = Auth::user()->hasRole('admin')
+            ? $this->getAuthorizationSelectionState($request)
+            : ['selected_ids' => [], 'selected_count' => 0];
 
-        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+        $payments = Payment::with([
+            'milestone.purchaseOrder.supplier',
+            'milestone.purchaseOrder.projectRelation',
+            'milestone.purchaseOrder.workRelation',
+            'milestone.purchaseOrder.milestones:id,purchase_order_id,payment_condition',
+        ])
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->leftJoin('projects', 'purchase_orders.project_id', '=', 'projects.id')
             ->select('payments.*')
             ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
+            ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
-                        ->orWhere('payments.reference_number', 'like', '%' . $search . '%');
+                        ->orWhere('payments.reference_number', 'like', '%' . $search . '%')
+                        ->orWhere('purchase_orders.project', 'like', '%' . $search . '%')
+                        ->orWhere('projects.name', 'like', '%' . $search . '%');
                 });
             })
+            ->when($dueDateFilter === 'overdue', fn ($q) => $q->whereDate('purchase_order_milestones.due_date', '<', Carbon::today()))
+            ->when($dueDateFilter === 'today', fn ($q) => $q->whereDate('purchase_order_milestones.due_date', Carbon::today()))
+            ->when($dueDateFilter === 'next_7_days', fn ($q) => $q->whereBetween('purchase_order_milestones.due_date', [Carbon::tomorrow()->startOfDay(), $urgentDate->endOfDay()]))
+            ->when($dueDateFilter === 'later', fn ($q) => $q->whereDate('purchase_order_milestones.due_date', '>', $urgentDate))
+            ->when($dueDateFilter === 'without_date', fn ($q) => $q->whereNull('purchase_order_milestones.due_date'))
             ->orderByRaw("
                 CASE
                     WHEN payments.folio = ? THEN 0
@@ -70,13 +98,42 @@ class PaymentController extends Controller
             ])
             ->get();
 
-        return view('payments.index', compact('payments', 'urgentDate', 'search'));
+        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState'));
+    }
+
+    public function syncAuthorizationSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'selected_ids' => 'present|array|max:500',
+            'selected_ids.*' => 'integer|distinct',
+        ]);
+
+        $selectionState = $this->sanitizeAuthorizationSelection($data['selected_ids']);
+        $this->persistAuthorizationSelectionState($request, $selectionState);
+
+        return response()->json($selectionState);
+    }
+
+    public function clearAuthorizationSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->persistAuthorizationSelectionState($request, [
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
+
+        return response()->json([
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
     }
 
     public function payable(Request $request): View
     {
         $urgentDate = Carbon::now()->addDays(7);
         $search     = trim($request->input('search', ''));
+        $currency   = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
+        $selectionState = $this->getPayableSelectionState($request);
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
             ->has('milestone.purchaseOrder')
@@ -85,6 +142,8 @@ class PaymentController extends Controller
             ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
             ->select('payments.*')
             ->where('payments.status', 'autorizado')
+            ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
@@ -103,7 +162,64 @@ class PaymentController extends Controller
             ", [$urgentDate->toDateString()])
             ->get();
 
-        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search'));
+        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search', 'currency', 'paymentCondition', 'selectionState'));
+    }
+
+    public function paid(Request $request): View
+    {
+        $search           = trim($request->input('search', ''));
+        $currency         = $this->selectedCurrency($request);
+        $paymentCondition = $this->selectedPaymentCondition($request);
+
+        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+            ->has('milestone.purchaseOrder')
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
+            ->select('payments.*')
+            ->where('payments.status', 'pagado')
+            ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($paymentCondition, fn ($q) => $q->where('purchase_order_milestones.payment_condition', $paymentCondition))
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('payments.folio', 'like', '%' . $search . '%')
+                        ->orWhere('payments.reference_number', 'like', '%' . $search . '%')
+                        ->orWhere('purchase_orders.folio', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByDesc('payments.payment_date')
+            ->orderByDesc('payments.id')
+            ->get();
+
+        return view('payments.paid', compact('payments', 'search', 'currency', 'paymentCondition'));
+    }
+
+    public function syncPayableSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'selected_ids' => 'present|array|max:500',
+            'selected_ids.*' => 'integer|distinct',
+        ]);
+
+        $selectionState = $this->sanitizePayableSelection($data['selected_ids']);
+        $this->persistPayableSelectionState($request, $selectionState);
+
+        return response()->json($selectionState);
+    }
+
+    public function clearPayableSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->persistPayableSelectionState($request, [
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
+
+        return response()->json([
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
     }
 
     public function create()
@@ -371,12 +487,192 @@ class PaymentController extends Controller
             ->with('success', 'Estatus del pago actualizado.');
     }
 
+    public function markMultiplePaidWithSpei(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'payment_ids' => 'required|array|min:1|max:500',
+            'payment_ids.*' => 'integer|distinct|exists:payments,id',
+            'spei_receipt_file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        $paymentIds = collect($validated['payment_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $payments = Payment::query()
+            ->whereIn('id', $paymentIds)
+            ->where('status', 'autorizado')
+            ->orderBy('id')
+            ->get();
+
+        if ($payments->count() !== $paymentIds->count()) {
+            throw ValidationException::withMessages([
+                'payment_ids' => 'Todos los pagos seleccionados deben seguir en estatus autorizado.',
+            ]);
+        }
+
+        $file = $request->file('spei_receipt_file');
+        $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) $payments->first()->folio));
+        $fileName = 'SPEI-MULTIPLE-' . $safeFolio . '-' . time() . '.' . strtolower($file->getClientOriginalExtension());
+        $storedPath = Storage::disk('s3')->putFileAs('payments/spei/multiple', $file, $fileName);
+
+        if (!$storedPath) {
+            return redirect()->route('payments.payable')
+                ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
+        }
+
+        try {
+            $updatedPayments = DB::transaction(function () use ($paymentIds, $storedPath, $fileName) {
+                $payments = Payment::query()
+                    ->whereIn('id', $paymentIds)
+                    ->lockForUpdate()
+                    ->orderBy('id')
+                    ->get();
+
+                if ($payments->count() !== $paymentIds->count() || $payments->contains(fn (Payment $payment) => $payment->status !== 'autorizado')) {
+                    throw ValidationException::withMessages([
+                        'payment_ids' => 'Todos los pagos seleccionados deben seguir en estatus autorizado.',
+                    ]);
+                }
+
+                $milestones = PurchaseOrderMilestone::query()
+                    ->whereIn('id', $payments->pluck('milestone_id')->unique())
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($payments as $payment) {
+                    $payment->update([
+                        'status' => 'pagado',
+                        'spei_receipt_path' => $storedPath,
+                        'spei_receipt_name' => $fileName,
+                    ]);
+                }
+
+                $payments->groupBy('milestone_id')->each(function ($milestonePayments, $milestoneId) use ($milestones) {
+                    $milestones->get($milestoneId)->increment('covered_amount', $milestonePayments->sum('amount'));
+                });
+
+                return $payments->load('milestone');
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('s3')->delete($storedPath);
+
+            throw $exception;
+        }
+
+        foreach ($updatedPayments as $payment) {
+            $milestone = $payment->milestone;
+            $this->notification->send([
+                'type' => 'Payment',
+                'action_by' => Auth::id(),
+                'model_action' => 'update',
+                'model_id' => $payment->id,
+                'data' => 'registró el comprobante SPEI y marcó como pagado el pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $milestone->purchase_order_id,
+            ]);
+        }
+
+        $this->persistPayableSelectionState($request, [
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
+
+        return redirect()->route('payments.payable')
+            ->with('success', 'Comprobante SPEI asociado y ' . $updatedPayments->count() . ' pago(s) marcado(s) como pagado(s).');
+    }
+
+    public function authorizeMultiple(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'payment_ids' => 'required|array|min:1|max:500',
+            'payment_ids.*' => 'integer|distinct|exists:payments,id',
+        ]);
+
+        $paymentIds = collect($validated['payment_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $authorizedPayments = DB::transaction(function () use ($paymentIds) {
+            $payments = Payment::query()
+                ->whereIn('id', $paymentIds)
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+
+            $milestones = PurchaseOrderMilestone::query()
+                ->whereIn('id', $payments->pluck('milestone_id')->unique())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $purchaseOrders = PurchaseOrder::query()
+                ->whereIn('id', $milestones->pluck('purchase_order_id')->unique())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $hasInvalidPayment = $payments->count() !== $paymentIds->count()
+                || $payments->contains(function (Payment $payment) use ($milestones, $purchaseOrders) {
+                    $milestone = $milestones->get($payment->milestone_id);
+                    $purchaseOrder = $milestone ? $purchaseOrders->get($milestone->purchase_order_id) : null;
+
+                    return !in_array($payment->status, ['por_autorizar', 'pospuesto'], true)
+                        || !$purchaseOrder
+                        || $purchaseOrder->status !== 'autorizada';
+                });
+
+            if ($hasInvalidPayment) {
+                throw ValidationException::withMessages([
+                    'payment_ids' => 'Todos los pagos seleccionados deben seguir pendientes y pertenecer a una OC autorizada.',
+                ]);
+            }
+
+            foreach ($payments as $payment) {
+                $payment->update(['status' => 'autorizado']);
+            }
+
+            return $payments->map(function (Payment $payment) use ($milestones) {
+                return [
+                    'id' => $payment->id,
+                    'folio' => $payment->folio,
+                    'milestone_id' => $payment->milestone_id,
+                    'purchase_order_id' => $milestones->get($payment->milestone_id)->purchase_order_id,
+                ];
+            });
+        });
+
+        foreach ($authorizedPayments as $payment) {
+            $this->notification->send([
+                'type' => 'Payment',
+                'action_by' => Auth::id(),
+                'model_action' => 'update',
+                'model_id' => $payment['id'],
+                'data' => 'autorizó el pago #' . $payment['folio'] . ' del hito #' . $payment['milestone_id'] . ' de la orden de compra #' . $payment['purchase_order_id'],
+            ]);
+        }
+
+        $this->persistAuthorizationSelectionState($request, [
+            'selected_ids' => [],
+            'selected_count' => 0,
+        ]);
+
+        return redirect()->route('payments.index')
+            ->with('success', $authorizedPayments->count() . ' pago(s) autorizado(s).');
+    }
+
     public function destroy(Payment $payment): RedirectResponse
     {
         $milestone = $payment->milestone;
         $orderId   = $milestone->purchase_order_id;
 
-        if ($payment->spei_receipt_path && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
+        $hasSharedSpeiReceipt = $payment->spei_receipt_path
+            && Payment::whereKeyNot($payment->id)
+                ->where('spei_receipt_path', $payment->spei_receipt_path)
+                ->exists();
+
+        if ($payment->spei_receipt_path && !$hasSharedSpeiReceipt && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
             Storage::disk('s3')->delete($payment->spei_receipt_path);
         }
 
@@ -397,6 +693,134 @@ class PaymentController extends Controller
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Pago eliminado.');
+    }
+
+    private function selectedCurrency(Request $request): string
+    {
+        $currency = strtoupper(trim((string) $request->input('currency', '')));
+
+        return in_array($currency, self::SUPPORTED_CURRENCIES, true) ? $currency : '';
+    }
+
+    private function selectedPaymentCondition(Request $request): string
+    {
+        $paymentCondition = trim((string) $request->input('payment_condition', ''));
+
+        return in_array($paymentCondition, ['credito', 'contado'], true) ? $paymentCondition : '';
+    }
+
+    private function getAuthorizationSelectionState(Request $request): array
+    {
+        $selectionState = $this->sanitizeAuthorizationSelection(
+            $request->session()->get(self::AUTHORIZATION_SELECTION_SESSION_KEY . '.selected_ids', [])
+        );
+
+        $this->persistAuthorizationSelectionState($request, $selectionState);
+
+        return $selectionState;
+    }
+
+    private function sanitizeAuthorizationSelection(array $ids): array
+    {
+        $normalizedIds = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalizedIds->isEmpty()) {
+            return ['selected_ids' => [], 'selected_count' => 0];
+        }
+
+        $allowedPaymentIds = Payment::query()
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->whereIn('payments.id', $normalizedIds)
+            ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
+            ->where('purchase_orders.status', 'autorizada')
+            ->pluck('payments.id')
+            ->map(fn ($id) => (int) $id)
+            ->flip();
+
+        $selectedIds = $normalizedIds
+            ->filter(fn ($id) => $allowedPaymentIds->has($id))
+            ->values()
+            ->all();
+
+        return [
+            'selected_ids' => $selectedIds,
+            'selected_count' => count($selectedIds),
+        ];
+    }
+
+    private function persistAuthorizationSelectionState(Request $request, array $selectionState): void
+    {
+        if (empty($selectionState['selected_ids'])) {
+            $request->session()->forget(self::AUTHORIZATION_SELECTION_SESSION_KEY);
+            return;
+        }
+
+        $request->session()->put(self::AUTHORIZATION_SELECTION_SESSION_KEY, [
+            'selected_ids' => array_values(array_map('intval', $selectionState['selected_ids'])),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    private function getPayableSelectionState(Request $request): array
+    {
+        $selectionState = $this->sanitizePayableSelection(
+            $request->session()->get(self::PAYABLE_SELECTION_SESSION_KEY . '.selected_ids', [])
+        );
+
+        $this->persistPayableSelectionState($request, $selectionState);
+
+        return $selectionState;
+    }
+
+    private function sanitizePayableSelection(array $ids): array
+    {
+        $normalizedIds = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalizedIds->isEmpty()) {
+            return [
+                'selected_ids' => [],
+                'selected_count' => 0,
+            ];
+        }
+
+        $allowedPayments = Payment::query()
+            ->whereIn('id', $normalizedIds)
+            ->where('status', 'autorizado')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->flip();
+
+        $selectedIds = $normalizedIds
+            ->filter(fn ($id) => $allowedPayments->has($id))
+            ->values()
+            ->all();
+
+        return [
+            'selected_ids' => $selectedIds,
+            'selected_count' => count($selectedIds),
+        ];
+    }
+
+    private function persistPayableSelectionState(Request $request, array $selectionState): void
+    {
+        if (empty($selectionState['selected_ids'])) {
+            $request->session()->forget(self::PAYABLE_SELECTION_SESSION_KEY);
+            return;
+        }
+
+        $request->session()->put(self::PAYABLE_SELECTION_SESSION_KEY, [
+            'selected_ids' => array_values(array_map('intval', $selectionState['selected_ids'])),
+            'updated_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**

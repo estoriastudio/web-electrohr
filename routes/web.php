@@ -13,7 +13,9 @@ use App\Http\Controllers\PurchaseOrderEvidenceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\ProjectWorkController;
+use App\Http\Controllers\ProjectWorkEstimateController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\MaterialVoucherController;
 use App\Http\Controllers\PurchaseRequestController;
@@ -59,6 +61,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     ->name('invoices.create');
                 Route::post('/ordenes-compra/{purchaseOrder}/facturas', [SupplierPortalInvoiceController::class, 'store'])
                     ->name('invoices.store');
+                Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/nota-credito/editar', [SupplierPortalInvoiceController::class, 'editCreditNote'])
+                    ->whereNumber('purchaseOrder')
+                    ->whereNumber('invoice')
+                    ->name('invoices.credit_note.edit');
+                Route::patch('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/nota-credito', [SupplierPortalInvoiceController::class, 'updateCreditNote'])
+                    ->whereNumber('purchaseOrder')
+                    ->whereNumber('invoice')
+                    ->name('invoices.credit_note.update');
                 Route::get('/ordenes-compra/{purchaseOrder}/facturas/{invoice}/archivo/{type}', [SupplierPortalInvoiceController::class, 'downloadFile'])
                     ->whereNumber('purchaseOrder')
                     ->whereNumber('invoice')
@@ -210,6 +220,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/abort', [ProjectController::class, 'abortChunkUpload'])
                 ->name('projects.document.chunk.abort');
 
+            Route::post('/proyectos/{project}/convenios', [ProjectAgreementController::class, 'store'])
+                ->name('projects.agreements.store');
+            Route::post('/proyectos/{project}/convenios/chunk/init', [ProjectAgreementController::class, 'initChunkUpload'])
+                ->name('projects.agreements.chunk.init');
+            Route::post('/proyectos/{project}/convenios/chunk/upload', [ProjectAgreementController::class, 'uploadChunk'])
+                ->name('projects.agreements.chunk.upload');
+            Route::post('/proyectos/{project}/convenios/chunk/finalize', [ProjectAgreementController::class, 'finalizeChunkUpload'])
+                ->name('projects.agreements.chunk.finalize');
+            Route::post('/proyectos/{project}/convenios/chunk/abort', [ProjectAgreementController::class, 'abortChunkUpload'])
+                ->name('projects.agreements.chunk.abort');
+            Route::get('/proyectos/{project}/convenios/{projectAgreement}/nombramientos', [ProjectAgreementController::class, 'downloadAppointments'])
+                ->name('projects.agreements.appointments.download');
+
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');
 
@@ -225,6 +248,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['obras' => 'project_work'],
             ]);
+
+            Route::post('/obras/{projectWork}/estimaciones', [ProjectWorkEstimateController::class, 'store'])
+                ->name('estimates.store');
+            Route::put('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'update'])
+                ->name('estimates.update');
+            Route::delete('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'destroy'])
+                ->name('estimates.destroy');
         });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
@@ -331,6 +361,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
+                ->name('purchase_orders.overdue_deliveries');
+        });
+
         // Papelera de OC — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::get('/ordenes-de-compra/eliminadas/papelera', [PurchaseOrderController::class, 'softDeleted'])->name('purchase_orders.soft_deleted');
@@ -387,6 +422,21 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
+            Route::get('/pagos/pagados', [PaymentController::class, 'paid'])->name('payments.paid');
+            Route::middleware('role:admin')->group(function () {
+                Route::post('/pagos/autorizar/seleccion/sincronizar', [PaymentController::class, 'syncAuthorizationSelection'])
+                    ->name('payments.authorization.selection.sync');
+                Route::post('/pagos/autorizar/seleccion/limpiar', [PaymentController::class, 'clearAuthorizationSelection'])
+                    ->name('payments.authorization.selection.clear');
+                Route::post('/pagos/autorizar/multiples', [PaymentController::class, 'authorizeMultiple'])
+                    ->name('payments.authorize_multiple');
+            });
+            Route::post('/pagos/por-pagar/seleccion/sincronizar', [PaymentController::class, 'syncPayableSelection'])
+                ->name('payments.payable.selection.sync');
+            Route::post('/pagos/por-pagar/seleccion/limpiar', [PaymentController::class, 'clearPayableSelection'])
+                ->name('payments.payable.selection.clear');
+            Route::post('/pagos/marcar-multiples-pagados', [PaymentController::class, 'markMultiplePaidWithSpei'])
+                ->name('payments.mark_multiple_paid_with_spei');
             Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
                 'create'  => 'payments.create',
                 'store'   => 'payments.store',
