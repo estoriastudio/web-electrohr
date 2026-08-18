@@ -167,11 +167,14 @@
                 </tr>
                 <!-- Filas de COMPRAes (loop Laravel) -->
                 @foreach($items as $i => $item)
+                @php
+                    $purchaseQuantity = rtrim(rtrim(number_format((float) $item->purchase_quantity, 4, '.', ''), '0'), '.');
+                @endphp
                 <tr>
                     <td style="border: 1px solid #000; padding: 5px; text-align: center;">{{ $i + 1 }}</td>
                     <td style="border: 1px solid #000; padding: 5px; text-align: center;">{{ $item->code }}</td>
                     <td style="border: 1px solid #000; padding: 5px;">{{ $item->description }}</td>
-                    <td style="border: 1px solid #000; padding: 5px; text-align: center;">{{ $item->purchase_quantity }}</td>
+                    <td style="border: 1px solid #000; padding: 5px; text-align: center;">{{ $purchaseQuantity }}</td>
                     <td style="border: 1px solid #000; padding: 5px; text-align: center;">{{ $item->unit }}</td>
                 </tr>
                 @endforeach
