@@ -469,7 +469,7 @@
                                     <td class="text-end" style="min-width:120px;">
                                         @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
-                                        <input type="number" step="0.01" min="0"
+                                        <input type="number" step="0.0001" min="0"
                                                class="form-control form-control-sm text-end oc-qty-input"
                                                style="max-width:100px;display:inline-block;"
                                                value="{{ $item->quantity }}"
@@ -477,10 +477,10 @@
                                                data-field="quantity"
                                                data-original="{{ $item->quantity }}">
                                         @else
-                                        {{ number_format($item->quantity, 2) }}
+                                        {{ number_format($item->quantity, 4) }}
                                         @endif
                                         @else
-                                        {{ number_format($item->quantity, 2) }}
+                                        {{ number_format($item->quantity, 4) }}
                                         @endhasanyrole
                                     </td>
                                     <td class="text-end" style="min-width:140px;">
@@ -1031,7 +1031,7 @@
 
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
-                                                        @if ($payment->status === 'autorizado')
+                                                        @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
                                                         <li>
                                                             <button type="button" class="dropdown-item"
                                                                     data-bs-toggle="modal"
@@ -1087,7 +1087,7 @@
 
                         @hasanyrole('admin|Pagos')
                         @foreach ($milestone->payments as $payment)
-                        @if ($payment->status === 'autorizado')
+                        @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
                         <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content">

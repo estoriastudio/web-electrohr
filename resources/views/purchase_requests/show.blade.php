@@ -225,6 +225,7 @@
                             @forelse ($purchaseRequest->items as $index => $item)
                                 @php
                                     $breakdownJson = collect($item->selected_work_breakdown ?? [])->values();
+                                    $purchaseQuantity = rtrim(rtrim(number_format((float) $item->purchase_quantity, 4, '.', ''), '0'), '.');
                                 @endphp
                                 <tr class="solcom-item-row">
                                     <td class="solcom-row-num text-muted fs-12">{{ $index + 1 }}</td>
@@ -276,18 +277,18 @@
                                             </button>
                                             <input type="number"
                                                    class="form-control text-center fw-bold fs-15 solcom-qty-input"
-                                                  value="{{ number_format((float) $item->purchase_quantity, 2, '.', '') }}"
+                                                  value="{{ $purchaseQuantity }}"
                                                    data-item-id="{{ $item->id }}"
-                                                  data-original="{{ number_format((float) $item->purchase_quantity, 2, '.', '') }}"
-                                                  step="0.01"
+                                                  data-original="{{ number_format((float) $item->purchase_quantity, 4, '.', '') }}"
+                                                  step="0.0001"
                                                    min="0"
-                                                   inputmode="numeric">
+                                                   inputmode="decimal">
                                             <button type="button" class="btn btn-light border solcom-qty-plus px-3" title="Sumar">
                                                 <i class="ri-add-line"></i>
                                             </button>
                                         </div>
                                         @else
-                                        <span class="fw-bold fs-15">{{ number_format((float) $item->purchase_quantity, 2, '.', '') }}</span>
+                                        <span class="fw-bold fs-15">{{ $purchaseQuantity }}</span>
                                         @endhasanyrole
                                     </td>
                                     <td>
@@ -358,7 +359,7 @@
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
                             <label class="form-label fs-12 fw-medium mb-1">Cantidad a comprar <span class="text-danger">*</span></label>
-                            <input type="number" id="solcom_pur_qty" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            <input type="number" id="solcom_pur_qty" class="form-control" step="0.0001" min="0" placeholder="0.0000">
                         </div>
                         <div class="col-md-6">
                             <label for="solcom_spec_file" class="form-label fs-12 fw-medium mb-1">

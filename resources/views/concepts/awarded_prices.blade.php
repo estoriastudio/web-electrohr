@@ -116,7 +116,7 @@
 										</td>
 										
 										<td>{{ $item->unit ?: '—' }}</td>
-										<td class="text-end fw-semibold">${{ number_format((float) $item->unit_price, 2) }}</td>
+										<td class="text-end fw-semibold">${{ number_format((float) $item->unit_price, 2) }} {{ $item->purchaseOrder?->currency ?: '—' }}</td>
 									</tr>
 								@empty
 									<tr>

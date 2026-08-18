@@ -19,7 +19,7 @@ return new class extends Migration
             $table->text('description');
             $table->string('unit');
             $table->decimal('requested_quantity', 12, 2);
-            $table->decimal('purchase_quantity', 12, 2);
+            $table->decimal('purchase_quantity', 12, 4);
             $table->timestamps();
         });
     }

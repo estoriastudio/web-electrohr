@@ -111,6 +111,14 @@
 		return parseQty(value).toFixed(2);
 	}
 
+	function toFourDecimals(value) {
+		return parseQty(value).toFixed(4);
+	}
+
+	function formatPurchaseQty(value) {
+		return toFourDecimals(value).replace(/(?:\.0+|(\.\d*?)0+)$/, '$1');
+	}
+
 	function updateBadge() {
 		if (badge) badge.textContent = itemCount() + ' ítem(s)';
 	}
@@ -139,7 +147,7 @@
 		var val = parseQty(input.value);
 		if (btn.classList.contains('solcom-qty-minus')) val = Math.max(0, val - 1);
 		else val += 1;
-		input.value = toTwoDecimals(val);
+		input.value = formatPurchaseQty(val);
 		saveQtyDebounced(input);
 	});
 
@@ -164,11 +172,11 @@
 		var original = parseFloat(input.dataset.original);
 
 		if (isNaN(val) || val < 0) {
-			input.value = isNaN(original) ? '' : toTwoDecimals(original);
+			input.value = isNaN(original) ? '' : formatPurchaseQty(original);
 			return;
 		}
-		val = parseFloat(toTwoDecimals(val));
-		if (val === parseFloat(toTwoDecimals(original))) return;
+		val = parseFloat(toFourDecimals(val));
+		if (val === parseFloat(toFourDecimals(original))) return;
 
 		var updateUrl = storeUrl + '/' + input.dataset.itemId;
 
@@ -191,8 +199,8 @@
 		})
 		.then(function (data) {
 			var saved = parseQty(data.purchase_quantity);
-			input.dataset.original = toTwoDecimals(saved);
-			input.value = toTwoDecimals(saved);
+			input.dataset.original = toFourDecimals(saved);
+			input.value = formatPurchaseQty(saved);
 			input.disabled = false;
 			input.classList.add('is-saved');
 			setTimeout(function () { input.classList.remove('is-saved'); }, 1200);
@@ -206,7 +214,7 @@
 			}).showToast();
 		})
 		.catch(function () {
-			input.value = toTwoDecimals(original);
+			input.value = formatPurchaseQty(original);
 			input.disabled = false;
 			input.classList.add('is-error');
 			setTimeout(function () { input.classList.remove('is-error'); }, 2000);
@@ -397,7 +405,7 @@
 		fd.append('code', currentConcept.code);
 		fd.append('description', currentConcept.description);
 		fd.append('unit', currentConcept.unit);
-		fd.append('purchase_quantity', toTwoDecimals(pur));
+		fd.append('purchase_quantity', toFourDecimals(pur));
 		if (specFileInput && specFileInput.files && specFileInput.files.length > 0) {
 			fd.append('spec_file', specFileInput.files[0]);
 		}
@@ -450,10 +458,10 @@
 			+   '<div class="input-group">'
 			+     '<button type="button" class="btn btn-light border solcom-qty-minus px-3" title="Restar"><i class="ri-subtract-line"></i></button>'
 			+     '<input type="number" class="form-control text-center fw-bold fs-15 solcom-qty-input"'
-			+     ' value="' + toTwoDecimals(item.purchase_quantity) + '"'
+			+     ' value="' + formatPurchaseQty(item.purchase_quantity) + '"'
 			+     ' data-item-id="' + item.id + '"'
-			+     ' data-original="' + toTwoDecimals(item.purchase_quantity) + '"'
-			+     ' step="0.01" min="0" inputmode="numeric">'
+			+     ' data-original="' + toFourDecimals(item.purchase_quantity) + '"'
+			+     ' step="0.0001" min="0" inputmode="decimal">'
 			+     '<button type="button" class="btn btn-light border solcom-qty-plus px-3" title="Sumar"><i class="ri-add-line"></i></button>'
 			+   '</div>'
 			+ '</td>'

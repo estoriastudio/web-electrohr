@@ -19,7 +19,7 @@ return new class extends Migration
                   ->nullOnDelete();
             $table->text('description');
             $table->string('unit');
-            $table->decimal('quantity', 12, 2)->default(1);
+            $table->decimal('quantity', 12, 4)->default(1);
             $table->decimal('unit_price', 12, 2)->default(0);
             $table->string('delivery_date')->nullable();
             $table->timestamps();

@@ -556,7 +556,7 @@ class PurchaseRequestController extends Controller
             'code'               => 'required|string|max:100',
             'description'        => 'required|string|max:500',
             'unit'               => 'required|string|max:50',
-            'purchase_quantity'  => 'required|numeric|min:0|decimal:0,2',
+            'purchase_quantity'  => 'required|numeric|min:0|decimal:0,4',
             'spec_file'          => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
@@ -601,7 +601,7 @@ class PurchaseRequestController extends Controller
     public function updateItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
         $data = $request->validate([
-            'purchase_quantity' => 'required|numeric|min:0|decimal:0,2',
+            'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
         ]);
 
         $item->update($data);
