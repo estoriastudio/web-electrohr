@@ -129,6 +129,55 @@
             @endcan
             @endhasanyrole
 
+            @hasanyrole('admin|Recursos Humanos')
+            <li class="menu-title">Recursos Humanos</li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.workers.*') ? 'active' : '' }}" href="{{ route('human_resources.workers.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-user-3-line"></i>
+                    </span>
+                    <span class="nav-text">Trabajadores</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-groups.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-groups.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-team-line"></i>
+                    </span>
+                    <span class="nav-text">Cuadrillas</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-calendar-check-line"></i>
+                    </span>
+                    <span class="nav-text">Asistencias</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-vacations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-vacations.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-calendar-event-line"></i>
+                    </span>
+                    <span class="nav-text">Vacaciones</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-terminations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-terminations.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-user-unfollow-line"></i>
+                    </span>
+                    <span class="nav-text">Bajas</span>
+                </a>
+            </li>
+            @endhasanyrole
+
             @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')
             @can('read')
             <li class="menu-title">Almacén</li>

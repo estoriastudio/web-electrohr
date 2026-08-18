@@ -16,6 +16,12 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\ProjectWorkEstimateController;
+use App\Http\Controllers\WorkerController;
+use App\Http\Controllers\WorkerFileController;
+use App\Http\Controllers\WorkerTerminationController;
+use App\Http\Controllers\WorkerGroupController;
+use App\Http\Controllers\WorkerAttendanceController;
+use App\Http\Controllers\WorkerVacationController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\MaterialVoucherController;
 use App\Http\Controllers\PurchaseRequestController;
@@ -256,6 +262,42 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'destroy'])
                 ->name('estimates.destroy');
         });
+
+        Route::middleware('role:admin|Recursos Humanos')
+            ->prefix('human_resources')
+            ->name('human_resources.')
+            ->group(function () {
+                Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export');
+                Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
+                Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
+                Route::resource('workers', WorkerController::class);
+                Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
+                Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
+                Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
+
+                Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
+                Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
+                Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
+                Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])
+                    ->name('workers.file.download');
+
+                Route::resource('worker-groups', WorkerGroupController::class);
+                Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
+                Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
+                Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
+                Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
+                Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
+
+                Route::resource('worker-attendances', WorkerAttendanceController::class);
+
+                Route::resource('worker-vacations', WorkerVacationController::class);
+                Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve');
+                Route::post('worker-vacations/{workerVacation}/cancel', [WorkerVacationController::class, 'cancel'])->name('worker-vacations.cancel');
+
+                Route::get('worker-terminations', [WorkerTerminationController::class, 'index'])->name('worker-terminations.index');
+                Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
+            });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');

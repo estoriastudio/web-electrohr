@@ -1,0 +1,20 @@
+@extends('layouts.app')
+
+@section('page_title', 'Cuadrillas')
+
+@section('breadcrumbs')<li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li><li class="breadcrumb-item active">Cuadrillas</li>@endsection
+
+@section('content')
+@include('human_resources.partials.flash')
+<div class="card"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center border-bottom"><h4 class="card-title mb-0">Listado de cuadrillas</h4><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal"><i class="ri-team-line me-1"></i> Nueva cuadrilla</button></div><div class="card-body border-bottom"><form method="GET" class="row g-2"><div class="col-md-5"><input class="form-control form-control-sm" name="search" value="{{ $search }}" placeholder="Buscar cuadrilla"></div><div class="col-md-3"><select class="form-select form-select-sm" name="status"><option value="">Todos los estatus</option><option value="active" @selected($status === 'active')>Activas</option><option value="inactive" @selected($status === 'inactive')>Inactivas</option></select></div><div class="col-md-3"><select class="form-select form-select-sm" name="project_work_id"><option value="">Todas las obras</option>@foreach($projectWorks as $projectWork)<option value="{{ $projectWork->id }}" @selected((string) $projectWorkId === (string) $projectWork->id)>{{ $projectWork->name }}</option>@endforeach</select></div><div class="col-md-1 d-grid"><button class="btn btn-sm btn-outline-primary"><i class="ri-search-line"></i></button></div></form></div><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="bg-light-subtle"><tr><th>Cuadrilla</th><th>Obra</th><th>Integrantes</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($workerGroups as $workerGroup)<tr><td><a class="text-dark fw-medium" href="{{ route('human_resources.worker-groups.show', $workerGroup) }}">{{ $workerGroup->name }}</a></td><td>{{ $workerGroup->projectWork?->name }}</td><td><span class="badge bg-primary-subtle text-primary">{{ $workerGroup->active_members_count }}</span></td><td><span class="badge {{ $workerGroup->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $workerGroup->status === 'active' ? 'Activa' : 'Inactiva' }}</span></td><td class="text-end"><a class="btn btn-light btn-sm" href="{{ route('human_resources.worker-groups.show', $workerGroup) }}" title="Ver cuadrilla"><i class="ri-eye-line"></i></a><a class="btn btn-light btn-sm" href="{{ route('human_resources.worker-groups.edit', $workerGroup) }}" title="Editar"><i class="ri-edit-line"></i></a></td></tr>@empty<tr><td class="text-center text-muted py-4" colspan="5">No hay cuadrillas registradas.</td></tr>@endforelse</tbody></table></div>@if($workerGroups->hasPages())<div class="card-footer d-flex justify-content-end">{{ $workerGroups->links('pagination::bootstrap-5') }}</div>@endif</div>
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="POST" action="{{ route('human_resources.worker-groups.store') }}">@csrf<div class="modal-header"><h5 class="modal-title">Nueva cuadrilla</h5><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body">@include('human_resources.worker-groups._form')</div><div class="modal-footer"><button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Guardar</button></div></form></div></div></div>
+@if ($errors->any())
+	@push('scripts')
+	<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		new bootstrap.Modal(document.getElementById('createGroupModal')).show();
+	});
+	</script>
+	@endpush
+@endif
+@endsection
