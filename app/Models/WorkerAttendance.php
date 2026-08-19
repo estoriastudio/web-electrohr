@@ -10,6 +10,7 @@ class WorkerAttendance extends Model
     protected $fillable = [
         'worker_id',
         'worker_group_id',
+        'payroll_line_id',
         'date',
         'week_number',
         'year',
@@ -33,5 +34,10 @@ class WorkerAttendance extends Model
     public function workerGroup(): BelongsTo
     {
         return $this->belongsTo(WorkerGroup::class);
+    }
+
+    public function payrollLine(): BelongsTo
+    {
+        return $this->belongsTo(PayrollLine::class);
     }
 }

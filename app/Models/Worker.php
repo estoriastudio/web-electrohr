@@ -22,9 +22,10 @@ class Worker extends Model
         'curp',
         'birth_date',
         'hire_date',
-        'job_title',
+        'position_category_id',
         'project_work_id',
         'weekly_salary',
+        'payment_type',
         'status',
         'ine_expiration_date',
         'medical_certificate_expiration_date',
@@ -48,6 +49,11 @@ class Worker extends Model
         return $this->belongsTo(ProjectWork::class);
     }
 
+    public function positionCategory(): BelongsTo
+    {
+        return $this->belongsTo(PositionCategory::class);
+    }
+
     public function file(): HasOne
     {
         return $this->hasOne(WorkerFile::class);
@@ -66,6 +72,26 @@ class Worker extends Model
     public function attendances(): HasMany
     {
         return $this->hasMany(WorkerAttendance::class);
+    }
+
+    public function payrollLines(): HasMany
+    {
+        return $this->hasMany(PayrollLine::class);
+    }
+
+    public function incentives(): HasMany
+    {
+        return $this->hasMany(Incentive::class);
+    }
+
+    public function pieceworkWeeklyEntries(): HasMany
+    {
+        return $this->hasMany(PieceworkWeeklyEntry::class);
+    }
+
+    public function foremanPieceworkWeeklyEntries(): HasMany
+    {
+        return $this->hasMany(PieceworkWeeklyEntry::class, 'foreman_worker_id');
     }
 
     public function groups(): BelongsToMany

@@ -176,6 +176,42 @@
                     <span class="nav-text">Bajas</span>
                 </a>
             </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.position-categories.*') ? 'active' : '' }}" href="{{ route('human_resources.position-categories.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-briefcase-4-line"></i>
+                    </span>
+                    <span class="nav-text">Categorías de puesto</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.payroll-periods.*') || request()->routeIs('human_resources.payroll-lines.*') || request()->routeIs('human_resources.payroll.*') ? 'active' : '' }}" href="{{ route('human_resources.payroll-periods.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-money-dollar-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Nómina</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.piecework-entries.*') ? 'active' : '' }}" href="{{ route('human_resources.piecework-entries.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-hammer-line"></i>
+                    </span>
+                    <span class="nav-text">Destajo</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.incentives.*') ? 'active' : '' }}" href="{{ route('human_resources.incentives.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-medal-line"></i>
+                    </span>
+                    <span class="nav-text">Incentivos</span>
+                </a>
+            </li>
             @endhasanyrole
 
             @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')

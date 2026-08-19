@@ -17,6 +17,86 @@
         </div>
         <div>
             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <div class="card mt-3">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <h5 class="card-title mb-0">Incentivos</h5>
+                        <span class="text-muted fs-12">Se incluyen automáticamente en la nómina de la semana correspondiente.</span>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createWorkerIncentiveModal"><i class="ri-medal-line me-1"></i>Registrar incentivo</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Estatus</th><th>Notas</th><th class="text-end">Acciones</th></tr></thead>
+                        <tbody>
+                            @forelse($worker->incentives as $incentive)
+                                @php($incentiveLabel = ['overtime' => 'Tiempo extra', 'day_off_exchange' => 'Libranza', 'emergency' => 'Emergencia'][$incentive->category])
+                                <tr>
+                                    <td>{{ $incentive->incentive_date->format('d/m/Y') }}</td>
+                                    <td>{{ $incentiveLabel }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ $incentive->rate_type }}</span></td>
+                                    <td><span class="badge {{ $incentive->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $incentive->status === 'active' ? 'Activo' : 'Cancelado' }}</span></td>
+                                    <td>{{ $incentive->notes ?: '—' }}</td>
+                                    <td class="text-end">
+                                        <form method="POST" action="{{ route('human_resources.incentives.destroy', $incentive) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este incentivo?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="return_to_worker" value="1">
+                                            <button class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="ri-delete-bin-line"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="text-center text-muted py-4">No hay incentivos registrados.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal fade" id="createWorkerIncentiveModal" tabindex="-1" aria-labelledby="createWorkerIncentiveModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="POST" action="{{ route('human_resources.incentives.store') }}">
+                            @csrf
+                            <input type="hidden" name="worker_id" value="{{ $worker->id }}">
+                            <input type="hidden" name="return_to_worker" value="1">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="createWorkerIncentiveModalLabel">Registrar incentivo</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row g-3">
+                                    <div class="col-md-7">
+                                        <label class="form-label" for="workerIncentiveCategory">Concepto</label>
+                                        <select id="workerIncentiveCategory" class="form-select" name="category" required>
+                                            <option value="overtime">Tiempo extra</option>
+                                            <option value="day_off_exchange">Libranza</option>
+                                            <option value="emergency">Emergencia</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label" for="workerIncentiveRateType">Tipo</label>
+                                        <select id="workerIncentiveRateType" class="form-select" name="rate_type" required><option>A</option><option>B</option><option>C</option><option>D</option></select>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <label class="form-label" for="workerIncentiveDate">Fecha</label>
+                                        <input id="workerIncentiveDate" class="form-control" name="incentive_date" type="date" value="{{ old('incentive_date', now()->format('Y-m-d')) }}" required>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label" for="workerIncentiveStatus">Estatus</label>
+                                        <select id="workerIncentiveStatus" class="form-select" name="status" required><option value="active">Activo</option><option value="cancelled">Cancelado</option></select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label" for="workerIncentiveNotes">Notas</label>
+                                        <textarea id="workerIncentiveNotes" class="form-control" name="notes" rows="3">{{ old('notes') }}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Guardar incentivo</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
                 <h4 class="mb-0">{{ $worker->first_name }} {{ $worker->last_name }}</h4>
                 <span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span>
             </div>
@@ -34,7 +114,7 @@
             <div class="card-header border-bottom"><h5 class="card-title mb-0"><i class="ri-briefcase-4-line me-2 text-primary"></i>Resumen laboral</h5></div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Puesto</span><span class="fw-semibold">{{ $worker->job_title ?: 'Sin asignar' }}</span></div>
+                    <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Puesto</span><span class="fw-semibold">{{ $worker->positionCategory?->name ?: 'Sin asignar' }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Obra actual</span><span class="fw-semibold">{{ $worker->currentProjectWork()?->name ?: 'Sin asignar' }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Sueldo semanal</span><span class="fw-semibold">${{ number_format((float) $worker->weekly_salary, 2) }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Fecha de alta</span><span class="fw-semibold">{{ $worker->hire_date?->format('d/m/Y') ?: 'Pendiente' }}</span></div>

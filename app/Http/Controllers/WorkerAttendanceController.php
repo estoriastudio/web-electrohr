@@ -79,6 +79,7 @@ class WorkerAttendanceController extends Controller
         $workerGroup->load('projectWork');
 
         $members = $workerGroup->members()
+            ->with('positionCategory')
             ->wherePivot('joined_at', '<=', $date)
             ->where(function ($membershipQuery) use ($date) {
                 $membershipQuery->whereNull('worker_group_members.left_at')
@@ -144,7 +145,7 @@ class WorkerAttendanceController extends Controller
             'date' => $data['date'],
             'week_number' => $attendanceDate->isoWeek(),
             'year' => $attendanceDate->isoWeekYear(),
-            'role' => $attendance->role ?? $worker->job_title,
+            'role' => $attendance->role ?? $worker->positionCategory?->name,
             'attended' => (bool) $data['attended'],
             'overtime_hours' => $attendance->overtime_hours ?? 0,
         ]);
@@ -198,6 +199,7 @@ class WorkerAttendanceController extends Controller
 
     public function update(Request $request, WorkerAttendance $workerAttendance): RedirectResponse
     {
+        $this->ensureUnlocked($workerAttendance);
         $data = $this->validatedData($request);
         $this->ensureNoDuplicate($data, $workerAttendance);
         $this->ensureActiveMembership($data);
@@ -212,6 +214,7 @@ class WorkerAttendanceController extends Controller
 
     public function destroy(WorkerAttendance $workerAttendance): RedirectResponse
     {
+        $this->ensureUnlocked($workerAttendance);
         $workerAttendance->loadMissing('worker');
         $name = "{$workerAttendance->worker->first_name} {$workerAttendance->worker->last_name}";
         $workerAttendance->delete();
@@ -272,6 +275,15 @@ class WorkerAttendanceController extends Controller
         if (! $isMember) {
             throw ValidationException::withMessages([
                 'worker_group_id' => 'El trabajador no pertenecía a la cuadrilla en la fecha indicada.',
+            ]);
+        }
+    }
+
+    private function ensureUnlocked(WorkerAttendance $attendance): void
+    {
+        if ($attendance->payroll_line_id !== null) {
+            throw ValidationException::withMessages([
+                'attendance' => 'La asistencia ya forma parte de una nómina y no puede modificarse desde este módulo.',
             ]);
         }
     }

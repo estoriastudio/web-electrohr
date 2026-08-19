@@ -41,8 +41,22 @@
         @error('weekly_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-6">
-        <label class="form-label" for="job_title">Puesto <span class="text-muted fw-normal">(opcional)</span></label>
-        <input id="job_title" name="job_title" type="text" class="form-control" value="{{ old('job_title', $worker?->job_title) }}">
+        <label class="form-label" for="position_category_id">Puesto <span class="text-muted fw-normal">(opcional)</span></label>
+        <select id="position_category_id" name="position_category_id" class="form-select @error('position_category_id') is-invalid @enderror">
+            <option value="">Sin asignar</option>
+            @foreach ($positionCategories as $positionCategory)
+                <option value="{{ $positionCategory->id }}" @selected((string) old('position_category_id', $worker?->position_category_id) === (string) $positionCategory->id)>{{ $positionCategory->name }}</option>
+            @endforeach
+        </select>
+        @error('position_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-6">
+        <label class="form-label" for="payment_type">Tipo de pago <span class="text-danger">*</span></label>
+        <select id="payment_type" name="payment_type" class="form-select @error('payment_type') is-invalid @enderror" required>
+            <option value="salaried" @selected(old('payment_type', $worker?->payment_type ?? 'salaried') === 'salaried')>Sueldo semanal</option>
+            <option value="piecework" @selected(old('payment_type', $worker?->payment_type) === 'piecework')>Destajo</option>
+        </select>
+        @error('payment_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-6">
         <label class="form-label" for="project_work_id">Obra base <span class="text-muted fw-normal">(opcional)</span></label>

@@ -38,4 +38,14 @@ class WorkerGroup extends Model
     {
         return $this->hasMany(WorkerAttendance::class);
     }
+
+    public function payrollLines(): HasMany
+    {
+        return $this->hasMany(PayrollLine::class);
+    }
+
+    public function pieceworkWeeklyEntries(): HasMany
+    {
+        return $this->hasMany(PieceworkWeeklyEntry::class);
+    }
 }

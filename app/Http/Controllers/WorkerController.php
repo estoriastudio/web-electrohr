@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\WorkerExport;
 use App\Imports\WorkerPayrollImport;
 use App\Imports\WorkerTerminationImport;
+use App\Models\PositionCategory;
 use App\Models\Worker;
 use App\Models\ProjectWork;
 use App\Services\NotificationService;
@@ -47,6 +48,7 @@ class WorkerController extends Controller
         $workers = Worker::query()
             ->with([
                 'projectWork',
+                'positionCategory',
                 'groups' => fn ($query) => $query->wherePivotNull('left_at')->with('projectWork'),
             ])
             ->when($search, function ($query) use ($search) {
@@ -55,7 +57,7 @@ class WorkerController extends Controller
                         ->orWhere('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('nickname', 'like', "%{$search}%")
-                        ->orWhere('job_title', 'like', "%{$search}%");
+                        ->orWhereHas('positionCategory', fn ($categoryQuery) => $categoryQuery->where('name', 'like', "%{$search}%"));
 
                     $workerQuery->orWhereHas('groups', function ($groupQuery) use ($search) {
                         $groupQuery->whereNull('worker_group_members.left_at')
@@ -71,6 +73,7 @@ class WorkerController extends Controller
             ->withQueryString();
 
         $projectWorks = ProjectWork::orderBy('name')->get();
+        $positionCategories = PositionCategory::query()->where('active', true)->orderBy('name')->get();
 
         return view('human_resources.workers.index', compact(
             'workers',
@@ -79,6 +82,7 @@ class WorkerController extends Controller
             'section',
             'projectWorkId',
             'workerStats',
+            'positionCategories',
         ));
     }
 
@@ -152,10 +156,13 @@ class WorkerController extends Controller
     {
         $worker->load([
             'projectWork',
+            'positionCategory',
             'file',
             'groups.projectWork',
             'terminations.projectWork',
+            'terminations.positionCategory',
             'vacations' => fn ($query) => $query->orderByDesc('start_date'),
+            'incentives' => fn ($query) => $query->orderByDesc('incentive_date'),
             'attendances.workerGroup.projectWork',
         ]);
 
@@ -165,8 +172,12 @@ class WorkerController extends Controller
     public function edit(Worker $worker): View
     {
         $projectWorks = ProjectWork::orderBy('name')->get();
+        $positionCategories = PositionCategory::query()
+            ->where(fn ($query) => $query->where('active', true)->orWhereKey($worker->position_category_id))
+            ->orderBy('name')
+            ->get();
 
-        return view('human_resources.workers.edit', compact('worker', 'projectWorks'));
+        return view('human_resources.workers.edit', compact('worker', 'projectWorks', 'positionCategories'));
     }
 
     public function update(Request $request, Worker $worker): RedirectResponse
@@ -231,9 +242,10 @@ class WorkerController extends Controller
             'curp' => 'nullable|string|max:18',
             'birth_date' => 'nullable|date',
             'hire_date' => 'required|date',
-            'job_title' => 'nullable|string|max:255',
+            'position_category_id' => 'nullable|exists:position_categories,id',
             'project_work_id' => 'nullable|exists:project_works,id',
             'weekly_salary' => 'required|numeric|min:0',
+            'payment_type' => 'required|in:salaried,piecework',
             'ine_expiration_date' => 'nullable|date',
             'medical_certificate_expiration_date' => 'nullable|date',
             'emergency_contact_name' => 'nullable|string|max:255',

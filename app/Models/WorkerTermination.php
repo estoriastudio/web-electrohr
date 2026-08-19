@@ -10,7 +10,7 @@ class WorkerTermination extends Model
     protected $fillable = [
         'worker_id',
         'project_work_id',
-        'job_title',
+        'position_category_id',
         'salary',
         'termination_type',
         'reason',
@@ -31,5 +31,10 @@ class WorkerTermination extends Model
     public function projectWork(): BelongsTo
     {
         return $this->belongsTo(ProjectWork::class);
+    }
+
+    public function positionCategory(): BelongsTo
+    {
+        return $this->belongsTo(PositionCategory::class);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Worker;
+use App\Models\PositionCategory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -73,7 +74,7 @@ class WorkerPayrollImport implements ToCollection
             $worker->fill([
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'job_title' => $this->value($values, $headers['job_title']) ?: null,
+                'position_category_id' => $this->positionCategoryId($this->value($values, $headers['position_category'])),
                 'weekly_salary' => $salary,
                 'status' => $worker->status === 'terminated' ? 'terminated' : 'active',
             ]);
@@ -93,16 +94,16 @@ class WorkerPayrollImport implements ToCollection
         $headers = array_map(fn ($value) => $this->normalize($value), $values);
         $employeeCode = $this->findIndex($headers, fn ($header) => str_contains($header, 'CUENTA'));
         $name = $this->findIndex($headers, fn ($header) => str_starts_with($header, 'NOMBRE'));
-        $jobTitle = $this->findIndex($headers, fn ($header) => $header === 'CATEGORIA');
+        $positionCategory = $this->findIndex($headers, fn ($header) => $header === 'CATEGORIA');
         $weeklySalary = $this->findIndex($headers, fn ($header) => $header === 'SUELDO');
 
         if ($employeeCode === null || $name === null || $weeklySalary === null) {
             return null;
         }
 
-        return compact('employeeCode', 'name', 'jobTitle', 'weeklySalary') + [
+        return compact('employeeCode', 'name', 'positionCategory', 'weeklySalary') + [
             'employee_code' => $employeeCode,
-            'job_title' => $jobTitle,
+            'position_category' => $positionCategory,
             'weekly_salary' => $weeklySalary,
         ];
     }
@@ -142,6 +143,17 @@ class WorkerPayrollImport implements ToCollection
         $lastName = count($parts) > 2 ? implode(' ', array_splice($parts, -2)) : array_pop($parts);
 
         return [implode(' ', $parts), $lastName];
+    }
+
+    private function positionCategoryId(string $name): ?int
+    {
+        $name = preg_replace('/\s+/', ' ', trim($name)) ?? '';
+
+        if ($name === '') {
+            return null;
+        }
+
+        return PositionCategory::firstOrCreate(['name' => $name], ['active' => true])->id;
     }
 
     private function normalize(mixed $value): string
