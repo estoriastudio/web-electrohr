@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('page_title', 'Costo por cuadrilla')
+@section('content')
+<div class="card"><div class="card-header"><h4 class="card-title mb-0">Costo de nómina por cuadrilla</h4></div><div class="card-body border-bottom"><form><select class="form-select" name="payroll_period_id" onchange="this.form.submit()">@foreach($payrollPeriods as $period)<option value="{{ $period->id }}" @selected($payrollPeriod?->id === $period->id)>Semana {{ $period->week_number }}/{{ $period->year }}</option>@endforeach</select></form></div><table class="table mb-0"><thead><tr><th>Cuadrilla</th><th class="text-end">Total</th></tr></thead><tbody>@forelse($totals as $id => $total)<tr><td>{{ $workerGroups[$id]?->name }}</td><td class="text-end fw-medium">${{ number_format($total, 2) }}</td></tr>@empty<tr><td colspan="2" class="text-center text-muted py-4">Sin costos para el periodo.</td></tr>@endforelse</tbody></table></div>
+@endsection

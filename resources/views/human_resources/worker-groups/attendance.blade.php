@@ -50,7 +50,7 @@
                     <tr class="worker-group-attendance-row" data-worker-id="{{ $member->id }}">
                         <td><a href="{{ route('human_resources.workers.show', $member) }}" class="text-dark fw-medium">{{ $member->first_name }} {{ $member->last_name }}</a></td>
                         <td>{{ $member->employee_code ?: '—' }}</td>
-                        <td>{{ $member->job_title ?: '—' }}</td>
+                          <td>{{ $member->positionCategory?->name ?: '—' }}</td>
                         <td><span class="js-attendance-status badge {{ ! $attendance ? 'bg-secondary-subtle text-secondary' : ($attendance->attended ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger') }}">{{ ! $attendance ? 'Sin registrar' : ($attendance->attended ? 'Show' : 'No show') }}</span></td>
                         <td class="text-end">
                             <div class="btn-group" role="group" aria-label="Asistencia de {{ $member->first_name }} {{ $member->last_name }}">

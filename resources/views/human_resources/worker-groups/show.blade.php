@@ -35,7 +35,7 @@
 						@forelse($workerGroup->activeMembers as $member)
 							<tr class="worker-group-member-row" data-worker-id="{{ $member->id }}">
 								<td><a href="{{ route('human_resources.workers.show', $member) }}" class="text-dark">{{ $member->first_name }} {{ $member->last_name }}</a></td>
-								<td>{{ $member->job_title ?: '—' }}</td>
+								<td>{{ $member->positionCategory?->name ?: '—' }}</td>
 								<td>{{ $member->pivot->joined_at?->format('d/m/Y') }}</td>
 								<td class="text-end">
 									<form class="d-inline-flex gap-2" method="POST" action="{{ route('human_resources.worker-groups.members.remove', [$workerGroup, $member]) }}">

@@ -103,7 +103,7 @@
                     </td>
                     <td>{{ $worker->nickname ?: '—' }}</td>
                     <td>@if($currentGroup)<span class="fw-medium">{{ $currentGroup->name }}</span><div class="text-muted fs-12">{{ $currentGroup->projectWork?->name ?: '—' }}</div>@else<span class="text-muted">Sin cuadrilla</span>@endif</td>
-                    <td>{{ $worker->job_title ?: '—' }}</td>
+                    <td>{{ $worker->positionCategory?->name ?: '—' }}</td>
                     <td>{{ $worker->projectWork?->name ?: 'Sin asignar' }}</td>
                     <td><span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span></td>
                     <td class="text-end"><a href="{{ route('human_resources.workers.show', $worker) }}" class="btn btn-light btn-sm" title="Ver trabajador"><i class="ri-eye-line"></i></a><a href="{{ route('human_resources.workers.edit', $worker) }}" class="btn btn-light btn-sm" title="Editar"><i class="ri-edit-line"></i></a></td>
