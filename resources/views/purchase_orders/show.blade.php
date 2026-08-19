@@ -70,7 +70,7 @@
 @endphp
 
 {{-- ── FLUJO DE EMISIÓN Y AUTORIZACIÓN ── --}}
-@if (in_array($purchaseOrder->status, ['emitida', 'pendiente']))
+@if (in_array($purchaseOrder->status, ['emitida', 'pendiente', 'autorizada']))
     <div id="purchaseOrderApproveAlert" class="alert {{ $purchaseOrder->status === 'autorizada' ? 'alert-success' : ($purchaseOrder->status === 'emitida' ? 'alert-warning' : 'alert-info') }} alert-dismissible d-flex align-items-start gap-3 mb-3 oc-approve-alert" role="alert">
         <i class="{{ $purchaseOrder->status === 'autorizada' ? 'ri-checkbox-circle-line text-success' : ($purchaseOrder->status === 'emitida' ? 'ri-shield-check-line text-warning' : 'ri-send-plane-line text-info') }} fs-22 mt-1"></i>
         <div class="flex-grow-1">
