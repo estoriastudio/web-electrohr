@@ -802,7 +802,7 @@
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
-            $canEditMilestone = $paymentsCount <= 1;
+            $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
 
@@ -827,7 +827,6 @@
                     </div>
                     <div class="d-flex gap-1">
                         @hasanyrole('admin|Orden de compra')
-                        @if ($canModifyPurchaseOrder)
                         @if ($canEditMilestone)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -835,12 +834,8 @@
                                     data-bs-target="#modalEditMilestone{{ $milestone->id }}">
                                 <i class="ri-edit-line fs-13"></i>
                             </button>
-                        @else
-                            <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
-                                    title="No se puede editar: el hito tiene múltiples pagos registrados" disabled>
-                                <i class="ri-lock-line fs-13"></i>
-                            </button>
                         @endif
+                        @if ($canModifyPurchaseOrder)
                         @if ($canDeleteMilestone)
                             <form action="{{ route('milestones.destroy', $milestone) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar este hito y todos sus pagos?')">
@@ -855,7 +850,7 @@
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
-                        @else
+                        @elseif (!$canEditMilestone)
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
                                     title="OC autorizada: solo admin puede editar" disabled>
                                 <i class="ri-lock-line fs-13"></i>
@@ -1534,6 +1529,7 @@
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+        $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
     {{-- MODAL Editar Hito --}}
@@ -1547,6 +1543,15 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        @if (!$hasPendingPayment && $milestone->payments->isNotEmpty())
+                            <div class="alert alert-warning fs-13">
+                                No hay pagos por autorizar. Puedes actualizar los datos del hito, pero su monto debe conservar el total de los pagos ya aprobados o bloqueados.
+                            </div>
+                        @elseif ($milestone->payments->count() > 1)
+                            <div class="alert alert-info fs-13">
+                                Los pagos autorizados, pagados o bloqueados conservarán su importe. El ajuste se distribuirá únicamente entre los pagos por autorizar.
+                            </div>
+                        @endif
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label fw-medium">Concepto</label>

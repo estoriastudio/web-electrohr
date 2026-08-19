@@ -207,6 +207,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Importe facturado</label>
+                                                <label class="form-label fw-medium">Importe registrado</label>
                         <input type="text" class="form-control bg-light"
                                value="{{ $purchaseOrder->currency }} {{ number_format($invoicedAmount, 2) }}" disabled>
                     </div>

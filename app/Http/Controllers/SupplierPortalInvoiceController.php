@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class SupplierPortalInvoiceController extends Controller
 {
@@ -126,40 +127,24 @@ class SupplierPortalInvoiceController extends Controller
         $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
 
         $pdfName = $uuidBaseName . '.pdf';
-        $xmlName = null;
+        $xmlName = $uuidBaseName . '.xml';
         $evidenceExt = strtolower($request->file('evidence_file')->getClientOriginalExtension());
         $evidenceName = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '-EVIDENCIA.' . $evidenceExt;
         $creditNotePdfName = null;
-        $creditNotePdfPath = null;
         $creditNoteXmlName = null;
-        $creditNoteXmlPath = null;
 
         $directory = 'invoices/' . $purchaseOrder->id;
 
-        $pdfPath = $request->file('pdf_file')->storeAs($directory, $pdfName);
-        $xmlPath = null;
-        if ($request->hasFile('xml_file')) {
-            $xmlName = $uuidBaseName . '.xml';
-            $xmlPath = $request->file('xml_file')->storeAs($directory, $xmlName);
-        }
-        $evidencePath = $request->file('evidence_file')->storeAs($directory, $evidenceName);
-
         if ($hasCreditNote) {
             $creditNotePdfName = $uuidBaseName . '-NC.pdf';
-            $creditNotePdfPath = $request->file('credit_note_pdf_file')->storeAs($directory, $creditNotePdfName);
-
             $creditNoteXmlName = $uuidBaseName . '-NC.xml';
-            $creditNoteXmlPath = $request->file('credit_note_xml_file')->storeAs($directory, $creditNoteXmlName);
         }
 
         DB::transaction(function () use (
             $purchaseOrder,
             $pdfName,
-            $pdfPath,
             $xmlName,
-            $xmlPath,
             $evidenceName,
-            $evidencePath,
             $resolvedAmount,
             $resolvedCreditNoteAmount,
             $netScope,
@@ -168,10 +153,32 @@ class SupplierPortalInvoiceController extends Controller
             $xmlIssueDate,
             $validated,
             $creditNotePdfName,
-            $creditNotePdfPath,
             $creditNoteXmlName,
-            $creditNoteXmlPath
+            $directory
         ) {
+            $lockedPurchaseOrder = PurchaseOrder::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseOrder->id);
+            $lockedInvoicedAmount = $this->resolveInvoicedAmount($lockedPurchaseOrder);
+            $lockedPendingAmount = max(0, (float) $lockedPurchaseOrder->amount - $lockedInvoicedAmount);
+
+            if ($netScope > $lockedPendingAmount || $lockedPendingAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($lockedPendingAmount, 2) . ' ' . $lockedPurchaseOrder->currency . ').',
+                ]);
+            }
+
+            $pdfPath = $request->file('pdf_file')->storeAs($directory, $pdfName);
+            $xmlPath = $request->file('xml_file')->storeAs($directory, $xmlName);
+            $evidencePath = $request->file('evidence_file')->storeAs($directory, $evidenceName);
+            $creditNotePdfPath = null;
+            $creditNoteXmlPath = null;
+
+            if ($creditNotePdfName && $creditNoteXmlName) {
+                $creditNotePdfPath = $request->file('credit_note_pdf_file')->storeAs($directory, $creditNotePdfName);
+                $creditNoteXmlPath = $request->file('credit_note_xml_file')->storeAs($directory, $creditNoteXmlName);
+            }
+
             $invoice = PurchaseOrderInvoice::create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'folio' => $xmlFiscalFolio,
@@ -394,7 +401,10 @@ class SupplierPortalInvoiceController extends Controller
     private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder, ?int $excludedInvoiceId = null): float
     {
         return (float) $purchaseOrder->invoices()
-            ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+            ->whereIn('status', [
+                PurchaseOrderInvoice::STATUS_EN_PROCESO,
+                PurchaseOrderInvoice::STATUS_ACEPTADA,
+            ])
             ->when($excludedInvoiceId !== null, function ($query) use ($excludedInvoiceId) {
                 $query->whereKeyNot($excludedInvoiceId);
             })

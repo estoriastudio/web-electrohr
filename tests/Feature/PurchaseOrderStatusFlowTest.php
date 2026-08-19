@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderMilestone;
+use App\Models\Payment;
 use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -118,6 +120,58 @@ class PurchaseOrderStatusFlowTest extends TestCase
         $this->assertDatabaseHas('payments', [
             'status' => 'por_autorizar',
             'amount' => 100,
+        ]);
+    }
+
+    public function test_purchase_order_role_can_update_pending_payments_of_an_authorized_destajo_milestone(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Orden de compra');
+        $purchaseOrder = $this->purchaseOrder('autorizada', true);
+        $milestone = PurchaseOrderMilestone::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 1000,
+            'covered_amount' => 0,
+            'due_date' => '2026-09-01',
+        ]);
+        $authorizedPayment = Payment::create([
+            'milestone_id' => $milestone->id,
+            'folio' => 'PAY-AUTH-' . random_int(10000, 99999),
+            'amount' => 300,
+            'payment_date' => '2026-09-01',
+            'status' => 'autorizado',
+        ]);
+        $pendingPayment = Payment::create([
+            'milestone_id' => $milestone->id,
+            'folio' => 'PAY-PENDING-' . random_int(10000, 99999),
+            'amount' => 700,
+            'payment_date' => '2026-09-01',
+            'status' => 'por_autorizar',
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('milestones.update', $milestone), [
+                'payment_condition' => 'credito',
+                'value_type' => 'fijo',
+                'value' => 1200,
+                'due_date' => '2026-09-15',
+            ])
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $authorizedPayment->id,
+            'amount' => 300,
+            'payment_date' => '2026-09-01',
+            'status' => 'autorizado',
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'id' => $pendingPayment->id,
+            'amount' => 900,
+            'payment_date' => '2026-09-15',
+            'status' => 'por_autorizar',
         ]);
     }
 

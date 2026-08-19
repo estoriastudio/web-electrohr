@@ -168,9 +168,11 @@ class PurchaseOrderMilestoneController extends Controller
         ]);
 
         $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
-        if ($purchaseOrder?->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
+        if ($purchaseOrder?->status === 'autorizada'
+            && !$purchaseOrder->is_destajo
+            && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
-                ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
+                ->with('error', 'Solo admin puede editar hitos de una OC autorizada que no es destajo.');
         }
 
         $this->ensureMilestoneValueIsWithinOrderTotal(
@@ -178,12 +180,6 @@ class PurchaseOrderMilestoneController extends Controller
             (string) $validated['value_type'],
             (float) $validated['value']
         );
-
-        $payments = $purchaseOrderMilestone->payments()->orderBy('id')->get();
-        if ($payments->count() > 1) {
-            return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
-                ->with('error', 'No se puede sincronizar automáticamente: el hito tiene múltiples pagos. Contacta a administración para consolidar el historial.');
-        }
 
         $validated['is_advance'] = $request->boolean('is_advance');
         $validated['type']       = $purchaseOrderMilestone->type; // preservar valor legacy existente
@@ -198,14 +194,18 @@ class PurchaseOrderMilestoneController extends Controller
             'due_date'          => $purchaseOrderMilestone->due_date?->format('d/m/Y'),
         ];
 
-        DB::transaction(function () use ($purchaseOrderMilestone, $validated, $payments): void {
+        DB::transaction(function () use ($purchaseOrderMilestone, $validated): void {
+            $payments = $purchaseOrderMilestone->payments()
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+
             $purchaseOrderMilestone->update($validated);
             $purchaseOrderMilestone->refresh()->load('purchaseOrder');
 
             $targetAmount = $purchaseOrderMilestone->effective_amount;
-            $payment = $payments->first();
 
-            if (!$payment) {
+            if ($payments->isEmpty()) {
                 Payment::create([
                     'milestone_id'     => $purchaseOrderMilestone->id,
                     'folio'            => $this->paymentFolioGenerator->generate(),
@@ -219,17 +219,44 @@ class PurchaseOrderMilestoneController extends Controller
                 return;
             }
 
-            $previousAmount = (float) $payment->amount;
-            $delta = round($targetAmount - $previousAmount, 2);
+            $pendingPayments = $payments->where('status', 'por_autorizar')->values();
+            $lockedAmount = round((float) $payments
+                ->where('status', '!=', 'por_autorizar')
+                ->sum('amount'), 2);
 
-            $payment->update([
-                'amount'       => $targetAmount,
-                'payment_date' => $purchaseOrderMilestone->due_date,
-            ]);
+            if ($pendingPayments->isEmpty()) {
+                if (abs($targetAmount - $lockedAmount) > 0.009) {
+                    throw ValidationException::withMessages([
+                        'value' => 'No se puede modificar el monto del hito porque no tiene pagos por autorizar.',
+                    ]);
+                }
 
-            if ($payment->status === 'pagado' && abs($delta) > 0.0) {
-                $purchaseOrderMilestone->covered_amount = max(0, round((float) $purchaseOrderMilestone->covered_amount + $delta, 2));
-                $purchaseOrderMilestone->save();
+                return;
+            }
+
+            $pendingAmount = round($targetAmount - $lockedAmount, 2);
+            if ($pendingAmount < 0) {
+                throw ValidationException::withMessages([
+                    'value' => 'El monto del hito no puede ser menor que los pagos ya autorizados, pagados o bloqueados ('
+                        . number_format($lockedAmount, 2, '.', ',') . ').',
+                ]);
+            }
+
+            $currentPendingAmount = (float) $pendingPayments->sum('amount');
+            $remainingAmount = $pendingAmount;
+
+            foreach ($pendingPayments as $index => $payment) {
+                $isLastPayment = $index === $pendingPayments->count() - 1;
+                $amount = $isLastPayment
+                    ? $remainingAmount
+                    : round($pendingAmount * ((float) $payment->amount / $currentPendingAmount), 2);
+
+                $remainingAmount = round($remainingAmount - $amount, 2);
+
+                $payment->update([
+                    'amount'       => $amount,
+                    'payment_date' => $purchaseOrderMilestone->due_date,
+                ]);
             }
         });
 
