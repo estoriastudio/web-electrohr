@@ -382,6 +382,7 @@
                                         @forelse ($purchaseRequest->items as $i => $item)
                                             @php
                                                 $qty   = (float) $item->purchase_quantity;
+                                                $formattedQty = rtrim(rtrim(number_format($qty, 4, '.', ''), '0'), '.');
                                                 $price = (float) ($item->concept?->unit_price ?? 0);
                                                 $total = $qty * $price;
                                                 $subtotal += $total;
@@ -399,7 +400,7 @@
                                                 <td class="text-muted">{{ $i + 1 }}</td>
                                                 <td>{{ $item->description }}</td>
                                                 <td>{{ $item->unit }}</td>
-                                                <td class="text-end">{{ number_format($qty, 2) }}</td>
+                                                <td class="text-end">{{ $formattedQty }}</td>
                                                 <td class="text-end">{{ number_format($price, 2) }}</td>
                                                 <td class="text-end">{{ number_format($total, 2) }}</td>
                                             </tr>

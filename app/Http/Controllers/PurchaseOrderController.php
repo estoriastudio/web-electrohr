@@ -794,7 +794,7 @@ class PurchaseOrderController extends Controller
             ],
             'description'   => 'required|string|max:500',
             'unit'          => 'required|string|max:50',
-            'quantity'      => 'required|numeric|min:0.01',
+            'quantity'      => 'required|numeric|min:0.0001|decimal:0,4',
             'unit_price'    => 'required|numeric|min:0',
             'delivery_date' => 'nullable|string|max:100',
         ]);
@@ -856,7 +856,7 @@ class PurchaseOrderController extends Controller
         }
 
         $data = $request->validate([
-            'quantity'      => 'sometimes|numeric|min:0.01',
+            'quantity'      => 'sometimes|numeric|min:0.0001|decimal:0,4',
             'unit_price'    => 'sometimes|numeric|min:0',
             'delivery_date' => 'nullable|string|max:100',
         ]);

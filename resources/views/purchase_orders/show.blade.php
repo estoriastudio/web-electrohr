@@ -462,6 +462,9 @@
                         
                         <tbody id="oc_items_tbody">
                             @forelse ($purchaseOrder->items as $idx => $item)
+                                @php
+                                    $formattedQty = rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.');
+                                @endphp
                                 <tr class="oc-item-row" data-item-id="{{ $item->id }}">
                                     <td class="oc-row-num text-muted fs-12">{{ $idx + 1 }}</td>
                                     <td>{{ $item->description }}</td>
@@ -472,15 +475,15 @@
                                         <input type="number" step="0.0001" min="0"
                                                class="form-control form-control-sm text-end oc-qty-input"
                                                style="max-width:100px;display:inline-block;"
-                                               value="{{ $item->quantity }}"
+                                               value="{{ $formattedQty }}"
                                                data-item-id="{{ $item->id }}"
                                                data-field="quantity"
                                                data-original="{{ $item->quantity }}">
                                         @else
-                                        {{ number_format($item->quantity, 4) }}
+                                        {{ $formattedQty }}
                                         @endif
                                         @else
-                                        {{ number_format($item->quantity, 4) }}
+                                        {{ $formattedQty }}
                                         @endhasanyrole
                                     </td>
                                     <td class="text-end" style="min-width:140px;">
@@ -638,7 +641,7 @@
                         <div class="row g-2 mb-3">
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">Cantidad <span class="text-danger">*</span></label>
-                                <input type="number" id="oc_inp_qty" class="form-control" step="0.01" min="0.01" placeholder="0">
+                                <input type="number" id="oc_inp_qty" class="form-control" step="0.0001" min="0.0001" placeholder="0">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
@@ -678,7 +681,7 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">Cantidad <span class="text-danger">*</span></label>
-                                <input type="number" id="oc_inp_manual_qty" class="form-control" step="0.01" min="0.01" placeholder="0">
+                                <input type="number" id="oc_inp_manual_qty" class="form-control" step="0.0001" min="0.0001" placeholder="0">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">P/U <span class="text-danger">*</span></label>
@@ -2196,6 +2199,10 @@
     // ── Helpers ──────────────────────────────────────────────────────────
     function fmtMoney(n) { return parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
+    function formatQuantity(n) {
+        return parseFloat(n).toFixed(4).replace(/(?:\.0+|(\.\d*?)0+)$/, '$1');
+    }
+
     function parsePrice(val) {
         var clean = String(val == null ? '' : val).replace(/,/g, '').trim();
         if (clean === '') return NaN;
@@ -2343,7 +2350,7 @@
         var originalVal = input.dataset.field === 'unit_price'
             ? parsePrice(input.dataset.original)
             : parseFloat(input.dataset.original);
-        var deltaTolerance = input.dataset.field === 'unit_price' ? 1e-9 : 1e-4;
+        var deltaTolerance = input.dataset.field === 'unit_price' ? 1e-9 : 1e-8;
         if (Math.abs(val - originalVal) < deltaTolerance) {
             formatPriceInput(input);
             return;
@@ -2364,7 +2371,8 @@
                 input.dataset.original = String(data.unit_price);
                 input.value = String(data.unit_price);
             } else {
-                input.dataset.original = val;
+                input.dataset.original = formatQuantity(data.quantity);
+                input.value = input.dataset.original;
             }
             input.disabled = false;
             formatPriceInput(input);
@@ -2582,7 +2590,7 @@
                 '<td class="oc-row-num text-muted fs-12">' + (tbody.querySelectorAll('tr.oc-item-row').length) + '</td>'
                 + '<td>' + escHtml(data.description || '') + '</td>'
                 + '<td class="fs-12">' + escHtml(data.unit || '') + '</td>'
-                + '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(String(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(String(data.quantity)) + '"></td>'
+                + '<td class="text-end"><input type="number" step="0.0001" min="0.0001" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(formatQuantity(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(formatQuantity(data.quantity)) + '"></td>'
                 + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm text-end oc-qty-input oc-price-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
                 + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
                 + '<td><input type="text" maxlength="80" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_date || '') + '" placeholder="Ej. 4 SEMANAS"></td>'
