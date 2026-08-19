@@ -18,6 +18,7 @@
     ][$worker->status] ?? ['Sin definir', 'bg-secondary-subtle text-secondary'];
     $paymentType = $worker->payment_type === 'piecework' ? 'Destajo' : 'Sueldo semanal';
     $workerFile = $worker->file;
+    $isFileComplete = $workerFile?->isComplete() ?? false;
     $documents = [
         'ine_path' => ['label' => 'INE', 'expiration' => 'ine_expiration_date', 'worker_expiration' => true],
         'birth_certificate_path' => ['label' => 'Acta de nacimiento', 'expiration' => 'birth_certificate_expiration_date'],
@@ -42,14 +43,18 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div class="d-flex align-items-center gap-3">
         <div class="avatar-md bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
-            <span class="fs-20 fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span>
+            @if($worker->profile_photo_path)
+                <img src="{{ route('human_resources.workers.profile-photo', $worker) }}" alt="Fotografía de {{ $worker->first_name }} {{ $worker->last_name }}" class="w-100 h-100 rounded-circle" style="object-fit: cover;">
+            @else
+                <span class="fs-20 fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span>
+            @endif
         </div>
         <div>
             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                 <h4 class="mb-0">{{ $worker->first_name }} {{ $worker->last_name }}</h4>
                 <span class="badge {{ $workerStatus[1] }} py-1 px-2 fs-12">{{ $workerStatus[0] }}</span>
             </div>
-            <span class="text-muted fs-13">{{ $worker->employee_code ? 'No. de cuenta: '.$worker->employee_code : 'Sin número de cuenta' }}</span>
+            <span class="text-muted fs-13">{{ $worker->employee_code ? 'No. de cuenta bancaria: '.$worker->employee_code : 'Sin número de cuenta bancaria' }}</span>
         </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
@@ -69,6 +74,7 @@
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Esquema de pago</span><span class="text-dark fw-medium">{{ $paymentType }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Sueldo semanal</span><span class="text-dark fw-medium">${{ number_format((float) $worker->weekly_salary, 2) }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Fecha de alta</span><span class="text-dark fw-medium">{{ $worker->hire_date?->format('d/m/Y') ?: 'Pendiente' }}</span></div>
+                    <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Perfil</span><span class="text-dark fw-medium">{{ $worker->is_dc5 ? 'DC5 - Agente capacitado' : 'Sin DC5' }}</span></div>
                 </div>
                 <hr class="my-4">
                 <h6 class="text-muted text-uppercase fs-12 mb-3">Datos personales y contacto</h6>
@@ -78,7 +84,6 @@
                     <div class="col-md-6"><span class="text-muted d-block fs-12 mb-1">Contacto de emergencia</span><span>{{ $worker->emergency_contact_name ?: '—' }}</span></div>
                     <div class="col-md-6"><span class="text-muted d-block fs-12 mb-1">Teléfono de emergencia</span><span>{{ $worker->emergency_contact_phone ?: '—' }}</span></div>
                     <div class="col-md-6"><span class="text-muted d-block fs-12 mb-1">NSS</span><span>{{ $worker->nss ?: '—' }}</span></div>
-                    <div class="col-md-6"><span class="text-muted d-block fs-12 mb-1">Cuenta bancaria</span><span>{{ $worker->bank_account ?: '—' }}</span></div>
                 </div>
             </div>
         </div>
@@ -88,7 +93,11 @@
             <div class="card-header border-bottom"><h4 class="card-title mb-0"><i class="ri-flashlight-line me-2 text-primary"></i>Acciones laborales</h4></div>
             <div class="card-body d-grid gap-2">
                 @if ($worker->status !== 'active' && $worker->status !== 'terminated')
-                    <form method="POST" action="{{ route('human_resources.workers.activate', $worker) }}">@csrf<button class="btn btn-success w-100" type="submit"><i class="ri-user-follow-line me-1"></i>Dar de alta</button></form>
+                    @if($isFileComplete)
+                        <form method="POST" action="{{ route('human_resources.workers.activate', $worker) }}">@csrf<button class="btn btn-success w-100" type="submit"><i class="ri-user-follow-line me-1"></i>Dar de alta</button></form>
+                    @else
+                        <a class="btn btn-outline-primary" href="{{ route('human_resources.workers.file.show', $worker) }}"><i class="ri-folder-upload-line me-1"></i>Completar expediente para dar de alta</a>
+                    @endif
                 @endif
                 @if ($worker->status !== 'pre_registered' && $worker->status !== 'terminated')
                     <form method="POST" action="{{ route('human_resources.workers.pre-register', $worker) }}">@csrf<button class="btn btn-outline-warning w-100" type="submit">Marcar pre-registro</button></form>
@@ -113,6 +122,19 @@
                     @endphp
                     <div class="list-group-item px-3 py-2"><div class="d-flex align-items-start gap-2"><i class="{{ $hasDocument ? 'ri-checkbox-circle-line text-success' : 'ri-checkbox-blank-circle-line text-muted' }} fs-18"></i><div class="flex-grow-1"><div class="fw-medium fs-13">{{ $document['label'] }}</div>@if(! $hasDocument)<span class="text-muted fs-12">Pendiente</span>@elseif(! $expirationDate)<span class="text-muted fs-12">Sin vencimiento registrado</span>@elseif($isExpired)<span class="text-danger fs-12">Venció el {{ $expirationDate->format('d/m/Y') }}</span>@elseif($expiresSoon)<span class="text-warning fs-12">Vence el {{ $expirationDate->format('d/m/Y') }}</span>@else<span class="text-success fs-12">Vigente hasta {{ $expirationDate->format('d/m/Y') }}</span>@endif</div></div></div>
                 @endforeach
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <div><h4 class="card-title mb-0"><i class="ri-award-line me-2 text-primary"></i>Certificaciones DC3</h4><span class="text-muted fs-12">{{ $worker->dc3s->count() }} certificación(es) registrada(s)</span></div>
+                <a class="btn btn-light btn-sm" href="{{ route('human_resources.workers.file.show', $worker) }}" title="Gestionar certificaciones DC3"><i class="ri-arrow-right-line align-middle fs-18"></i></a>
+            </div>
+            <div class="list-group list-group-flush">
+                @forelse($worker->dc3s as $dc3)
+                    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="{{ route('human_resources.workers.file.dc3.download', [$worker, $dc3]) }}"><span class="fw-medium">{{ $dc3->label }}</span><i class="ri-download-2-line text-muted"></i></a>
+                @empty
+                    <div class="list-group-item text-muted fs-13">Sin certificaciones DC3 registradas.</div>
+                @endforelse
             </div>
         </div>
     </div>

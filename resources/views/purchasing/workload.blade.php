@@ -9,23 +9,15 @@
 
 @section('content')
 @php
-    $totalPending    = $pendingCounts->sum();
-    $totalAssigned   = $pendingCounts->filter(fn($v, $k) => !is_null($k))->sum();
-    $usersWithWork   = $pendingCounts->filter(fn($v) => $v > 0)->count();
-
-    $statusMap = [
-        'pending'            => ['label' => 'Pendiente',           'class' => 'bg-warning-subtle text-warning'],
-        'linked'             => ['label' => 'Ligado',              'class' => 'bg-secondary-subtle text-secondary'],
-        'sent_to_purchasing' => ['label' => 'En Compras',          'class' => 'bg-primary-subtle text-primary'],
-        'changes_requested'  => ['label' => 'Cambios Solicitados', 'class' => 'bg-danger-subtle text-danger'],
-        'completed'          => ['label' => 'Finalizado',          'class' => 'bg-success-subtle text-success'],
-    ];
+    $totalActive   = $activeCounts->sum() + $unassignedCount;
+    $totalAssigned = $activeCounts->sum();
+    $usersWithWork = $activeCounts->filter(fn($v) => $v > 0)->count();
 
     // Nombres cortos para el gráfico
     $chartLabels = [];
     $chartData   = [];
     foreach ($ordersUsers as $u) {
-        $count = $pendingCounts->get($u->id, 0);
+        $count = $activeCounts->get($u->id, 0);
         $chartLabels[] = explode(' ', $u->name)[0]; // primer nombre
         $chartData[]   = (int) $count;
     }
@@ -36,7 +28,7 @@
 
     $summaryUsers = $ordersUsers
         ->sortBy(fn($u) => strtolower($u->name))
-        ->sortByDesc(fn($u) => (int) $pendingCounts->get($u->id, 0))
+        ->sortByDesc(fn($u) => (int) $activeCounts->get($u->id, 0))
         ->values();
 @endphp
 
@@ -48,18 +40,18 @@
             <div class="card-header border-bottom">
                 <h5 class="card-title mb-0">
                     <i class="ri-bar-chart-grouped-line me-2 text-primary"></i>
-                    SOLCOMs Pendientes por Responsable
+                    Carga Activa por Responsable
                 </h5>
-                <p class="text-muted fs-12 mb-0 mt-1">Estado: <em>En Compras</em></p>
+                <p class="text-muted fs-12 mb-0 mt-1">SOLCOMs sin OC y OC pendientes o emitidas</p>
             </div>
             <div class="card-body">
-                @if ($totalPending > 0)
+                @if ($totalActive > 0)
                     <div id="workloadChart" style="min-height:300px;"></div>
                 @else
                     <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-muted">
                         <i class="ri-check-double-line fs-1 mb-2 text-success"></i>
-                        <p class="mb-0 fw-medium">¡Sin pendientes!</p>
-                        <p class="fs-12 mb-0">Todas las SOLCOMs están al día.</p>
+                        <p class="mb-0 fw-medium">¡Sin carga activa!</p>
+                        <p class="fs-12 mb-0">Todas las órdenes están finalizadas.</p>
                     </div>
                 @endif
             </div>
@@ -69,9 +61,9 @@
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Total en Compras</p>
-                        <h3 class="mb-0 fw-bold">{{ $totalPending }}</h3>
-                        <p class="text-muted fs-12 mb-0">SOLCOMs pendientes de OC</p>
+                        <p class="text-muted fw-medium fs-13 mb-1">Carga activa</p>
+                        <h3 class="mb-0 fw-bold">{{ $totalActive }}</h3>
+                        <p class="text-muted fs-12 mb-0">Sin OC, pendientes o emitidas</p>
                     </div>
                     <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
@@ -85,7 +77,7 @@
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <p class="text-muted fw-medium fs-13 mb-1">Asignadas</p>
+                        <p class="text-muted fw-medium fs-13 mb-1">Activas asignadas</p>
                         <h3 class="mb-0 fw-bold">{{ $totalAssigned }}</h3>
                         <p class="text-muted fs-12 mb-0">Con responsable definido</p>
                     </div>
@@ -119,7 +111,7 @@
                     <div>
                         <p class="text-muted fw-medium fs-13 mb-1">Compradores Activos</p>
                         <h3 class="mb-0 fw-bold">{{ $usersWithWork }}</h3>
-                        <p class="text-muted fs-12 mb-0">Con SOLCOMs asignadas</p>
+                        <p class="text-muted fs-12 mb-0">Con carga activa</p>
                     </div>
                     <div class="bg-warning-subtle rounded-circle d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;">
@@ -146,9 +138,10 @@
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th>Comprador</th>
+                                <th class="text-center">Activas</th>
+                                <th class="text-center">Sin OC</th>
                                 <th class="text-center">Pendientes</th>
-                                <th class="text-center">En Compras</th>
-                                <th class="text-center">Cambios Req.</th>
+                                <th class="text-center">Emitidas</th>
                                 <th class="text-center">Finalizadas</th>
                                 <th></th>
                             </tr>
@@ -156,12 +149,12 @@
                         <tbody>
                             @foreach ($summaryUsers as $u)
                             @php
-                                $counts    = $allCounts->get($u->id, collect());
-                                $byStatus  = $counts->pluck('total', 'status');
-                                $pending   = (int) $pendingCounts->get($u->id, 0);
-                                $changesReq = (int) ($byStatus->get('changes_requested', 0));
-                                $completed  = (int) ($byStatus->get('completed', 0));
-                                $inBuying   = (int) ($byStatus->get('sent_to_purchasing', 0));
+                                $ordersByStatus = $orderCounts->get($u->id, collect())->pluck('total', 'status');
+                                $active         = (int) $activeCounts->get($u->id, 0);
+                                $withoutOrder   = (int) $unlinkedRequestCounts->get($u->id, 0);
+                                $pendingOrders  = (int) $ordersByStatus->get('pendiente', 0);
+                                $issuedOrders   = (int) $ordersByStatus->get('emitida', 0);
+                                $completedOrders = (int) $ordersByStatus->get('autorizada', 0);
                                 $hasSolcoms = $pendingByUser->has($u->id);
                             @endphp
                             <tr class="{{ $hasSolcoms ? 'cursor-pointer user-row' : '' }}"
@@ -181,27 +174,32 @@
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    @if ($pending > 0)
-                                        <span class="badge bg-primary rounded-pill fs-12 px-2 py-1">{{ $pending }}</span>
+                                    @if ($active > 0)
+                                        <span class="badge bg-primary rounded-pill fs-12 px-2 py-1">{{ $active }}</span>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="fs-13 {{ $inBuying > 0 ? 'fw-medium text-primary' : 'text-muted' }}">
-                                        {{ $inBuying ?: '—' }}
+                                    <span class="fs-13 {{ $withoutOrder > 0 ? 'fw-medium text-danger' : 'text-muted' }}">
+                                        {{ $withoutOrder ?: '—' }}
                                     </span>
                                 </td>
                                 <td class="text-center">
-                                    @if ($changesReq > 0)
-                                        <span class="badge bg-danger-subtle text-danger fs-12 px-2 py-1">{{ $changesReq }}</span>
+                                    @if ($pendingOrders > 0)
+                                        <span class="badge bg-warning-subtle text-warning fs-12 px-2 py-1">{{ $pendingOrders }}</span>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="fs-13 {{ $completed > 0 ? 'text-success fw-medium' : 'text-muted' }}">
-                                        {{ $completed ?: '—' }}
+                                    <span class="fs-13 {{ $issuedOrders > 0 ? 'text-primary fw-medium' : 'text-muted' }}">
+                                        {{ $issuedOrders ?: '—' }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fs-13 {{ $completedOrders > 0 ? 'text-success fw-medium' : 'text-muted' }}">
+                                        {{ $completedOrders ?: '—' }}
                                     </span>
                                 </td>
                                 <td class="text-end">
@@ -216,11 +214,11 @@
                             {{-- Fila de detalle colapsable --}}
                             @if ($hasSolcoms)
                             <tr class="detail-row d-none" id="detail-{{ $u->id }}">
-                                <td colspan="6" class="p-0">
+                                <td colspan="7" class="p-0">
                                     <div class="bg-light border-top border-bottom px-4 py-3">
                                         <p class="text-muted fs-12 fw-medium mb-2">
                                             <i class="ri-stack-line me-1"></i>
-                                            SOLCOMs pendientes de generar OC — {{ $u->name }}
+                                            SOLCOMs sin OC — {{ $u->name }}
                                         </p>
                                         <div class="table-responsive">
                                             <table class="table table-sm table-bordered mb-0 bg-white">
@@ -361,11 +359,11 @@
 @endsection
 
 @push('scripts')
-@if ($totalPending > 0)
+@if ($totalActive > 0)
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ── Gráfico de barras: SOLCOMs pendientes por responsable ──────────────
+    // ── Gráfico de barras: carga activa por responsable ────────────────────
     const labels = @json($chartLabels);
     const data   = @json($chartData);
     const colors = data.map((v, i) =>

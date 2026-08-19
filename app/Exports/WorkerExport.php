@@ -18,7 +18,7 @@ class WorkerExport implements FromCollection, WithHeadings, WithMapping, ShouldA
     public function headings(): array
     {
         return [
-            'No. de cuenta',
+            'No. de cuenta bancaria',
             'Nombre(s)',
             'Apellidos',
             'Puesto',

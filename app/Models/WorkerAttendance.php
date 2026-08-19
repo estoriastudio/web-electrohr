@@ -16,6 +16,8 @@ class WorkerAttendance extends Model
         'year',
         'role',
         'attended',
+        'absence_reason',
+        'absence_document_path',
         'overtime_hours',
         'notes',
     ];

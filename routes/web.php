@@ -17,6 +17,7 @@ use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\ProjectWorkEstimateController;
 use App\Http\Controllers\WorkerController;
+use App\Http\Controllers\WorkerDc3Controller;
 use App\Http\Controllers\WorkerFileController;
 use App\Http\Controllers\WorkerTerminationController;
 use App\Http\Controllers\WorkerGroupController;
@@ -278,6 +279,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
             Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
             Route::resource('workers', WorkerController::class);
+            Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
             Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
             Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
             Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
@@ -287,6 +289,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
             Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])
                 ->name('workers.file.download');
+            Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
+            Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
+            Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
 
             Route::resource('worker-groups', WorkerGroupController::class);
             Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
@@ -296,6 +301,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
             Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
 
+            Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
             Route::resource('worker-attendances', WorkerAttendanceController::class);
 
             Route::resource('worker-vacations', WorkerVacationController::class);

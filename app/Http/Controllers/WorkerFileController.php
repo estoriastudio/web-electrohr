@@ -13,17 +13,7 @@ use Illuminate\View\View;
 
 class WorkerFileController extends Controller
 {
-    private const FILE_COLUMNS = [
-        'ine_path',
-        'birth_certificate_path',
-        'address_proof_path',
-        'nss_path',
-        'license_path',
-        'tax_status_path',
-        'medical_certificate_path',
-        'cv_path',
-        'emergency_contact_ine_path',
-    ];
+    private const FILE_COLUMNS = WorkerFile::DOCUMENT_COLUMNS;
 
     private const EXPIRATION_COLUMNS = [
         'ine_expiration_date',
@@ -47,6 +37,7 @@ class WorkerFileController extends Controller
     public function show(Worker $worker): View
     {
         $workerFile = WorkerFile::firstOrCreate(['worker_id' => $worker->id]);
+        $worker->load('dc3s');
 
         return view('human_resources.workers.file', compact('worker', 'workerFile'));
     }

@@ -30,7 +30,10 @@ class WorkerGroupController extends Controller
 
         $workerGroups = WorkerGroup::query()
             ->with('projectWork')
-            ->withCount('activeMembers')
+            ->withCount([
+                'activeMembers',
+                'activeMembers as dc3_covered_members_count' => fn ($query) => $query->has('dc3s'),
+            ])
             ->when($search, fn ($query) => $query->where('name', 'like', "%{$search}%"))
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($projectWorkId, fn ($query) => $query->where('project_work_id', $projectWorkId))

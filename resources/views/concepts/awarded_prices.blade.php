@@ -71,6 +71,7 @@
 								<th>Folio OC</th>
 								<th>Fecha OC</th>
 								<th>Concepto</th>
+								<th>Proyecto</th>
 								<th>Proveedor</th>
 								<th>Unidad</th>
 								<th class="text-end">Precio Adjudicado</th>
@@ -79,7 +80,7 @@
 						<tbody>
 							@if ($search === '')
 								<tr>
-									<td colspan="6" class="text-center text-muted py-4">
+									<td colspan="7" class="text-center text-muted py-4">
 										<i class="ri-search-line fs-24 d-block mb-1 opacity-50"></i>
 										Escribe el nombre del suministro para ver su histórico de precios.
 									</td>
@@ -109,6 +110,7 @@
 											@endif
 											{{ $item->concept?->description ?? $item->description }}
 										</td>
+										<td>{{ $item->purchaseOrder?->projectRelation?->name ?? $item->purchaseOrder?->project ?? 'Sin proyecto' }}</td>
 										<td>
 											{{ $item->purchaseOrder?->supplier?->rfc_name
 												?? $item->purchaseOrder?->supplier?->commercial_name
@@ -120,7 +122,7 @@
 									</tr>
 								@empty
 									<tr>
-										<td colspan="6" class="text-center text-muted py-4">
+										<td colspan="7" class="text-center text-muted py-4">
 											<i class="ri-file-search-line fs-24 d-block mb-1 opacity-50"></i>
 											No se encontraron órdenes de compra para "{{ $search }}".
 										</td>

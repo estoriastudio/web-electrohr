@@ -44,15 +44,17 @@
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('supplier_portal.material_vouchers.*') ? 'active' : '' }}"
-                   href="{{ route('supplier_portal.material_vouchers.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-receipt-line"></i>
-                    </span>
-                    <span class="nav-text">Mis Vales de Material</span>
-                </a>
-            </li>
+            @if ($hasMaterialVouchers)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('supplier_portal.material_vouchers.*') ? 'active' : '' }}"
+                       href="{{ route('supplier_portal.material_vouchers.index') }}">
+                        <span class="nav-icon">
+                            <i class="ri-receipt-line"></i>
+                        </span>
+                        <span class="nav-text">Mis Vales de Material</span>
+                    </a>
+                </li>
+            @endif
 
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('supplier_portal.account_statement.*') ? 'active' : '' }}"
@@ -372,11 +374,9 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Pagos|Orden de compra')
+            @hasanyrole('admin|Pagos')
             @can('read')
             <li class="menu-title">Pagos</li>
-
-                @hasanyrole('admin|Pagos')
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                     href="{{ route('milestones.index') }}">
@@ -413,31 +413,6 @@
                         @endif
                     </a>
                 </li>
-                @endhasanyrole
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
-                   href="{{ route('payments.alta_facturas') }}">
-                    <span class="nav-icon">
-                        <i class="ri-upload-2-line"></i>
-                    </span>
-                    <span class="nav-text">Alta de Facturas</span>
-                </a>
-            </li>
-            @endcan
-            @endhasanyrole
-
-            @hasanyrole('Recepción')
-            @can('read')
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
-                   href="{{ route('payments.alta_facturas') }}">
-                    <span class="nav-icon">
-                        <i class="ri-upload-2-line"></i>
-                    </span>
-                    <span class="nav-text">Alta de Facturas</span>
-                </a>
-            </li>
             @endcan
             @endhasanyrole
 

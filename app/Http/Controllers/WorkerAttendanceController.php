@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProjectWork;
 use App\Models\Worker;
 use App\Models\WorkerAttendance;
 use App\Models\WorkerGroup;
@@ -13,11 +12,20 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class WorkerAttendanceController extends Controller
 {
+    private const ABSENCE_REASONS = [
+        'absence' => 'Inasistencia',
+        'rest' => 'Descanso',
+        'incapacity' => 'Incapacidad',
+        'permission' => 'Permiso',
+    ];
+
     public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
@@ -39,6 +47,10 @@ class WorkerAttendanceController extends Controller
                 'attendances as recorded_count' => fn ($query) => $query->whereDate('date', $date),
                 'attendances as present_count' => fn ($query) => $query->whereDate('date', $date)->where('attended', true),
                 'attendances as absent_count' => fn ($query) => $query->whereDate('date', $date)->where('attended', false),
+                'attendances as incapacity_count' => fn ($query) => $query
+                    ->whereDate('date', $date)
+                    ->where('attended', false)
+                    ->where('absence_reason', 'incapacity'),
             ])
             ->orderBy('name')
             ->get()
@@ -51,6 +63,7 @@ class WorkerAttendanceController extends Controller
             'assigned' => $workerGroups->sum('assigned_count'),
             'present' => $workerGroups->sum('present_count'),
             'absent' => $workerGroups->sum('absent_count'),
+            'incapacities' => $workerGroups->sum('incapacity_count'),
             'pending' => $workerGroups->sum('pending_count'),
         ];
         $summary['attendance_rate'] = $summary['assigned'] > 0
@@ -114,7 +127,23 @@ class WorkerAttendanceController extends Controller
         $data = $request->validate([
             'date' => 'required|date',
             'attended' => 'required|boolean',
+            'absence_reason' => ['nullable', Rule::in(array_keys(self::ABSENCE_REASONS))],
+            'absence_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
+        $isAttending = (bool) $data['attended'];
+
+        if (! $isAttending && blank($data['absence_reason'] ?? null)) {
+            throw ValidationException::withMessages([
+                'absence_reason' => 'Selecciona el motivo de la inasistencia.',
+            ]);
+        }
+
+        if (! $isAttending && ! $request->hasFile('absence_document')) {
+            throw ValidationException::withMessages([
+                'absence_document' => 'Adjunta un comprobante para registrar la inasistencia.',
+            ]);
+        }
+
         $membershipData = [
             'worker_id' => $worker->id,
             'worker_group_id' => $workerGroup->id,
@@ -133,6 +162,10 @@ class WorkerAttendanceController extends Controller
             ], 422);
         }
 
+        if ($attendance) {
+            $this->ensureUnlocked($attendance);
+        }
+
         $isNew = ! $attendance;
         $attendance ??= new WorkerAttendance([
             'worker_id' => $worker->id,
@@ -146,12 +179,29 @@ class WorkerAttendanceController extends Controller
             'week_number' => $attendanceDate->isoWeek(),
             'year' => $attendanceDate->isoWeekYear(),
             'role' => $attendance->role ?? $worker->positionCategory?->name,
-            'attended' => (bool) $data['attended'],
+            'attended' => $isAttending,
             'overtime_hours' => $attendance->overtime_hours ?? 0,
         ]);
+
+        $previousDocumentPath = $attendance->absence_document_path;
+        $absenceDocumentPath = null;
+
+        if ($isAttending) {
+            $attendance->absence_reason = null;
+            $attendance->absence_document_path = null;
+        } else {
+            $absenceDocumentPath = $this->storeAbsenceDocument($request, $worker->id);
+            $attendance->absence_reason = $data['absence_reason'];
+            $attendance->absence_document_path = $absenceDocumentPath;
+        }
+
         $attendance->save();
 
-        $statusLabel = $attendance->attended ? 'asistencia' : 'inasistencia';
+        if ($previousDocumentPath && $previousDocumentPath !== $absenceDocumentPath) {
+            Storage::disk('s3')->delete($previousDocumentPath);
+        }
+
+        $statusLabel = $attendance->attended ? 'asistencia' : mb_strtolower($this->absenceReasonLabel($attendance->absence_reason));
         $this->notify($attendance, $isNew ? 'create' : 'update', "registró {$statusLabel} de {$worker->first_name} {$worker->last_name}.");
 
         return response()->json([
@@ -159,6 +209,8 @@ class WorkerAttendanceController extends Controller
             'attendance' => [
                 'worker_id' => $worker->id,
                 'attended' => $attendance->attended,
+                'status_label' => $attendance->attended ? 'Show' : $this->absenceReasonLabel($attendance->absence_reason),
+                'absence_document_path' => $attendance->absence_document_path,
             ],
         ]);
     }
@@ -173,6 +225,10 @@ class WorkerAttendanceController extends Controller
         $data = $this->validatedData($request);
         $this->ensureNoDuplicate($data);
         $this->ensureActiveMembership($data);
+
+        if (! $data['attended']) {
+            $data['absence_document_path'] = $this->storeAbsenceDocument($request, $data['worker_id']);
+        }
 
         $attendance = WorkerAttendance::create($data);
 
@@ -200,11 +256,23 @@ class WorkerAttendanceController extends Controller
     public function update(Request $request, WorkerAttendance $workerAttendance): RedirectResponse
     {
         $this->ensureUnlocked($workerAttendance);
-        $data = $this->validatedData($request);
+        $data = $this->validatedData($request, $workerAttendance);
         $this->ensureNoDuplicate($data, $workerAttendance);
         $this->ensureActiveMembership($data);
 
+        $previousDocumentPath = $workerAttendance->absence_document_path;
+
+        if ($data['attended']) {
+            $data['absence_document_path'] = null;
+        } elseif ($request->hasFile('absence_document')) {
+            $data['absence_document_path'] = $this->storeAbsenceDocument($request, $data['worker_id']);
+        }
+
         $workerAttendance->update($data);
+
+        if ($previousDocumentPath && $previousDocumentPath !== $workerAttendance->absence_document_path) {
+            Storage::disk('s3')->delete($previousDocumentPath);
+        }
 
         $this->notify($workerAttendance, 'update', "actualizó la asistencia de {$workerAttendance->worker->first_name} {$workerAttendance->worker->last_name}.");
 
@@ -217,6 +285,9 @@ class WorkerAttendanceController extends Controller
         $this->ensureUnlocked($workerAttendance);
         $workerAttendance->loadMissing('worker');
         $name = "{$workerAttendance->worker->first_name} {$workerAttendance->worker->last_name}";
+        if ($workerAttendance->absence_document_path) {
+            Storage::disk('s3')->delete($workerAttendance->absence_document_path);
+        }
         $workerAttendance->delete();
 
         $this->notify($workerAttendance, 'destroy', "eliminó la asistencia de {$name}.");
@@ -225,7 +296,16 @@ class WorkerAttendanceController extends Controller
             ->with('success', 'Asistencia eliminada correctamente.');
     }
 
-    private function validatedData(Request $request): array
+    public function downloadAbsenceDocument(WorkerAttendance $workerAttendance): mixed
+    {
+        $path = $workerAttendance->absence_document_path;
+
+        abort_unless($path && Storage::disk('s3')->exists($path), 404);
+
+        return Storage::disk('s3')->download($path);
+    }
+
+    private function validatedData(Request $request, ?WorkerAttendance $attendance = null): array
     {
         $data = $request->validate([
             'worker_id' => 'required|exists:workers,id',
@@ -233,6 +313,8 @@ class WorkerAttendanceController extends Controller
             'date' => 'required|date',
             'role' => 'nullable|string|max:255',
             'attended' => 'nullable|boolean',
+            'absence_reason' => ['nullable', Rule::in(array_keys(self::ABSENCE_REASONS))],
+            'absence_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'overtime_hours' => 'nullable|numeric|min:0|max:99.99',
             'notes' => 'nullable|string|max:1000',
         ]);
@@ -243,7 +325,39 @@ class WorkerAttendanceController extends Controller
         $data['attended'] = $request->has('attended') ? $request->boolean('attended') : true;
         $data['overtime_hours'] = $data['overtime_hours'] ?? 0;
 
+        if ($data['attended']) {
+            $data['absence_reason'] = null;
+        } elseif (blank($data['absence_reason'] ?? null)) {
+            throw ValidationException::withMessages([
+                'absence_reason' => 'Selecciona el motivo de la inasistencia.',
+            ]);
+        } elseif (! $request->hasFile('absence_document') && ! $attendance?->absence_document_path) {
+            throw ValidationException::withMessages([
+                'absence_document' => 'Adjunta un comprobante para registrar la inasistencia.',
+            ]);
+        }
+
+        unset($data['absence_document']);
+
         return $data;
+    }
+
+    private function storeAbsenceDocument(Request $request, int $workerId): string
+    {
+        $path = $request->file('absence_document')->store("worker-attendance-documents/{$workerId}", 's3');
+
+        if (! $path) {
+            throw ValidationException::withMessages([
+                'absence_document' => 'No se pudo almacenar el comprobante de la inasistencia.',
+            ]);
+        }
+
+        return $path;
+    }
+
+    private function absenceReasonLabel(?string $reason): string
+    {
+        return self::ABSENCE_REASONS[$reason] ?? 'No show';
     }
 
     private function ensureNoDuplicate(array $data, ?WorkerAttendance $attendance = null): void

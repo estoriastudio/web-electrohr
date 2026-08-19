@@ -76,8 +76,12 @@ class WorkerPayrollImport implements ToCollection
                 'last_name' => $lastName,
                 'position_category_id' => $this->positionCategoryId($this->value($values, $headers['position_category'])),
                 'weekly_salary' => $salary,
-                'status' => $worker->status === 'terminated' ? 'terminated' : 'active',
             ]);
+
+            if ($isNew) {
+                $worker->status = 'pre_registered';
+            }
+
             $worker->save();
 
             $this->summary[$isNew ? 'created' : 'updated']++;

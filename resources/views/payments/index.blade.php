@@ -77,7 +77,7 @@
                         </span>
                         <input type="text" name="search" value="{{ $search }}"
                                class="form-control"
-                               placeholder="Folio, referencia o proyecto…"
+                               placeholder="Folio, referencia, proyecto o proveedor…"
                                autocomplete="off">
                         </div>
                     </div>

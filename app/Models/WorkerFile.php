@@ -7,6 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkerFile extends Model
 {
+    public const DOCUMENT_COLUMNS = [
+        'ine_path',
+        'birth_certificate_path',
+        'address_proof_path',
+        'nss_path',
+        'license_path',
+        'tax_status_path',
+        'medical_certificate_path',
+        'cv_path',
+        'emergency_contact_ine_path',
+    ];
+
     protected $fillable = [
         'worker_id',
         'ine_path',
@@ -41,5 +53,16 @@ class WorkerFile extends Model
     public function worker(): BelongsTo
     {
         return $this->belongsTo(Worker::class);
+    }
+
+    public function isComplete(): bool
+    {
+        foreach (self::DOCUMENT_COLUMNS as $column) {
+            if (blank($this->{$column})) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

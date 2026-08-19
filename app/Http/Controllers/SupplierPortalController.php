@@ -127,7 +127,12 @@ class SupplierPortalController extends Controller
         $supplier = $request->user()->supplier;
 
         $invoices = PurchaseOrderInvoice::query()
-            ->with(['purchaseOrder:id,folio,elaborated_by,supplier_id'])
+            ->with([
+                'purchaseOrder:id,folio,elaborated_by,supplier_id',
+                'milestones.payments' => function ($query) {
+                    $query->orderByDesc('id');
+                },
+            ])
             ->whereHas('purchaseOrder', function ($q) use ($supplier) {
                 $q->where('supplier_id', $supplier->id);
             })

@@ -77,6 +77,24 @@
 </style>
 @endpush
 
+@php
+    $purchaseOrderTotals = $purchaseOrders->getCollection()
+        ->groupBy(fn ($order) => $order->currency ?: 'MXN')
+        ->map(fn ($orders) => [
+            'amount' => (float) $orders->sum('amount'),
+            'invoiced' => (float) $orders->sum(function ($order) {
+                return $order->invoices
+                    ->where('status', 'aceptada')
+                    ->sum(fn ($invoice) => (float) ($invoice->net_scope ?? $invoice->amount ?? 0));
+            }),
+        ])
+        ->map(function ($totals) {
+            $totals['pending'] = max(0, $totals['amount'] - $totals['invoiced']);
+
+            return $totals;
+        });
+@endphp
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center border-bottom">
         <h4 class="card-title mb-0">Mis órdenes de compra</h4>
@@ -316,6 +334,29 @@
                         </tr>
                     @endforelse
                 </tbody>
+                @if ($purchaseOrders->isNotEmpty())
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="4" class="text-end">Totales de esta página</th>
+                            <th class="fw-bold">
+                                @foreach ($purchaseOrderTotals as $currency => $totals)
+                                    <div>{{ $currency }} ${{ number_format($totals['amount'], 2) }}</div>
+                                @endforeach
+                            </th>
+                            <th class="text-success fw-bold">
+                                @foreach ($purchaseOrderTotals as $currency => $totals)
+                                    <div>{{ $currency }} ${{ number_format($totals['invoiced'], 2) }}</div>
+                                @endforeach
+                            </th>
+                            <th class="text-warning fw-bold">
+                                @foreach ($purchaseOrderTotals as $currency => $totals)
+                                    <div>{{ $currency }} ${{ number_format($totals['pending'], 2) }}</div>
+                                @endforeach
+                            </th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                @endif
             </table>
         </div>
     </div>

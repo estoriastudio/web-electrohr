@@ -28,6 +28,7 @@
                         <th>Folio factura</th>
                         <th>Orden de compra</th>
                         <th>Comprador</th>
+                        <th>Estatus de pago</th>
                         <th class="text-end">Total (alcance liquido)</th>
                     </tr>
                 </thead>
@@ -42,6 +43,18 @@
                             $statusMeta = $statusMap[$invoice->status] ?? ['label' => 'En Proceso', 'class' => 'bg-warning-subtle text-warning'];
                             $netScope = (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
                             $currency = $invoice->currency ?: 'MXN';
+                            $paymentStatusMap = [
+                                'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
+                                'autorizado' => ['label' => 'Autorizado', 'class' => 'bg-info-subtle text-info'],
+                                'pagado' => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
+                                'rechazado' => ['label' => 'Rechazado', 'class' => 'bg-danger-subtle text-danger'],
+                                'pospuesto' => ['label' => 'Pospuesto', 'class' => 'bg-secondary-subtle text-secondary'],
+                            ];
+                            $linkedPaymentStatuses = $invoice->milestones
+                                ->map(fn ($milestone) => $milestone->payments->first()?->status)
+                                ->filter()
+                                ->unique()
+                                ->values();
                         @endphp
                         <tr>
                             <td>
@@ -61,11 +74,23 @@
                                 @endif
                             </td>
                             <td>{{ $invoice->purchaseOrder->elaborated_by ?? '—' }}</td>
+                            <td>
+                                @if ($invoice->milestones->isEmpty())
+                                    <span class="text-muted">Sin hito vinculado</span>
+                                @elseif ($linkedPaymentStatuses->isEmpty())
+                                    <span class="text-muted">Sin pago registrado</span>
+                                @else
+                                    @foreach ($linkedPaymentStatuses as $paymentStatus)
+                                        @php($paymentStatusMeta = $paymentStatusMap[$paymentStatus] ?? ['label' => ucfirst($paymentStatus), 'class' => 'bg-secondary-subtle text-secondary'])
+                                        <span class="badge {{ $paymentStatusMeta['class'] }}">{{ $paymentStatusMeta['label'] }}</span>
+                                    @endforeach
+                                @endif
+                            </td>
                             <td class="text-end fw-semibold">{{ $currency }} {{ number_format($netScope, 2) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">No hay facturas registradas para mostrar.</td>
+                            <td colspan="9" class="text-center text-muted py-4">No hay facturas registradas para mostrar.</td>
                         </tr>
                     @endforelse
                 </tbody>

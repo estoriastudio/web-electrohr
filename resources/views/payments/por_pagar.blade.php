@@ -137,6 +137,7 @@
                                            title="Seleccionar todos los pagos">
                                 </th>
                                 <th>Urgencia</th>
+                                <th>Factura</th>
                                 <th>Folio pago</th>
                                 <th>Orden de compra</th>
                                 <th>Proveedor</th>
@@ -155,6 +156,7 @@
                                     $supplierName = $supplier->rfc_name ?? $supplier->commercial_name ?? '—';
                                     $isUrgent = $milestone->due_date
                                         && $milestone->due_date->lte($urgentDate);
+                                    $hasInvoice = $milestone->invoices->isNotEmpty();
                                 @endphp
                                 <tr class="{{ $isUrgent ? 'table-warning' : '' }}">
                                     <td>
@@ -169,6 +171,17 @@
                                             </span>
                                         @else
                                             <span class="text-muted fs-12">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($hasInvoice)
+                                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">
+                                                <i class="ri-file-check-line me-1"></i>Con factura
+                                            </span>
+                                        @else
+                                            <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">
+                                                <i class="ri-file-warning-line me-1"></i>Sin factura
+                                            </span>
                                         @endif
                                     </td>
                                     <td class="fw-semibold">{{ $payment->folio }}</td>
@@ -189,32 +202,87 @@
                                     <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                     <td>{{ $payment->reference_number ?? '—' }}</td>
                                     <td>
-                                        <form action="{{ route('payments.update', $payment) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="status" value="pagado">
-                                            <button type="submit" class="btn btn-soft-success btn-sm"
-                                                    onclick="return confirm('¿Marcar este pago como PAGADO?')">
-                                                <i class="ri-money-dollar-circle-line"></i> Marcar pagado
-                                            </button>
-                                        </form>
+                                        <button type="button" class="btn btn-soft-success btn-sm"
+                                                data-bs-toggle="modal" data-bs-target="#modalIndividualSpei{{ $payment->id }}">
+                                            <i class="ri-upload-2-line me-1"></i> Cargar SPEI
+                                        </button>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-5">
+                                    <td colspan="10" class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                                         No hay pagos autorizados pendientes por pagar.
                                     </td>
                                 </tr>
                             @endforelse
                         </tbody>
+                        @if ($payments->isNotEmpty())
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="6" class="text-end fw-semibold">Total de esta página</td>
+                                    <td colspan="4" class="fw-semibold">
+                                        @foreach ($pageTotalsByCurrency as $totalCurrency => $totalAmount)
+                                            <span class="d-inline-block me-3">{{ $totalCurrency }} {{ number_format($totalAmount, 2) }}</span>
+                                        @endforeach
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        @endif
                     </table>
                 </div>
             </div>
+            @if ($payments->hasPages())
+                <div class="card-footer d-flex justify-content-end">
+                    {{ $payments->links('pagination::bootstrap-5') }}
+                </div>
+            @endif
         </div>
     </div>
 </div>
+
+@foreach ($payments as $payment)
+<div class="modal fade" id="modalIndividualSpei{{ $payment->id }}" tabindex="-1"
+     aria-labelledby="modalIndividualSpeiLabel{{ $payment->id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data"
+                  class="js-individual-spei-form">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="return_to" value="payable">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalIndividualSpeiLabel{{ $payment->id }}">
+                        <i class="ri-bank-card-line me-1"></i> Cargar comprobante SPEI
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Pago <strong>{{ $payment->folio }}</strong>. Al asociar el comprobante, se marcará como pagado.
+                    </p>
+                    <input type="file" name="spei_receipt_file" id="individualSpeiFile{{ $payment->id }}"
+                           class="d-none js-individual-spei-file" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
+                    <div id="individualSpeiDropzone{{ $payment->id }}" class="dropzone spei-dropzone js-individual-spei-dropzone">
+                        <div class="dz-message">
+                            <i class="ri-upload-cloud-2-line fs-28 text-primary d-block mb-2"></i>
+                            <h6 class="mb-1">Arrastra el comprobante SPEI aquí</h6>
+                            <span class="fs-13">o da clic para buscarlo</span>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">PDF, JPG, PNG o WEBP. Tamaño máximo: 10 MB.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="ri-check-double-line me-1"></i> Asociar y marcar pagado
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endforeach
 
 <div class="modal fade" id="modalMultipleSpei" tabindex="-1" aria-labelledby="modalMultipleSpeiLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -332,12 +400,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    function setInputFile(file) {
+    function setInputFile(input, file) {
         var dataTransfer = new DataTransfer();
         if (file) {
             dataTransfer.items.add(file);
         }
-        fileInput.files = dataTransfer.files;
+        input.files = dataTransfer.files;
     }
 
     checkboxes.forEach(function (checkbox) {
@@ -413,17 +481,69 @@ document.addEventListener('DOMContentLoaded', function () {
             if (dropzone.files.length > 1) {
                 dropzone.removeFile(dropzone.files[0]);
             }
-            setInputFile(file);
+            setInputFile(fileInput, file);
             fileInput.classList.remove('is-invalid');
         });
 
         dropzone.on('removedfile', function () {
-            setInputFile(null);
+            setInputFile(fileInput, null);
         });
     } else {
         fileInput.classList.remove('d-none');
         fileInput.classList.add('form-control');
     }
+
+    document.querySelectorAll('.js-individual-spei-form').forEach(function (individualForm) {
+        var individualModal = individualForm.closest('.modal');
+        var individualFileInput = individualForm.querySelector('.js-individual-spei-file');
+        var individualDropzoneElement = individualForm.querySelector('.js-individual-spei-dropzone');
+        var individualDropzone = null;
+
+        if (window.Dropzone && individualDropzoneElement) {
+            individualDropzone = new Dropzone(individualDropzoneElement, {
+                url: '/',
+                autoProcessQueue: false,
+                maxFiles: 1,
+                maxFilesize: 10,
+                acceptedFiles: 'application/pdf,image/jpeg,image/jpg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp',
+                addRemoveLinks: true,
+                dictRemoveFile: 'Quitar',
+                dictInvalidFileType: 'Tipo de archivo no permitido.',
+                dictFileTooBig: 'El archivo es demasiado grande (@{{filesize}}MB). Máximo: @{{maxFilesize}}MB.',
+            });
+
+            individualDropzone.on('addedfile', function (file) {
+                if (individualDropzone.files.length > 1) {
+                    individualDropzone.removeFile(individualDropzone.files[0]);
+                }
+                setInputFile(individualFileInput, file);
+                individualFileInput.classList.remove('is-invalid');
+            });
+
+            individualDropzone.on('removedfile', function () {
+                setInputFile(individualFileInput, null);
+            });
+        } else {
+            individualFileInput.classList.remove('d-none');
+            individualFileInput.classList.add('form-control');
+        }
+
+        individualForm.addEventListener('submit', function (event) {
+            if (individualFileInput.files.length) {
+                return;
+            }
+
+            event.preventDefault();
+            individualFileInput.classList.add('is-invalid');
+        });
+
+        individualModal.addEventListener('hidden.bs.modal', function () {
+            individualForm.reset();
+            if (individualDropzone) {
+                individualDropzone.removeAllFiles(true);
+            }
+        });
+    });
 
     form.addEventListener('submit', function (event) {
         if (!selectedIds.size || !fileInput.files.length) {
