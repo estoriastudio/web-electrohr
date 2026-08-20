@@ -107,7 +107,7 @@
                         <th>Proyecto / obra</th>
                         <th>Moneda</th>
                         <th>Importe total</th>
-                        <th>Importe facturado</th>
+                        <th>Importe registrado</th>
                         <th>Importe pendiente</th>
                         <th>Acciones</th>
                     </tr>
@@ -119,7 +119,6 @@
                             $invoicedAmount = (float) $reservedInvoices->sum(function ($invoice) {
                                 return (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
                             });
-                                                    <th>Importe registrado</th>
                             $pendingAmount = max(0, (float) $order->amount - $invoicedAmount);
                             $projectName = $order->projectRelation?->name ?? $order->project;
                             $workName = $order->workRelation?->name ?? $order->site;
@@ -183,8 +182,7 @@
                                                 Desglose de facturas
                                                 <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $order->invoices->count() }}</span>
                                             </h6>
-                                            <span class="text-muted fs-12">Total facturado (aceptadas): <strong>{{ $order->currency }} {{ number_format((float) $acceptedInvoices->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}</strong></span>
-                                                                                    <span class="text-muted fs-12">Total registrado (aceptadas y en proceso): <strong>{{ $order->currency }} {{ number_format((float) $reservedInvoices->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}</strong></span>
+                                            <span class="text-muted fs-12">Total registrado (aceptadas y en proceso): <strong>{{ $order->currency }} {{ number_format((float) $reservedInvoices->sum(function ($invoice) { return (float) ($invoice->net_scope ?? $invoice->amount ?? 0); }), 2) }}</strong></span>
                                         </div>
 
                                         @if ($order->invoices->isNotEmpty())
