@@ -146,11 +146,12 @@ class SupplierPortalController extends Controller
         abort_unless((int) $purchaseOrder->supplier_id === (int) $supplier->id, 403);
 
         $purchaseOrder->load([
-            'supplier',
+            'supplier.contacts',
             'mobileAsset',
             'items.concept',
             'milestones',
             'purchaseRequest.materialRequest.requestedBy',
+            'purchaseRequest.materialRequests',
             'projectRelation',
             'workRelation',
         ]);
