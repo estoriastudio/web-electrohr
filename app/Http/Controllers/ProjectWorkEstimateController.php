@@ -83,6 +83,23 @@ class ProjectWorkEstimateController extends Controller
             $estimateNumberRule->ignore($estimate->id);
         }
 
+        foreach ([
+            'estimate_amount',
+            'returned_retention_amount',
+            'disfp_deduction',
+            'apaee_deduction',
+            'inc_retention_amount',
+            'vat_retention_amount',
+            'advance_amortization_amount',
+            'advance_amortization_vat_amount',
+            'funeral_expense_amount',
+            'delay_penalty_amount',
+        ] as $field) {
+            if ($request->has($field)) {
+                $request->merge([$field => str_replace(',', '', $request->input($field))]);
+            }
+        }
+
         $validated = $request->validate([
             'estimate_number' => ['required', 'string', 'max:100', $estimateNumberRule],
             'estimate_date' => ['required', 'date'],
@@ -118,7 +135,7 @@ class ProjectWorkEstimateController extends Controller
             'funeral_expense_amount',
             'delay_penalty_amount',
         ] as $field) {
-            $validated[$field] = $validated[$field] ?? 0;
+            $validated[$field] = ($validated[$field] ?? null) === '' ? 0 : ($validated[$field] ?? 0);
         }
 
         return $validated;

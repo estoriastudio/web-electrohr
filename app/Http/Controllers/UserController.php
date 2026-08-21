@@ -21,10 +21,14 @@ class UserController extends Controller
             })
             ->orderBy('name')
             ->get();
+        $supplierUsers = User::with('roles', 'permissions', 'supplier')
+            ->role('supplier_portal_access')
+            ->orderBy('name')
+            ->get();
         $roles       = Role::with('permissions')->orderBy('name')->get();
         $permissions = Permission::orderBy('name')->pluck('name');
 
-        return view('users.index', compact('users', 'roles', 'permissions'));
+        return view('users.index', compact('users', 'supplierUsers', 'roles', 'permissions'));
     }
 
     public function show(User $user)
@@ -81,6 +85,22 @@ class UserController extends Controller
         $user->syncPermissions($data['permissions'] ?? []);
 
         return redirect()->route('usuarios.index')->with('success', 'Usuario actualizado correctamente.');
+    }
+
+    public function updateSupplierPassword(Request $request, User $user)
+    {
+        abort_unless($user->hasRole('supplier_portal_access'), 404);
+
+        $data = $request->validate([
+            'supplier_password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        $user->update([
+            'password' => Hash::make($data['supplier_password']),
+        ]);
+
+        return redirect()->route('usuarios.index', ['tab' => 'suppliers'])
+            ->with('success', 'Contraseña del proveedor actualizada correctamente.');
     }
 
     public function destroy(User $user)

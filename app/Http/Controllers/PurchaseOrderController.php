@@ -61,7 +61,8 @@ class PurchaseOrderController extends Controller
                                         })->orWhereHas('projectRelation', function ($project) use ($search) {
                                                 $project->where('name', 'like', '%' . $search . '%');
                                         })->orWhere('project', 'like', '%' . $search . '%')
-                                            ->orWhere('folio', 'like', '%' . $search . '%');
+                                            ->orWhere('folio', 'like', '%' . $search . '%')
+                                            ->orWhere('elaborated_by', 'like', '%' . $search . '%');
                 });
             })
             ->when($tipo, fn ($q) => $q->where('type', $tipo))

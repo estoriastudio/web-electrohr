@@ -385,6 +385,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'parameters' => ['usuarios' => 'user'],
             ])->except(['show', 'update']);
 
+            Route::put('/usuarios/{user}/contrasena-proveedor', [UserController::class, 'updateSupplierPassword'])
+                ->name('usuarios.supplier_password.update');
+
             Route::post('/roles', 'UserController@storeRole')->name('roles.store');
             Route::delete('/roles/{role}', 'UserController@destroyRole')->name('roles.destroy');
         });

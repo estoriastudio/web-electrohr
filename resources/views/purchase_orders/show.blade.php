@@ -212,7 +212,7 @@
                         </div>
                     </div>
                     <div class="d-flex flex-column gap-2">
-                        @if ($purchaseOrder->status === 'emitida')
+                        @if ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada')
                         <button type="button" class="btn btn-sm btn-outline-danger"
                                 data-bs-toggle="modal" data-bs-target="#modalPdfAnnexes">
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF

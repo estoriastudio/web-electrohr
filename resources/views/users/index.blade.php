@@ -22,10 +22,17 @@
 {{-- ── Tabs nav (fuera de la card, según patrón UI Kit) ─────────────────── --}}
 <ul class="nav nav-tabs" id="usersTab" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link {{ request('tab') !== 'roles' ? 'active' : '' }}"
+        <button class="nav-link {{ !in_array(request('tab'), ['suppliers', 'roles']) ? 'active' : '' }}"
                 id="tab-users-btn" data-bs-toggle="tab" data-bs-target="#tab-users"
                 type="button" role="tab">
             <i class="ri-group-line me-1"></i> Usuarios
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {{ request('tab') === 'suppliers' ? 'active' : '' }}"
+                id="tab-suppliers-btn" data-bs-toggle="tab" data-bs-target="#tab-suppliers"
+                type="button" role="tab">
+            <i class="ri-truck-line me-1"></i> Proveedores
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -42,7 +49,7 @@
     {{-- ══════════════════════════════════════════════════════════════
          PESTAÑA 1 – USUARIOS
     ══════════════════════════════════════════════════════════════════ --}}
-    <div class="tab-pane fade {{ request('tab') !== 'roles' ? 'show active' : '' }}"
+        <div class="tab-pane fade {{ !in_array(request('tab'), ['suppliers', 'roles']) ? 'show active' : '' }}"
          id="tab-users" role="tabpanel">
         <div class="row">
             <div class="col-xl-12">
@@ -199,7 +206,83 @@
     </div>{{-- /tab-users --}}
 
     {{-- ══════════════════════════════════════════════════════════════
-         PESTAÑA 2 – ROLES
+         PESTAÑA 2 – PROVEEDORES
+    ══════════════════════════════════════════════════════════════════ --}}
+    <div class="tab-pane fade {{ request('tab') === 'suppliers' ? 'show active' : '' }}"
+         id="tab-suppliers" role="tabpanel">
+        <div class="row">
+            <div class="col-xl-12">
+                <div class="card">
+                    <div class="card-header border-bottom">
+                        <h4 class="card-title mb-0">Cuentas de proveedores</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                                <thead class="bg-light-subtle">
+                                    <tr>
+                                        <th>Proveedor</th>
+                                        <th>Cuenta</th>
+                                        <th>Correo electrónico</th>
+                                        <th>Estatus de acceso</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($supplierUsers as $supplierUser)
+                                        @php
+                                            $portalStatus = $supplierUser->supplier
+                                                ? ($supplierUser->supplier->portal_access_enabled
+                                                    ? ['Activo', 'bg-success-subtle text-success']
+                                                    : ['Deshabilitado', 'bg-danger-subtle text-danger'])
+                                                : ['Sin proveedor vinculado', 'bg-secondary-subtle text-secondary'];
+                                        @endphp
+                                        <tr>
+                                            <td>
+                                                @if ($supplierUser->supplier)
+                                                    <a href="{{ route('suppliers.show', $supplierUser->supplier) }}" class="fw-medium text-dark">
+                                                        {{ $supplierUser->supplier->rfc_name ?? $supplierUser->supplier->commercial_name ?? '—' }}
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="avatar-sm bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                                        <span class="text-primary fw-semibold">{{ strtoupper(substr($supplierUser->name, 0, 1)) }}</span>
+                                                    </div>
+                                                    <span class="text-dark fw-medium fs-15">{{ $supplierUser->name }}</span>
+                                                </div>
+                                            </td>
+                                            <td>{{ $supplierUser->email }}</td>
+                                            <td>
+                                                <span class="badge {{ $portalStatus[1] }} py-1 px-2 fs-12">{{ $portalStatus[0] }}</span>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-soft-primary btn-sm"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#modalEditSupplierPassword{{ $supplierUser->id }}">
+                                                    <i class="ri-key-2-line me-1"></i> Contraseña
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">No hay cuentas de proveedores registradas.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>{{-- /tab-suppliers --}}
+
+    {{-- ══════════════════════════════════════════════════════════════
+         PESTAÑA 3 – ROLES
     ══════════════════════════════════════════════════════════════════ --}}
     <div class="tab-pane fade {{ request('tab') === 'roles' ? 'show active' : '' }}"
          id="tab-roles" role="tabpanel">
@@ -278,6 +361,43 @@
 
 </div>{{-- /tab-content --}}
 
+@foreach ($supplierUsers as $supplierUser)
+    <div class="modal fade" id="modalEditSupplierPassword{{ $supplierUser->id }}" tabindex="-1"
+         aria-labelledby="modalEditSupplierPasswordLabel{{ $supplierUser->id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalEditSupplierPasswordLabel{{ $supplierUser->id }}">
+                        Cambiar contraseña - {{ $supplierUser->name }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ route('usuarios.supplier_password.update', ['user' => $supplierUser, 'tab' => 'suppliers']) }}">
+                    @csrf @method('PUT')
+                    <input type="hidden" name="supplier_user_id" value="{{ $supplierUser->id }}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nueva contraseña</label>
+                            <input type="password" name="supplier_password"
+                                   class="form-control @error('supplier_password') is-invalid @enderror"
+                                   autocomplete="new-password" required>
+                            @error('supplier_password') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Confirmar contraseña</label>
+                            <input type="password" name="supplier_password_confirmation" class="form-control"
+                                   autocomplete="new-password" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Actualizar contraseña</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endforeach
 
 {{-- ══════════════════════════════════════════════════════════════════════════
      MODAL – Crear usuario
@@ -393,7 +513,14 @@
 
 @push('scripts')
 <script>
-    @if ($errors->any())
+    @if ($errors->has('supplier_password'))
+        document.addEventListener('DOMContentLoaded', function () {
+            var modal = new bootstrap.Modal(
+                document.getElementById('modalEditSupplierPassword{{ old('supplier_user_id') }}')
+            );
+            modal.show();
+        });
+    @elseif ($errors->any())
         document.addEventListener('DOMContentLoaded', function () {
             var modal = new bootstrap.Modal(
                 document.getElementById('{{ request()->routeIs("roles.*") ? "modalCreateRole" : "modalCreateUser" }}')

@@ -163,7 +163,7 @@
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                             <input type="text" name="search" value="{{ $search }}"
                                    class="form-control"
-                                placeholder="Buscar por proveedor, proyecto o folio…"
+                                placeholder="Buscar por proveedor, proyecto, folio o elaborador…"
                                    autocomplete="off">
                         </div>
                     </div>
