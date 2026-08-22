@@ -222,7 +222,6 @@
                                 <thead class="bg-light-subtle">
                                     <tr>
                                         <th>Proveedor</th>
-                                        <th>Cuenta</th>
                                         <th>Correo electrónico</th>
                                         <th>Estatus de acceso</th>
                                         <th>Acción</th>
@@ -239,20 +238,22 @@
                                         @endphp
                                         <tr>
                                             <td>
-                                                @if ($supplierUser->supplier)
-                                                    <a href="{{ route('suppliers.show', $supplierUser->supplier) }}" class="fw-medium text-dark">
-                                                        {{ $supplierUser->supplier->rfc_name ?? $supplierUser->supplier->commercial_name ?? '—' }}
-                                                    </a>
-                                                @else
-                                                    <span class="text-muted">—</span>
-                                                @endif
-                                            </td>
-                                            <td>
                                                 <div class="d-flex align-items-center gap-2">
                                                     <div class="avatar-sm bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
                                                         <span class="text-primary fw-semibold">{{ strtoupper(substr($supplierUser->name, 0, 1)) }}</span>
                                                     </div>
-                                                    <span class="text-dark fw-medium fs-15">{{ $supplierUser->name }}</span>
+                                                    <div>
+                                                        @if ($supplierUser->supplier)
+                                                            <a href="{{ route('suppliers.show', $supplierUser->supplier) }}" class="text-dark fw-medium fs-15">
+                                                                {{ $supplierUser->supplier->rfc_name ?? $supplierUser->supplier->commercial_name ?? '—' }}
+                                                            </a>
+                                                        @else
+                                                            <span class="text-dark fw-medium fs-15">{{ $supplierUser->name }}</span>
+                                                        @endif
+                                                        @if (!$supplierUser->supplier || $supplierUser->name !== ($supplierUser->supplier->rfc_name ?? $supplierUser->supplier->commercial_name))
+                                                            <span class="d-block text-muted fs-12">{{ $supplierUser->name }}</span>
+                                                        @endif
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td>{{ $supplierUser->email }}</td>
@@ -269,7 +270,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted py-4">No hay cuentas de proveedores registradas.</td>
+                                            <td colspan="4" class="text-center text-muted py-4">No hay cuentas de proveedores registradas.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
