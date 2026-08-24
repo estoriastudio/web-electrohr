@@ -30,7 +30,10 @@ class WorkerGroupController extends Controller
 
         $workerGroups = WorkerGroup::query()
             ->with('projectWork')
-            ->withCount('activeMembers')
+            ->withCount([
+                'activeMembers',
+                'activeMembers as dc3_covered_members_count' => fn ($query) => $query->has('dc3s'),
+            ])
             ->when($search, fn ($query) => $query->where('name', 'like', "%{$search}%"))
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($projectWorkId, fn ($query) => $query->where('project_work_id', $projectWorkId))
@@ -61,7 +64,7 @@ class WorkerGroupController extends Controller
 
     public function show(WorkerGroup $workerGroup): View
     {
-        $workerGroup->load(['projectWork', 'activeMembers', 'attendances.worker']);
+        $workerGroup->load(['projectWork', 'activeMembers.positionCategory', 'attendances.worker']);
 
         $projects = Project::orderBy('name')->get();
         $projectWorks = ProjectWork::orderBy('name')->get();
@@ -149,7 +152,15 @@ class WorkerGroupController extends Controller
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->limit(20)
-            ->get(['id', 'employee_code', 'first_name', 'last_name', 'job_title']);
+            ->with('positionCategory:id,name')
+            ->get(['id', 'employee_code', 'first_name', 'last_name', 'position_category_id'])
+            ->map(fn (Worker $worker) => [
+                'id' => $worker->id,
+                'employee_code' => $worker->employee_code,
+                'first_name' => $worker->first_name,
+                'last_name' => $worker->last_name,
+                'position_category_name' => $worker->positionCategory?->name,
+            ]);
 
         return response()->json($workers);
     }
@@ -193,7 +204,7 @@ class WorkerGroupController extends Controller
                     'id' => $worker->id,
                     'first_name' => $worker->first_name,
                     'last_name' => $worker->last_name,
-                    'job_title' => $worker->job_title,
+                    'position_category_name' => $worker->positionCategory?->name,
                     'joined_at' => Carbon::parse($data['joined_at'])->format('d/m/Y'),
                 ],
             ], 201);

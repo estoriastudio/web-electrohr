@@ -44,15 +44,17 @@
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('supplier_portal.material_vouchers.*') ? 'active' : '' }}"
-                   href="{{ route('supplier_portal.material_vouchers.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-receipt-line"></i>
-                    </span>
-                    <span class="nav-text">Mis Vales de Material</span>
-                </a>
-            </li>
+            @if ($hasMaterialVouchers)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('supplier_portal.material_vouchers.*') ? 'active' : '' }}"
+                       href="{{ route('supplier_portal.material_vouchers.index') }}">
+                        <span class="nav-icon">
+                            <i class="ri-receipt-line"></i>
+                        </span>
+                        <span class="nav-text">Mis Vales de Material</span>
+                    </a>
+                </li>
+            @endif
 
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('supplier_portal.account_statement.*') ? 'active' : '' }}"
@@ -174,6 +176,42 @@
                         <i class="ri-user-unfollow-line"></i>
                     </span>
                     <span class="nav-text">Bajas</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.position-categories.*') ? 'active' : '' }}" href="{{ route('human_resources.position-categories.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-briefcase-4-line"></i>
+                    </span>
+                    <span class="nav-text">Categorías de puesto</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.payroll-periods.*') || request()->routeIs('human_resources.payroll-lines.*') || request()->routeIs('human_resources.payroll.*') ? 'active' : '' }}" href="{{ route('human_resources.payroll-periods.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-money-dollar-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Nómina</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.piecework-entries.*') ? 'active' : '' }}" href="{{ route('human_resources.piecework-entries.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-hammer-line"></i>
+                    </span>
+                    <span class="nav-text">Destajo</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.incentives.*') ? 'active' : '' }}" href="{{ route('human_resources.incentives.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-medal-line"></i>
+                    </span>
+                    <span class="nav-text">Incentivos</span>
                 </a>
             </li>
             @endhasanyrole
@@ -336,11 +374,9 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Pagos|Orden de compra')
+            @hasanyrole('admin|Pagos')
             @can('read')
             <li class="menu-title">Pagos</li>
-
-                @hasanyrole('admin|Pagos')
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
                     href="{{ route('milestones.index') }}">
@@ -377,31 +413,6 @@
                         @endif
                     </a>
                 </li>
-                @endhasanyrole
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
-                   href="{{ route('payments.alta_facturas') }}">
-                    <span class="nav-icon">
-                        <i class="ri-upload-2-line"></i>
-                    </span>
-                    <span class="nav-text">Alta de Facturas</span>
-                </a>
-            </li>
-            @endcan
-            @endhasanyrole
-
-            @hasanyrole('Recepción')
-            @can('read')
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('payments.alta_facturas') ? 'active' : '' }}"
-                   href="{{ route('payments.alta_facturas') }}">
-                    <span class="nav-icon">
-                        <i class="ri-upload-2-line"></i>
-                    </span>
-                    <span class="nav-text">Alta de Facturas</span>
-                </a>
-            </li>
             @endcan
             @endhasanyrole
 

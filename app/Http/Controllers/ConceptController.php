@@ -138,7 +138,7 @@ class ConceptController extends Controller
         $items = PurchaseOrderItem::query()
             ->select('purchase_order_items.*')
             ->join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
-            ->with(['purchaseOrder.supplier', 'concept'])
+            ->with(['purchaseOrder.supplier', 'purchaseOrder.projectRelation', 'concept'])
             ->whereNull('purchase_orders.deleted_at')
             ->when($search === '', fn ($q) => $q->whereRaw('1 = 0'))
             ->when($search !== '', function ($query) use ($search) {
@@ -158,11 +158,17 @@ class ConceptController extends Controller
         return view('concepts.awarded_prices', compact('items', 'search'));
     }
 
-    public function destroy(Concept $concept): RedirectResponse
+    public function destroy(Request $request, Concept $concept): JsonResponse|RedirectResponse
     {
         $concept->delete();
 
-        return redirect()->route('concepts.index')
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Concepto eliminado correctamente.',
+            ]);
+        }
+
+        return redirect()->back()
             ->with('success', 'Concepto eliminado correctamente.');
     }
 

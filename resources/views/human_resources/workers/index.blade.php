@@ -23,7 +23,7 @@
         <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Bajas</span><h3 class="mb-0 mt-1 text-danger">{{ $workerStats['terminated'] }}</h3></div><i class="ri-user-unfollow-line fs-28 text-danger"></i></div></div>
     </div>
     <div class="col-sm-6 col-xl">
-        <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Sin obra base</span><h3 class="mb-0 mt-1 text-secondary">{{ $workerStats['without_project'] }}</h3></div><i class="ri-map-pin-line fs-28 text-secondary"></i></div></div>
+        <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Sin obra asignada</span><h3 class="mb-0 mt-1 text-secondary">{{ $workerStats['without_project'] }}</h3></div><i class="ri-map-pin-line fs-28 text-secondary"></i></div></div>
     </div>
 </div>
 <div class="card">
@@ -89,7 +89,7 @@
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Apodo</th><th>Cuadrilla actual</th><th>Puesto</th><th>Obra base</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead>
+            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Apodo</th><th>Cuadrilla actual</th><th>Puesto</th><th>Obra</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead>
             <tbody>
             @forelse($workers as $worker)
                 @php($badge = ['pre_registered' => ['Pre-registro', 'bg-warning-subtle text-warning'], 'active' => ['Activo', 'bg-success-subtle text-success'], 'terminated' => ['Baja', 'bg-danger-subtle text-danger']][$worker->status] ?? ['Sin definir', 'bg-secondary-subtle text-secondary'])
@@ -98,13 +98,13 @@
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"><span class="fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span></div>
-                            <div><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $worker) }}">{{ $worker->last_name }}, {{ $worker->first_name }}</a><div class="text-muted fs-12">{{ $worker->employee_code ?: 'Sin número de cuenta' }}</div></div>
+                            <div><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $worker) }}">{{ $worker->last_name }}, {{ $worker->first_name }}</a><div class="text-muted fs-12">{{ $worker->employee_code ?: 'Sin número de cuenta bancaria' }}</div></div>
                         </div>
                     </td>
                     <td>{{ $worker->nickname ?: '—' }}</td>
                     <td>@if($currentGroup)<span class="fw-medium">{{ $currentGroup->name }}</span><div class="text-muted fs-12">{{ $currentGroup->projectWork?->name ?: '—' }}</div>@else<span class="text-muted">Sin cuadrilla</span>@endif</td>
-                    <td>{{ $worker->job_title ?: '—' }}</td>
-                    <td>{{ $worker->projectWork?->name ?: 'Sin asignar' }}</td>
+                    <td>{{ $worker->positionCategory?->name ?: '—' }}</td>
+                    <td>{{ $currentGroup?->projectWork?->name ?: 'Sin asignar' }}</td>
                     <td><span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span></td>
                     <td class="text-end"><a href="{{ route('human_resources.workers.show', $worker) }}" class="btn btn-light btn-sm" title="Ver trabajador"><i class="ri-eye-line"></i></a><a href="{{ route('human_resources.workers.edit', $worker) }}" class="btn btn-light btn-sm" title="Editar"><i class="ri-edit-line"></i></a></td>
                 </tr>
@@ -119,7 +119,7 @@
 
 <div class="modal fade" id="createWorkerModal" tabindex="-1" aria-labelledby="createWorkerModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <form method="POST" action="{{ route('human_resources.workers.store') }}" class="modal-content">
+        <form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.store') }}" class="modal-content">
             @csrf
             <div class="modal-header">
                 <h5 class="modal-title" id="createWorkerModalLabel">Nuevo trabajador</h5>

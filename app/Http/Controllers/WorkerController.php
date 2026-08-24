@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\WorkerExport;
 use App\Imports\WorkerPayrollImport;
 use App\Imports\WorkerTerminationImport;
+use App\Models\PositionCategory;
 use App\Models\Worker;
 use App\Models\ProjectWork;
 use App\Services\NotificationService;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
@@ -41,12 +43,13 @@ class WorkerController extends Controller
             'active' => (int) ($statusCounts['active'] ?? 0),
             'pre_registered' => (int) ($statusCounts['pre_registered'] ?? 0),
             'terminated' => (int) ($statusCounts['terminated'] ?? 0),
-            'without_project' => Worker::whereNull('project_work_id')->count(),
+            'without_project' => Worker::whereDoesntHave('groups', fn ($query) => $query->whereNull('worker_group_members.left_at'))->count(),
         ];
 
         $workers = Worker::query()
             ->with([
                 'projectWork',
+                'positionCategory',
                 'groups' => fn ($query) => $query->wherePivotNull('left_at')->with('projectWork'),
             ])
             ->when($search, function ($query) use ($search) {
@@ -55,7 +58,7 @@ class WorkerController extends Controller
                         ->orWhere('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('nickname', 'like', "%{$search}%")
-                        ->orWhere('job_title', 'like', "%{$search}%");
+                        ->orWhereHas('positionCategory', fn ($categoryQuery) => $categoryQuery->where('name', 'like', "%{$search}%"));
 
                     $workerQuery->orWhereHas('groups', function ($groupQuery) use ($search) {
                         $groupQuery->whereNull('worker_group_members.left_at')
@@ -64,13 +67,16 @@ class WorkerController extends Controller
                 });
             })
             ->where('status', $section)
-            ->when($projectWorkId, fn ($query) => $query->where('project_work_id', $projectWorkId))
+            ->when($projectWorkId, fn ($query) => $query->whereHas('groups', fn ($groupQuery) => $groupQuery
+                ->whereNull('worker_group_members.left_at')
+                ->where('worker_groups.project_work_id', $projectWorkId)))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->paginate(25)
             ->withQueryString();
 
         $projectWorks = ProjectWork::orderBy('name')->get();
+        $positionCategories = PositionCategory::query()->where('active', true)->orderBy('name')->get();
 
         return view('human_resources.workers.index', compact(
             'workers',
@@ -79,6 +85,7 @@ class WorkerController extends Controller
             'section',
             'projectWorkId',
             'workerStats',
+            'positionCategories',
         ));
     }
 
@@ -141,6 +148,7 @@ class WorkerController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $worker = Worker::create($this->validatedData($request));
+        $this->syncProfilePhoto($request, $worker);
 
         $this->notify($worker, 'create', "creó al trabajador {$worker->first_name} {$worker->last_name}.");
 
@@ -151,11 +159,14 @@ class WorkerController extends Controller
     public function show(Worker $worker): View
     {
         $worker->load([
-            'projectWork',
+            'positionCategory',
             'file',
+            'dc3s',
             'groups.projectWork',
             'terminations.projectWork',
+            'terminations.positionCategory',
             'vacations' => fn ($query) => $query->orderByDesc('start_date'),
+            'incentives' => fn ($query) => $query->orderByDesc('incentive_date'),
             'attendances.workerGroup.projectWork',
         ]);
 
@@ -164,14 +175,18 @@ class WorkerController extends Controller
 
     public function edit(Worker $worker): View
     {
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $positionCategories = PositionCategory::query()
+            ->where(fn ($query) => $query->where('active', true)->orWhereKey($worker->position_category_id))
+            ->orderBy('name')
+            ->get();
 
-        return view('human_resources.workers.edit', compact('worker', 'projectWorks'));
+        return view('human_resources.workers.edit', compact('worker', 'positionCategories'));
     }
 
     public function update(Request $request, Worker $worker): RedirectResponse
     {
         $worker->update($this->validatedData($request, $worker));
+        $this->syncProfilePhoto($request, $worker);
 
         $this->notify($worker, 'update', "actualizó la información del trabajador {$worker->first_name} {$worker->last_name}.");
 
@@ -207,6 +222,11 @@ class WorkerController extends Controller
                 ->with('error', 'No se puede activar a un trabajador dado de baja.');
         }
 
+        if (! $worker->file?->isComplete()) {
+            return redirect()->route('human_resources.workers.show', $worker)
+                ->with('error', 'No se puede dar de alta hasta que el expediente esté completo.');
+        }
+
         $worker->update(['status' => 'active']);
 
         $this->notify($worker, 'update', "dio de alta al trabajador {$worker->first_name} {$worker->last_name}.");
@@ -215,9 +235,18 @@ class WorkerController extends Controller
             ->with('success', 'Trabajador dado de alta correctamente.');
     }
 
+    public function profilePhoto(Worker $worker): mixed
+    {
+        $path = $worker->profile_photo_path;
+
+        abort_unless($path && Storage::disk('s3')->exists($path), 404);
+
+        return Storage::disk('s3')->response($path);
+    }
+
     private function validatedData(Request $request, ?Worker $worker = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'employee_code' => [
                 'nullable',
                 'string',
@@ -231,17 +260,43 @@ class WorkerController extends Controller
             'curp' => 'nullable|string|max:18',
             'birth_date' => 'nullable|date',
             'hire_date' => 'required|date',
-            'job_title' => 'nullable|string|max:255',
-            'project_work_id' => 'nullable|exists:project_works,id',
+            'position_category_id' => 'nullable|exists:position_categories,id',
             'weekly_salary' => 'required|numeric|min:0',
-            'ine_expiration_date' => 'nullable|date',
-            'medical_certificate_expiration_date' => 'nullable|date',
+            'payment_type' => 'required|in:salaried,piecework',
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png|max:10240',
+            'is_dc5' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:50',
-            'bank_account' => 'nullable|string|max:50',
             'nss' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
-        ]) + ['status' => $worker?->status ?? 'pre_registered'];
+        ]);
+
+        unset($data['profile_photo']);
+
+        return $data + [
+            'status' => $worker?->status ?? 'pre_registered',
+            'is_dc5' => $request->boolean('is_dc5'),
+        ];
+    }
+
+    private function syncProfilePhoto(Request $request, Worker $worker): void
+    {
+        if (! $request->hasFile('profile_photo')) {
+            return;
+        }
+
+        $path = $request->file('profile_photo')->store("worker-profile-photos/{$worker->id}", 's3');
+
+        if (! $path) {
+            throw new \RuntimeException('No se pudo almacenar la fotografía de perfil.');
+        }
+
+        $previousPath = $worker->profile_photo_path;
+        $worker->update(['profile_photo_path' => $path]);
+
+        if ($previousPath) {
+            Storage::disk('s3')->delete($previousPath);
+        }
     }
 
     private function notify(object $model, string $action, string $data): void

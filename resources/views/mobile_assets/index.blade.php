@@ -33,6 +33,7 @@
         'maquinaria_pesada' => ['label' => 'Maquinaria Pesada', 'icon' => 'ri-tools-line'],
         'semiremolque'      => ['label' => 'SemiRemolques',     'icon' => 'ri-truck-line'],
     ];
+    $docLabels = \App\Models\MobileAssetDocument::labelsEs();
 @endphp
 
 <div class="card">
@@ -68,10 +69,57 @@
         @endhasanyrole
     </div>
 
+    {{-- Cobertura documental y galería --}}
+    <div class="card-body border-bottom py-2">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="ri-file-chart-line text-muted"></i>
+            <span class="fs-13 fw-medium">Cobertura de archivos</span>
+            <span class="text-muted fs-12">{{ $assetCount }} unidades</span>
+        </div>
+        <div class="row g-2">
+            @foreach ($documentTypes as $documentType)
+                @php
+                    $coverage = $documentCoverage[$documentType];
+                    $isActiveDocumentFilter = $documentMissing === $documentType;
+                @endphp
+                <div class="col-6 col-sm-4 col-lg-3 col-xl-2">
+                    <a href="{{ route('mobile_assets.index', ['type' => $type, 'document_missing' => $documentType]) }}"
+                       class="d-block h-100 border rounded-2 p-2 text-decoration-none {{ $isActiveDocumentFilter ? 'border-primary bg-primary-subtle' : 'text-dark' }}"
+                       title="Ver unidades sin {{ $docLabels[$documentType] ?? $documentType }}">
+                        <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+                            <span class="text-truncate fs-12 fw-medium">{{ $docLabels[$documentType] ?? $documentType }}</span>
+                            <i class="ri-file-line text-muted shrink-0"></i>
+                        </div>
+                        <div class="fw-semibold fs-14">{{ $coverage['uploaded'] }} / {{ $assetCount }}</div>
+                        <div class="fs-11 {{ $coverage['missing'] ? 'text-danger' : 'text-success' }}">Faltan {{ $coverage['missing'] }} unidades</div>
+                    </a>
+                </div>
+            @endforeach
+            <div class="col-6 col-sm-4 col-lg-3 col-xl-2">
+                <a href="{{ route('mobile_assets.index', ['type' => $type, 'gallery_missing' => 1]) }}"
+                   class="d-block h-100 border rounded-2 p-2 text-decoration-none {{ $galleryMissing ? 'border-primary bg-primary-subtle' : 'text-dark' }}"
+                   title="Ver unidades con galería incompleta">
+                    <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+                        <span class="text-truncate fs-12 fw-medium">Galería de fotos</span>
+                        <i class="ri-gallery-line text-muted shrink-0"></i>
+                    </div>
+                    <div class="fw-semibold fs-14">{{ $galleryCoverage['uploaded'] }} / {{ $galleryCoverage['total'] }}</div>
+                    <div class="fs-11 {{ $galleryCoverage['missing'] ? 'text-danger' : 'text-success' }}">{{ $galleryCoverage['missing'] }} galerías incompletas</div>
+                </a>
+            </div>
+        </div>
+    </div>
+
     {{-- Barra de búsqueda y filtro semáforo --}}
     <div class="card-body border-bottom py-3">
         <form method="GET" action="{{ route('mobile_assets.index') }}" class="row g-2 align-items-center">
             <input type="hidden" name="type" value="{{ $type }}">
+            @if ($documentMissing)
+                <input type="hidden" name="document_missing" value="{{ $documentMissing }}">
+            @endif
+            @if ($galleryMissing)
+                <input type="hidden" name="gallery_missing" value="1">
+            @endif
 
             <div class="col-md-6">
                 <div class="input-group input-group-sm">
@@ -124,8 +172,6 @@
                 'red'    => ['bg' => 'bg-danger',   'title' => 'Doc. Vencido'],
                 'gray'   => ['bg' => 'bg-secondary opacity-50', 'title' => 'Doc. Pendientes'],
             ];
-
-            $docLabels = \App\Models\MobileAssetDocument::labelsEs();
         @endphp
 
         @if ($mobileAssets->isEmpty())

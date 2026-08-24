@@ -63,7 +63,7 @@
     function selectWorker(worker) {
         selectedWorker = worker;
         selectedName.textContent = worker.first_name + ' ' + worker.last_name;
-        selectedDetails.textContent = [worker.employee_code, worker.job_title].filter(Boolean).join(' - ') || 'Sin puesto registrado';
+        selectedDetails.textContent = [worker.employee_code, worker.position_category_name].filter(Boolean).join(' - ') || 'Sin puesto registrado';
         searchState.classList.add('d-none');
         selectedState.classList.remove('d-none');
         closeResults();
@@ -78,7 +78,7 @@
         }
 
         results.innerHTML = workers.map(function (worker, index) {
-            var details = [worker.employee_code, worker.job_title].filter(Boolean).join(' - ') || 'Sin puesto registrado';
+            var details = [worker.employee_code, worker.position_category_name].filter(Boolean).join(' - ') || 'Sin puesto registrado';
 
             return '<li class="list-group-item list-group-item-action p-0">'
                 + '<button type="button" class="btn btn-link text-start text-decoration-none text-dark w-100 px-3 py-2 js-worker-group-member-result" data-index="' + index + '">'
@@ -135,7 +135,7 @@
         row.dataset.workerId = member.id;
         row.innerHTML = '<td><a href="' + escHtml(config.workerShowBaseUrl + '/' + member.id) + '" class="text-dark">'
             + escHtml(member.first_name + ' ' + member.last_name) + '</a></td>'
-            + '<td>' + escHtml(member.job_title || '—') + '</td>'
+            + '<td>' + escHtml(member.position_category_name || '—') + '</td>'
             + '<td>' + escHtml(member.joined_at) + '</td>'
             + '<td class="text-end"><form class="d-inline-flex gap-2" method="POST" action="'
             + escHtml(config.removeUrlBase + '/' + member.id) + '">'

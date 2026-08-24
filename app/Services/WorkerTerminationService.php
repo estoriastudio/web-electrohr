@@ -17,7 +17,7 @@ class WorkerTerminationService
             $termination = WorkerTermination::create([
                 'worker_id' => $worker->id,
                 'project_work_id' => $projectWorkId,
-                'job_title' => $data['job_title'] ?? $worker->job_title,
+                'position_category_id' => $data['position_category_id'] ?? $worker->position_category_id,
                 'salary' => $data['salary'] ?? $worker->weekly_salary,
                 'termination_type' => $data['termination_type'],
                 'reason' => $data['reason'] ?? null,

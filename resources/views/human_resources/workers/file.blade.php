@@ -54,4 +54,34 @@
 		</form>
 	</div>
 </div>
+
+<div class="card mt-3">
+	<div class="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+		<div>
+			<h4 class="card-title mb-0"><i class="ri-award-line me-2 text-primary"></i>Certificaciones DC3</h4>
+			<span class="text-muted fs-12">{{ $worker->dc3s->count() }} certificación(es) registrada(s)</span>
+		</div>
+	</div>
+	<div class="card-body">
+		@if($worker->dc3s->isNotEmpty())
+			<div class="list-group mb-3">
+				@foreach($worker->dc3s as $dc3)
+					<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+						<div><span class="fw-medium">{{ $dc3->label }}</span><span class="text-muted fs-12 ms-2">Registrado {{ $dc3->created_at->format('d/m/Y') }}</span></div>
+						<div class="d-flex gap-1">
+							<a class="btn btn-light btn-sm" href="{{ route('human_resources.workers.file.dc3.download', [$worker, $dc3]) }}" title="Descargar {{ $dc3->label }}"><i class="ri-download-2-line"></i></a>
+							<form method="POST" action="{{ route('human_resources.workers.file.dc3.destroy', [$worker, $dc3]) }}" onsubmit="return confirm('¿Eliminar esta certificación DC3?')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" type="submit" title="Eliminar {{ $dc3->label }}"><i class="ri-delete-bin-line"></i></button></form>
+						</div>
+					</div>
+				@endforeach
+			</div>
+		@endif
+		<form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.file.dc3.store', $worker) }}" class="row g-3 align-items-end">
+			@csrf
+			<div class="col-md-5"><label class="form-label" for="dc3_label">Identificador</label><input id="dc3_label" name="label" type="text" class="form-control @error('label') is-invalid @enderror" value="{{ old('label') }}" placeholder="DC3-1" required>@error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+			<div class="col-md-5"><label class="form-label" for="dc3_file">Archivo</label><input id="dc3_file" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" class="form-control @error('file') is-invalid @enderror" required>@error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+			<div class="col-md-2 d-grid"><button class="btn btn-primary" type="submit"><i class="ri-upload-2-line me-1"></i>Adjuntar</button></div>
+		</form>
+	</div>
+</div>
 @endsection

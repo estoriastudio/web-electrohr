@@ -58,6 +58,7 @@ class PaymentController extends Controller
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
             ->leftJoin('projects', 'purchase_orders.project_id', '=', 'projects.id')
+            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
             ->select('payments.*')
             ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
@@ -68,7 +69,9 @@ class PaymentController extends Controller
                     $sub->where('payments.folio', 'like', '%' . $search . '%')
                         ->orWhere('payments.reference_number', 'like', '%' . $search . '%')
                         ->orWhere('purchase_orders.project', 'like', '%' . $search . '%')
-                        ->orWhere('projects.name', 'like', '%' . $search . '%');
+                        ->orWhere('projects.name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
                 });
             })
             ->when($dueDateFilter === 'overdue', fn ($q) => $q->whereDate('purchase_order_milestones.due_date', '<', Carbon::today()))
@@ -82,6 +85,10 @@ class PaymentController extends Controller
                     WHEN payments.reference_number = ? THEN 0
                     WHEN payments.folio LIKE ? THEN 1
                     WHEN payments.reference_number LIKE ? THEN 1
+                    WHEN suppliers.rfc_name = ? THEN 1
+                    WHEN suppliers.commercial_name = ? THEN 1
+                    WHEN suppliers.rfc_name LIKE ? THEN 2
+                    WHEN suppliers.commercial_name LIKE ? THEN 2
                     ELSE 2
                 END ASC,
                 CASE
@@ -90,6 +97,10 @@ class PaymentController extends Controller
                 END ASC,
                 purchase_order_milestones.due_date ASC
             ", [
+                $search,
+                $search,
+                $search . '%',
+                $search . '%',
                 $search,
                 $search,
                 $search . '%',
@@ -135,7 +146,12 @@ class PaymentController extends Controller
         $paymentCondition = $this->selectedPaymentCondition($request);
         $selectionState = $this->getPayableSelectionState($request);
 
-        $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+        $payments = Payment::with([
+            'milestone.invoices:id',
+            'milestone.purchaseOrder.supplier',
+            'milestone.purchaseOrder.projectRelation',
+            'milestone.purchaseOrder.workRelation',
+        ])
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
@@ -158,11 +174,26 @@ class PaymentController extends Controller
                     WHEN purchase_order_milestones.due_date <= ? THEN 0
                     ELSE 1
                 END ASC,
-                purchase_order_milestones.due_date ASC
+                purchase_order_milestones.due_date ASC,
+                payments.id ASC
             ", [$urgentDate->toDateString()])
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
 
-        return view('payments.por_pagar', compact('payments', 'urgentDate', 'search', 'currency', 'paymentCondition', 'selectionState'));
+        $pageTotalsByCurrency = $payments->getCollection()
+            ->groupBy(fn (Payment $payment) => $payment->milestone->purchaseOrder->currency)
+            ->map(fn ($currencyPayments) => (float) $currencyPayments->sum('amount'))
+            ->sortKeys();
+
+        return view('payments.por_pagar', compact(
+            'payments',
+            'urgentDate',
+            'search',
+            'currency',
+            'paymentCondition',
+            'selectionState',
+            'pageTotalsByCurrency',
+        ));
     }
 
     public function paid(Request $request): View
@@ -385,21 +416,23 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado,pospuesto',
             'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'return_to' => 'nullable|in:purchase_order,payable',
         ]);
 
         $milestone = $payment->milestone()->firstOrFail();
         $orderId   = $milestone->purchase_order_id;
+        $returnTo  = $validated['return_to'] ?? 'purchase_order';
 
         $hasStatusChange = array_key_exists('status', $validated) && !is_null($validated['status']);
         $hasSpeiFile = $request->hasFile('spei_receipt_file');
 
         if (!$hasStatusChange && !$hasSpeiFile) {
-            return redirect()->route('purchase_orders.show', $orderId)
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('error', 'No se enviaron cambios para actualizar el pago.');
         }
 
         if ($hasSpeiFile && $payment->status !== 'autorizado') {
-            return redirect()->route('purchase_orders.show', $orderId)
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado.');
         }
 
@@ -411,7 +444,7 @@ class PaymentController extends Controller
             $storedPath = Storage::disk('s3')->putFileAs($storageDir, $file, $fileName);
 
             if (!$storedPath) {
-                return redirect()->route('purchase_orders.show', $orderId)
+                return $this->paymentUpdateRedirect($returnTo, $orderId)
                     ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
             }
 
@@ -438,7 +471,7 @@ class PaymentController extends Controller
                 'data'         => 'registró el comprobante SPEI y marcó como pagado el pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
             ]);
 
-            return redirect()->route('purchase_orders.show', $orderId)
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('success', 'Comprobante SPEI registrado y pago marcado como pagado.');
         }
 
@@ -458,7 +491,7 @@ class PaymentController extends Controller
         };
 
         if (!in_array($newStatus, $allowed)) {
-            return redirect()->route('purchase_orders.show', $orderId)
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('error', 'Transición de estatus no permitida.');
         }
 
@@ -483,8 +516,15 @@ class PaymentController extends Controller
             ]);
         }
 
-        return redirect()->route('purchase_orders.show', $orderId)
+        return $this->paymentUpdateRedirect($returnTo, $orderId)
             ->with('success', 'Estatus del pago actualizado.');
+    }
+
+    private function paymentUpdateRedirect(string $returnTo, int $orderId): RedirectResponse
+    {
+        return $returnTo === 'payable'
+            ? redirect()->route('payments.payable')
+            : redirect()->route('purchase_orders.show', $orderId);
     }
 
     public function markMultiplePaidWithSpei(Request $request): RedirectResponse

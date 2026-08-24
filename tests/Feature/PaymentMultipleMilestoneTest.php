@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Payment;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\Supplier;
 use App\Models\User;
@@ -227,6 +228,79 @@ class PaymentMultipleMilestoneTest extends TestCase
             ->assertSessionMissing('payments.payable.selection');
     }
 
+    public function test_payable_payments_are_paginated_and_totals_are_grouped_by_currency(): void
+    {
+        $user = $this->paymentsUser();
+
+        foreach (range(1, 26) as $index) {
+            $milestone = $this->milestoneWithInitialPayment($index === 1 ? 'USD' : 'MXN');
+            $milestone->payments()->first()->update(['status' => 'autorizado']);
+        }
+
+        $this->actingAs($user)
+            ->get(route('payments.payable'))
+            ->assertOk()
+            ->assertViewHas('payments', function ($payments): bool {
+                return $payments->perPage() === 25
+                    && $payments->total() === 26
+                    && $payments->count() === 25;
+            })
+            ->assertViewHas('pageTotalsByCurrency', function ($totals): bool {
+                return $totals->all() === [
+                    'MXN' => 24000.0,
+                    'USD' => 1000.0,
+                ];
+            });
+    }
+
+    public function test_payable_payments_show_their_milestone_invoice_status(): void
+    {
+        $withInvoiceMilestone = $this->milestoneWithInitialPayment();
+        $withInvoicePayment = $withInvoiceMilestone->payments()->first();
+        $withInvoicePayment->update(['status' => 'autorizado']);
+
+        $invoice = PurchaseOrderInvoice::create([
+            'purchase_order_id' => $withInvoiceMilestone->purchase_order_id,
+            'file_name' => 'factura.pdf',
+            'file_path' => 'invoices/factura.pdf',
+            'amount' => 1000,
+            'currency' => 'MXN',
+        ]);
+        $invoice->milestones()->attach($withInvoiceMilestone);
+
+        $withoutInvoiceMilestone = $this->milestoneWithInitialPayment();
+        $withoutInvoiceMilestone->payments()->first()->update(['status' => 'autorizado']);
+
+        $this->actingAs($this->paymentsUser())
+            ->get(route('payments.payable'))
+            ->assertOk()
+            ->assertSee('Con factura')
+            ->assertSee('Sin factura');
+    }
+
+    public function test_payments_user_can_upload_an_individual_spei_and_return_to_payable_payments(): void
+    {
+        Storage::fake('s3');
+
+        $milestone = $this->milestoneWithInitialPayment();
+        $payment = $milestone->payments()->first();
+        $payment->update(['status' => 'autorizado']);
+
+        $this->actingAs($this->paymentsUser())
+            ->patch(route('payments.update', $payment), [
+                'return_to' => 'payable',
+                'spei_receipt_file' => UploadedFile::fake()->create('spei.pdf', 100, 'application/pdf'),
+            ])
+            ->assertRedirect(route('payments.payable'));
+
+        $payment->refresh();
+
+        $this->assertSame('pagado', $payment->status);
+        $this->assertNotNull($payment->spei_receipt_path);
+        Storage::disk('s3')->assertExists($payment->spei_receipt_path);
+        $this->assertSame(1000.0, (float) $milestone->fresh()->covered_amount);
+    }
+
     public function test_admin_can_persist_and_authorize_multiple_pending_payments(): void
     {
         $firstMilestone = $this->milestoneWithInitialPayment();
@@ -267,6 +341,26 @@ class PaymentMultipleMilestoneTest extends TestCase
         $this->assertDatabaseHas('payments', ['id' => $firstPayment->id, 'status' => 'autorizado']);
         $this->assertDatabaseHas('payments', ['id' => $secondPayment->id, 'status' => 'autorizado']);
         $this->assertSessionMissing('payments.authorization.selection');
+    }
+
+    public function test_pending_payments_can_be_searched_by_supplier_name(): void
+    {
+        $matchingMilestone = $this->milestoneWithInitialPayment();
+        $matchingMilestone->purchaseOrder->supplier->update([
+            'rfc_name' => 'Suministros del Norte',
+            'commercial_name' => 'Suministros Norte',
+        ]);
+        $matchingPayment = $matchingMilestone->payments()->first();
+
+        $otherMilestone = $this->milestoneWithInitialPayment();
+        $otherMilestone->purchaseOrder->supplier->update(['rfc_name' => 'Proveedor del Sur']);
+
+        $this->actingAs($this->paymentsUser())
+            ->get(route('payments.index', ['search' => 'Suministros Norte']))
+            ->assertOk()
+            ->assertViewHas('payments', function ($payments) use ($matchingPayment): bool {
+                return $payments->count() === 1 && $payments->first()->is($matchingPayment);
+            });
     }
 
     public function test_dashboard_separates_payment_indicators_by_currency(): void

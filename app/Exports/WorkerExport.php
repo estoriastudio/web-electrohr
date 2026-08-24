@@ -12,13 +12,13 @@ class WorkerExport implements FromCollection, WithHeadings, WithMapping, ShouldA
 {
     public function collection()
     {
-        return Worker::with('projectWork')->orderBy('last_name')->orderBy('first_name')->get();
+        return Worker::with(['projectWork', 'positionCategory'])->orderBy('last_name')->orderBy('first_name')->get();
     }
 
     public function headings(): array
     {
         return [
-            'No. de cuenta',
+            'No. de cuenta bancaria',
             'Nombre(s)',
             'Apellidos',
             'Puesto',
@@ -35,7 +35,7 @@ class WorkerExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             $worker->employee_code,
             $worker->first_name,
             $worker->last_name,
-            $worker->job_title,
+            $worker->positionCategory?->name,
             $worker->weekly_salary,
             $worker->projectWork?->name,
             $worker->hire_date?->format('d/m/Y'),

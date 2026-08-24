@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\Worker;
 use App\Models\WorkerTermination;
+use App\Models\PositionCategory;
 use App\Services\WorkerTerminationService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -69,7 +70,7 @@ class WorkerTerminationImport implements ToCollection
             $salary = $this->decimal($this->value($values, $headers['salary']));
 
             $this->terminationService->terminate($worker, [
-                'job_title' => $this->value($values, $headers['job_title']) ?: null,
+                'position_category_id' => $this->positionCategoryId($this->value($values, $headers['position_category'])),
                 'salary' => $salary,
                 'termination_type' => 'rest',
                 'reason' => $this->value($values, $headers['reason']) ?: null,
@@ -91,7 +92,7 @@ class WorkerTerminationImport implements ToCollection
         $headers = array_map(fn ($value) => $this->normalize($value), $values);
         $location = $this->findIndex($headers, fn ($header) => $header === 'LUGAR');
         $employeeCode = $this->findIndex($headers, fn ($header) => str_contains($header, 'CUENTA'));
-        $jobTitle = $this->findIndex($headers, fn ($header) => $header === 'CATEGORIA');
+        $positionCategory = $this->findIndex($headers, fn ($header) => $header === 'CATEGORIA');
         $salary = $this->findIndex($headers, fn ($header) => $header === 'SUELDO');
         $terminationDate = $this->findIndex($headers, fn ($header) => str_contains($header, 'DIA DE BAJA'));
         $reason = $this->findIndex($headers, fn ($header) => str_contains($header, 'PORQUE SE FUE'));
@@ -100,9 +101,9 @@ class WorkerTerminationImport implements ToCollection
             return null;
         }
 
-        return compact('location', 'employeeCode', 'jobTitle', 'salary', 'terminationDate', 'reason') + [
+        return compact('location', 'employeeCode', 'positionCategory', 'salary', 'terminationDate', 'reason') + [
             'employee_code' => $employeeCode,
-            'job_title' => $jobTitle,
+            'position_category' => $positionCategory,
             'termination_date' => $terminationDate,
         ];
     }
@@ -153,5 +154,16 @@ class WorkerTerminationImport implements ToCollection
         $value = preg_replace('/[^A-Z0-9]+/', ' ', $value);
 
         return trim($value);
+    }
+
+    private function positionCategoryId(string $name): ?int
+    {
+        $name = preg_replace('/\s+/', ' ', trim($name)) ?? '';
+
+        if ($name === '') {
+            return null;
+        }
+
+        return PositionCategory::firstOrCreate(['name' => $name], ['active' => true])->id;
     }
 }

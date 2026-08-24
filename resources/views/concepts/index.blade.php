@@ -34,7 +34,7 @@
     </div>
 @endif
 
-<div class="row">
+<div class="row" id="concepts-index-content">
     <div class="col-xl-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
@@ -140,7 +140,7 @@
                         </thead>
                         <tbody>
                             @forelse ($concepts as $concept)
-                                <tr>
+                                <tr data-concept-row="{{ $concept->id }}">
                                     <td><span class="fw-semibold">{{ $concept->code }}</span></td>
                                     <td class="text-wrap" style="max-width:400px">{{ $concept->description }}</td>
                                     <td>{{ $concept->unit }}</td>
@@ -191,9 +191,10 @@
                                                     data-subcategory-id="{{ $concept->concept_subcategory_id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
-                                            <form action="{{ route('concepts.destroy', $concept) }}"
+                                              <form action="{{ route('concepts.destroy', $concept) }}"
                                                   method="POST"
-                                                  onsubmit="return confirm('¿Eliminar el concepto «{{ $concept->code }}»?')">
+                                                  class="form-delete-concept"
+                                                  data-code="{{ $concept->code }}">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
@@ -680,6 +681,55 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         modal.show();
     });
 });
+
+document.querySelectorAll('.form-delete-concept').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        if (!window.confirm('¿Eliminar el concepto «' + form.dataset.code + '»?')) return;
+
+        var submitButton = form.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: new FormData(form)
+        })
+        .then(function (response) {
+            if (!response.ok) throw new Error();
+            return response.json();
+        })
+        .then(function (data) {
+            var row = form.closest('tr');
+            var tableBody = row.parentElement;
+            row.remove();
+
+            if (!tableBody.querySelector('tr[data-concept-row]')) {
+                tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">'
+                    + '<i class="ri-pages-line fs-24 d-block mb-1 opacity-50"></i>'
+                    + 'No hay conceptos registrados.</td></tr>';
+            }
+
+            showConceptDeletionAlert(data.message);
+        })
+        .catch(function () {
+            submitButton.disabled = false;
+            showConceptDeletionAlert('No fue posible eliminar el concepto. Intente de nuevo.', 'danger');
+        });
+    });
+});
+
+function showConceptDeletionAlert(message, type) {
+    var alert = document.createElement('div');
+    alert.className = 'alert alert-' + (type || 'success') + ' alert-dismissible fade show';
+    alert.setAttribute('role', 'alert');
+    alert.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    document.getElementById('concepts-index-content').before(alert);
+}
 
 document.addEventListener('DOMContentLoaded', function () {
     if (createType && createCategory) {

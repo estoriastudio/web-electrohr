@@ -38,7 +38,7 @@ class WorkerTerminationController extends Controller
 
     public function show(WorkerTermination $workerTermination): View
     {
-        $workerTermination->load(['worker', 'projectWork']);
+        $workerTermination->load(['worker', 'projectWork', 'positionCategory']);
 
         return view('human_resources.terminations.show', compact('workerTermination'));
     }
@@ -47,7 +47,7 @@ class WorkerTerminationController extends Controller
     {
         $data = $request->validate([
             'project_work_id' => 'nullable|exists:project_works,id',
-            'job_title' => 'nullable|string|max:255',
+            'position_category_id' => 'nullable|exists:position_categories,id',
             'salary' => 'nullable|numeric|min:0',
             'termination_type' => 'required|in:resignation,dismissal,rest',
             'reason' => 'nullable|string|max:255',

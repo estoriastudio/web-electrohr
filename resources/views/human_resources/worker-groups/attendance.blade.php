@@ -10,6 +10,14 @@
 
 @section('content')
 @include('human_resources.partials.flash')
+@php
+    $absenceLabels = [
+        'absence' => 'Inasistencia',
+        'rest' => 'Descanso',
+        'incapacity' => 'Incapacidad',
+        'permission' => 'Permiso',
+    ];
+@endphp
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
@@ -43,20 +51,25 @@
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>No. de cuenta</th><th>Puesto</th><th>Estatus</th><th class="text-end">Asistencia</th></tr></thead>
+            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Apodo</th><th>Puesto</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead>
             <tbody>
                 @forelse($members as $member)
-                    @php($attendance = $attendances->get($member->id))
-                    <tr class="worker-group-attendance-row" data-worker-id="{{ $member->id }}">
+                    @php
+                        $attendance = $attendances->get($member->id);
+                        $statusLabel = ! $attendance ? 'Sin registrar' : ($attendance->attended ? 'Show' : ($absenceLabels[$attendance->absence_reason] ?? 'No show'));
+                        $statusClass = ! $attendance ? 'bg-secondary-subtle text-secondary' : ($attendance->attended ? 'bg-success-subtle text-success' : ($attendance->absence_reason === 'incapacity' ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger'));
+                    @endphp
+                    <tr class="worker-group-attendance-row" data-worker-id="{{ $member->id }}" data-worker-name="{{ $member->first_name }} {{ $member->last_name }}">
                         <td><a href="{{ route('human_resources.workers.show', $member) }}" class="text-dark fw-medium">{{ $member->first_name }} {{ $member->last_name }}</a></td>
-                        <td>{{ $member->employee_code ?: '—' }}</td>
-                        <td>{{ $member->job_title ?: '—' }}</td>
-                        <td><span class="js-attendance-status badge {{ ! $attendance ? 'bg-secondary-subtle text-secondary' : ($attendance->attended ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger') }}">{{ ! $attendance ? 'Sin registrar' : ($attendance->attended ? 'Show' : 'No show') }}</span></td>
+                        <td>{{ $member->nickname ?: '—' }}</td>
+                        <td>{{ $member->positionCategory?->name ?: '—' }}</td>
+                        <td><span class="js-attendance-status badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
                         <td class="text-end">
                             <div class="btn-group" role="group" aria-label="Asistencia de {{ $member->first_name }} {{ $member->last_name }}">
                                 <button type="button" class="btn btn-sm js-mark-attendance {{ $attendance?->attended ? 'btn-success' : 'btn-outline-success' }}" data-attended="1"><i class="ri-check-line me-1"></i>Show</button>
-                                <button type="button" class="btn btn-sm js-mark-attendance {{ $attendance && ! $attendance->attended ? 'btn-danger' : 'btn-outline-danger' }}" data-attended="0"><i class="ri-close-line me-1"></i>No show</button>
+                                <button type="button" class="btn btn-sm js-report-absence {{ $attendance && ! $attendance->attended ? 'btn-danger' : 'btn-outline-danger' }}"><i class="ri-close-line me-1"></i>No show</button>
                             </div>
+                            @if($attendance?->absence_document_path)<a class="btn btn-light btn-sm ms-1" href="{{ route('human_resources.worker-attendances.absence-document', $attendance) }}" title="Ver comprobante"><i class="ri-file-download-line"></i></a>@endif
                         </td>
                     </tr>
                 @empty
@@ -64,6 +77,16 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
+</div>
+
+<div class="modal fade" id="reportAbsenceModal" tabindex="-1" aria-labelledby="reportAbsenceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="reportAbsenceForm" class="modal-content" enctype="multipart/form-data">
+            <div class="modal-header"><h5 class="modal-title" id="reportAbsenceModalLabel">Reportar inasistencia</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><p class="text-muted mb-3" id="reportAbsenceWorkerName"></p><div class="mb-3"><label class="form-label" for="absence_reason">Motivo</label><select id="absence_reason" name="absence_reason" class="form-select" required><option value="">Selecciona un motivo</option><option value="absence">Inasistencia</option><option value="rest">Descanso</option><option value="incapacity">Incapacidad</option><option value="permission">Permiso</option></select></div><div><label class="form-label" for="absence_document">Comprobante</label><input id="absence_document" name="absence_document" type="file" accept=".pdf,.jpg,.jpeg,.png" class="form-control" required></div></div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-danger">Reportar</button></div>
+        </form>
     </div>
 </div>
 @endsection

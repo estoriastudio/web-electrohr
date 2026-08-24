@@ -6,6 +6,7 @@ use App\Models\MaterialRequest;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\ProjectWork;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestChangeNote;
 use App\Models\PurchaseRequestItem;
@@ -1126,21 +1127,32 @@ class PurchaseRequestController extends Controller
         $ordersUsers = User::role('Orden de compra')->orderBy('name')->get();
         $ordersUserIds = $ordersUsers->pluck('id');
 
-        // SOLCOMs pendientes de OC (sin órdenes de compra vinculadas) agrupadas por assigned_to
-        $pendingCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
+        // SOLCOMs en Compras que aún no tienen una OC, agrupadas por responsable.
+        $unlinkedRequestCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
             ->where('status', 'sent_to_purchasing')
             ->doesntHave('purchaseOrders')
             ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
 
-        // Conteos adicionales por usuario dentro de SOLCOMs pendientes de OC
-        $allCounts = PurchaseRequest::selectRaw('assigned_to, status, count(*) as total')
-            ->doesntHave('purchaseOrders')
-            ->whereIn('assigned_to', $ordersUserIds)
-            ->groupBy('assigned_to', 'status')
+        // La SOLCOM se mantiene en Compras después de crear una OC. La carga real
+        // se determina por el estatus de la OC: pendiente, emitida o autorizada.
+        $orderCounts = PurchaseOrder::query()
+            ->selectRaw('purchase_requests.assigned_to, purchase_orders.status, count(*) as total')
+            ->join('purchase_requests', 'purchase_orders.purchase_request_id', '=', 'purchase_requests.id')
+            ->whereIn('purchase_requests.assigned_to', $ordersUserIds)
+            ->whereIn('purchase_orders.status', ['pendiente', 'emitida', 'autorizada'])
+            ->groupBy('purchase_requests.assigned_to', 'purchase_orders.status')
             ->get()
             ->groupBy('assigned_to');
+
+        $activeCounts = $ordersUserIds->mapWithKeys(function ($userId) use ($unlinkedRequestCounts, $orderCounts) {
+            $ordersByStatus = $orderCounts->get($userId, collect())->pluck('total', 'status');
+
+            return [$userId => (int) $unlinkedRequestCounts->get($userId, 0)
+                + (int) $ordersByStatus->get('pendiente', 0)
+                + (int) $ordersByStatus->get('emitida', 0)];
+        });
 
         // SOLCOMs sin asignar y pendientes de OC
         $unassignedCount = PurchaseRequest::whereNull('assigned_to')
@@ -1148,7 +1160,7 @@ class PurchaseRequestController extends Controller
             ->doesntHave('purchaseOrders')
             ->count();
 
-        // Listado detallado de SOLCOMs pendientes de OC por usuario para el drill-down
+        // Listado detallado de SOLCOMs sin OC por usuario para el drill-down
         $pendingByUser = PurchaseRequest::with(['project', 'projectWork'])
             ->where('status', 'sent_to_purchasing')
             ->doesntHave('purchaseOrders')
@@ -1167,8 +1179,9 @@ class PurchaseRequestController extends Controller
 
         return view('purchasing.workload', compact(
             'ordersUsers',
-            'pendingCounts',
-            'allCounts',
+            'unlinkedRequestCounts',
+            'orderCounts',
+            'activeCounts',
             'unassignedCount',
             'pendingByUser',
             'unassignedSolcoms'

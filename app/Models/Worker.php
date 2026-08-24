@@ -18,19 +18,21 @@ class Worker extends Model
         'first_name',
         'last_name',
         'nickname',
+        'profile_photo_path',
         'rfc',
         'curp',
         'birth_date',
         'hire_date',
-        'job_title',
+        'position_category_id',
         'project_work_id',
         'weekly_salary',
+        'payment_type',
+        'is_dc5',
         'status',
         'ine_expiration_date',
         'medical_certificate_expiration_date',
         'emergency_contact_name',
         'emergency_contact_phone',
-        'bank_account',
         'nss',
         'notes',
     ];
@@ -39,6 +41,7 @@ class Worker extends Model
         'birth_date' => 'date',
         'hire_date' => 'date',
         'weekly_salary' => 'decimal:2',
+        'is_dc5' => 'boolean',
         'ine_expiration_date' => 'date',
         'medical_certificate_expiration_date' => 'date',
     ];
@@ -48,9 +51,19 @@ class Worker extends Model
         return $this->belongsTo(ProjectWork::class);
     }
 
+    public function positionCategory(): BelongsTo
+    {
+        return $this->belongsTo(PositionCategory::class);
+    }
+
     public function file(): HasOne
     {
         return $this->hasOne(WorkerFile::class);
+    }
+
+    public function dc3s(): HasMany
+    {
+        return $this->hasMany(\App\Models\WorkerDc3::class)->orderBy('label');
     }
 
     public function terminations(): HasMany
@@ -68,6 +81,26 @@ class Worker extends Model
         return $this->hasMany(WorkerAttendance::class);
     }
 
+    public function payrollLines(): HasMany
+    {
+        return $this->hasMany(PayrollLine::class);
+    }
+
+    public function incentives(): HasMany
+    {
+        return $this->hasMany(Incentive::class);
+    }
+
+    public function pieceworkWeeklyEntries(): HasMany
+    {
+        return $this->hasMany(PieceworkWeeklyEntry::class);
+    }
+
+    public function foremanPieceworkWeeklyEntries(): HasMany
+    {
+        return $this->hasMany(PieceworkWeeklyEntry::class, 'foreman_worker_id');
+    }
+
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(WorkerGroup::class, 'worker_group_members')
@@ -83,6 +116,6 @@ class Worker extends Model
 
     public function currentProjectWork(): ?ProjectWork
     {
-        return $this->currentGroup()?->projectWork ?? $this->projectWork;
+        return $this->currentGroup()?->projectWork;
     }
 }

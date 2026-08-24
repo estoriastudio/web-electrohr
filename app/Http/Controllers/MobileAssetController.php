@@ -29,14 +29,70 @@ class MobileAssetController extends Controller
      */
     public function index(Request $request): View
     {
-        $search    = trim($request->input('search', ''));
-        $type      = $request->input('type', 'parque_vehicular');
-        $docStatus = $request->input('doc_status', '');
+        $search          = trim($request->input('search', ''));
+        $type            = $request->input('type', 'parque_vehicular');
+        $docStatus       = $request->input('doc_status', '');
+        $documentMissing = trim($request->input('document_missing', ''));
+        $galleryMissing  = $request->boolean('gallery_missing');
+        $documentTypes   = MobileAssetDocument::DOCS_BY_TYPE[$type] ?? [];
+
+        if (! in_array($documentMissing, $documentTypes, true)) {
+            $documentMissing = '';
+        }
+
+        $coverageQuery = MobileAsset::query()->where('type', $type);
+        $assetCount    = (clone $coverageQuery)->count();
+        $documentCoverage = [];
+
+        foreach ($documentTypes as $documentType) {
+            $missingCount = (clone $coverageQuery)
+                ->whereDoesntHave('documents', function ($query) use ($documentType) {
+                    $query->where('document_type', $documentType)
+                        ->whereNotNull('file_path');
+                })
+                ->count();
+
+            $documentCoverage[$documentType] = [
+                'uploaded' => $assetCount - $missingCount,
+                'missing'  => $missingCount,
+            ];
+        }
+
+        $galleryMissingCount = (clone $coverageQuery)
+            ->where(function ($query) {
+                $query->whereNull('photo1')
+                    ->orWhereNull('photo2')
+                    ->orWhereNull('photo3');
+            })
+            ->count();
+
+        $uploadedPhotoCount = (clone $coverageQuery)->whereNotNull('photo1')->count()
+            + (clone $coverageQuery)->whereNotNull('photo2')->count()
+            + (clone $coverageQuery)->whereNotNull('photo3')->count();
+
+        $galleryCoverage = [
+            'uploaded' => $uploadedPhotoCount,
+            'total'    => $assetCount * 3,
+            'missing'  => $galleryMissingCount,
+        ];
 
         $mobileAssets = MobileAsset::with('documents')
             ->where('type', $type)
             ->when($search, function ($q) use ($search) {
                 $q->where('folio', $search);
+            })
+            ->when($documentMissing, function ($query) use ($documentMissing) {
+                $query->whereDoesntHave('documents', function ($documentQuery) use ($documentMissing) {
+                    $documentQuery->where('document_type', $documentMissing)
+                        ->whereNotNull('file_path');
+                });
+            })
+            ->when($galleryMissing, function ($query) {
+                $query->where(function ($photoQuery) {
+                    $photoQuery->whereNull('photo1')
+                        ->orWhereNull('photo2')
+                        ->orWhereNull('photo3');
+                });
             })
             ->orderByRaw('folio IS NULL')
             ->orderByRaw('CAST(folio AS UNSIGNED)')
@@ -53,7 +109,18 @@ class MobileAssetController extends Controller
             );
         }
 
-        return view('mobile_assets.index', compact('mobileAssets', 'search', 'type', 'docStatus'));
+        return view('mobile_assets.index', compact(
+            'mobileAssets',
+            'search',
+            'type',
+            'docStatus',
+            'documentMissing',
+            'galleryMissing',
+            'documentTypes',
+            'documentCoverage',
+            'galleryCoverage',
+            'assetCount',
+        ));
     }
 
     /**

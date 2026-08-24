@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Models\MaterialVoucher;
 use App\Models\MaterialRequestChangeNote;
 use App\Models\PurchaseRequestChangeNote;
 use Illuminate\Support\Facades\View;
@@ -26,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         View::composer('layouts.partials._navbar', function ($view) {
+            $supplier = auth()->user()?->supplier;
+            $hasMaterialVouchers = $supplier !== null
+                && MaterialVoucher::where('supplier_id', $supplier->id)->exists();
             $activeProjectsCount = Project::where('status', 'active')->count();
             $paymentsToAuthorizeCount = Payment::query()
                 ->where('status', 'por_autorizar')
@@ -48,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
                 ->count();
 
             $view->with(compact(
+                'hasMaterialVouchers',
                 'activeProjectsCount',
                 'paymentsToAuthorizeCount',
                 'paymentsToPayCount',
