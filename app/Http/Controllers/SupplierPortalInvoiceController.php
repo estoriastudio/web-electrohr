@@ -22,7 +22,7 @@ class SupplierPortalInvoiceController extends Controller
         abort_unless($purchaseOrder->status === 'autorizada', 403);
 
         $invoicedAmount = $this->resolveInvoicedAmount($purchaseOrder);
-        $pendingAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmount);
+        $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $invoicedAmount);
 
         return view('supplier_portal.create_invoice', [
             'supplier' => $supplier,
@@ -40,7 +40,7 @@ class SupplierPortalInvoiceController extends Controller
         abort_unless($purchaseOrder->status === 'autorizada', 403);
 
         $invoicedAmount = $this->resolveInvoicedAmount($purchaseOrder);
-        $pendingAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmount);
+        $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $invoicedAmount);
 
         $validated = $request->validate([
             'due_date' => ['required', 'date'],
@@ -160,7 +160,7 @@ class SupplierPortalInvoiceController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($purchaseOrder->id);
             $lockedInvoicedAmount = $this->resolveInvoicedAmount($lockedPurchaseOrder);
-            $lockedPendingAmount = max(0, (float) $lockedPurchaseOrder->amount - $lockedInvoicedAmount);
+            $lockedPendingAmount = $this->resolvePendingAmount($lockedPurchaseOrder, $lockedInvoicedAmount);
 
             if ($netScope > $lockedPendingAmount || $lockedPendingAmount <= 0) {
                 throw ValidationException::withMessages([
@@ -253,7 +253,7 @@ class SupplierPortalInvoiceController extends Controller
         }
 
         $invoicedAmountExcludingCurrent = $this->resolveInvoicedAmount($purchaseOrder, $invoice->id);
-        $availableAmount = max(0, (float) $purchaseOrder->amount - $invoicedAmountExcludingCurrent);
+        $availableAmount = $this->resolvePendingAmount($purchaseOrder, $invoicedAmountExcludingCurrent);
 
         if ($netScope > $availableAmount) {
             return redirect()->back()->withInput()->withErrors([
@@ -400,7 +400,7 @@ class SupplierPortalInvoiceController extends Controller
 
     private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder, ?int $excludedInvoiceId = null): float
     {
-        return (float) $purchaseOrder->invoices()
+        return round((float) $purchaseOrder->invoices()
             ->whereIn('status', [
                 PurchaseOrderInvoice::STATUS_EN_PROCESO,
                 PurchaseOrderInvoice::STATUS_ACEPTADA,
@@ -409,6 +409,11 @@ class SupplierPortalInvoiceController extends Controller
                 $query->whereKeyNot($excludedInvoiceId);
             })
             ->selectRaw('COALESCE(SUM(COALESCE(net_scope, amount)), 0) as total')
-            ->value('total');
+            ->value('total'), 2);
+    }
+
+    private function resolvePendingAmount(PurchaseOrder $purchaseOrder, float $invoicedAmount): float
+    {
+        return max(0, round((float) $purchaseOrder->total_with_iva - $invoicedAmount, 2));
     }
 }

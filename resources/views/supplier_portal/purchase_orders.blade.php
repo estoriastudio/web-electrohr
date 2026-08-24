@@ -81,7 +81,7 @@
     $purchaseOrderTotals = $purchaseOrders->getCollection()
         ->groupBy(fn ($order) => $order->currency ?: 'MXN')
         ->map(fn ($orders) => [
-            'amount' => (float) $orders->sum('amount'),
+            'amount' => (float) $orders->sum(fn ($order) => $order->total_with_iva),
             'invoiced' => (float) $orders->sum(function ($order) {
                 return $order->invoices
                     ->where('status', 'aceptada')
@@ -89,7 +89,7 @@
             }),
         ])
         ->map(function ($totals) {
-            $totals['pending'] = max(0, $totals['amount'] - $totals['invoiced']);
+            $totals['pending'] = max(0, round($totals['amount'] - $totals['invoiced'], 2));
 
             return $totals;
         });
@@ -134,10 +134,10 @@
                     @forelse($purchaseOrders as $order)
                         @php
                             $reservedInvoices = $order->invoices->whereIn('status', ['en_proceso', 'aceptada']);
-                            $invoicedAmount = (float) $reservedInvoices->sum(function ($invoice) {
+                            $invoicedAmount = round((float) $reservedInvoices->sum(function ($invoice) {
                                 return (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
-                            });
-                            $pendingAmount = max(0, (float) $order->amount - $invoicedAmount);
+                            }), 2);
+                            $pendingAmount = max(0, round((float) $order->total_with_iva - $invoicedAmount, 2));
                             $projectName = $order->projectRelation?->name ?? $order->project;
                             $workName = $order->workRelation?->name ?? $order->site;
                             $collapseId = 'portal-order-invoices-' . $order->id;
@@ -175,7 +175,7 @@
                                 @endif
                             </td>
                             <td>{{ $order->currency }}</td>
-                            <td class="fw-medium">${{ number_format($order->amount, 2) }}</td>
+                            <td class="fw-medium">${{ number_format($order->total_with_iva, 2) }}</td>
                             <td class="text-success fw-medium">${{ number_format($invoicedAmount, 2) }}</td>
                             <td class="text-warning fw-medium">${{ number_format($pendingAmount, 2) }}</td>
                             <td>

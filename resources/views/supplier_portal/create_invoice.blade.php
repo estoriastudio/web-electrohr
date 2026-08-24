@@ -202,7 +202,7 @@
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Importe total de la OC</label>
                         <input type="text" class="form-control bg-light"
-                               value="{{ $purchaseOrder->currency }} {{ number_format((float) $purchaseOrder->amount, 2) }}"
+                               value="{{ $purchaseOrder->currency }} {{ number_format((float) $purchaseOrder->total_with_iva, 2) }}"
                                disabled>
                     </div>
                     <div class="col-md-4">
