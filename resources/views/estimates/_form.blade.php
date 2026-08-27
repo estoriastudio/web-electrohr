@@ -1,15 +1,22 @@
 @php
-        $currency = $projectWork->currency ?: 'MXN';
+    $currency = $project->currency ?: 'MXN';
+    $existingAllocations = $estimate
+        ? $estimate->allocations->map(fn ($allocation) => [
+            'project_work_id' => $allocation->project_work_id,
+            'estimate_amount' => $allocation->estimate_amount,
+        ])->all()
+        : [];
+    $allocationValues = collect(old('allocations', $existingAllocations))->keyBy('project_work_id');
     @endphp
 
     <div class="row g-3 mb-4">
-        <div class="col-md-5">
-            <label class="form-label fw-medium">Número de contrato</label>
-            <input type="text" class="form-control bg-light" value="{{ $projectWork->contract_number ?: 'Sin número de contrato' }}" readonly>
+        <div class="col-md-8">
+            <label class="form-label fw-medium">Proyecto</label>
+            <input type="text" class="form-control bg-light" value="{{ $project->name }}" readonly>
         </div>
-        <div class="col-md-3">
-            <label class="form-label fw-medium">Id cliente</label>
-            <input type="text" class="form-control bg-light" value="{{ $projectWork->project_id }}" readonly>
+        <div class="col-md-4">
+            <label class="form-label fw-medium">Moneda</label>
+            <input type="text" class="form-control bg-light" value="{{ $currency }}" readonly>
         </div>
         <div class="col-md-4">
             <label for="{{ $prefix }}_estimate_number" class="form-label fw-medium">Núm. estimación <span class="text-danger">*</span></label>
@@ -64,6 +71,57 @@
             </select>
             @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
+    </div>
+
+    <div class="border-top pt-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h6 class="text-danger fw-semibold mb-0">Desglose por obra <span class="text-danger">*</span></h6>
+                <div class="form-text">Selecciona las obras aplicables y asigna el importe correspondiente.</div>
+            </div>
+            <div class="text-end">
+                <div class="text-muted fs-12">Pendiente por distribuir</div>
+                <div class="fw-semibold js-allocation-remaining">{{ $currency }} 0.00</div>
+            </div>
+        </div>
+        <div class="border rounded">
+            @forelse ($project->works as $work)
+                @php
+                    $allocation = $allocationValues->get($work->id);
+                    $isAllocated = $allocation !== null;
+                @endphp
+                <div class="row g-2 align-items-center p-2 {{ !$loop->last ? 'border-bottom' : '' }} js-estimate-allocation-row">
+                    <div class="col-md-7">
+                        <div class="form-check">
+                            <input class="form-check-input js-estimate-allocation-toggle" type="checkbox"
+                                   id="{{ $prefix }}_allocation_{{ $work->id }}"
+                                   name="allocations[{{ $work->id }}][project_work_id]" value="{{ $work->id }}"
+                                   data-work-id="{{ $work->id }}" @checked($isAllocated)>
+                            <label class="form-check-label fw-medium" for="{{ $prefix }}_allocation_{{ $work->id }}">
+                                {{ $work->name }}
+                                @if ($work->status === 'inactive')
+                                    <span class="badge bg-warning-subtle text-warning ms-1">Inactiva</span>
+                                @endif
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">{{ $currency }}</span>
+                            <input type="text" inputmode="decimal"
+                                   class="form-control js-estimate-money js-allocation-amount"
+                                   name="allocations[{{ $work->id }}][estimate_amount]"
+                                   value="{{ $isAllocated ? $allocation['estimate_amount'] : '' }}"
+                                   placeholder="0.00" @disabled(!$isAllocated)>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="text-muted text-center py-3">Registra al menos una obra antes de crear una estimación.</div>
+            @endforelse
+        </div>
+        @error('allocations')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+        <div class="form-text text-danger d-none js-allocation-error"></div>
     </div>
 
     <div class="row g-4">

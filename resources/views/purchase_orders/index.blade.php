@@ -154,22 +154,61 @@
                 </div>
             </div>
 
+            @hasrole('admin')
+            @php
+                $trayQuery = array_filter([
+                    'search' => $search,
+                    'search_mode' => $searchMode !== 'default' ? $searchMode : null,
+                    'tipo' => $tipo,
+                    'sort_due' => $sortDue,
+                ], fn ($value) => $value !== '');
+                $trays = [
+                    'all' => ['label' => 'Todas', 'icon' => 'ri-stack-line', 'class' => 'text-secondary', 'badgeClass' => 'bg-secondary-subtle text-secondary'],
+                    'issued' => ['label' => 'Emitidas', 'icon' => 'ri-file-list-3-line', 'class' => 'text-info', 'badgeClass' => 'bg-info-subtle text-info'],
+                    'authorized' => ['label' => 'Autorizadas', 'icon' => 'ri-checkbox-circle-line', 'class' => 'text-success', 'badgeClass' => 'bg-success-subtle text-success'],
+                    'delivered' => ['label' => 'Entregadas', 'icon' => 'ri-truck-line', 'class' => 'text-primary', 'badgeClass' => 'bg-primary-subtle text-primary'],
+                ];
+            @endphp
+            <div class="card-body border-bottom py-3">
+                <div class="form-label form-label-sm mb-2">Bandeja</div>
+                <ul class="nav nav-tabs nav-justified" role="tablist" aria-label="Bandejas de órdenes de compra">
+                    @foreach ($trays as $trayKey => $trayMeta)
+                        <li class="nav-item" role="presentation">
+                            <a href="{{ route('purchase_orders.index', array_merge($trayQuery, ['tray' => $trayKey])) }}"
+                               class="nav-link {{ $tray === $trayKey ? 'active' : '' }}"
+                               aria-current="{{ $tray === $trayKey ? 'page' : 'false' }}">
+                                <i class="{{ $trayMeta['icon'] }} {{ $tray === $trayKey ? $trayMeta['class'] : 'text-muted' }} me-1"></i>
+                                <span class="{{ $tray === $trayKey ? $trayMeta['class'] : '' }}">{{ $trayMeta['label'] }}</span>
+                                <span class="badge rounded-pill {{ $trayMeta['badgeClass'] }} ms-1">{{ $trayCounts[$trayKey] ?? 0 }}</span>
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+            @endhasrole
+
             {{-- Barra de filtros --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('purchase_orders.index') }}" class="row g-2 align-items-end">
-                    {{-- Búsqueda por proveedor o proyecto --}}
-                    <div class="col-md-5">
+                    @if ($searchMode === 'traceability')
+                        <input type="hidden" name="search_mode" value="traceability">
+                    @endif
+                    @if ($tray !== 'all')
+                        <input type="hidden" name="tray" value="{{ $tray }}">
+                    @endif
+                    {{-- Búsqueda --}}
+                    <div class="col-md-5 col-xl-4">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                             <input type="text" name="search" value="{{ $search }}"
                                    class="form-control"
-                                placeholder="Buscar por proveedor, proyecto, folio o elaborador…"
+                                placeholder="{{ $searchMode === 'traceability' ? 'Buscar por folio de SOLCOM o SOLMAT…' : 'Buscar por proveedor, proyecto, folio o elaborador…' }}"
                                    autocomplete="off">
                         </div>
                     </div>
 
                     {{-- Filtro por tipo --}}
-                    <div class="col-md-3">
+                    <div class="col-md-3 col-xl-2">
                         <select name="tipo" class="form-select form-select-sm">
                             <option value="">Todos los tipos</option>
                             <option value="materiales_servicios" {{ $tipo === 'materiales_servicios' ? 'selected' : '' }}>Materiales / Servicios</option>
@@ -178,7 +217,7 @@
                     </div>
 
                     {{-- Ordenar por vencimiento --}}
-                    <div class="col-md-2">
+                    <div class="col-md-2 col-xl-2">
                         <select name="sort_due" class="form-select form-select-sm">
                             <option value="">Más recientes primero</option>
                             <option value="asc" {{ $sortDue === 'asc' ? 'selected' : '' }}>Vence próximo primero</option>
@@ -187,10 +226,25 @@
                     </div>
 
                     {{-- Acciones --}}
-                    <div class="col-md-2 d-flex gap-1">
+                    <div class="col-md-12 col-xl-4 d-flex flex-nowrap gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
+                        <span class="vr my-1"></span>
+                        <a href="{{ route('purchase_orders.index', array_filter([
+                            'search_mode' => $searchMode === 'traceability' ? null : 'traceability',
+                            'tray' => $tray !== 'all' ? $tray : null,
+                            'tipo' => $tipo ?: null,
+                            'sort_due' => $sortDue ?: null,
+                        ])) }}"
+                           class="btn btn-outline-secondary btn-sm text-nowrap"
+                           title="{{ $searchMode === 'traceability' ? 'Volver a búsqueda general' : 'Buscar por folio de SOLCOM o SOLMAT' }}">
+                            <i class="{{ $searchMode === 'traceability' ? 'ri-search-line' : 'ri-git-branch-line' }} me-1"></i>
+                            {{ $searchMode === 'traceability' ? 'Búsqueda general' : 'Búsqueda avanzada' }}
+                        </a>
                         @if ($search || $tipo || $sortDue)
-                            <a href="{{ route('purchase_orders.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
+                            <a href="{{ route('purchase_orders.index', array_filter([
+                                'search_mode' => $searchMode === 'traceability' ? 'traceability' : null,
+                                'tray' => $tray !== 'all' ? $tray : null,
+                            ])) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif

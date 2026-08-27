@@ -15,6 +15,7 @@ use App\Models\PurchaseRequest;
 use App\Models\ProjectWork;
 use App\Models\Supplier;
 use App\Models\Project;
+use App\Models\Payment;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -49,11 +50,22 @@ class PurchaseOrderController extends Controller
         $search  = trim($request->input('search', ''));
         $tipo    = $request->input('tipo', '');
         $sortDue = $request->input('sort_due', '');
+        $tray    = $request->input('tray', 'all');
+        $searchMode = $request->input('search_mode', 'default');
+        $trays   = ['all', 'issued', 'authorized', 'delivered'];
+
+        if (!in_array($tray, $trays, true) || !Auth::user()->hasRole('admin')) {
+            $tray = 'all';
+        }
+
+        if (!in_array($searchMode, ['default', 'traceability'], true)) {
+            $searchMode = 'default';
+        }
 
         $orders = PurchaseOrder::with(['supplier', 'items'])
             ->withCount(['milestones', 'children'])
             ->whereNull('archived_at')
-            ->when($search, function ($q) use ($search) {
+            ->when($search && $searchMode === 'default', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {
                         $s->where('rfc_name', 'like', '%' . $search . '%')
@@ -65,7 +77,21 @@ class PurchaseOrderController extends Controller
                                             ->orWhere('elaborated_by', 'like', '%' . $search . '%');
                 });
             })
+            ->when($search && $searchMode === 'traceability', function ($q) use ($search) {
+                $q->whereHas('purchaseRequest', function ($purchaseRequest) use ($search) {
+                    $purchaseRequest->where('folio', 'like', '%' . $search . '%')
+                        ->orWhereHas('materialRequest', function ($materialRequest) use ($search) {
+                            $materialRequest->where('folio', 'like', '%' . $search . '%');
+                        })
+                        ->orWhereHas('materialRequests', function ($materialRequests) use ($search) {
+                            $materialRequests->where('folio', 'like', '%' . $search . '%');
+                        });
+                });
+            })
             ->when($tipo, fn ($q) => $q->where('type', $tipo))
+            ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('is_delivered', false))
+            ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('is_delivered', false))
+            ->when($tray === 'delivered', fn ($q) => $q->where('is_delivered', true))
             ->when($sortDue === 'asc', function ($q) {
                 $q->withMin('milestones', 'due_date')
                   ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
@@ -97,8 +123,17 @@ class PurchaseOrderController extends Controller
             ->limit(10)
             ->get();
 
+        $trayCounts = Auth::user()->hasRole('admin')
+            ? [
+                'all' => PurchaseOrder::whereNull('archived_at')->count(),
+                'issued' => PurchaseOrder::whereNull('archived_at')->where('status', 'emitida')->where('is_delivered', false)->count(),
+                'authorized' => PurchaseOrder::whereNull('archived_at')->where('status', 'autorizada')->where('is_delivered', false)->count(),
+                'delivered' => PurchaseOrder::whereNull('archived_at')->where('is_delivered', true)->count(),
+            ]
+            : [];
+
         return view('purchase_orders.index', compact(
-            'orders', 'suppliers', 'search', 'tipo', 'sortDue',
+            'orders', 'suppliers', 'search', 'searchMode', 'tipo', 'sortDue', 'tray', 'trayCounts',
             'projects', 'nextFolio', 'authorizedSignatories', 'recentPendingInvoices'
         ));
     }
@@ -607,6 +642,85 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' autorizada correctamente.');
     }
 
+    public function approveWithPayments(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'payment_ids' => 'nullable|array|max:500',
+            'payment_ids.*' => 'integer|distinct|exists:payments,id',
+        ]);
+
+        $paymentIds = collect($validated['payment_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $authorizedPayments = DB::transaction(function () use ($purchaseOrder, $paymentIds) {
+            $lockedPurchaseOrder = PurchaseOrder::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseOrder->id);
+
+            if ($lockedPurchaseOrder->status === 'autorizada') {
+                throw ValidationException::withMessages([
+                    'purchase_order' => 'La orden de compra ya está autorizada.',
+                ]);
+            }
+
+            if ($lockedPurchaseOrder->status !== 'emitida') {
+                throw ValidationException::withMessages([
+                    'purchase_order' => 'La orden de compra debe estar emitida antes de autorizarse.',
+                ]);
+            }
+
+            $payments = Payment::query()
+                ->whereIn('id', $paymentIds)
+                ->whereHas('milestone', fn ($query) => $query->where('purchase_order_id', $lockedPurchaseOrder->id))
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+
+            if ($payments->count() !== $paymentIds->count()
+                || $payments->contains(fn (Payment $payment) => !in_array($payment->status, ['por_autorizar', 'pospuesto'], true))) {
+                throw ValidationException::withMessages([
+                    'payment_ids' => 'Solo se pueden autorizar pagos pendientes de esta orden de compra.',
+                ]);
+            }
+
+            $lockedPurchaseOrder->update(['status' => 'autorizada']);
+            $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado']));
+
+            return $payments;
+        });
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $purchaseOrderFolio = $purchaseOrder->folio ?? $purchaseOrder->id;
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'autorizó la orden de compra #' . $purchaseOrderFolio . ' de ' . $supplierName . '.',
+        ]);
+
+        foreach ($authorizedPayments as $payment) {
+            $this->notification->send([
+                'type'         => 'Payment',
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $payment->id,
+                'data'         => 'autorizó el pago #' . $payment->folio . ' de la orden de compra #' . $purchaseOrderFolio . '.',
+            ]);
+        }
+
+        $message = 'Orden de compra #' . $purchaseOrderFolio . ' autorizada correctamente.';
+        if ($authorizedPayments->isNotEmpty()) {
+            $message .= ' Se autorizaron ' . $authorizedPayments->count() . ' pago(s).';
+        }
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', $message);
+    }
+
     public function updateDeliveryStatus(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         $validated = $request->validate([
@@ -816,7 +930,7 @@ class PurchaseOrderController extends Controller
         $data['purchase_order_id'] = $purchaseOrder->id;
         $item = PurchaseOrderItem::create($data);
 
-        $purchaseOrder->recalculateAmount();
+        $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
         $purchaseOrder->refresh();
 
         if ($request->wantsJson()) {
@@ -839,6 +953,7 @@ class PurchaseOrderController extends Controller
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }
 
@@ -864,7 +979,7 @@ class PurchaseOrderController extends Controller
 
         $item->update($data);
 
-        $purchaseOrder->recalculateAmount();
+        $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
         $purchaseOrder->refresh();
 
         if ($request->wantsJson()) {
@@ -885,6 +1000,7 @@ class PurchaseOrderController extends Controller
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }
 
@@ -902,7 +1018,7 @@ class PurchaseOrderController extends Controller
         }
 
         $item->delete();
-        $purchaseOrder->recalculateAmount();
+        $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
 
         if ($request->wantsJson()) {
             $purchaseOrder->refresh();
@@ -919,6 +1035,7 @@ class PurchaseOrderController extends Controller
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }
 

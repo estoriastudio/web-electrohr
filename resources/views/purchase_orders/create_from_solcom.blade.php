@@ -427,7 +427,7 @@
                         {{-- Acciones --}}
                         <div class="col-12 d-flex justify-content-end gap-2 pt-2">
                             <a href="{{ route('purchasing.solcom_pile') }}" class="btn btn-light">Cancelar</a>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="createOrderFromSolcomButton">
                                 <i class="ri-save-line me-1"></i>Crear Orden de Compra
                             </button>
                         </div>
@@ -482,9 +482,55 @@
     const supplierProfileModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSupplierProfileIncomplete'));
     const supplierProfileLink = document.getElementById('supplierProfileLink');
     const missingFieldsList = document.getElementById('supplierProfileMissingFields');
+    const chooseAnotherSupplierButton = document.getElementById('chooseAnotherSupplier');
+    const createOrderButton = document.getElementById('createOrderFromSolcomButton');
     let checkedSupplierId = '';
     let supplierIsReady = false;
     let latestReadiness = null;
+    let supplierProfileLocked = false;
+    let lockedControlStates = [];
+
+    function syncChoicesState(choice) {
+        if (!choice) return;
+        if (choice.passedElement.element.disabled) {
+            choice.disable();
+        } else {
+            choice.enable();
+        }
+    }
+
+    function setSupplierProfileLocked(locked) {
+        if (supplierProfileLocked === locked) return;
+
+        supplierProfileLocked = locked;
+        const controls = Array.from(orderForm.querySelectorAll('input, select, textarea, button'));
+
+        if (locked) {
+            lockedControlStates = controls.map(function (control) {
+                return { control: control, disabled: control.disabled, readOnly: control.readOnly };
+            });
+            controls.forEach(function (control) {
+                if (control.type === 'hidden') return;
+                if (control.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'submit', 'button', 'reset'].includes(control.type)) {
+                    control.readOnly = true;
+                } else if (control.tagName === 'TEXTAREA') {
+                    control.readOnly = true;
+                } else {
+                    control.disabled = true;
+                }
+            });
+            createOrderButton.hidden = true;
+        } else {
+            lockedControlStates.forEach(function (state) {
+                state.control.disabled = state.disabled;
+                state.control.readOnly = state.readOnly;
+            });
+            lockedControlStates = [];
+            createOrderButton.hidden = false;
+        }
+
+        syncChoicesState(supplierChoices);
+    }
 
     function showSupplierProfileIncomplete(readiness) {
         missingFieldsList.replaceChildren();
@@ -513,6 +559,7 @@
             if (supplierSel.value !== supplierId) return;
             latestReadiness = readiness;
             supplierIsReady = readiness.ready;
+            setSupplierProfileLocked(!readiness.ready);
             if (!readiness.ready) showSupplierProfileIncomplete(readiness);
         })
         .catch(() => {});
@@ -531,6 +578,16 @@
     });
 
     if (supplierSel.value) checkSupplierReadiness();
+
+    chooseAnotherSupplierButton.addEventListener('click', function () {
+        checkedSupplierId = '';
+        supplierIsReady = false;
+        latestReadiness = null;
+        supplierSel.disabled = false;
+        syncChoicesState(supplierChoices);
+        supplierChoices.setChoiceByValue('');
+        supplierSel.focus();
+    });
 
     // Toggle impuestos adicionales
     function toggleExtraTaxField(checkbox) {

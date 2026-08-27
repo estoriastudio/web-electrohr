@@ -221,21 +221,90 @@ class PurchaseOrder extends Model
      * Recalcula y persiste el campo `amount` a partir de los ítems (subtotal + IVA 16%).
      * Llamar después de crear / editar / eliminar ítems.
      */
-    public function recalculateAmount(): void
+    public function recalculateAmount(): bool
     {
-        $subtotal = (float) $this->items()->sum(\DB::raw('quantity * unit_price'));
-        $taxRate = (float) ($this->tax_rate ?? 0);
-        $isrRate = (float) ($this->isr_rate ?? 0);
-        $retentionIvaRate = (float) ($this->retention_iva_rate ?? 0);
-        $retentionIsrRate = (float) ($this->retention_isr_rate ?? 0);
+        return \DB::transaction(function (): bool {
+            $subtotal = (float) $this->items()->sum(\DB::raw('quantity * unit_price'));
+            $taxRate = (float) ($this->tax_rate ?? 0);
+            $isrRate = (float) ($this->isr_rate ?? 0);
+            $retentionIvaRate = (float) ($this->retention_iva_rate ?? 0);
+            $retentionIsrRate = (float) ($this->retention_isr_rate ?? 0);
 
-        $taxAmount = $subtotal * ($taxRate / 100);
-        $isrAmount = $subtotal * ($isrRate / 100);
-        $retentionIvaAmount = $subtotal * ($retentionIvaRate / 100);
-        $retentionIsrAmount = $subtotal * ($retentionIsrRate / 100);
+            $taxAmount = $subtotal * ($taxRate / 100);
+            $isrAmount = $subtotal * ($isrRate / 100);
+            $retentionIvaAmount = $subtotal * ($retentionIvaRate / 100);
+            $retentionIsrAmount = $subtotal * ($retentionIsrRate / 100);
 
-        $this->update([
-            'amount' => round($subtotal + $taxAmount + $isrAmount + $retentionIvaAmount + $retentionIsrAmount, 2),
-        ]);
+            $this->update([
+                'amount' => round($subtotal + $taxAmount + $isrAmount + $retentionIvaAmount + $retentionIsrAmount, 2),
+            ]);
+
+            return $this->syncPendingPercentageMilestonePayments();
+        });
+    }
+
+    private function syncPendingPercentageMilestonePayments(): bool
+    {
+        $this->unsetRelation('items');
+        $this->load('items');
+
+        $percentageMilestones = $this->milestones()
+            ->where('value_type', 'porcentaje')
+            ->orderBy('id')
+            ->get();
+
+        if ($percentageMilestones->isEmpty()) {
+            return false;
+        }
+
+        $orderTotal = (float) $this->total_with_iva;
+        $percentageTotal = (float) $percentageMilestones->sum('value');
+        $lastMilestoneId = $percentageMilestones->last()?->id;
+        $previousAmounts = 0.0;
+        $wasSynchronized = false;
+
+        foreach ($percentageMilestones as $milestone) {
+            $isLastPercentageMilestone = abs($percentageTotal - 100) < 0.0001
+                && $milestone->id === $lastMilestoneId;
+            $targetAmount = $isLastPercentageMilestone
+                ? round($orderTotal - $previousAmounts, 2)
+                : round($orderTotal * (float) $milestone->value / 100, 2);
+            $previousAmounts = round($previousAmounts + $targetAmount, 2);
+
+            $payments = $milestone->payments()
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+            $pendingPayments = $payments->where('status', 'por_autorizar')->values();
+
+            if ($pendingPayments->isEmpty()) {
+                continue;
+            }
+
+            $lockedAmount = round((float) $payments
+                ->where('status', '!=', 'por_autorizar')
+                ->sum('amount'), 2);
+            $pendingTargetAmount = max(0, round($targetAmount - $lockedAmount, 2));
+            $currentPendingAmount = (float) $pendingPayments->sum('amount');
+            $remainingAmount = $pendingTargetAmount;
+
+            foreach ($pendingPayments as $index => $payment) {
+                $isLastPayment = $index === $pendingPayments->count() - 1;
+                $amount = $isLastPayment
+                    ? $remainingAmount
+                    : ($currentPendingAmount > 0
+                        ? round($pendingTargetAmount * ((float) $payment->amount / $currentPendingAmount), 2)
+                        : 0.0);
+
+                $remainingAmount = round($remainingAmount - $amount, 2);
+
+                if (abs((float) $payment->amount - $amount) > 0.009) {
+                    $payment->update(['amount' => $amount]);
+                    $wasSynchronized = true;
+                }
+            }
+        }
+
+        return $wasSynchronized;
     }
 }

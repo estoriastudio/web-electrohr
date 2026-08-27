@@ -166,6 +166,7 @@
                                                         data-client="{{ $project->client_name }}"
                                                         data-city="{{ $project->city }}"
                                                         data-state="{{ $project->state }}"
+                                                        data-currency="{{ $project->currency }}"
                                                         data-status="{{ $project->status }}"
                                                         data-bs-toggle="modal" data-bs-target="#modalEditProject">
                                                     <i class="ri-edit-line"></i>
@@ -249,6 +250,15 @@
                                    id="create_state" name="state" value="{{ old('state') }}">
                             @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+                        <div class="col-md-6">
+                            <label for="create_currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
+                            <select class="form-select @error('currency') is-invalid @enderror" id="create_currency" name="currency" required>
+                                <option value="MXN" @selected(old('currency', 'MXN') === 'MXN')>MXN</option>
+                                <option value="USD" @selected(old('currency') === 'USD')>USD</option>
+                                <option value="EUR" @selected(old('currency') === 'EUR')>EUR</option>
+                            </select>
+                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -304,6 +314,14 @@
                             <select class="form-select" id="edit_status" name="status">
                                 <option value="active">Activo</option>
                                 <option value="inactive">Inactivo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
+                            <select class="form-select" id="edit_currency" name="currency" required>
+                                <option value="MXN">MXN</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
                             </select>
                         </div>
                     </div>
@@ -402,6 +420,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_client_name').value = this.dataset.client;
             document.getElementById('edit_city').value        = this.dataset.city || '';
             document.getElementById('edit_state').value       = this.dataset.state || '';
+            document.getElementById('edit_currency').value    = this.dataset.currency || 'MXN';
             document.getElementById('edit_status').value      = this.dataset.status;
         });
     });

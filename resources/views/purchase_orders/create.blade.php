@@ -428,7 +428,7 @@
 
                 <div class="mt-4 d-flex gap-2 justify-content-end">
                     <a href="{{ route('purchase_orders.index') }}" class="btn btn-light">Cancelar</a>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="createOrderButton">
                         <i class="ri-save-line me-1"></i> Crear orden
                     </button>
                 </div>
@@ -580,9 +580,55 @@ document.addEventListener('DOMContentLoaded', function () {
     var supplierProfileModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSupplierProfileIncomplete'));
     var supplierProfileLink = document.getElementById('supplierProfileLink');
     var missingFieldsList = document.getElementById('supplierProfileMissingFields');
+    var chooseAnotherSupplierButton = document.getElementById('chooseAnotherSupplier');
+    var createOrderButton = document.getElementById('createOrderButton');
     var checkedSupplierId = '';
     var supplierIsReady = false;
     var latestReadiness = null;
+    var supplierProfileLocked = false;
+    var lockedControlStates = [];
+
+    function syncChoicesState(choice) {
+        if (!choice) return;
+        if (choice.passedElement.element.disabled) {
+            choice.disable();
+        } else {
+            choice.enable();
+        }
+    }
+
+    function setSupplierProfileLocked(locked) {
+        if (supplierProfileLocked === locked) return;
+
+        supplierProfileLocked = locked;
+        var controls = Array.prototype.slice.call(orderForm.querySelectorAll('input, select, textarea, button'));
+
+        if (locked) {
+            lockedControlStates = controls.map(function (control) {
+                return { control: control, disabled: control.disabled, readOnly: control.readOnly };
+            });
+            controls.forEach(function (control) {
+                if (control.type === 'hidden') return;
+                if (control.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'submit', 'button', 'reset'].includes(control.type)) {
+                    control.readOnly = true;
+                } else if (control.tagName === 'TEXTAREA') {
+                    control.readOnly = true;
+                } else {
+                    control.disabled = true;
+                }
+            });
+            createOrderButton.hidden = true;
+        } else {
+            lockedControlStates.forEach(function (state) {
+                state.control.disabled = state.disabled;
+                state.control.readOnly = state.readOnly;
+            });
+            lockedControlStates = [];
+            createOrderButton.hidden = false;
+        }
+
+        [supplierChoices, projectChoices, maintenanceProjectChoices, mobileAssetChoices].forEach(syncChoicesState);
+    }
 
     function showSupplierProfileIncomplete(readiness) {
         missingFieldsList.replaceChildren();
@@ -611,6 +657,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (supplierSelect.value !== supplierId) return;
             latestReadiness = readiness;
             supplierIsReady = readiness.ready;
+            setSupplierProfileLocked(!readiness.ready);
             if (!readiness.ready) showSupplierProfileIncomplete(readiness);
         })
         .catch(function () {});
@@ -629,6 +676,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (supplierSelect.value) checkSupplierReadiness();
+
+    chooseAnotherSupplierButton.addEventListener('click', function () {
+        checkedSupplierId = '';
+        supplierIsReady = false;
+        latestReadiness = null;
+        supplierSelect.disabled = false;
+        syncChoicesState(supplierChoices);
+        if (supplierChoices) {
+            supplierChoices.setChoiceByValue('');
+        } else {
+            supplierSelect.value = '';
+            supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        supplierSelect.focus();
+    });
 
     // ── Cargar obras al cambiar proyecto (cascade) ────────────────────────
     function getWorkCheckboxes(container) {

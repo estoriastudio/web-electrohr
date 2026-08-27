@@ -86,6 +86,59 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_authorize_an_emitted_purchase_order_with_selected_payments(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->purchaseOrder('emitida');
+        $milestone = PurchaseOrderMilestone::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 1000,
+            'covered_amount' => 0,
+        ]);
+        $payment = Payment::create([
+            'milestone_id' => $milestone->id,
+            'folio' => 'PAY-PENDING-' . random_int(10000, 99999),
+            'amount' => 1000,
+            'payment_date' => '2026-09-01',
+            'status' => 'por_autorizar',
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('purchase_orders.approve_with_payments', $purchaseOrder), [
+                'payment_ids' => [$payment->id],
+            ])
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'autorizada',
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'status' => 'autorizado',
+        ]);
+    }
+
+    public function test_admin_can_authorize_an_emitted_purchase_order_without_selecting_payments(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->purchaseOrder('emitida');
+
+        $this->actingAs($admin)
+            ->patch(route('purchase_orders.approve_with_payments', $purchaseOrder))
+            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+
+        $this->assertDatabaseHas('purchase_orders', [
+            'id' => $purchaseOrder->id,
+            'status' => 'autorizada',
+        ]);
+    }
+
     public function test_purchase_order_role_cannot_add_milestone_to_authorized_non_destajo_order(): void
     {
         $user = User::factory()->create();

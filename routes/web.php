@@ -15,7 +15,7 @@ use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\ProjectWorkController;
-use App\Http\Controllers\ProjectWorkEstimateController;
+use App\Http\Controllers\ProjectEstimateController;
 use App\Http\Controllers\WorkerController;
 use App\Http\Controllers\WorkerDc3Controller;
 use App\Http\Controllers\WorkerFileController;
@@ -247,6 +247,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/proyectos/{project}/convenios/{projectAgreement}/nombramientos', [ProjectAgreementController::class, 'downloadAppointments'])
                 ->name('projects.agreements.appointments.download');
 
+            Route::get('/proyectos/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
+                ->name('projects.estimates.create');
+            Route::post('/proyectos/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
+                ->name('projects.estimates.store');
+            Route::put('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
+                ->name('projects.estimates.update');
+            Route::put('/proyectos/estimaciones/{estimate}/documentos', [ProjectEstimateController::class, 'updateDocuments'])
+                ->name('projects.estimates.documents.update');
+            Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
+                ->name('projects.estimates.destroy');
+            Route::get('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'download'])
+                ->name('projects.estimates.documents.download');
+
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');
 
@@ -263,12 +276,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'parameters' => ['obras' => 'project_work'],
             ]);
 
-            Route::post('/obras/{projectWork}/estimaciones', [ProjectWorkEstimateController::class, 'store'])
-                ->name('estimates.store');
-            Route::put('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'update'])
-                ->name('estimates.update');
-            Route::delete('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'destroy'])
-                ->name('estimates.destroy');
         });
 
         Route::middleware('role:admin|Recursos Humanos')
@@ -522,6 +529,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ])->parameters(['pagos' => 'payment']);
         });
 
+        // Reactivación de pagos rechazados — solicitud de Compras para nueva autorización
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
+                ->name('payments.request_reactivation');
+        });
+
         // Emisión de Órdenes de Compra — Compras y admin
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
@@ -530,6 +543,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Autorización de Órdenes de Compra — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
+            Route::patch('/ordenes-de-compra/{purchase_order}/autorizar-con-pagos', [PurchaseOrderController::class, 'approveWithPayments'])
+                ->name('purchase_orders.approve_with_payments');
         });
 
         // Modo interactivo (swipable) — solo admin

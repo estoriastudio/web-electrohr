@@ -4,8 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ProjectWorkEstimate extends Model
+class ProjectEstimate extends Model
 {
     public const TYPE_ESTIMACION = 'estimacion';
     public const TYPE_NOTA_CREDITO = 'nota_credito';
@@ -21,7 +23,7 @@ class ProjectWorkEstimate extends Model
     ];
 
     protected $fillable = [
-        'project_work_id',
+        'project_id',
         'created_by',
         'estimate_number',
         'estimate_date',
@@ -37,9 +39,14 @@ class ProjectWorkEstimate extends Model
         'funeral_expense_amount',
         'delay_penalty_amount',
         'invoice_number',
+        'invoice_pdf_path',
+        'invoice_xml_path',
+        'credit_note_pdf_path',
+        'credit_note_xml_path',
         'invoice_date',
         'invoice_amount',
         'spei_reference',
+        'spei_receipt_path',
         'spei_amount',
         'payment_date',
         'status',
@@ -66,14 +73,26 @@ class ProjectWorkEstimate extends Model
         'physical_progress' => 'decimal:2',
     ];
 
-    public function projectWork(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(ProjectWork::class);
+        return $this->belongsTo(Project::class);
     }
 
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(ProjectEstimateAllocation::class);
+    }
+
+    public function works(): BelongsToMany
+    {
+        return $this->belongsToMany(ProjectWork::class, 'project_estimate_allocations')
+            ->withPivot('estimate_amount')
+            ->withTimestamps();
     }
 
     public function getVatAmountAttribute(): float

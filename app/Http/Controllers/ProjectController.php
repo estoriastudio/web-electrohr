@@ -59,6 +59,7 @@ class ProjectController extends Controller
             'client_name' => 'required|string|max:255',
             'city'        => 'nullable|string|max:255',
             'state'       => 'nullable|string|max:255',
+            'currency'    => 'required|string|max:10',
         ]);
 
         $project = Project::create(array_merge($validated, ['status' => 'active']));
@@ -90,6 +91,7 @@ class ProjectController extends Controller
             'works'     => fn ($q) => $q->withCount('purchaseOrders'),
             'documents',
             'agreements' => fn ($q) => $q->with('works')->latest(),
+            'estimates' => fn ($q) => $q->with(['creator', 'allocations.work'])->latest('estimate_date'),
         ]);
 
         $docCategories = ProjectDocument::CATEGORIES;
@@ -110,6 +112,7 @@ class ProjectController extends Controller
             'city'        => 'nullable|string|max:255',
             'state'       => 'nullable|string|max:255',
             'status'      => 'required|in:active,inactive',
+            'currency'    => 'required|string|max:10',
         ]);
 
         $project->update($validated);

@@ -105,17 +105,21 @@ class PurchaseOrderMilestoneController extends Controller
                 ->with('error', 'Solo admin puede agregar hitos a una OC autorizada que no es destajo.');
         }
 
-        $this->ensureMilestoneValueIsWithinOrderTotal(
-            $purchaseOrder,
-            (string) $validated['value_type'],
-            (float) $validated['value']
-        );
-
         $validated['covered_amount'] = 0;
         $validated['is_advance']     = $request->boolean('is_advance');
         $validated['type']           = 'regular'; // campo legacy, valor fijo
 
         $order = DB::transaction(function () use ($validated) {
+            $lockedPurchaseOrder = PurchaseOrder::query()
+                ->lockForUpdate()
+                ->findOrFail((int) $validated['purchase_order_id']);
+
+            $this->ensureMilestoneValueIsWithinOrderTotal(
+                $lockedPurchaseOrder,
+                (string) $validated['value_type'],
+                (float) $validated['value'],
+            );
+
             $milestone = PurchaseOrderMilestone::create($validated);
             $milestone->load('purchaseOrder');
 
@@ -178,7 +182,8 @@ class PurchaseOrderMilestoneController extends Controller
         $this->ensureMilestoneValueIsWithinOrderTotal(
             $purchaseOrder,
             (string) $validated['value_type'],
-            (float) $validated['value']
+            (float) $validated['value'],
+            $purchaseOrderMilestone,
         );
 
         $validated['is_advance'] = $request->boolean('is_advance');
@@ -291,7 +296,12 @@ class PurchaseOrderMilestoneController extends Controller
             ->with('success', 'Hito actualizado correctamente.');
     }
 
-    private function ensureMilestoneValueIsWithinOrderTotal(PurchaseOrder $purchaseOrder, string $valueType, float $value): void
+    private function ensureMilestoneValueIsWithinOrderTotal(
+        PurchaseOrder $purchaseOrder,
+        string $valueType,
+        float $value,
+        ?PurchaseOrderMilestone $existingMilestone = null,
+    ): void
     {
         if ($valueType === 'porcentaje' && $value > 100) {
             throw ValidationException::withMessages([
@@ -299,19 +309,57 @@ class PurchaseOrderMilestoneController extends Controller
             ]);
         }
 
-        if ($valueType !== 'fijo') {
-            return;
+        $orderTotal = (float) $purchaseOrder->total_with_iva;
+        $projectedMilestones = $purchaseOrder->milestones()
+            ->orderBy('id')
+            ->get(['id', 'value_type', 'value'])
+            ->map(function (PurchaseOrderMilestone $milestone) use ($existingMilestone, $valueType, $value) {
+                $isBeingUpdated = $existingMilestone?->id === $milestone->id;
+
+                return [
+                    'value_type' => $isBeingUpdated ? $valueType : $milestone->value_type,
+                    'value' => (float) ($isBeingUpdated ? $value : $milestone->value),
+                ];
+            });
+
+        if (!$existingMilestone) {
+            $projectedMilestones->push([
+                'value_type' => $valueType,
+                'value' => $value,
+            ]);
         }
 
-        $orderTotal = (float) $purchaseOrder->total_with_iva;
-        if ($value <= $orderTotal) {
+        $fixedAmount = (float) $projectedMilestones
+            ->where('value_type', 'fijo')
+            ->sum('value');
+        $percentageMilestones = $projectedMilestones
+            ->where('value_type', 'porcentaje')
+            ->values();
+        $percentageTotal = (float) $percentageMilestones->sum('value');
+        $previousPercentageAmounts = 0.0;
+        $percentageAmount = 0.0;
+
+        foreach ($percentageMilestones as $index => $milestone) {
+            $isLastPercentageMilestone = abs($percentageTotal - 100) < 0.0001
+                && $index === $percentageMilestones->count() - 1;
+            $amount = $isLastPercentageMilestone
+                ? round($orderTotal - $previousPercentageAmounts, 2)
+                : round($orderTotal * (float) $milestone['value'] / 100, 2);
+
+            $previousPercentageAmounts = round($previousPercentageAmounts + $amount, 2);
+            $percentageAmount = round($percentageAmount + $amount, 2);
+        }
+
+        $projectedTotal = round($fixedAmount + $percentageAmount, 2);
+        if ($projectedTotal <= $orderTotal + 0.009) {
             return;
         }
 
         throw ValidationException::withMessages([
-            'value' => 'El valor fijo no puede superar el total de la OC ('
-                . number_format($orderTotal, 2, '.', ',')
-                . ').',
+            'value' => 'El total acumulado de los hitos ('
+                . number_format($projectedTotal, 2, '.', ',')
+                . ') no puede superar el total de la OC ('
+                . number_format($orderTotal, 2, '.', ',') . ').',
         ]);
     }
 

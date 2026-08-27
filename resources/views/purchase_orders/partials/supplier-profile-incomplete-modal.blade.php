@@ -12,7 +12,7 @@
                 <ul class="mb-0 ps-3" id="supplierProfileMissingFields"></ul>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Elegir otro proveedor</button>
+                <button type="button" class="btn btn-light" id="chooseAnotherSupplier" data-bs-dismiss="modal">Elegir otro proveedor</button>
                 <a href="#" class="btn btn-primary" id="supplierProfileLink">
                     <i class="ri-user-settings-line me-1"></i> Ir al perfil del proveedor
                 </a>
