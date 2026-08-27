@@ -11,7 +11,6 @@ class Supplier extends Model
         'commercial_name',
         'rfc_name',
         'rfc_num',
-        'attended_by',
         'street',
         'colony',
         'postal_code',
@@ -36,11 +35,7 @@ class Supplier extends Model
         'portal_access_deactivated_at' => 'datetime',
     ];
 
-    /**
-     * Porcentaje de completitud del perfil (0–100).
-    * Considera campos del modelo Supplier, contactos y datos bancarios.
-     */
-    public function getProfileCompletenessAttribute(): int
+    private function profileRequirements(): array
     {
         if ($this->relationLoaded('contacts')) {
             $contact = $this->contacts->firstWhere('is_primary', true) ?? $this->contacts->first();
@@ -53,82 +48,46 @@ class Supplier extends Model
             ? $this->locations->first()
             : $this->locations()->first();
 
-        $checks = [
-            !empty($this->rfc_name),
-            !empty($this->commercial_name),
-            !empty($this->rfc_num),
-            !empty($this->attended_by),
-            !empty($this->status),
-            // Teléfono del contacto
-            !empty($contact?->phone),
-            // Correo del contacto
-            !empty($contact?->email),
-            // Domicilio del proveedor
-            !empty($this->street),
-            // Contacto registrado
-            $contact !== null,
-            // Cuenta bancaria registrada
-            $location !== null,
-            // Banco: Supplier o primera sucursal
-            !empty($this->bank_name)     || !empty($location?->bank_name),
-            // Cuenta: Supplier o primera sucursal
-            !empty($this->bank_account)  || !empty($location?->bank_account),
-            // CLABE: Supplier o primera sucursal
-            !empty($this->bank_clabe)    || !empty($location?->bank_clabe),
-            // Moneda: Supplier o primera sucursal
-            !empty($this->currency)      || !empty($location?->currency),
+        return [
+            'Razón social' => !empty($this->rfc_name),
+            'Nombre comercial' => !empty($this->commercial_name),
+            'RFC' => !empty($this->rfc_num),
+            'Estatus' => !empty($this->status),
+            'Calle' => !empty($this->street),
+            'Código postal' => !empty($this->postal_code),
+            'Colonia' => !empty($this->colony),
+            'Ciudad' => !empty($this->city),
+            'Estado' => !empty($this->state),
+            'Nombre del contacto principal' => !empty($contact?->name),
+            'Teléfono del contacto principal' => !empty($contact?->phone),
+            'Correo electrónico del contacto principal' => !empty($contact?->email),
+            'Banco' => !empty($location?->bank_name),
+            'Cuenta bancaria' => !empty($location?->bank_account),
+            'CLABE interbancaria' => !empty($location?->bank_clabe),
+            'Moneda' => !empty($location?->currency),
+            'Carátula de estado de cuenta' => !empty($location?->account_statement_path),
         ];
-
-        $filled = collect($checks)->filter()->count();
-
-        return (int) round(($filled / count($checks)) * 100);
     }
 
     /**
-     * Devuelve los campos del perfil que aún están vacíos,
-    * incluyendo la ausencia de contactos y cuentas bancarias.
+     * Porcentaje de completitud del perfil (0-100).
+     */
+    public function getProfileCompletenessAttribute(): int
+    {
+        $requirements = $this->profileRequirements();
+
+        return (int) round((collect($requirements)->filter()->count() / count($requirements)) * 100);
+    }
+
+    /**
+     * Devuelve los campos del perfil que aún están vacíos.
      */
     public function getMissingFieldsAttribute(): array
     {
-        if ($this->relationLoaded('contacts')) {
-            $contact = $this->contacts->firstWhere('is_primary', true) ?? $this->contacts->first();
-        } else {
-            $contact = $this->contacts()->where('is_primary', true)->first()
-                ?? $this->contacts()->first();
-        }
-
-        $location = $this->relationLoaded('locations')
-            ? $this->locations->first()
-            : $this->locations()->first();
-
-        $missing = [];
-
-        if (empty($this->rfc_name))        $missing[] = 'Razón social';
-        if (empty($this->commercial_name)) $missing[] = 'Nombre comercial';
-        if (empty($this->rfc_num))         $missing[] = 'RFC';
-        if (empty($this->attended_by))     $missing[] = 'Atendido por';
-        if (empty($this->status))          $missing[] = 'Estatus';
-        if (empty($this->street))          $missing[] = 'Domicilio';
-
-        // Datos de contacto
-        if ($contact === null) {
-            $missing[] = 'Al menos un contacto';
-        } else {
-            if (empty($contact->phone))  $missing[] = 'Teléfono';
-            if (empty($contact->email))  $missing[] = 'Correo electrónico';
-        }
-
-        // Datos bancarios
-        if ($location === null) {
-            $missing[] = 'Al menos una cuenta bancaria';
-        } else {
-            if (empty($location->bank_name))    $missing[] = 'Banco';
-            if (empty($location->bank_account)) $missing[] = 'Cuenta bancaria';
-            if (empty($location->bank_clabe))   $missing[] = 'CLABE interbancaria';
-            if (empty($location->currency))     $missing[] = 'Moneda';
-        }
-
-        return $missing;
+        return collect($this->profileRequirements())
+            ->filter(fn (bool $filled) => !$filled)
+            ->keys()
+            ->all();
     }
 
     /**
@@ -136,31 +95,7 @@ class Supplier extends Model
      */
     public function purchaseOrderMissingFields(): array
     {
-        $missing = [];
-
-        $generalFields = [
-            'rfc_name'        => 'Razón social',
-            'commercial_name' => 'Nombre comercial',
-            'rfc_num'         => 'RFC',
-            'attended_by'     => 'Atendido por',
-            'street'          => 'Domicilio',
-        ];
-
-        foreach ($generalFields as $field => $label) {
-            if (empty($this->{$field})) {
-                $missing[] = $label;
-            }
-        }
-
-        if (!$this->contacts()->exists()) {
-            $missing[] = 'Al menos un contacto';
-        }
-
-        if (!$this->locations()->exists()) {
-            $missing[] = 'Al menos un registro de datos bancarios';
-        }
-
-        return $missing;
+        return $this->missing_fields;
     }
 
     public function purchaseOrders()

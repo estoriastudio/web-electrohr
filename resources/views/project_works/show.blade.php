@@ -127,6 +127,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      ESTIMACIONES
 ══════════════════════════════════════════════════════════════════ --}}
+@if (false)
 @php
     $estimateTypeMap = [
         'estimacion'  => ['label' => 'Estimación',      'class' => 'bg-primary-subtle text-primary'],
@@ -291,6 +292,8 @@
     </div>
 </div>
 
+@endif
+
 {{-- ══════════════════════════════════════════════════════════════
      ÓRDENES DE COMPRA
 ══════════════════════════════════════════════════════════════════ --}}
@@ -371,6 +374,7 @@
 </div>
 
 {{-- MODAL — Registrar estimación --}}
+@if (false)
 <div class="modal fade" id="modalCreateEstimate" tabindex="-1" aria-labelledby="modalCreateEstimateLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -416,10 +420,12 @@
         </div>
     </div>
 </div>
+@endif
 
 @endsection
 
 @push('scripts')
+@if (false)
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     function amount(value) {
@@ -538,4 +544,5 @@ document.addEventListener('DOMContentLoaded', function () {
     @endif
 });
 </script>
+@endif
 @endpush

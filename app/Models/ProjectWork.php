@@ -27,14 +27,14 @@ class ProjectWork extends Model
         return $this->hasMany(PurchaseOrder::class, 'project_work_id');
     }
 
-    public function estimates(): HasMany
-    {
-        return $this->hasMany(ProjectWorkEstimate::class);
-    }
-
     public function agreements(): BelongsToMany
     {
         return $this->belongsToMany(ProjectAgreement::class, 'project_agreement_project_work');
+    }
+
+    public function estimateAllocations(): HasMany
+    {
+        return $this->hasMany(ProjectEstimateAllocation::class);
     }
 
     public function payrollLines(): HasMany

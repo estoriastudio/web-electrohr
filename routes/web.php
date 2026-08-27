@@ -1,49 +1,47 @@
 <?php
 
 /* Controladores */
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\SupplierContactController;
-use App\Http\Controllers\SupplierLocationController;
-use App\Http\Controllers\MobileAssetController;
+use App\Http\Controllers\ConceptCategoryController;
+use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\MaintenanceLogController;
+use App\Http\Controllers\MaterialRequestController;
+use App\Http\Controllers\MaterialVoucherController;
+use App\Http\Controllers\MobileAssetController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PayrollCostReportController;
+use App\Http\Controllers\PayrollFieldReportController;
+use App\Http\Controllers\PayrollLineController;
+use App\Http\Controllers\PayrollPeriodController;
+use App\Http\Controllers\PieceworkWeeklyEntryController;
+use App\Http\Controllers\PositionCategoryController;
+use App\Http\Controllers\ProjectAgreementController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectEstimateController;
+use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderEvidenceController;
-use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
-use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\ProjectAgreementController;
-use App\Http\Controllers\ProjectWorkController;
-use App\Http\Controllers\ProjectWorkEstimateController;
+use App\Http\Controllers\PurchaseOrderMilestoneController;
+use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\SupplierContactController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierLocationController;
+use App\Http\Controllers\SupplierPortalController;
+use App\Http\Controllers\SupplierPortalInvoiceController;
+use App\Http\Controllers\ToolCalibrationController;
+use App\Http\Controllers\ToolCategoryController;
+use App\Http\Controllers\ToolControlController;
+use App\Http\Controllers\ToolController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkerAttendanceController;
 use App\Http\Controllers\WorkerController;
 use App\Http\Controllers\WorkerDc3Controller;
 use App\Http\Controllers\WorkerFileController;
-use App\Http\Controllers\WorkerTerminationController;
 use App\Http\Controllers\WorkerGroupController;
-use App\Http\Controllers\WorkerAttendanceController;
+use App\Http\Controllers\WorkerTerminationController;
 use App\Http\Controllers\WorkerVacationController;
-use App\Http\Controllers\PositionCategoryController;
-use App\Http\Controllers\PayrollPeriodController;
-use App\Http\Controllers\PayrollLineController;
-use App\Http\Controllers\IncentiveController;
-use App\Http\Controllers\PieceworkWeeklyEntryController;
-use App\Http\Controllers\PayrollCostReportController;
-use App\Http\Controllers\PayrollFieldReportController;
-use App\Http\Controllers\MaterialRequestController;
-use App\Http\Controllers\MaterialVoucherController;
-use App\Http\Controllers\PurchaseRequestController;
-use App\Http\Controllers\ConceptController;
-use App\Http\Controllers\ConceptCategoryController;
-use App\Http\Controllers\ToolController;
-use App\Http\Controllers\ToolCategoryController;
-use App\Http\Controllers\ToolControlController;
-use App\Http\Controllers\ToolCalibrationController;
-use App\Http\Controllers\SupplierPortalController;
-use App\Http\Controllers\SupplierPortalInvoiceController;
-
-use App\Http\Controllers\PaymentController;
-
 /* Ayudantes */
 use Illuminate\Support\Facades\Route;
 
@@ -90,25 +88,25 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     ->name('invoices.download_file');
             });
 
-                // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado
-                Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])
-                    ->whereNumber('purchase_order')
-                    ->name('purchase_orders.show');
-                Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])
-                    ->whereNumber('purchaseRequest')
-                    ->name('purchase_requests.show');
-                Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
-                    ->whereNumber('materialRequest')
-                    ->name('material_requests.show');
-                Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])
-                    ->whereNumber('purchase_order')
-                    ->name('purchase_orders.pdf');
-                Route::get('/solicitudes-compra/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'downloadPdf'])
-                    ->whereNumber('purchaseRequest')
-                    ->name('purchase_requests.pdf');
-                Route::get('/solicitudes-material/{materialRequest}/pdf', [MaterialRequestController::class, 'downloadPdf'])
-                    ->whereNumber('materialRequest')
-                    ->name('material_requests.pdf');
+        // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado
+        Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])
+            ->whereNumber('purchase_order')
+            ->name('purchase_orders.show');
+        Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])
+            ->whereNumber('purchaseRequest')
+            ->name('purchase_requests.show');
+        Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
+            ->whereNumber('materialRequest')
+            ->name('material_requests.show');
+        Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])
+            ->whereNumber('purchase_order')
+            ->name('purchase_orders.pdf');
+        Route::get('/solicitudes-compra/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'downloadPdf'])
+            ->whereNumber('purchaseRequest')
+            ->name('purchase_requests.pdf');
+        Route::get('/solicitudes-material/{materialRequest}/pdf', [MaterialRequestController::class, 'downloadPdf'])
+            ->whereNumber('materialRequest')
+            ->name('material_requests.pdf');
 
         // ── Solo admin ────────────────────────────────────────────────────────
 
@@ -124,11 +122,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
             Route::resource('/proveedores', SupplierController::class, [
                 'names' => [
-                    'index'   => 'suppliers.index',
-                    'create'  => 'suppliers.create',
-                    'store'   => 'suppliers.store',
-                    'edit'    => 'suppliers.edit',
-                    'update'  => 'suppliers.update',
+                    'index' => 'suppliers.index',
+                    'create' => 'suppliers.create',
+                    'store' => 'suppliers.store',
+                    'edit' => 'suppliers.edit',
+                    'update' => 'suppliers.update',
                     'destroy' => 'suppliers.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier'],
@@ -137,23 +135,23 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
             Route::resource('proveedores.contactos', SupplierContactController::class, [
                 'names' => [
-                    'store'   => 'supplier_contacts.store',
-                    'update'  => 'supplier_contacts.update',
+                    'store' => 'supplier_contacts.store',
+                    'update' => 'supplier_contacts.update',
                     'destroy' => 'supplier_contacts.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier', 'contactos' => 'contact'],
             ])->only(['store', 'update', 'destroy']);
 
             Route::get('proveedores/{supplier}/contacto-principal', [SupplierContactController::class, 'primaryJson'])
-                 ->name('supplier_contacts.primary_json');
+                ->name('supplier_contacts.primary_json');
 
             Route::get('proveedores/{supplier}/estado-para-oc', [SupplierController::class, 'purchaseOrderReadiness'])
                 ->name('suppliers.purchase_order_readiness');
 
             Route::resource('proveedores.sucursales', SupplierLocationController::class, [
                 'names' => [
-                    'store'   => 'supplier_locations.store',
-                    'update'  => 'supplier_locations.update',
+                    'store' => 'supplier_locations.store',
+                    'update' => 'supplier_locations.update',
                     'destroy' => 'supplier_locations.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier', 'sucursales' => 'location'],
@@ -173,12 +171,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('bienes-mobiles/import', [MobileAssetController::class, 'import'])->name('mobile_assets.import');
             Route::resource('/bienes-mobiles', MobileAssetController::class, [
                 'names' => [
-                    'index'   => 'mobile_assets.index',
-                    'create'  => 'mobile_assets.create',
-                    'store'   => 'mobile_assets.store',
-                    'show'    => 'mobile_assets.show',
-                    'edit'    => 'mobile_assets.edit',
-                    'update'  => 'mobile_assets.update',
+                    'index' => 'mobile_assets.index',
+                    'create' => 'mobile_assets.create',
+                    'store' => 'mobile_assets.store',
+                    'show' => 'mobile_assets.show',
+                    'edit' => 'mobile_assets.edit',
+                    'update' => 'mobile_assets.update',
                     'destroy' => 'mobile_assets.destroy',
                 ],
                 'parameters' => ['bienes-mobiles' => 'mobile_asset'],
@@ -186,23 +184,23 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
             // Fotos del bien móvil (upload individual por slot)
             Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
-                 ->name('mobile_assets.photo.upload')
-                 ->where('slot', '[123]');
+                ->name('mobile_assets.photo.upload')
+                ->where('slot', '[123]');
             Route::delete('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'deletePhoto'])
-                 ->name('mobile_assets.photo.delete')
-                 ->where('slot', '[123]');
+                ->name('mobile_assets.photo.delete')
+                ->where('slot', '[123]');
 
             // Checklist documental del bien móvil
             Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
-                 ->name('mobile_assets.document.update');
-              Route::get('bienes-mobiles/{mobile_asset}/documentos/zip', [MobileAssetController::class, 'downloadDocumentsZip'])
-                  ->name('mobile_assets.documents.zip');
+                ->name('mobile_assets.document.update');
+            Route::get('bienes-mobiles/{mobile_asset}/documentos/zip', [MobileAssetController::class, 'downloadDocumentsZip'])
+                ->name('mobile_assets.documents.zip');
 
             // Bitácora de mantenimiento
             Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
-                 ->name('maintenance_logs.store');
+                ->name('maintenance_logs.store');
             Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
-                 ->name('maintenance_logs.destroy');
+                ->name('maintenance_logs.destroy');
         });
 
         // Proyectos
@@ -211,12 +209,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
                 'names' => [
-                    'index'   => 'projects.index',
-                    'create'  => 'projects.create',
-                    'store'   => 'projects.store',
-                    'show'    => 'projects.show',
-                    'edit'    => 'projects.edit',
-                    'update'  => 'projects.update',
+                    'index' => 'projects.index',
+                    'create' => 'projects.create',
+                    'store' => 'projects.store',
+                    'show' => 'projects.show',
+                    'edit' => 'projects.edit',
+                    'update' => 'projects.update',
                     'destroy' => 'projects.destroy',
                 ],
                 'parameters' => ['proyectos' => 'project'],
@@ -247,87 +245,94 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/proyectos/{project}/convenios/{projectAgreement}/nombramientos', [ProjectAgreementController::class, 'downloadAppointments'])
                 ->name('projects.agreements.appointments.download');
 
+            Route::get('/proyectos/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
+                ->name('projects.estimates.create');
+            Route::post('/proyectos/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
+                ->name('projects.estimates.store');
+            Route::put('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
+                ->name('projects.estimates.update');
+            Route::put('/proyectos/estimaciones/{estimate}/documentos', [ProjectEstimateController::class, 'updateDocuments'])
+                ->name('projects.estimates.documents.update');
+            Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
+                ->name('projects.estimates.destroy');
+            Route::get('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'download'])
+                ->name('projects.estimates.documents.download');
+
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');
 
             Route::resource('/obras', ProjectWorkController::class, [
                 'names' => [
-                    'index'   => 'project_works.index',
-                    'create'  => 'project_works.create',
-                    'store'   => 'project_works.store',
-                    'show'    => 'project_works.show',
-                    'edit'    => 'project_works.edit',
-                    'update'  => 'project_works.update',
+                    'index' => 'project_works.index',
+                    'create' => 'project_works.create',
+                    'store' => 'project_works.store',
+                    'show' => 'project_works.show',
+                    'edit' => 'project_works.edit',
+                    'update' => 'project_works.update',
                     'destroy' => 'project_works.destroy',
                 ],
                 'parameters' => ['obras' => 'project_work'],
             ]);
 
-            Route::post('/obras/{projectWork}/estimaciones', [ProjectWorkEstimateController::class, 'store'])
-                ->name('estimates.store');
-            Route::put('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'update'])
-                ->name('estimates.update');
-            Route::delete('/estimaciones/{estimate}', [ProjectWorkEstimateController::class, 'destroy'])
-                ->name('estimates.destroy');
         });
 
         Route::middleware('role:admin|Recursos Humanos')
             ->prefix('human_resources')
             ->name('human_resources.')
             ->group(function () {
-            Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export');
-            Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
-            Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
-            Route::resource('workers', WorkerController::class);
-            Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
-            Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
-            Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
-            Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
+                Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export');
+                Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
+                Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
+                Route::resource('workers', WorkerController::class);
+                Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
+                Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
+                Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
+                Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
 
-            Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
-            Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
-            Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
-            Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])
-                ->name('workers.file.download');
-            Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
-            Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
-            Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
+                Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
+                Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
+                Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
+                Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])
+                    ->name('workers.file.download');
+                Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
+                Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
+                Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
 
-            Route::resource('worker-groups', WorkerGroupController::class);
-            Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
-            Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
-            Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
-            Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
-            Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
-            Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
+                Route::resource('worker-groups', WorkerGroupController::class);
+                Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
+                Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
+                Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
+                Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
+                Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
 
-            Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
-            Route::resource('worker-attendances', WorkerAttendanceController::class);
+                Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
+                Route::resource('worker-attendances', WorkerAttendanceController::class);
 
-            Route::resource('worker-vacations', WorkerVacationController::class);
-            Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve');
-            Route::post('worker-vacations/{workerVacation}/cancel', [WorkerVacationController::class, 'cancel'])->name('worker-vacations.cancel');
+                Route::resource('worker-vacations', WorkerVacationController::class);
+                Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve');
+                Route::post('worker-vacations/{workerVacation}/cancel', [WorkerVacationController::class, 'cancel'])->name('worker-vacations.cancel');
 
-            Route::resource('position-categories', PositionCategoryController::class);
+                Route::resource('position-categories', PositionCategoryController::class);
 
-            Route::resource('payroll-periods', PayrollPeriodController::class)->only(['index', 'store']);
-            Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
-            Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
+                Route::resource('payroll-periods', PayrollPeriodController::class)->only(['index', 'store']);
+                Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
+                Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
 
-            Route::resource('payroll-lines', PayrollLineController::class)->only(['index', 'show', 'update']);
-            Route::post('payroll-periods/{payrollPeriod}/generate-lines', [PayrollLineController::class, 'generate'])->name('payroll-periods.generate-lines');
-            Route::post('payroll-lines/{payrollLine}/rebuild', [PayrollLineController::class, 'rebuild'])->name('payroll-lines.rebuild');
+                Route::resource('payroll-lines', PayrollLineController::class)->only(['index', 'show', 'update']);
+                Route::post('payroll-periods/{payrollPeriod}/generate-lines', [PayrollLineController::class, 'generate'])->name('payroll-periods.generate-lines');
+                Route::post('payroll-lines/{payrollLine}/rebuild', [PayrollLineController::class, 'rebuild'])->name('payroll-lines.rebuild');
 
-            Route::resource('incentives', IncentiveController::class);
-            Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+                Route::resource('incentives', IncentiveController::class);
+                Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
 
-            Route::get('payroll/cost-by-project', [PayrollCostReportController::class, 'byProjectWork'])->name('payroll.cost-by-project');
-            Route::get('payroll/cost-by-worker-group', [PayrollCostReportController::class, 'byWorkerGroup'])->name('payroll.cost-by-worker-group');
-            Route::get('payroll/field-report', [PayrollFieldReportController::class, 'index'])->name('payroll.field-report');
+                Route::get('payroll/cost-by-project', [PayrollCostReportController::class, 'byProjectWork'])->name('payroll.cost-by-project');
+                Route::get('payroll/cost-by-worker-group', [PayrollCostReportController::class, 'byWorkerGroup'])->name('payroll.cost-by-worker-group');
+                Route::get('payroll/field-report', [PayrollFieldReportController::class, 'index'])->name('payroll.field-report');
 
-            Route::get('worker-terminations', [WorkerTerminationController::class, 'index'])->name('worker-terminations.index');
-            Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
-        });
+                Route::get('worker-terminations', [WorkerTerminationController::class, 'index'])->name('worker-terminations.index');
+                Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
+            });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
@@ -336,15 +341,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         Route::get('/categorias-herramientas/{toolCategory}/subcategorias-json', [ToolCategoryController::class, 'subcategoriesJson'])->name('tool_categories.subcategories_json');
 
-
         // Conceptos (catálogo) — CRUD solo admin
         Route::middleware('role:admin|Solmat')->group(function () {
             Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
             Route::resource('/conceptos', ConceptController::class, [
                 'names' => [
-                    'index'   => 'concepts.index',
-                    'store'   => 'concepts.store',
-                    'update'  => 'concepts.update',
+                    'index' => 'concepts.index',
+                    'store' => 'concepts.store',
+                    'update' => 'concepts.update',
                     'destroy' => 'concepts.destroy',
                 ],
                 'parameters' => ['conceptos' => 'concept'],
@@ -406,10 +410,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin')->group(function () {
             Route::resource('usuarios', UserController::class, [
                 'names' => [
-                    'index'   => 'usuarios.index',
-                    'create'  => 'usuarios.create',
-                    'store'   => 'usuarios.store',
-                    'edit'    => 'usuarios.edit',
+                    'index' => 'usuarios.index',
+                    'create' => 'usuarios.create',
+                    'store' => 'usuarios.store',
+                    'edit' => 'usuarios.edit',
                     'destroy' => 'usuarios.destroy',
                 ],
                 'parameters' => ['usuarios' => 'user'],
@@ -425,7 +429,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Auditoría / Notificaciones
         Route::middleware('role:admin')->group(function () {
             Route::get('/auditoria', [NotificationController::class, 'index'])->name('notifications.index');
-            Route::post('/auditoria/marcar-leidas', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
+        });
+
+        Route::middleware('role:admin|Solmat')->group(function () {
+            Route::get('/notificaciones', [NotificationController::class, 'inbox'])->name('notifications.inbox');
+            Route::post('/notificaciones/marcar-leidas', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
         });
 
         // ── Admin + Payments + Orders ─────────────────────────────────────────
@@ -512,14 +520,23 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('payments.payable.selection.clear');
             Route::post('/pagos/marcar-multiples-pagados', [PaymentController::class, 'markMultiplePaidWithSpei'])
                 ->name('payments.mark_multiple_paid_with_spei');
-            Route::resource('/pagos', PaymentController::class)->except(['index'])->names([
-                'create'  => 'payments.create',
-                'store'   => 'payments.store',
-                'show'    => 'payments.show',
-                'edit'    => 'payments.edit',
-                'update'  => 'payments.update',
+            Route::resource('/pagos', PaymentController::class)->except(['index', 'store'])->names([
+                'create' => 'payments.create',
+                'show' => 'payments.show',
+                'edit' => 'payments.edit',
+                'update' => 'payments.update',
                 'destroy' => 'payments.destroy',
             ])->parameters(['pagos' => 'payment']);
+        });
+
+        Route::post('/pagos', [PaymentController::class, 'store'])
+            ->middleware('role:admin|Pagos|Orden de compra')
+            ->name('payments.store');
+
+        // Reactivación de pagos rechazados — solicitud de Compras para nueva autorización
+        Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
+                ->name('payments.request_reactivation');
         });
 
         // Emisión de Órdenes de Compra — Compras y admin
@@ -530,6 +547,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Autorización de Órdenes de Compra — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
+            Route::patch('/ordenes-de-compra/{purchase_order}/autorizar-con-pagos', [PurchaseOrderController::class, 'approveWithPayments'])
+                ->name('purchase_orders.approve_with_payments');
         });
 
         // Modo interactivo (swipable) — solo admin
@@ -588,92 +607,94 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Papelera SOLMAT — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::get('/solicitudes-material/eliminadas/papelera', [MaterialRequestController::class, 'softDeleted'])
-                 ->name('material_requests.soft_deleted');
+                ->name('material_requests.soft_deleted');
             Route::post('/solicitudes-material/{id}/restaurar', [MaterialRequestController::class, 'restore'])
-                 ->name('material_requests.restore');
+                ->name('material_requests.restore');
             Route::delete('/solicitudes-material/{id}/eliminar-permanente', [MaterialRequestController::class, 'forceDestroy'])
-                 ->name('material_requests.force_destroy');
+                ->name('material_requests.force_destroy');
         });
 
         Route::middleware('role:admin|Solmat')->group(function () {
             // Rutas estáticas antes del resource para evitar conflicto con {materialRequest}
             Route::get('/solicitudes-material/archivadas', [MaterialRequestController::class, 'archived'])
-                 ->name('material_requests.archived');
+                ->name('material_requests.archived');
 
             // AJAX lookup (debe ir antes del resource para evitar conflicto con {material_request})
             Route::get('/solicitudes-material/buscar', [MaterialRequestController::class, 'jsonByFolio'])
-                 ->name('material_requests.lookup');
+                ->name('material_requests.lookup');
 
             Route::resource('/solicitudes-material', MaterialRequestController::class, [
-                'names'      => [
-                    'index'   => 'material_requests.index',
-                    'create'  => 'material_requests.create',
-                    'store'   => 'material_requests.store',
-                    'edit'    => 'material_requests.edit',
-                    'update'  => 'material_requests.update',
+                'names' => [
+                    'index' => 'material_requests.index',
+                    'create' => 'material_requests.create',
+                    'store' => 'material_requests.store',
+                    'edit' => 'material_requests.edit',
+                    'update' => 'material_requests.update',
                     'destroy' => 'material_requests.destroy',
                 ],
                 'parameters' => ['solicitudes-material' => 'materialRequest'],
             ])->except(['show']);
 
             Route::patch('/solicitudes-material/{materialRequest}/archivar', [MaterialRequestController::class, 'archive'])
-                 ->name('material_requests.archive');
+                ->name('material_requests.archive');
             Route::patch('/solicitudes-material/{materialRequest}/desarchivar', [MaterialRequestController::class, 'unarchive'])
-                 ->name('material_requests.unarchive');
+                ->name('material_requests.unarchive');
 
             Route::post('/solicitudes-material/{materialRequest}/items',
-                        [MaterialRequestController::class, 'storeItem'])
-                 ->name('material_requests.items.store');
+                [MaterialRequestController::class, 'storeItem'])
+                ->name('material_requests.items.store');
 
-              Route::patch('/solicitudes-material/{materialRequest}/items/{item}',
-                        [MaterialRequestController::class, 'updateItem'])
-                  ->name('material_requests.items.update');
+            Route::patch('/solicitudes-material/{materialRequest}/items/{item}',
+                [MaterialRequestController::class, 'updateItem'])
+                ->name('material_requests.items.update');
 
             Route::delete('/solicitudes-material/{materialRequest}/items/{item}',
-                          [MaterialRequestController::class, 'destroyItem'])
-                 ->name('material_requests.items.destroy');
+                [MaterialRequestController::class, 'destroyItem'])
+                ->name('material_requests.items.destroy');
 
             Route::post('/solicitudes-material/{materialRequest}/notes',
-                        [MaterialRequestController::class, 'storeObservation'])
-                 ->name('material_requests.notes.store');
+                [MaterialRequestController::class, 'storeObservation'])
+                ->name('material_requests.notes.store');
 
-              Route::patch('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
-                        [MaterialRequestController::class, 'updateObservation'])
-                  ->name('material_requests.notes.update');
+            Route::patch('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
+                [MaterialRequestController::class, 'updateObservation'])
+                ->name('material_requests.notes.update');
 
-              Route::delete('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
-                         [MaterialRequestController::class, 'destroyObservation'])
-                  ->name('material_requests.notes.destroy');
+            Route::delete('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
+                [MaterialRequestController::class, 'destroyObservation'])
+                ->name('material_requests.notes.destroy');
 
             Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse',
-                        [MaterialRequestController::class, 'sendToWarehouse'])
-                 ->name('material_requests.send_to_warehouse');
+                [MaterialRequestController::class, 'sendToWarehouse'])
+                ->name('material_requests.send_to_warehouse');
         });
 
-             Route::middleware('role:admin|Solmat|Solcom')->group(function () {
-                 Route::get('/solicitudes-material/solicitudes-cambio',
-                      [MaterialRequestController::class, 'changeRequestsPanel'])
-                   ->name('material_request_changes.index');
+        Route::middleware('role:admin|Solmat|Solcom|suministros')->group(function () {
+            Route::get('/solicitudes-material/solicitudes-cambio',
+                [MaterialRequestController::class, 'changeRequestsPanel'])
+                ->name('material_request_changes.index');
+        });
 
-                 Route::post('/solicitudes-material/{materialRequest}/request-changes',
-                       [MaterialRequestController::class, 'requestChanges'])
-                   ->name('material_requests.request_changes');
+        Route::middleware('role:admin|Solmat|Solcom')->group(function () {
+            Route::post('/solicitudes-material/{materialRequest}/request-changes',
+                [MaterialRequestController::class, 'requestChanges'])
+                ->name('material_requests.request_changes');
 
-                 Route::post('/solicitudes-material/{materialRequest}/change-notes/{changeNote}/resolve',
-                       [MaterialRequestController::class, 'resolveChangeNote'])
-                   ->name('material_requests.change_notes.resolve');
-             });
+            Route::post('/solicitudes-material/{materialRequest}/change-notes/{changeNote}/resolve',
+                [MaterialRequestController::class, 'resolveChangeNote'])
+                ->name('material_requests.change_notes.resolve');
+        });
 
         // ── Vales de Material ───────────────────────────────────────────────
         Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
-                'names'      => [
-                    'index'   => 'material_vouchers.index',
-                    'create'  => 'material_vouchers.create',
-                    'store'   => 'material_vouchers.store',
-                    'show'    => 'material_vouchers.show',
-                    'edit'    => 'material_vouchers.edit',
-                    'update'  => 'material_vouchers.update',
+                'names' => [
+                    'index' => 'material_vouchers.index',
+                    'create' => 'material_vouchers.create',
+                    'store' => 'material_vouchers.store',
+                    'show' => 'material_vouchers.show',
+                    'edit' => 'material_vouchers.edit',
+                    'update' => 'material_vouchers.update',
                     'destroy' => 'material_vouchers.destroy',
                 ],
                 'parameters' => ['vales-material' => 'materialVoucher'],
@@ -708,133 +729,139 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Solcom|Orden de compra')->group(function () {
             // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
             Route::get('/solicitudes-compra/buscar-por-folio',
-                       [PurchaseRequestController::class, 'itemsJsonByFolio'])
-                 ->name('purchase_requests.items_json_by_folio');
+                [PurchaseRequestController::class, 'itemsJsonByFolio'])
+                ->name('purchase_requests.items_json_by_folio');
 
             Route::get('/solicitudes-compra/solicitudes-cambio',
-                     [PurchaseRequestController::class, 'changeRequestsPanel'])
-                 ->name('purchase_request_changes.index');
+                [PurchaseRequestController::class, 'changeRequestsPanel'])
+                ->name('purchase_request_changes.index');
 
             Route::get('/solicitudes-compra/archivadas',
-                       [PurchaseRequestController::class, 'archived'])
-                 ->name('purchase_requests.archived');
+                [PurchaseRequestController::class, 'archived'])
+                ->name('purchase_requests.archived');
 
             Route::resource('/solicitudes-compra', PurchaseRequestController::class, [
-                'names'      => [
-                    'index'   => 'purchase_requests.index',
-                    'create'  => 'purchase_requests.create',
-                    'store'   => 'purchase_requests.store',
-                    'edit'    => 'purchase_requests.edit',
-                    'update'  => 'purchase_requests.update',
+                'names' => [
+                    'index' => 'purchase_requests.index',
+                    'create' => 'purchase_requests.create',
+                    'store' => 'purchase_requests.store',
+                    'edit' => 'purchase_requests.edit',
+                    'update' => 'purchase_requests.update',
                     'destroy' => 'purchase_requests.destroy',
                 ],
                 'parameters' => ['solicitudes-compra' => 'purchaseRequest'],
             ])->except(['show']);
 
-                Route::patch('/solicitudes-compra/{purchaseRequest}/archivar',
-                     [PurchaseRequestController::class, 'archive'])
-                 ->name('purchase_requests.archive');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/archivar',
+                [PurchaseRequestController::class, 'archive'])
+                ->name('purchase_requests.archive');
 
-                Route::patch('/solicitudes-compra/{purchaseRequest}/desarchivar',
-                     [PurchaseRequestController::class, 'unarchive'])
-                 ->name('purchase_requests.unarchive');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/desarchivar',
+                [PurchaseRequestController::class, 'unarchive'])
+                ->name('purchase_requests.unarchive');
 
             Route::post('/solicitudes-compra/{purchaseRequest}/items',
-                        [PurchaseRequestController::class, 'storeItem'])
-                 ->name('purchase_requests.items.store');
+                [PurchaseRequestController::class, 'storeItem'])
+                ->name('purchase_requests.items.store');
 
             Route::delete('/solicitudes-compra/{purchaseRequest}/items/{item}',
-                          [PurchaseRequestController::class, 'destroyItem'])
-                 ->name('purchase_requests.items.destroy');
+                [PurchaseRequestController::class, 'destroyItem'])
+                ->name('purchase_requests.items.destroy');
 
             Route::patch('/solicitudes-compra/{purchaseRequest}/items/{item}',
-                         [PurchaseRequestController::class, 'updateItem'])
-                 ->name('purchase_requests.items.update');
+                [PurchaseRequestController::class, 'updateItem'])
+                ->name('purchase_requests.items.update');
 
             Route::post('/solicitudes-compra/{purchaseRequest}/notes',
-                        [PurchaseRequestController::class, 'storeObservation'])
-                 ->name('purchase_requests.notes.store');
+                [PurchaseRequestController::class, 'storeObservation'])
+                ->name('purchase_requests.notes.store');
 
-              Route::patch('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
-                        [PurchaseRequestController::class, 'updateObservation'])
-                  ->name('purchase_requests.notes.update');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
+                [PurchaseRequestController::class, 'updateObservation'])
+                ->name('purchase_requests.notes.update');
 
-              Route::delete('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
-                         [PurchaseRequestController::class, 'destroyObservation'])
-                  ->name('purchase_requests.notes.destroy');
+            Route::delete('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
+                [PurchaseRequestController::class, 'destroyObservation'])
+                ->name('purchase_requests.notes.destroy');
 
             // JSON de ítems para precarga en modal de creación de OC
             Route::get('/solicitudes-compra/{purchaseRequest}/items-json',
-                       [PurchaseRequestController::class, 'itemsJson'])
-                 ->name('purchase_requests.items_json');
+                [PurchaseRequestController::class, 'itemsJson'])
+                ->name('purchase_requests.items_json');
 
             // ── Flujo de trabajo SOLCOM ───────────────────────────────────────
             Route::post('/solicitudes-compra/{purchaseRequest}/send-to-purchasing',
-                        [PurchaseRequestController::class, 'sendToPurchasing'])
-                 ->name('purchase_requests.send_to_purchasing');
+                [PurchaseRequestController::class, 'sendToPurchasing'])
+                ->name('purchase_requests.send_to_purchasing');
 
-                 Route::post('/solicitudes-compra/{purchaseRequest}/reassign-purchasing',
-                       [PurchaseRequestController::class, 'reassignPurchasing'])
-                   ->name('purchase_requests.reassign_purchasing');
+            Route::post('/solicitudes-compra/{purchaseRequest}/reassign-purchasing',
+                [PurchaseRequestController::class, 'reassignPurchasing'])
+                ->name('purchase_requests.reassign_purchasing');
 
             Route::post('/solicitudes-compra/{purchaseRequest}/request-changes',
-                        [PurchaseRequestController::class, 'requestChanges'])
-                 ->name('purchase_requests.request_changes');
+                [PurchaseRequestController::class, 'requestChanges'])
+                ->name('purchase_requests.request_changes');
 
             Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/resolve',
-                        [PurchaseRequestController::class, 'resolveChangeNote'])
-                 ->name('purchase_requests.change_notes.resolve');
+                [PurchaseRequestController::class, 'resolveChangeNote'])
+                ->name('purchase_requests.change_notes.resolve');
 
             // ── Pila SOLCOM (vista de Compras por usuario) ───────────────────
             Route::get('/compras/pila-solcom',
-                       [PurchaseRequestController::class, 'purchasingPile'])
-                 ->name('purchasing.solcom_pile');
+                [PurchaseRequestController::class, 'purchasingPile'])
+                ->name('purchasing.solcom_pile');
 
         });
 
         Route::middleware('role:admin')->group(function () {
             Route::get('/solicitudes-compra/eliminadas/papelera',
-                       [PurchaseRequestController::class, 'softDeleted'])
-                 ->name('purchase_requests.soft_deleted');
+                [PurchaseRequestController::class, 'softDeleted'])
+                ->name('purchase_requests.soft_deleted');
 
             Route::post('/solicitudes-compra/{id}/restaurar',
-                        [PurchaseRequestController::class, 'restore'])
-                 ->name('purchase_requests.restore');
+                [PurchaseRequestController::class, 'restore'])
+                ->name('purchase_requests.restore');
 
             Route::delete('/solicitudes-compra/{id}/eliminar-permanente',
-                          [PurchaseRequestController::class, 'forceDestroy'])
-                 ->name('purchase_requests.force_destroy');
+                [PurchaseRequestController::class, 'forceDestroy'])
+                ->name('purchase_requests.force_destroy');
         });
 
         // ── Carga de Trabajo SOLCOM (solo Orden de compra) ─────────────────
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/compras/carga-de-trabajo',
-                       [PurchaseRequestController::class, 'workload'])
-                 ->name('purchasing.workload');
+                [PurchaseRequestController::class, 'workload'])
+                ->name('purchasing.workload');
 
         });
 
         // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
-        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+        Route::middleware('role:admin|suministros|Orden de compra')->group(function () {
             Route::get('/almacen/pila-solmat',
-                       [PurchaseRequestController::class, 'solmatPile'])
-                 ->name('warehouse.solmat_pile');
+                [PurchaseRequestController::class, 'solmatPile'])
+                ->name('warehouse.solmat_pile');
 
             Route::post('/almacen/pila-solmat/seleccion/sincronizar',
-                        [PurchaseRequestController::class, 'syncSolmatPileSelection'])
-                 ->name('warehouse.solmat_pile.selection.sync');
+                [PurchaseRequestController::class, 'syncSolmatPileSelection'])
+                ->name('warehouse.solmat_pile.selection.sync');
 
             Route::post('/almacen/pila-solmat/seleccion/limpiar',
-                        [PurchaseRequestController::class, 'clearSolmatPileSelection'])
-                 ->name('warehouse.solmat_pile.selection.clear');
+                [PurchaseRequestController::class, 'clearSolmatPileSelection'])
+                ->name('warehouse.solmat_pile.selection.clear');
+
+            Route::middleware('role:admin|suministros')->group(function () {
+                Route::post('/almacen/pila-solmat/{materialRequest}/compromisos',
+                    [MaterialRequestController::class, 'updateCommitments'])
+                    ->name('warehouse.solmat_pile.commitments.update');
+            });
 
             Route::get('/almacen/pila-solmat/crear-solcom-consolidada',
-                     [PurchaseRequestController::class, 'createFromSolmatMulti'])
-                 ->name('purchase_requests.create_from_solmat_multi');
+                [PurchaseRequestController::class, 'createFromSolmatMulti'])
+                ->name('purchase_requests.create_from_solmat_multi');
 
             Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom',
-                       [PurchaseRequestController::class, 'createFromSolmat'])
-                 ->name('purchase_requests.create_from_solmat');
+                [PurchaseRequestController::class, 'createFromSolmat'])
+                ->name('purchase_requests.create_from_solmat');
         });
     });
 });

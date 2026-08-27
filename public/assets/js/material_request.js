@@ -321,11 +321,6 @@
                         + '<label class="form-label fs-12 mb-1">' + escHtml(row.work_name || row.work_id) + '</label>'
                         + '<input type="number" name="work_quantities[' + index + '][quantity]" class="form-control js-solmat-breakdown-qty" value="' + escHtml(formatQty(row.quantity)) + '" min="0.01" step="0.01" inputmode="decimal">'
                         + '<input type="hidden" name="work_quantities[' + index + '][work_id]" value="' + escHtml(String(row.work_id)) + '">'
-                        + '<input type="hidden" name="work_quantities[' + index + '][is_committed]" value="0">'
-                        + '<div class="form-check mt-1">'
-                        + '<input type="checkbox" class="form-check-input" id="solmat_commitment_' + escHtml(item.id) + '_' + escHtml(String(row.work_id)) + '" name="work_quantities[' + index + '][is_committed]" value="1"' + (row.is_committed ? ' checked' : '') + '>'
-                        + '<label class="form-check-label fs-12" for="solmat_commitment_' + escHtml(item.id) + '_' + escHtml(String(row.work_id)) + '">Comprometido</label>'
-                        + '</div>'
                         + '</div>';
                 }).join('')
                 + '</div>'
@@ -513,7 +508,6 @@
     // ── Estado del panel ──
     var selectedConcept = null;        // Concepto elegido en el buscador.
     var selectedWorkQuantities = {};   // { work_id: "cantidad" } capturado por el usuario.
-    var selectedWorkCommitments = {};  // { work_id: boolean } marcado al agregar el concepto.
     var debounceTimer;                 // Timer del debounce del buscador.
     var currentQuery = '';             // Última búsqueda ejecutada.
     var currentPage = 1;               // Página actual de resultados.
@@ -531,7 +525,6 @@
         selectedConcept    = null;
         searchInput.value  = '';
         selectedWorkQuantities = {};
-        selectedWorkCommitments = {};
         currentQuery = '';
         currentPage = 1;
         hasMoreResults = false;
@@ -588,7 +581,6 @@
         var html = '';
         allowedWorks.forEach(function (work) {
             var value = selectedWorkQuantities[work.id] || '';
-            var isCommitted = !!selectedWorkCommitments[work.id];
             html += ''
                 + '<div class="input-group">'
                 + '  <span class="input-group-text bg-light grow justify-content-start">' + escHtml(work.name) + '</span>'
@@ -597,15 +589,6 @@
                 + '         data-work-id="' + escHtml(work.id) + '"'
                 + '         min="0" step="0.01" inputmode="decimal"'
                 + '         placeholder="0.00" value="' + escHtml(value) + '">'
-                + '  <span class="input-group-text bg-light">'
-                + '    <span class="form-check mb-0">'
-                + '      <input class="form-check-input js-solmat-work-commitment" type="checkbox"'
-                + '             data-work-id="' + escHtml(work.id) + '"'
-                + '             id="solmat_new_commitment_' + escHtml(work.id) + '"'
-                + (isCommitted ? ' checked' : '') + '>'
-                + '      <label class="form-check-label fs-12" for="solmat_new_commitment_' + escHtml(work.id) + '">Comprometido</label>'
-                + '    </span>'
-                + '  </span>'
                 + '</div>';
         });
 
@@ -615,12 +598,6 @@
             input.addEventListener('input', function () {
                 selectedWorkQuantities[this.getAttribute('data-work-id')] = this.value;
                 updateTotalPreview();
-            });
-        });
-
-        workQuantitiesWrap.querySelectorAll('.js-solmat-work-commitment').forEach(function (checkbox) {
-            checkbox.addEventListener('change', function () {
-                selectedWorkCommitments[this.getAttribute('data-work-id')] = this.checked;
             });
         });
 
@@ -785,8 +762,7 @@
         var workRows = Object.keys(selectedWorkQuantities).map(function (workId) {
             return {
                 work_id: workId,
-                quantity: selectedWorkQuantities[workId],
-                is_committed: !!selectedWorkCommitments[workId]
+                quantity: selectedWorkQuantities[workId]
             };
         }).filter(function (row) {
             return row.quantity !== '' && !isNaN(parseFloat(row.quantity)) && parseFloat(row.quantity) > 0;
@@ -818,7 +794,6 @@
         workRows.forEach(function (row, index) {
             fd.append('work_quantities[' + index + '][work_id]', row.work_id);
             fd.append('work_quantities[' + index + '][quantity]', row.quantity);
-            fd.append('work_quantities[' + index + '][is_committed]', row.is_committed ? '1' : '0');
         });
 
         var specFileInput = document.getElementById('solmat_spec_file');

@@ -54,6 +54,9 @@
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
+    $orderedMilestones->each(fn ($milestone) => $milestone->setRelation('purchaseOrder', $purchaseOrder));
+    $milestoneAllocatedTotal = round($orderedMilestones->sum(fn ($milestone) => $milestone->effective_amount), 2);
+    $canAddMilestone = $importeTotal > 0 && $milestoneAllocatedTotal < $importeTotal - 0.009;
     $milestonePositionMap = $orderedMilestones->pluck('id')->flip()->map(fn ($idx) => $idx + 1);
     $groupedEvidences = $purchaseOrder->evidences
         ->sortByDesc('created_at')
@@ -67,6 +70,10 @@
     $supplier = $purchaseOrder->supplier;
     $primarySupplierContact = $supplier?->contacts->firstWhere('is_primary', true) ?? $supplier?->contacts->first();
     $supplierBankDetails = $supplier?->locations->first();
+    $purchaseOrderPayments = $orderedMilestones
+        ->flatMap(fn ($milestone) => $milestone->payments)
+        ->sortBy('id')
+        ->values();
 @endphp
 
 {{-- ── FLUJO DE EMISIÓN Y AUTORIZACIÓN ── --}}
@@ -112,24 +119,98 @@
         @endhasanyrole
         @elseif ($purchaseOrder->status === 'emitida')
         @role('admin')
-        <form id="approvePurchaseOrderForm" action="{{ route('purchase_orders.approve', $purchaseOrder) }}" method="POST" class="align-self-center">
-            @csrf @method('PATCH')
-            <button type="submit"
-                    id="approvePurchaseOrderBtn"
-                    class="btn btn-success btn-sm">
-                <i class="ri-check-double-line me-1"></i> Autorizar OC
-            </button>
-        </form>
+        <button type="button" class="btn btn-success btn-sm align-self-center"
+                data-bs-toggle="modal" data-bs-target="#modalApprovePurchaseOrder">
+            <i class="ri-check-double-line me-1"></i> Autorizar OC
+        </button>
         @endrole
         @endif
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        @if ($purchaseOrder->status === 'emitida')
-            <div id="approveInlineProgress" class="oc-approve-inline-progress" aria-hidden="true">
-                <div class="oc-approve-inline-progress-bar" aria-hidden="true"></div>
-                <span id="approveInlineProgressText" class="oc-approve-inline-progress-text">Autorizando Orden de Compra...</span>
-            </div>
-        @endif
     </div>
+@endif
+
+@if ($purchaseOrder->status === 'emitida')
+@role('admin')
+<div class="modal fade" id="modalApprovePurchaseOrder" tabindex="-1" aria-labelledby="modalApprovePurchaseOrderLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('purchase_orders.approve_with_payments', $purchaseOrder) }}" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalApprovePurchaseOrderLabel">
+                        <i class="ri-check-double-line me-1 text-success"></i> Autorizar orden de compra
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">
+                        Selecciona los pagos que también deseas autorizar con la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}. Puedes continuar sin seleccionar pagos.
+                    </p>
+
+                    @if ($purchaseOrderPayments->isNotEmpty())
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="bg-light-subtle">
+                                    <tr>
+                                        <th class="text-center" style="width:48px;">Autorizar</th>
+                                        <th>Hito</th>
+                                        <th>Folio</th>
+                                        <th>Fecha de pago</th>
+                                        <th class="text-end">Monto</th>
+                                        <th>Estatus</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($purchaseOrderPayments as $payment)
+                                        @php
+                                            $canAuthorizePayment = in_array($payment->status, ['por_autorizar', 'pospuesto'], true);
+                                            $paymentStatusMap = [
+                                                'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
+                                                'pospuesto' => ['label' => 'Pospuesto', 'class' => 'bg-secondary-subtle text-secondary'],
+                                                'autorizado' => ['label' => 'Autorizado', 'class' => 'bg-info-subtle text-info'],
+                                                'pagado' => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
+                                                'rechazado' => ['label' => 'Rechazado', 'class' => 'bg-danger-subtle text-danger'],
+                                            ];
+                                            $paymentStatus = $paymentStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                                        @endphp
+                                        <tr>
+                                            <td class="text-center">
+                                                @if ($canAuthorizePayment)
+                                                    <input class="form-check-input" type="checkbox" name="payment_ids[]" value="{{ $payment->id }}" aria-label="Autorizar pago {{ $payment->folio }}">
+                                                @else
+                                                    <input class="form-check-input" type="checkbox" disabled aria-label="Pago no disponible para autorización">
+                                                @endif
+                                            </td>
+                                            <td>Hito #{{ $milestonePositionMap[$payment->milestone_id] ?? '—' }}</td>
+                                            <td class="fw-medium">{{ $payment->folio ?: '—' }}</td>
+                                            <td>{{ $payment->payment_date?->format('d/m/Y') ?? '—' }}</td>
+                                            <td class="text-end fw-medium">{{ $purchaseOrder->currency }} {{ number_format($payment->amount, 2) }}</td>
+                                            <td><span class="badge {{ $paymentStatus['class'] }}">{{ $paymentStatus['label'] }}</span></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="form-text">Solo los pagos pendientes pueden seleccionarse para autorización.</div>
+                    @else
+                        <div class="text-center text-muted py-3">
+                            <i class="ri-bank-card-line fs-28 d-block mb-1"></i>
+                            Esta orden no tiene pagos registrados.
+                        </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="ri-check-double-line me-1"></i> Autorizar OC y pagos seleccionados
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endrole
 @endif
 
 {{-- ── ENCABEZADO ── --}}
@@ -237,7 +318,9 @@
                         </span>
                         @endif
                         @if ($canCreateMilestone)
-                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMilestone">
+                            <button type="button" class="btn btn-sm {{ $canAddMilestone ? 'btn-primary' : 'btn-outline-warning' }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#{{ $canAddMilestone ? 'modalCreateMilestone' : 'modalMilestoneLimitReached' }}">
                                 <i class="ri-add-line me-1"></i> Agregar condición de pago
                             </button>
                         @endif
@@ -248,6 +331,38 @@
         </div>
     </div>
 </div>
+
+@if ($canCreateMilestone && !$canAddMilestone)
+<div class="modal fade" id="modalMilestoneLimitReached" tabindex="-1" aria-labelledby="modalMilestoneLimitReachedLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalMilestoneLimitReachedLabel">
+                    <i class="ri-error-warning-line me-1 text-warning"></i> Límite de hitos alcanzado
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">No se puede agregar otra condición de pago porque los hitos actuales ya cubren el total de la orden de compra.</p>
+                <div class="alert alert-warning mb-0">
+                    <div class="d-flex justify-content-between gap-3">
+                        <span>Total de la OC</span>
+                        <strong>{{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between gap-3 mt-1">
+                        <span>Total asignado a hitos</span>
+                        <strong>{{ $purchaseOrder->currency }} {{ number_format($milestoneAllocatedTotal, 2) }}</strong>
+                    </div>
+                </div>
+                <p class="text-muted fs-13 mb-0 mt-3">Ajusta o elimina un hito existente antes de crear uno nuevo.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 @if ($supplier)
 <div class="modal fade" id="modalSupplierProfileSummary" tabindex="-1" aria-labelledby="modalSupplierProfileSummaryLabel" aria-hidden="true">
@@ -272,8 +387,6 @@
                             <dd class="col-sm-7 fw-medium">{{ $supplier->rfc_num ?: '—' }}</dd>
                             <dt class="col-sm-5 text-muted fw-normal">Estatus</dt>
                             <dd class="col-sm-7 fw-medium">{{ $supplier->status ? ucfirst($supplier->status) : '—' }}</dd>
-                            <dt class="col-sm-5 text-muted fw-normal">Atendido por</dt>
-                            <dd class="col-sm-7 fw-medium">{{ $supplier->attended_by ?: '—' }}</dd>
                             <dt class="col-sm-5 text-muted fw-normal">Dirección</dt>
                             <dd class="col-sm-7 fw-medium">
                                 {{ implode(', ', array_filter([
@@ -802,6 +915,8 @@
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+            $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+                || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
             $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
@@ -1027,6 +1142,18 @@
                                                         @endforeach
                                                         @endhasanyrole
 
+                                                        @hasrole('Orden de compra')
+                                                        @if ($payment->status === 'rechazado')
+                                                        <li>
+                                                            <button type="button" class="dropdown-item text-warning"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modalRequestPaymentReactivation{{ $payment->id }}">
+                                                                <i class="ri-refresh-line me-1"></i>Solicitar reactivación
+                                                            </button>
+                                                        </li>
+                                                        @endif
+                                                        @endhasrole
+
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
                                                         @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
@@ -1130,14 +1257,12 @@
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
 
-                    @hasanyrole('admin|Pagos')
-                    @if ($canRegisterAdditionalPayment)
+                    @if ($canManageAdditionalPayments && $canRegisterAdditionalPayment)
                         <button type="button" class="btn btn-outline-primary btn-sm d-block w-100 mt-2"
                                 data-bs-toggle="modal" data-bs-target="#modalAddPayment{{ $milestone->id }}">
                             <i class="ri-add-line me-1"></i>Agregar pago por autorizar
                         </button>
                     @endif
-                    @endhasanyrole
                 </div>
 
             </div>
@@ -1529,6 +1654,8 @@
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+        $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+            || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
         $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
@@ -1605,8 +1732,7 @@
         </div>
     </div>
 
-    @hasanyrole('admin|Pagos')
-    @if ($canRegisterAdditionalPayment)
+    @if ($canManageAdditionalPayments && $canRegisterAdditionalPayment)
     <div class="modal fade" id="modalAddPayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1663,7 +1789,39 @@
         </div>
     </div>
     @endif
-    @endhasanyrole
+
+    @hasrole('Orden de compra')
+    @foreach ($milestone->payments->where('status', 'rechazado') as $payment)
+    <div class="modal fade" id="modalRequestPaymentReactivation{{ $payment->id }}" tabindex="-1" aria-labelledby="modalRequestPaymentReactivationLabel{{ $payment->id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('payments.request_reactivation', $payment) }}" method="POST">
+                    @csrf
+                    @method('PATCH')
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalRequestPaymentReactivationLabel{{ $payment->id }}">
+                            <i class="ri-refresh-line me-1 text-warning"></i> Solicitar reactivación
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted fs-13">El pago <strong>#{{ $payment->folio }}</strong> volverá a la bandeja de autorización para su revisión.</p>
+                        <label for="reactivation_reason_{{ $payment->id }}" class="form-label fw-medium">Motivo de la solicitud <span class="text-danger">*</span></label>
+                        <textarea id="reactivation_reason_{{ $payment->id }}" name="reason" rows="4" class="form-control" minlength="10" maxlength="1000" required placeholder="Explica por qué el pago debe revisarse nuevamente."></textarea>
+                        <div class="form-text">El administrador recibirá el motivo junto con la solicitud.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="ri-send-plane-line me-1"></i> Enviar solicitud
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endforeach
+    @endhasrole
 @endforeach
 
 {{-- MODAL Subir Factura --}}
@@ -2103,47 +2261,6 @@
     border-top-right-radius: .5rem;
     border-bottom: 1px solid var(--bs-border-color);
 }
-.oc-approve-alert {
-    position: relative;
-    overflow: hidden;
-}
-.oc-approve-inline-progress {
-    position: absolute;
-    inset: 0;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, .56);
-    z-index: 4;
-    pointer-events: none;
-}
-.oc-approve-alert.is-processing .oc-approve-inline-progress {
-    display: flex;
-}
-.oc-approve-inline-progress-bar {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 28%;
-    left: -28%;
-    background: linear-gradient(90deg, rgba(var(--bs-success-rgb), .08), rgba(var(--bs-success-rgb), .26), rgba(var(--bs-primary-rgb), .08));
-    animation: oc-approve-slide 1.15s ease-in-out infinite;
-}
-.oc-approve-inline-progress-text {
-    position: relative;
-    z-index: 1;
-    font-size: .86rem;
-    font-weight: 600;
-    color: var(--bs-dark);
-    background: rgba(255, 255, 255, .95);
-    border: 1px solid rgba(var(--bs-success-rgb), .2);
-    border-radius: 999px;
-    padding: .3rem .75rem;
-    box-shadow: 0 .2rem .7rem rgba(0,0,0,.08);
-}
-@keyframes oc-approve-slide {
-    to { transform: translateX(460%); }
-}
 </style>
 @endpush
 
@@ -2157,49 +2274,6 @@
     var badge    = document.getElementById('oc_items_badge');
     var addPanel = document.getElementById('oc_add_panel');
     var btnToggle = document.getElementById('btn_toggle_add_concept');
-    var approveForm = document.getElementById('approvePurchaseOrderForm');
-    var approveAlert = document.getElementById('purchaseOrderApproveAlert');
-    var approveInlineProgress = document.getElementById('approveInlineProgress');
-    var approveInlineProgressText = document.getElementById('approveInlineProgressText');
-    var approveBtn = document.getElementById('approvePurchaseOrderBtn');
-    var approveSubmitArmed = false;
-
-    function startApproveInlineEffect(onComplete) {
-        if (approveInlineProgressText) {
-            approveInlineProgressText.textContent = 'Autorizando Orden de Compra...';
-        }
-
-        if (approveAlert) {
-            approveAlert.classList.add('is-processing');
-        }
-        if (approveInlineProgress) {
-            approveInlineProgress.setAttribute('aria-hidden', 'false');
-        }
-
-        window.setTimeout(function () {
-            if (typeof onComplete === 'function') onComplete();
-        }, 480);
-    }
-
-    if (approveForm) {
-        approveForm.addEventListener('submit', function (e) {
-            if (approveSubmitArmed) {
-                return;
-            }
-
-            e.preventDefault();
-            var submitBtn = approveForm.querySelector('button[type="submit"]');
-            if (submitBtn) submitBtn.disabled = true;
-            if (approveBtn) {
-                approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Autorizando...';
-            }
-
-            startApproveInlineEffect(function () {
-                approveSubmitArmed = true;
-                approveForm.submit();
-            });
-        });
-    }
 
     // ── Helpers ──────────────────────────────────────────────────────────
     function fmtMoney(n) { return parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
@@ -2319,6 +2393,14 @@
         }
     }
 
+    function refreshPercentageMilestonesIfNeeded(data) {
+        if (!data.percentage_milestone_payments_synchronized) return;
+
+        window.setTimeout(function () {
+            window.location.reload();
+        }, 500);
+    }
+
     function removeEmptyRow() {
         var er = document.getElementById('oc_empty_row');
         if (er) er.remove();
@@ -2393,6 +2475,7 @@
             }
             updateTotals(data);
             Toastify({ text: 'Valor guardado', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();
+            refreshPercentageMilestonesIfNeeded(data);
         })
         .catch(function () {
             input.value = input.dataset.original;
@@ -2471,6 +2554,7 @@
                     updateBadge();
                     addEmptyRowIfNeeded();
                     updateTotals(data);
+                    refreshPercentageMilestonesIfNeeded(data);
                 }, 280);
             })
             .catch(function () {
@@ -2605,6 +2689,7 @@
             updateBadge();
             updateTotals(data);
             Toastify({ text: 'Concepto agregado', duration: 2000, gravity: 'bottom', position: 'right', className: 'bg-success', stopOnFocus: false }).showToast();
+            refreshPercentageMilestonesIfNeeded(data);
         });
     }
 

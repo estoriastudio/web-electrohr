@@ -16,11 +16,14 @@ class MaterialRequestItemProjectWork extends Model
         'project_work_id',
         'quantity',
         'is_committed',
+        'committed_by',
+        'committed_at',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
         'is_committed' => 'boolean',
+        'committed_at' => 'datetime',
     ];
 
     public function materialRequestItem(): BelongsTo
@@ -31,5 +34,10 @@ class MaterialRequestItemProjectWork extends Model
     public function projectWork(): BelongsTo
     {
         return $this->belongsTo(ProjectWork::class);
+    }
+
+    public function committedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'committed_by');
     }
 }

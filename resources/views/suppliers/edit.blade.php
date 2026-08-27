@@ -97,17 +97,6 @@
                             @enderror
                         </div>
 
-                        <div class="col-md-4">
-                            <label for="attended_by" class="form-label fw-medium">Atendido por</label>
-                            <input type="text"
-                                   class="form-control @error('attended_by') is-invalid @enderror"
-                                   id="attended_by" name="attended_by"
-                                   value="{{ old('attended_by', $supplier->attended_by) }}">
-                            @error('attended_by')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
                         <div class="col-md-8">
                             <label for="street" class="form-label fw-medium">Calle</label>
                             <input type="text"

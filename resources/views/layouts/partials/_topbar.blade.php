@@ -69,7 +69,7 @@
 
                             <div id="notif-list" data-simplebar style="max-height: 280px;">
                                 @forelse ($topbarNotifications as $notif)
-                                    <a href="{{ route('notifications.index') }}" class="dropdown-item py-3 border-bottom text-wrap">
+                                    <a href="{{ route('notifications.inbox') }}" class="dropdown-item py-3 border-bottom text-wrap">
                                         <div class="d-flex align-items-start gap-2">
                                             <div class="avatar-xs bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1">
                                                 @php

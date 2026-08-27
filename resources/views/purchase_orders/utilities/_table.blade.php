@@ -45,7 +45,6 @@
                     ];
                     $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
                     $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—';
-                    $supplierNameShort = \Illuminate\Support\Str::limit($supplierName, 50, '...');
                     $solcom = $order->purchaseRequest ?? null;
                     $solmat = $solcom?->materialRequest ?? null;
                     $currencyCode = strtoupper($order->currency ?? '');
@@ -202,11 +201,16 @@
                     </td>
                     <td class="po-supplier-cell">
                         @if ($mode !== 'trashed')
-                            <a href="{{ route('suppliers.show', $order->supplier) }}" class="text-dark fw-medium" title="{{ $supplierName }}">
-                                {{ $supplierNameShort }}
+                            <a href="{{ route('suppliers.show', $order->supplier) }}"
+                               class="text-dark fw-medium text-decoration-none">
+                                <span class="hover-marquee d-block" style="--marquee-width:340px;" title="{{ $supplierName }}">
+                                    <span class="track"><span>{{ $supplierName }}</span><span aria-hidden="true">{{ $supplierName }}</span></span>
+                                </span>
                             </a>
                         @else
-                            <span title="{{ $supplierName }}">{{ $supplierNameShort }}</span>
+                            <span class="hover-marquee d-block" style="--marquee-width:340px;" title="{{ $supplierName }}">
+                                <span class="track"><span>{{ $supplierName }}</span><span aria-hidden="true">{{ $supplierName }}</span></span>
+                            </span>
                         @endif
                     </td>
                     <td style="max-width:160px">

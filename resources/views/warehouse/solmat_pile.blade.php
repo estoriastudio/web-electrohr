@@ -240,10 +240,23 @@
                                     <td>{{ $mr->requestedBy?->name ?? '—' }}</td>
                                     <td>
                                         <div class="d-flex gap-2">
+                                            {{--
                                             <a href="{{ route('material_requests.show', $mr) }}"
                                                class="btn btn-light btn-sm" title="Ver SOLMAT">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            --}}
+                                            @hasanyrole('admin|suministros')
+                                            @if ($mr->status === 'sent_to_warehouse')
+                                                <button type="button"
+                                                        class="btn btn-soft-primary btn-sm"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#modalReviewCommitments{{ $mr->id }}"
+                                                        title="Revisar compromisos">
+                                                    <i class="ri-archive-stack-line me-1"></i>Revisar
+                                                </button>
+                                            @endif
+                                            @endhasanyrole
                                             @if ($isFullyCommitted)
                                                 <button type="button" class="btn btn-light btn-sm" disabled
                                                         title="Todos los conceptos de esta SOLMAT están comprometidos">
@@ -286,6 +299,121 @@
         </div>
     </div>
 </div>
+
+@hasanyrole('admin|suministros')
+@foreach ($materialRequests as $mr)
+    @if ($mr->status === 'sent_to_warehouse')
+    <div class="modal fade" id="modalReviewCommitments{{ $mr->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('warehouse.solmat_pile.commitments.update', $mr) }}">
+                    @csrf
+                    <input type="hidden" name="review_material_request_id" value="{{ $mr->id }}">
+                    @php
+                        $legacyWork = $mr->projectWorks->count() === 1 ? $mr->projectWorks->first() : null;
+                    @endphp
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title"><i class="ri-archive-stack-line me-2 text-primary"></i>Revisar compromisos SOLMAT #{{ $mr->folio }}</h5>
+                            <p class="text-muted fs-12 mb-0 mt-1">Marca lo que Almacén puede surtir. La SOLCOM incluirá solo el saldo disponible.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="bg-light-subtle">
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Obra</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th>Última confirmación</th>
+                                        <th class="text-center">Comprometido</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($mr->items as $item)
+                                        @forelse ($item->workQuantities as $workQuantity)
+                                            <tr>
+                                                <td>
+                                                    <span class="fw-semibold d-block">{{ $item->code }}</span>
+                                                    <small class="text-muted">{{ $item->description }}</small>
+                                                </td>
+                                                <td>{{ $workQuantity->projectWork?->name ?? '—' }}</td>
+                                                <td class="text-end fw-semibold">{{ number_format((float) $workQuantity->quantity, 2, '.', '') }}</td>
+                                                <td>
+                                                    @if ($workQuantity->is_committed && $workQuantity->committedBy)
+                                                        <small class="d-block">{{ $workQuantity->committedBy->name }}</small>
+                                                        <small class="text-muted">{{ $workQuantity->committed_at?->format('d/m/Y H:i') }}</small>
+                                                    @elseif ($workQuantity->is_committed)
+                                                        <small class="text-muted">Confirmado previamente</small>
+                                                    @else
+                                                        <small class="text-muted">Disponible para compra</small>
+                                                    @endif
+                                                </td>
+                                                <td class="text-center">
+                                                    <input type="hidden"
+                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}]"
+                                                           value="0">
+                                                    <input type="checkbox"
+                                                           class="form-check-input"
+                                                           id="commitment_{{ $mr->id }}_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
+                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}]"
+                                                           value="1"
+                                                           @checked($workQuantity->is_committed)>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td>
+                                                    <span class="fw-semibold d-block">{{ $item->code }}</span>
+                                                    <small class="text-muted">{{ $item->description }}</small>
+                                                </td>
+                                                <td>{{ $legacyWork?->name ?? 'Desglose pendiente' }}</td>
+                                                <td class="text-end fw-semibold">{{ number_format((float) $item->quantity, 2, '.', '') }}</td>
+                                                <td>
+                                                    @if ($legacyWork)
+                                                        <small class="text-muted">Concepto legacy; se asignará a la única obra.</small>
+                                                    @else
+                                                        <small class="text-danger">Requiere desglose por obra.</small>
+                                                    @endif
+                                                </td>
+                                                <td class="text-center">
+                                                    @if ($legacyWork)
+                                                        <input type="hidden"
+                                                               name="commitments[{{ $item->id }}][{{ $legacyWork->id }}]"
+                                                               value="0">
+                                                        <input type="checkbox"
+                                                               class="form-check-input"
+                                                               id="commitment_legacy_{{ $mr->id }}_{{ $item->id }}"
+                                                               name="commitments[{{ $item->id }}][{{ $legacyWork->id }}]"
+                                                               value="1">
+                                                    @else
+                                                        <input type="checkbox" class="form-check-input" disabled title="Este concepto requiere desglose por obra">
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">La SOLMAT no tiene conceptos para revisar.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i>Guardar revisión</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+@endforeach
+@endhasanyrole
 
 @endsection
 

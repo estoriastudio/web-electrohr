@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
-    protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'current_agreement_value'];
+    protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'currency', 'current_agreement_value'];
 
     public function works(): HasMany
     {
@@ -22,6 +22,11 @@ class Project extends Model
     public function agreements(): HasMany
     {
         return $this->hasMany(ProjectAgreement::class);
+    }
+
+    public function estimates(): HasMany
+    {
+        return $this->hasMany(ProjectEstimate::class);
     }
 
     /**

@@ -49,7 +49,6 @@ class ProjectWorkController extends Controller
     {
         $projectWork->load([
             'project',
-            'estimates.creator',
             'purchaseOrders' => function ($q) {
                 $q->with('supplier')
                   ->withCount('milestones')

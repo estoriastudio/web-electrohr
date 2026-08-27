@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 use App\Exports\SupplierExport;
 use App\Imports\SupplierImport;
@@ -76,34 +77,75 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'rfc_name'     => 'required|string|max:255',
-            'contact_name' => 'nullable|string|max:255',
-            'email'        => 'nullable|email|max:255',
-            'bank_account' => 'required|string|max:50',
-            'phone'        => 'nullable|string|max:50',
+            'rfc_name'          => 'required|string|max:255',
+            'commercial_name'   => 'required|string|max:255',
+            'rfc_num'           => 'required|string|max:13',
+            'street'            => 'required|string|max:255',
+            'postal_code'       => 'required|string|max:20',
+            'colony'            => 'required|string|max:255',
+            'city'              => 'required|string|max:100',
+            'state'             => 'required|string|max:100',
+            'contact_name'      => 'required|string|max:255',
+            'contact_phone'     => 'required|string|max:50',
+            'contact_email'     => 'required|email|max:255',
+            'bank_name'         => 'required|string|max:100',
+            'bank_account'      => 'required|string|max:50',
+            'bank_clabe'        => 'required|string|size:18',
+            'currency'          => 'required|in:MXN,USD,EUR',
+            'account_statement' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
 
-        $supplier = DB::transaction(function () use ($validated) {
-            $supplier = Supplier::create([
-                'rfc_name' => $validated['rfc_name'],
-            ]);
+        $accountStatement = $validated['account_statement'];
+        unset($validated['account_statement']);
+        $accountStatementPath = null;
 
-            $supplier->locations()->create([
-                'name'         => 'Cuenta Principal',
-                'bank_account' => $validated['bank_account'],
-            ]);
+        try {
+            $supplier = DB::transaction(function () use ($validated, $accountStatement, &$accountStatementPath) {
+                $supplier = Supplier::create([
+                    'rfc_name'        => $validated['rfc_name'],
+                    'commercial_name' => $validated['commercial_name'],
+                    'rfc_num'         => strtoupper($validated['rfc_num']),
+                    'street'          => $validated['street'],
+                    'postal_code'     => $validated['postal_code'],
+                    'colony'          => $validated['colony'],
+                    'city'            => $validated['city'],
+                    'state'           => $validated['state'],
+                    'status'          => 'active',
+                ]);
 
-            if ($validated['contact_name'] ?? null) {
                 $supplier->contacts()->create([
                     'name'       => $validated['contact_name'],
-                    'email'      => $validated['email'] ?? null,
-                    'phone'      => $validated['phone'] ?? null,
+                    'phone'      => $validated['contact_phone'],
+                    'email'      => $validated['contact_email'],
                     'is_primary' => true,
                 ]);
+
+                $location = $supplier->locations()->create([
+                    'name'         => 'Cuenta principal',
+                    'bank_name'    => $validated['bank_name'],
+                    'bank_account' => $validated['bank_account'],
+                    'bank_clabe'   => $validated['bank_clabe'],
+                    'currency'     => $validated['currency'],
+                ]);
+
+                $accountStatementPath = 'supplier_locations/' . $supplier->id . '/account_statements/'
+                    . $location->id . '_' . time() . '.' . $accountStatement->getClientOriginalExtension();
+
+                if (!Storage::disk('s3')->put($accountStatementPath, file_get_contents($accountStatement->getRealPath()))) {
+                    throw new \RuntimeException('No fue posible guardar la carátula de estado de cuenta.');
+                }
+
+                $location->update(['account_statement_path' => $accountStatementPath]);
+
+                return $supplier;
+            });
+        } catch (\Throwable $exception) {
+            if ($accountStatementPath) {
+                Storage::disk('s3')->delete($accountStatementPath);
             }
 
-            return $supplier;
-        });
+            throw $exception;
+        }
 
         // Notificación
         $this->notification->send([
@@ -316,7 +358,6 @@ class SupplierController extends Controller
             'rfc_name'        => 'required|string|max:255',
             'commercial_name' => 'nullable|string|max:255',
             'rfc_num'         => 'nullable|string|max:20',
-            'attended_by'     => 'nullable|string|max:255',
             'street'          => 'nullable|string|max:255',
             'colony'          => 'nullable|string|max:255',
             'postal_code'     => 'nullable|string|max:20',
@@ -356,7 +397,6 @@ class SupplierController extends Controller
             'commercial_name' => 'nullable|string|max:255',
             'rfc_name'        => 'required|string|max:255',
             'rfc_num'         => 'nullable|string|max:20',
-            'attended_by'     => 'nullable|string|max:255',
             'street'          => 'nullable|string|max:255',
             'colony'          => 'nullable|string|max:255',
             'postal_code'     => 'nullable|string|max:20',

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use App\Models\NotificationRecipient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -27,10 +28,25 @@ class NotificationController extends Controller
         return view('notifications.index', compact('notifications'));
     }
 
-    public function markAllRead(): JsonResponse
+    public function inbox(Request $request): View
     {
-        Notification::where('is_hidden', false)->update(['is_hidden' => true]);
+        $notifications = Notification::with('user')
+            ->whereHas('recipients', function ($query) use ($request) {
+                $query->where('user_id', $request->user()->id);
+            })
+            ->latest()
+            ->paginate(25);
 
-        return response()->json(['success' => true, 'count' => 0]);
+        return view('notifications.inbox', compact('notifications'));
+    }
+
+    public function markAllRead(Request $request): JsonResponse
+    {
+        $updated = NotificationRecipient::query()
+            ->where('user_id', $request->user()->id)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true, 'count' => $updated]);
     }
 }

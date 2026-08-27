@@ -768,7 +768,8 @@ class PurchaseRequestController extends Controller
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
         $selectionState = $this->getSolmatPileSelectionState($request);
 
-        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities'])
+        $query = MaterialRequest::active()
+            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities.projectWork', 'items.workQuantities.committedBy'])
             ->withCount('purchaseRequests')
             ->withMax('purchaseRequests', 'created_at');
 
@@ -794,8 +795,8 @@ class PurchaseRequestController extends Controller
 
         $materialRequests = $query->paginate(20)->withQueryString();
 
-        $entryCount = MaterialRequest::where('status', 'sent_to_warehouse')->count();
-        $outCount   = MaterialRequest::where('status', 'linked')->count();
+        $entryCount = MaterialRequest::active()->where('status', 'sent_to_warehouse')->count();
+        $outCount   = MaterialRequest::active()->where('status', 'linked')->count();
 
         return view('warehouse.solmat_pile', compact(
             'materialRequests',

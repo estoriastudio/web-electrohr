@@ -2,11 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\MaterialRequestChangeNote;
+use App\Models\MaterialVoucher;
 use App\Models\Notification;
+use App\Models\NotificationRecipient;
 use App\Models\Payment;
 use App\Models\Project;
-use App\Models\MaterialVoucher;
-use App\Models\MaterialRequestChangeNote;
 use App\Models\PurchaseRequestChangeNote;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -45,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
                 })
                 ->count();
             $materialRequestChangesPendingCount = MaterialRequestChangeNote::query()
+                ->where('note_type', 'change_request')
                 ->whereNull('resolved_at')
                 ->whereHas('materialRequest', function ($query) {
                     $query->whereNull('archived_at');
@@ -62,13 +64,21 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('layouts.partials._topbar', function ($view) {
-            $topbarNotifications = Notification::with('user')
-                ->where('is_hidden', false)
+            $currentUser = auth()->user();
+            $notificationsQuery = Notification::with('user')
+                ->whereHas('recipients', function ($query) use ($currentUser) {
+                    $query->where('user_id', $currentUser?->id)
+                        ->whereNull('read_at');
+                });
+
+            $topbarNotifications = $notificationsQuery
                 ->latest()
                 ->limit(5)
                 ->get();
-
-            $topbarUnreadCount = Notification::where('is_hidden', false)->count();
+            $topbarUnreadCount = NotificationRecipient::query()
+                ->where('user_id', $currentUser?->id)
+                ->whereNull('read_at')
+                ->count();
 
             $view->with(compact('topbarNotifications', 'topbarUnreadCount'));
         });

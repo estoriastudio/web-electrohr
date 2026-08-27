@@ -79,7 +79,12 @@ class MobileAssetController extends Controller
         $mobileAssets = MobileAsset::with('documents')
             ->where('type', $type)
             ->when($search, function ($q) use ($search) {
-                $q->where('folio', $search);
+                $q->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('folio', $search)
+                        ->orWhere('name', 'like', "%{$search}%")
+                        ->orWhere('brand', 'like', "%{$search}%")
+                        ->orWhere('operator', 'like', "%{$search}%");
+                });
             })
             ->when($documentMissing, function ($query) use ($documentMissing) {
                 $query->whereDoesntHave('documents', function ($documentQuery) use ($documentMissing) {
@@ -93,6 +98,9 @@ class MobileAssetController extends Controller
                         ->orWhereNull('photo2')
                         ->orWhereNull('photo3');
                 });
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->orderByRaw('folio = ? DESC', [$search]);
             })
             ->orderByRaw('folio IS NULL')
             ->orderByRaw('CAST(folio AS UNSIGNED)')

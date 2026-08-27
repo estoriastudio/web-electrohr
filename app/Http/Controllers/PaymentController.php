@@ -339,6 +339,14 @@ class PaymentController extends Controller
                     ]);
                 }
 
+                if (Auth::user()?->hasRole('Orden de compra')
+                    && !Auth::user()?->hasAnyRole(['admin', 'Pagos'])
+                    && !$milestone->purchaseOrder->is_destajo) {
+                    throw ValidationException::withMessages([
+                        'milestone_id' => 'Solo puedes registrar pagos en OCs de destajo.',
+                    ]);
+                }
+
                 $payments = $milestone->payments()->lockForUpdate()->orderBy('id')->get();
                 $firstPayment = $payments->first();
                 $targetAmount = round($milestone->effective_amount, 2);
@@ -409,6 +417,56 @@ class PaymentController extends Controller
     public function edit(Payment $payment)
     {
         return redirect()->route('purchase_orders.show', $payment->milestone->purchase_order_id);
+    }
+
+    public function requestReactivation(Request $request, Payment $payment): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|min:10|max:1000',
+        ]);
+
+        $result = DB::transaction(function () use ($payment) {
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+            $milestone = $lockedPayment->milestone()->lockForUpdate()->firstOrFail();
+            $purchaseOrder = PurchaseOrder::query()
+                ->lockForUpdate()
+                ->findOrFail($milestone->purchase_order_id);
+
+            if ($lockedPayment->status !== 'rechazado') {
+                return ['error' => 'Solo se puede solicitar la reactivación de pagos rechazados.'];
+            }
+
+            if ($purchaseOrder->status !== 'autorizada') {
+                return ['error' => 'La OC debe estar autorizada para solicitar la reactivación de un pago.'];
+            }
+
+            $lockedPayment->update(['status' => 'por_autorizar']);
+
+            return [
+                'payment' => $lockedPayment,
+                'milestone' => $milestone,
+                'purchase_order' => $purchaseOrder,
+            ];
+        });
+
+        if (isset($result['error'])) {
+            return redirect()->route('purchase_orders.show', $payment->milestone->purchase_order_id)
+                ->with('error', $result['error']);
+        }
+
+        $this->notification->send([
+            'type' => 'Payment',
+            'action_by' => Auth::id(),
+            'model_action' => 'request_reactivation',
+            'model_id' => $result['payment']->id,
+            'data' => 'solicitó reactivar el pago #' . $result['payment']->folio
+                . ' del hito #' . $result['milestone']->id
+                . ' de la orden de compra #' . $result['purchase_order']->folio
+                . '. Motivo: ' . $validated['reason'],
+        ]);
+
+        return redirect()->route('purchase_orders.show', $result['purchase_order'])
+            ->with('success', 'Solicitud enviada. El pago quedó pendiente de autorización nuevamente.');
     }
 
     public function update(Request $request, Payment $payment): RedirectResponse

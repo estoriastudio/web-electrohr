@@ -39,7 +39,6 @@ class SupplierImport implements ToModel, WithHeadingRow, WithChunkReading, Skips
         $supplier->rfc_name       = $rfcName;
         $supplier->commercial_name = $supplier->commercial_name ?? $rfcName;
         $supplier->rfc_num        = $rfcNum ?: null;
-        $supplier->attended_by    = trim($row['atencion'] ?? '') ?: null;
         $supplier->street         = trim($row['domicilio'] ?? '') ?: null;
         $supplier->colony         = trim($row['colonia'] ?? '') ?: null;
         $supplier->postal_code    = trim($row['codigo'] ?? '') ?: null;
