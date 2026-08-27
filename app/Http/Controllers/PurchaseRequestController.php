@@ -769,7 +769,7 @@ class PurchaseRequestController extends Controller
         $selectionState = $this->getSolmatPileSelectionState($request);
 
         $query = MaterialRequest::active()
-            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities'])
+            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities.projectWork', 'items.workQuantities.committedBy'])
             ->withCount('purchaseRequests')
             ->withMax('purchaseRequests', 'created_at');
 

@@ -339,6 +339,14 @@ class PaymentController extends Controller
                     ]);
                 }
 
+                if (Auth::user()?->hasRole('Orden de compra')
+                    && !Auth::user()?->hasAnyRole(['admin', 'Pagos'])
+                    && !$milestone->purchaseOrder->is_destajo) {
+                    throw ValidationException::withMessages([
+                        'milestone_id' => 'Solo puedes registrar pagos en OCs de destajo.',
+                    ]);
+                }
+
                 $payments = $milestone->payments()->lockForUpdate()->orderBy('id')->get();
                 $firstPayment = $payments->first();
                 $targetAmount = round($milestone->effective_amount, 2);

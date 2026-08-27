@@ -312,20 +312,6 @@
                                                                 <input type="hidden"
                                                                        name="work_quantities[{{ $loop->index }}][work_id]"
                                                                        value="{{ $workQuantity->project_work_id }}">
-                                                                 <input type="hidden"
-                                                                     name="work_quantities[{{ $loop->index }}][is_committed]"
-                                                                     value="0">
-                                                                 <div class="form-check mt-1">
-                                                                     <input type="checkbox"
-                                                                         class="form-check-input"
-                                                                         id="solmat_commitment_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
-                                                                         name="work_quantities[{{ $loop->index }}][is_committed]"
-                                                                         value="1"
-                                                                         @checked($workQuantity->is_committed)>
-                                                                     <label class="form-check-label fs-12" for="solmat_commitment_{{ $item->id }}_{{ $workQuantity->project_work_id }}">
-                                                                      Comprometido
-                                                                     </label>
-                                                                 </div>
                                                             </div>
                                                         @endforeach
                                                     </div>
@@ -403,7 +389,7 @@
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label fw-medium mb-0">Cantidad y compromiso por obra <span class="text-danger">*</span></label>
+                            <label class="form-label fw-medium mb-0">Cantidad por obra <span class="text-danger">*</span></label>
                             <span class="badge bg-primary-subtle text-primary" id="solmat_total_preview">Total: 0.00</span>
                         </div>
                         <div id="solmat_works_quantities" class="vstack gap-2"></div>
@@ -437,18 +423,18 @@
     </div>
 </div>
 
-{{-- ── Solicitudes de Cambios ── --}}
+{{-- ── Solicitudes y avisos de Almacén ── --}}
 @if ($materialRequest->changeNotes->count() > 0)
 <div class="row mb-3">
     <div class="col-12">
         <div class="card border-warning">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0 text-warning">
-                    <i class="ri-edit-circle-line me-2"></i>Solicitudes de Cambios
+                    <i class="ri-edit-circle-line me-2"></i>Solicitudes y Avisos de Almacén
                 </h5>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
-                        {{ $materialRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
+                        {{ $materialRequest->changeNotes->filter(fn ($note) => $note->isChangeRequest() && ! $note->isResolved())->count() }} pendiente(s)
                     </span>
                     <a href="{{ route('material_request_changes.index', ['search' => $materialRequest->folio]) }}"
                        class="btn btn-sm btn-light">
@@ -458,9 +444,12 @@
             </div>
             <div class="card-body">
                 @foreach ($materialRequest->changeNotes as $note)
+                @php
+                    $isCommitmentNotice = $note->isCommitmentNotice();
+                @endphp
                 <div class="d-flex gap-3 mb-3 {{ $note->isResolved() ? 'opacity-50' : '' }}">
                     <div class="avatar-sm shrink-0">
-                        <span class="avatar-title {{ $note->isResolved() ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} rounded-circle fs-14 fw-bold">
+                        <span class="avatar-title {{ $isCommitmentNotice ? 'bg-primary-subtle text-primary' : ($note->isResolved() ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning') }} rounded-circle fs-14 fw-bold">
                             {{ strtoupper(substr($note->requestedBy?->name ?? '?', 0, 1)) }}
                         </span>
                     </div>
@@ -470,7 +459,11 @@
                                 <span class="fw-semibold fs-13">{{ $note->requestedBy?->name ?? 'Usuario' }}</span>
                                 <span class="text-muted fs-12 ms-2">{{ $note->created_at->format('d/m/Y H:i') }}</span>
                             </div>
-                            @if ($note->isResolved())
+                            @if ($isCommitmentNotice)
+                                <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
+                                    <i class="ri-archive-stack-line me-1"></i>Inventario confirmado
+                                </span>
+                            @elseif ($note->isResolved())
                                 <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">
                                     <i class="ri-check-line me-1"></i>Resuelto por {{ $note->resolvedBy?->name }}
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
@@ -488,6 +481,16 @@
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
+                        @if ($isCommitmentNotice && filled(data_get($note->payload, 'commitments')))
+                            <div class="mt-2 d-flex flex-wrap gap-1">
+                                @foreach (data_get($note->payload, 'commitments', []) as $commitment)
+                                    <span class="badge {{ data_get($commitment, 'is_committed') ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success' }} border">
+                                        {{ data_get($commitment, 'code') }} · {{ data_get($commitment, 'work_name', 'Obra') }} · {{ number_format((float) data_get($commitment, 'quantity'), 2, '.', '') }}
+                                        {{ data_get($commitment, 'is_committed') ? 'comprometido' : 'disponible' }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 </div>
                 @if (! $loop->last)<hr class="my-2">@endif

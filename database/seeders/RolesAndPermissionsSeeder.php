@@ -27,6 +27,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Orden de compra',
             'Solcom',
             'Solmat',
+            'suministros',
             'Pagos',
             'Proyectos',
             'Moviles',

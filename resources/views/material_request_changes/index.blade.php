@@ -107,7 +107,7 @@
                         <i class="ri-task-line me-2 text-warning"></i>Panel de Solicitudes de Cambio SOLMAT
                     </h4>
                     <p class="text-muted fs-12 mb-0 mt-1">
-                        Seguimiento operativo de cambios solicitados sobre SOLMAT antes de crear SOLCOM.
+                        Seguimiento de cambios solicitados y compromisos confirmados por Almacén.
                     </p>
                 </div>
                 <a href="{{ route('material_requests.index', ['status' => 'changes_requested']) }}" class="btn btn-light btn-sm">
@@ -117,7 +117,7 @@
 
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('material_request_changes.index') }}" class="row g-2 align-items-end">
-                    <div class="col-lg-8">
+                    <div class="col-lg-6">
                         <label class="form-label form-label-sm mb-1">Buscar</label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
@@ -140,9 +140,17 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-lg-2">
+                        <label class="form-label form-label-sm mb-1">Tipo</label>
+                        <select name="note_type" class="form-select form-select-sm">
+                            <option value="all" {{ $noteType === 'all' ? 'selected' : '' }}>Todos</option>
+                            <option value="change_request" {{ $noteType === 'change_request' ? 'selected' : '' }}>Cambios solicitados</option>
+                            <option value="commitment_notice" {{ $noteType === 'commitment_notice' ? 'selected' : '' }}>Avisos de Almacén</option>
+                        </select>
+                    </div>
                     <div class="col-lg-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-                        @if ($search !== '' || $requestedBy !== '')
+                        @if ($search !== '' || $requestedBy !== '' || $noteType !== 'all')
                             <a href="{{ route('material_request_changes.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
                                 <i class="ri-close-line"></i>
                             </a>
@@ -176,6 +184,7 @@
                                     $needDate = $materialRequest?->need_date;
                                     $isUrgent = $needDate && $needDate->lte(now()->addDays(5));
                                     $solcoms = $materialRequest?->purchaseRequests ?? collect();
+                                    $isCommitmentNotice = $note->isCommitmentNotice();
                                 @endphp
                                 <tr>
                                     <td>
@@ -185,7 +194,9 @@
                                                 #{{ $materialRequest->folio }}
                                             </a>
                                             <div class="mt-1">
-                                                <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">Cambios solicitados</span>
+                                                <span class="badge {{ $isCommitmentNotice ? 'bg-primary-subtle text-primary' : 'bg-danger-subtle text-danger' }} py-1 px-2 fs-12">
+                                                    {{ $isCommitmentNotice ? 'Inventario confirmado' : 'Cambios solicitados' }}
+                                                </span>
                                             </div>
                                         @else
                                             <span class="text-muted">—</span>
@@ -256,6 +267,15 @@
                                     </td>
                                     <td style="min-width:280px; max-width:380px;">
                                         <p class="mb-0 text-body fs-13">{{ $note->text }}</p>
+                                        @if ($isCommitmentNotice && filled(data_get($note->payload, 'commitments')))
+                                            <div class="mt-2 d-flex flex-wrap gap-1">
+                                                @foreach (data_get($note->payload, 'commitments', []) as $commitment)
+                                                    <span class="badge {{ data_get($commitment, 'is_committed') ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success' }} border">
+                                                        {{ data_get($commitment, 'code') }} · {{ data_get($commitment, 'work_name', 'Obra') }} · {{ number_format((float) data_get($commitment, 'quantity'), 2, '.', '') }}
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        @endif
                                     </td>
                                     <td>
                                         <div class="d-flex gap-2">
@@ -265,6 +285,7 @@
                                                    title="Ver detalle">
                                                     <i class="ri-eye-line"></i>
                                                 </a>
+                                                @if ($note->isChangeRequest())
                                                 @hasanyrole('admin|Solcom|Solmat')
                                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                                       method="POST">
@@ -274,6 +295,7 @@
                                                     </button>
                                                 </form>
                                                 @endhasanyrole
+                                                @endif
                                             @endif
                                         </div>
                                     </td>

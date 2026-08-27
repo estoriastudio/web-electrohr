@@ -1,6 +1,25 @@
 @extends('layouts.app')
 
 @push('styles')
+<style>
+    .supplier-create-section {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .supplier-create-section-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+    }
+</style>
 @endpush
 
 @section('page_title', 'Proveedores')
@@ -230,9 +249,9 @@
 @hasanyrole('admin|Orden de compra')
 @can('create')
 <div class="modal fade" id="modalCreateSupplier" tabindex="-1" aria-labelledby="modalCreateSupplierLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <form action="{{ route('suppliers.store') }}" method="POST">
+            <form action="{{ route('suppliers.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalCreateSupplierLabel">
@@ -241,71 +260,147 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted fs-13 mb-3">
-                        Ingresa los datos básicos. Podrás completar el perfil del proveedor desde su vista de detalle.
-                    </p>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="supplier-create-section">
+                                <span class="supplier-create-section-icon bg-primary-subtle text-primary">
+                                    <i class="ri-building-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Información general</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_rfc_name" class="form-label fw-medium">Razón social <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('rfc_name') is-invalid @enderror"
+                                   id="create_rfc_name" name="rfc_name" value="{{ old('rfc_name') }}"
+                                   placeholder="Ej. Empresa Proveedora S.A. de C.V." required>
+                            @error('rfc_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_commercial_name" class="form-label fw-medium">Nombre comercial <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('commercial_name') is-invalid @enderror"
+                                   id="create_commercial_name" name="commercial_name" value="{{ old('commercial_name') }}" required>
+                            @error('commercial_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_rfc_num" class="form-label fw-medium">RFC <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('rfc_num') is-invalid @enderror"
+                                   id="create_rfc_num" name="rfc_num" value="{{ old('rfc_num') }}"
+                                   maxlength="13" style="text-transform:uppercase;" required>
+                            @error('rfc_num')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="rfc_name" class="form-label fw-medium">
-                            Razón social / Nombre <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control @error('rfc_name') is-invalid @enderror"
-                               id="rfc_name" name="rfc_name"
-                               value="{{ old('rfc_name') }}"
-                               placeholder="Ej. Empresa Proveedora S.A. de C.V."
-                               required>
-                        @error('rfc_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                        <div class="col-12">
+                            <div class="supplier-create-section">
+                                <span class="supplier-create-section-icon bg-info-subtle text-info">
+                                    <i class="ri-map-pin-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Domicilio fiscal</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="create_street" class="form-label fw-medium">Calle <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('street') is-invalid @enderror"
+                                   id="create_street" name="street" value="{{ old('street') }}" required>
+                            @error('street')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_postal_code" class="form-label fw-medium">Código Postal <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('postal_code') is-invalid @enderror"
+                                   id="create_postal_code" name="postal_code" value="{{ old('postal_code') }}" required>
+                            @error('postal_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_colony" class="form-label fw-medium">Colonia <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('colony') is-invalid @enderror"
+                                   id="create_colony" name="colony" value="{{ old('colony') }}" required>
+                            @error('colony')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_city" class="form-label fw-medium">Ciudad <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('city') is-invalid @enderror"
+                                   id="create_city" name="city" value="{{ old('city') }}" required>
+                            @error('city')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_state" class="form-label fw-medium">Estado <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('state') is-invalid @enderror"
+                                   id="create_state" name="state" value="{{ old('state') }}" required>
+                            @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="contact_name" class="form-label fw-medium">Nombre del contacto</label>
-                        <input type="text" class="form-control @error('contact_name') is-invalid @enderror"
-                               id="contact_name" name="contact_name"
-                               value="{{ old('contact_name') }}"
-                               placeholder="Ej. Juan Pérez">
-                        <div class="form-text">Se registrará como contacto principal del proveedor.</div>
-                        @error('contact_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                        <div class="col-12">
+                            <div class="supplier-create-section">
+                                <span class="supplier-create-section-icon bg-success-subtle text-success">
+                                    <i class="ri-contacts-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Contacto principal</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_contact_name" class="form-label fw-medium">Nombre <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('contact_name') is-invalid @enderror"
+                                   id="create_contact_name" name="contact_name" value="{{ old('contact_name') }}" required>
+                            @error('contact_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_contact_phone" class="form-label fw-medium">Teléfono <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('contact_phone') is-invalid @enderror"
+                                   id="create_contact_phone" name="contact_phone" value="{{ old('contact_phone') }}" required>
+                            @error('contact_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="create_contact_email" class="form-label fw-medium">Correo electrónico <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control @error('contact_email') is-invalid @enderror"
+                                   id="create_contact_email" name="contact_email" value="{{ old('contact_email') }}" required>
+                            @error('contact_email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="email" class="form-label fw-medium">Correo electrónico</label>
-                        <input type="email" class="form-control @error('email') is-invalid @enderror"
-                               id="email" name="email"
-                               value="{{ old('email') }}"
-                               placeholder="contacto@proveedor.com">
-                        @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="bank_account" class="form-label fw-medium">
-                            Número de cuenta <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control @error('bank_account') is-invalid @enderror"
-                               id="bank_account" name="bank_account"
-                               value="{{ old('bank_account') }}"
-                               inputmode="numeric"
-                               placeholder="Ej. 0123456789"
-                               required>
-                        @error('bank_account')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="mb-0">
-                        <label for="phone" class="form-label fw-medium">Teléfono</label>
-                        <input type="text" class="form-control @error('phone') is-invalid @enderror"
-                               id="phone" name="phone"
-                               value="{{ old('phone') }}"
-                               placeholder="Ej. 55 1234 5678">
-                        @error('phone')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                        <div class="col-12">
+                            <div class="supplier-create-section">
+                                <span class="supplier-create-section-icon bg-warning-subtle text-warning">
+                                    <i class="ri-bank-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Cuenta principal</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_bank_name" class="form-label fw-medium">Banco <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('bank_name') is-invalid @enderror"
+                                   id="create_bank_name" name="bank_name" value="{{ old('bank_name') }}" required>
+                            @error('bank_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
+                            <select class="form-select @error('currency') is-invalid @enderror" id="create_currency" name="currency" required>
+                                <option value="">Seleccionar moneda...</option>
+                                <option value="MXN" {{ old('currency') === 'MXN' ? 'selected' : '' }}>MXN</option>
+                                <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+                                <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR</option>
+                            </select>
+                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_bank_account" class="form-label fw-medium">Número de cuenta <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('bank_account') is-invalid @enderror"
+                                   id="create_bank_account" name="bank_account" value="{{ old('bank_account') }}"
+                                   inputmode="numeric" required>
+                            @error('bank_account')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_bank_clabe" class="form-label fw-medium">CLABE interbancaria <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('bank_clabe') is-invalid @enderror"
+                                   id="create_bank_clabe" name="bank_clabe" value="{{ old('bank_clabe') }}"
+                                   inputmode="numeric" maxlength="18" required>
+                            @error('bank_clabe')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-12">
+                            <label for="create_account_statement" class="form-label fw-medium">Carátula de estado de cuenta <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control @error('account_statement') is-invalid @enderror"
+                                   id="create_account_statement" name="account_statement" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <div class="form-text">PDF, JPG o PNG. Tamaño máximo: 10 MB.</div>
+                            @error('account_statement')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

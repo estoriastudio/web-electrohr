@@ -216,7 +216,7 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles')
+            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles|suministros')
             @can('read')
             <li class="menu-title">Almacén</li>
 
@@ -246,7 +246,7 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Solcom|Solmat')
+            @hasanyrole('admin|Solcom|Solmat|suministros|Orden de compra')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_request_changes.*') ? 'active' : '' }}"
@@ -261,15 +261,17 @@
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
-                   href="{{ route('warehouse.solmat_pile') }}">
-                    <span class="nav-icon">
-                        <i class="ri-inbox-2-line"></i>
-                    </span>
-                    <span class="nav-text">Pila SOLMAT</span>
-                </a>
-            </li>
+            @hasanyrole('admin|suministros|Orden de compra')
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
+                       href="{{ route('warehouse.solmat_pile') }}">
+                        <span class="nav-icon">
+                            <i class="ri-inbox-2-line"></i>
+                        </span>
+                        <span class="nav-text">Pila SOLMAT</span>
+                    </a>
+                </li>
+            @endhasanyrole
             @endcan
             @endhasanyrole
 

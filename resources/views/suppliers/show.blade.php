@@ -133,9 +133,6 @@
                     <dt class="col-sm-5 text-muted fw-normal fs-13">RFC</dt>
                     <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->rfc_num ?? '—' }}</dd>
 
-                    <dt class="col-sm-5 text-muted fw-normal fs-13">Atendido por</dt>
-                    <dd class="col-sm-7 fw-medium fs-14">{{ $supplier->attended_by ?? '—' }}</dd>
-
                     <dt class="col-sm-5 text-muted fw-normal fs-13">Domicilio</dt>
                     <dd class="col-sm-7 fw-medium fs-14">
                         {{ implode(', ', array_filter([
@@ -715,11 +712,6 @@
                                value="{{ old('rfc_num', $supplier->rfc_num) }}"
                                id="editSupplierRfc"
                                style="text-transform:uppercase;">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Atendido por</label>
-                        <input type="text" name="attended_by" class="form-control"
-                               value="{{ old('attended_by', $supplier->attended_by) }}">
                     </div>
                     <hr class="my-3">
                     <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>

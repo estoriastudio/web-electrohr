@@ -11,11 +11,14 @@ class MaterialRequestChangeNote extends Model
         'material_request_id',
         'requested_by',
         'text',
+        'note_type',
+        'payload',
         'resolved_at',
         'resolved_by',
     ];
 
     protected $casts = [
+        'payload' => 'array',
         'resolved_at' => 'datetime',
     ];
 
@@ -37,5 +40,15 @@ class MaterialRequestChangeNote extends Model
     public function isResolved(): bool
     {
         return $this->resolved_at !== null;
+    }
+
+    public function isChangeRequest(): bool
+    {
+        return $this->note_type === 'change_request';
+    }
+
+    public function isCommitmentNotice(): bool
+    {
+        return $this->note_type === 'commitment_notice';
     }
 }

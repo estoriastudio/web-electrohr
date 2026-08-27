@@ -387,8 +387,6 @@
                             <dd class="col-sm-7 fw-medium">{{ $supplier->rfc_num ?: '—' }}</dd>
                             <dt class="col-sm-5 text-muted fw-normal">Estatus</dt>
                             <dd class="col-sm-7 fw-medium">{{ $supplier->status ? ucfirst($supplier->status) : '—' }}</dd>
-                            <dt class="col-sm-5 text-muted fw-normal">Atendido por</dt>
-                            <dd class="col-sm-7 fw-medium">{{ $supplier->attended_by ?: '—' }}</dd>
                             <dt class="col-sm-5 text-muted fw-normal">Dirección</dt>
                             <dd class="col-sm-7 fw-medium">
                                 {{ implode(', ', array_filter([
@@ -917,6 +915,8 @@
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+            $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+                || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
             $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
@@ -1257,14 +1257,12 @@
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
 
-                    @hasanyrole('admin|Pagos')
-                    @if ($canRegisterAdditionalPayment)
+                    @if ($canManageAdditionalPayments && $canRegisterAdditionalPayment)
                         <button type="button" class="btn btn-outline-primary btn-sm d-block w-100 mt-2"
                                 data-bs-toggle="modal" data-bs-target="#modalAddPayment{{ $milestone->id }}">
                             <i class="ri-add-line me-1"></i>Agregar pago por autorizar
                         </button>
                     @endif
-                    @endhasanyrole
                 </div>
 
             </div>
@@ -1656,6 +1654,8 @@
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
+        $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+            || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
         $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
@@ -1732,8 +1732,7 @@
         </div>
     </div>
 
-    @hasanyrole('admin|Pagos')
-    @if ($canRegisterAdditionalPayment)
+    @if ($canManageAdditionalPayments && $canRegisterAdditionalPayment)
     <div class="modal fade" id="modalAddPayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1790,7 +1789,6 @@
         </div>
     </div>
     @endif
-    @endhasanyrole
 
     @hasrole('Orden de compra')
     @foreach ($milestone->payments->where('status', 'rechazado') as $payment)

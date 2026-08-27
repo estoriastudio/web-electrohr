@@ -125,8 +125,8 @@
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                     <input type="text" name="search" value="{{ $search }}"
-                              class="form-control" placeholder="Buscar por número económico exacto"
-                              aria-label="Número económico exacto"
+                              class="form-control" placeholder="Buscar por número económico, nombre, marca o chofer"
+                              aria-label="Número económico, nombre, marca o chofer"
                            autocomplete="off">
                     @if ($search)
                         <a href="{{ route('mobile_assets.index', ['type' => $type]) }}"
@@ -135,7 +135,6 @@
                         </a>
                     @endif
                 </div>
-                <div class="form-text">Ingresa el número económico exacto.</div>
             </div>
 
             <div class="col-md-4 col-sm-7">
