@@ -38,28 +38,28 @@
                         </button>
                     </div>
 
-                    <!-- Notification -->
+                    <!-- Recipient Notifications -->
                     @if (!Auth::user()->hasRole('supplier_portal_access'))
                     <div class="dropdown topbar-item">
-                        <button type="button" class="topbar-button position-relative" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="ri-notification-3-line fs-24"></i>
-                            @if ($topbarUnreadCount > 0)
-                                <span id="notif-badge" class="position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill">
-                                    {{ $topbarUnreadCount > 99 ? '99+' : $topbarUnreadCount }}
-                                    <span class="visually-hidden">notificaciones sin leer</span>
+                        <button type="button" class="topbar-button position-relative" id="page-header-recipient-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Notificaciones personales">
+                            <i class="ri-mail-line fs-24"></i>
+                            @if ($topbarRecipientUnreadCount > 0)
+                                <span id="recipient-notif-badge" class="position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill">
+                                    {{ $topbarRecipientUnreadCount > 99 ? '99+' : $topbarRecipientUnreadCount }}
+                                    <span class="visually-hidden">notificaciones personales sin leer</span>
                                 </span>
                             @else
-                                <span id="notif-badge" class="d-none position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill"></span>
+                                <span id="recipient-notif-badge" class="d-none position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill"></span>
                             @endif
                         </button>
-                        <div class="dropdown-menu py-0 dropdown-lg dropdown-menu-end" aria-labelledby="page-header-notifications-dropdown">
+                        <div class="dropdown-menu py-0 dropdown-lg dropdown-menu-end" aria-labelledby="page-header-recipient-notifications-dropdown">
                             <div class="p-3 border-top-0 border-start-0 border-end-0 border-dashed border">
                                 <div class="row align-items-center">
                                     <div class="col">
-                                        <h6 class="m-0 fs-16 fw-semibold">Notificaciones</h6>
+                                        <h6 class="m-0 fs-16 fw-semibold">Notificaciones personales</h6>
                                     </div>
                                     <div class="col-auto">
-                                        <button id="btn-mark-read" type="button" class="btn btn-link p-0 text-dark text-decoration-underline fs-12"
+                                        <button id="btn-mark-recipient-read" type="button" class="btn btn-link p-0 text-dark text-decoration-underline fs-12"
                                             data-url="{{ route('notifications.markAllRead') }}">
                                             <small>Marcar como leídas</small>
                                         </button>
@@ -67,8 +67,8 @@
                                 </div>
                             </div>
 
-                            <div id="notif-list" data-simplebar style="max-height: 280px;">
-                                @forelse ($topbarNotifications as $notif)
+                            <div id="recipient-notif-list" data-simplebar style="max-height: 280px;">
+                                @forelse ($topbarRecipientNotifications as $notif)
                                     <a href="{{ route('notifications.inbox') }}" class="dropdown-item py-3 border-bottom text-wrap">
                                         <div class="d-flex align-items-start gap-2">
                                             <div class="avatar-xs bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1">
@@ -92,7 +92,69 @@
                                         </div>
                                     </a>
                                 @empty
-                                    <div id="notif-empty" class="text-center text-muted py-4">
+                                    <div id="recipient-notif-empty" class="text-center text-muted py-4">
+                                        <i class="ri-checkbox-circle-line fs-24 d-block mb-1"></i>
+                                        <span class="fs-13">Sin notificaciones personales pendientes</span>
+                                    </div>
+                                @endforelse
+                            </div>
+
+                            <div class="text-center py-3">
+                                <a href="{{ route('notifications.inbox') }}" class="btn btn-primary btn-sm">
+                                    Ver mis notificaciones <i class="ri-arrow-right-line ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Global Notifications -->
+                    <div class="dropdown topbar-item">
+                        <button type="button" class="topbar-button position-relative" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Notificaciones globales">
+                            <i class="ri-notification-3-line fs-24"></i>
+                            @if ($topbarGlobalUnreadCount > 0)
+                                <span id="global-notif-badge" class="position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill">
+                                    {{ $topbarGlobalUnreadCount > 99 ? '99+' : $topbarGlobalUnreadCount }}
+                                    <span class="visually-hidden">notificaciones sin leer</span>
+                                </span>
+                            @else
+                                <span id="global-notif-badge" class="d-none position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill"></span>
+                            @endif
+                        </button>
+                        <div class="dropdown-menu py-0 dropdown-lg dropdown-menu-end" aria-labelledby="page-header-notifications-dropdown">
+                            <div class="p-3 border-top-0 border-start-0 border-end-0 border-dashed border">
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <h6 class="m-0 fs-16 fw-semibold">Notificaciones globales</h6>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div data-simplebar style="max-height: 280px;">
+                                @forelse ($topbarGlobalNotifications as $notif)
+                                    <a href="{{ route('notifications.index') }}" class="dropdown-item py-3 border-bottom text-wrap">
+                                        <div class="d-flex align-items-start gap-2">
+                                            <div class="avatar-xs bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1">
+                                                @php
+                                                    $actionIcons = [
+                                                        'create' => ['icon' => 'ri-add-line',       'color' => 'success'],
+                                                        'update' => ['icon' => 'ri-edit-line',       'color' => 'warning'],
+                                                        'delete' => ['icon' => 'ri-delete-bin-line', 'color' => 'danger'],
+                                                    ];
+                                                    $ai = $actionIcons[$notif->model_action] ?? ['icon' => 'ri-information-line', 'color' => 'secondary'];
+                                                @endphp
+                                                <i class="{{ $ai['icon'] }} text-{{ $ai['color'] }} fs-14"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <p class="mb-0 fs-13">
+                                                    <span class="fw-medium">{{ $notif->user?->name ?? 'Sistema' }}</span>
+                                                    {{ $notif->data }}
+                                                </p>
+                                                <span class="text-muted fs-11">{{ $notif->created_at->diffForHumans() }}</span>
+                                            </div>
+                                        </div>
+                                    </a>
+                                @empty
+                                    <div class="text-center text-muted py-4">
                                         <i class="ri-checkbox-circle-line fs-24 d-block mb-1"></i>
                                         <span class="fs-13">Sin notificaciones pendientes</span>
                                     </div>
@@ -157,7 +219,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const btn = document.getElementById('btn-mark-read');
+    const btn = document.getElementById('btn-mark-recipient-read');
     if (!btn) return;
 
     btn.addEventListener('click', function () {
@@ -172,16 +234,14 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(data => {
             if (!data.success) return;
 
-            // Vaciar lista y mostrar estado vacío
-            const list = document.getElementById('notif-list');
+            const list = document.getElementById('recipient-notif-list');
             list.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <i class="ri-checkbox-circle-line fs-24 d-block mb-1"></i>
-                    <span class="fs-13">Sin notificaciones pendientes</span>
+                    <span class="fs-13">Sin notificaciones personales pendientes</span>
                 </div>`;
 
-            // Ocultar badge
-            const badge = document.getElementById('notif-badge');
+            const badge = document.getElementById('recipient-notif-badge');
             badge.classList.add('d-none');
             badge.textContent = '';
         });

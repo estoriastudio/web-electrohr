@@ -65,22 +65,35 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.partials._topbar', function ($view) {
             $currentUser = auth()->user();
-            $notificationsQuery = Notification::with('user')
-                ->whereHas('recipients', function ($query) use ($currentUser) {
-                    $query->where('user_id', $currentUser?->id)
-                        ->whereNull('read_at');
-                });
-
-            $topbarNotifications = $notificationsQuery
+            $topbarGlobalNotifications = Notification::with('user')
+                ->where('is_hidden', false)
+                ->doesntHave('recipients')
                 ->latest()
                 ->limit(5)
                 ->get();
-            $topbarUnreadCount = NotificationRecipient::query()
+            $topbarGlobalUnreadCount = Notification::query()
+                ->where('is_hidden', false)
+                ->doesntHave('recipients')
+                ->count();
+            $topbarRecipientNotifications = Notification::with('user')
+                ->whereHas('recipients', function ($query) use ($currentUser) {
+                    $query->where('user_id', $currentUser?->id)
+                        ->whereNull('read_at');
+                })
+                ->latest()
+                ->limit(5)
+                ->get();
+            $topbarRecipientUnreadCount = NotificationRecipient::query()
                 ->where('user_id', $currentUser?->id)
                 ->whereNull('read_at')
                 ->count();
 
-            $view->with(compact('topbarNotifications', 'topbarUnreadCount'));
+            $view->with(compact(
+                'topbarGlobalNotifications',
+                'topbarGlobalUnreadCount',
+                'topbarRecipientNotifications',
+                'topbarRecipientUnreadCount',
+            ));
         });
     }
 }

@@ -279,7 +279,7 @@
                         </div>
                     </div>
                     <div class="text-end">
-                        <div class="fs-22 fw-semibold text-primary" aria-label="Importe Total de la OC">
+                        <div id="oc_header_total" class="fs-22 fw-semibold text-primary" aria-label="Importe Total de la OC">
                             {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
                         <div class="text-muted fs-13">
@@ -2383,6 +2383,9 @@
 
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);
+        if (tot !== undefined && el('oc_header_total')) {
+            el('oc_header_total').textContent = '{{ $purchaseOrder->currency }} ' + fmtMoney(tot);
+        }
 
         // Notificar a otros módulos (ej. modal de hitos) que el total cambió.
         var totalNumber = parseFloat(tot);
