@@ -26,12 +26,25 @@
     <style>
         @page { size: letter portrait; margin: 15mm; }
         body { margin: 0; padding: 0; }
+        table { page-break-inside: auto; }
+        tr { page-break-inside: auto; page-break-after: auto; }
+        .pdf-document,
+        .pdf-document > tbody,
+        .pdf-document > tbody > tr,
+        .pdf-document > tbody > tr > td {
+            display: block;
+            width: 100%;
+        }
+        .concept-table { font-size: 10px; line-height: 1.25; }
+        .concept-table thead { display: table-header-group; }
+        .concept-table tbody tr { page-break-inside: avoid; }
+        .concept-table td, .concept-table th { word-break: break-word; }
     </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 11px; color: #000;">
 
 <!-- Tabla principal contenedora -->
-<table width="750" cellpadding="0" cellspacing="0" border="0" style="width: 750px; margin: 0 auto;">
+<table class="pdf-document" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 auto;">
 
     <!-- FILA 1: Encabezado - Logo + Título + Folio + Código -->
     <tr>
@@ -151,7 +164,7 @@
     <!-- FILA 8: Tabla de materiales -->
     <tr>
         <td style="padding: 0;">
-            <table width="100%" cellpadding="5" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #000; margin-top: -1px;">
+            <table width="100%" cellpadding="5" cellspacing="0" border="1" class="concept-table" style="border-collapse: collapse; border-color: #000; margin-top: -1px;">
                 <!-- Encabezados -->
                 <tr style="background-color: #f0f0f0;">
                     <th style="border: 1px solid #000; padding: 6px; text-align: center; width: 6%;">No.</th>

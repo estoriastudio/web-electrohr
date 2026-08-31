@@ -107,13 +107,13 @@
 <table width="100%" cellpadding="5" cellspacing="0" border="1" class="section section-joined concept-table">
     <thead>
         <tr style="background-color: #f0f0f0;">
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 5%;">No.</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 35%;">Concepto</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 8%;">Cant.</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 12%;">Unidad</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 15%;">P/U</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 15%;">Imp. Total</th>
-            <th style="border: 1px solid #999; padding: 5px; text-align: center; width: 10%;">Fecha Entrega</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 5%;">No.</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 35%;">Concepto</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 8%;">Cant.</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 12%;">Unidad</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 15%;">P/U</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 15%;">Imp. Total</th>
+            <th style="border: 1px solid #999; padding: 3px; text-align: center; width: 10%;">Fecha Entrega</th>
         </tr>
     </thead>
     <tbody>
@@ -182,9 +182,9 @@
 
 <div class="terms-signatures">
     <!-- FILA 6: Moneda, importe con letra, condiciones de pago, observaciones -->
-    <table width="100%" cellpadding="6" cellspacing="0" border="1" class="section" style="margin-top: 10px;">
+    <table width="100%" cellpadding="4" cellspacing="0" border="1" class="section" style="margin-top: 8px;">
         <tr>
-            <td style="border: 1px solid #999; padding: 8px; line-height: 1.6;">
+            <td style="border: 1px solid #999; padding: 6px; font-size: 10px; line-height: 1.35;">
                 <strong>Moneda:</strong> {{ $currency }}<br>
                 <strong>Importe con Letra:</strong> {{ $letras }}<br>
                 <strong>Condiciones de Pago:</strong>
