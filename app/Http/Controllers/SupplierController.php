@@ -88,9 +88,9 @@ class SupplierController extends Controller
             'contact_name'      => 'required|string|max:255',
             'contact_phone'     => 'required|string|max:50',
             'contact_email'     => 'required|email|max:255',
-            'bank_name'         => 'required|string|max:100',
-            'bank_account'      => 'required|string|max:50',
-            'bank_clabe'        => 'required|string|size:18',
+            'bank_name'         => 'nullable|string|max:100',
+            'bank_account'      => 'nullable|string|max:50',
+            'bank_clabe'        => 'nullable|string|size:18',
             'currency'          => 'required|in:MXN,USD,EUR',
             'account_statement' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
@@ -122,9 +122,9 @@ class SupplierController extends Controller
 
                 $location = $supplier->locations()->create([
                     'name'         => 'Cuenta principal',
-                    'bank_name'    => $validated['bank_name'],
-                    'bank_account' => $validated['bank_account'],
-                    'bank_clabe'   => $validated['bank_clabe'],
+                    'bank_name'    => $validated['bank_name'] ?? null,
+                    'bank_account' => $validated['bank_account'] ?? null,
+                    'bank_clabe'   => $validated['bank_clabe'] ?? null,
                     'currency'     => $validated['currency'],
                 ]);
 

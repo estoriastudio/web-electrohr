@@ -95,7 +95,11 @@ class Supplier extends Model
      */
     public function purchaseOrderMissingFields(): array
     {
-        return $this->missing_fields;
+        return array_values(array_diff($this->missing_fields, [
+            'Banco',
+            'Cuenta bancaria',
+            'CLABE interbancaria',
+        ]));
     }
 
     public function purchaseOrders()

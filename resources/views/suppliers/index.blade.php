@@ -364,13 +364,7 @@
                                 <h6 class="mb-0 fw-semibold">Cuenta principal</h6>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="create_bank_name" class="form-label fw-medium">Banco <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('bank_name') is-invalid @enderror"
-                                   id="create_bank_name" name="bank_name" value="{{ old('bank_name') }}" required>
-                            @error('bank_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="create_currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
                             <select class="form-select @error('currency') is-invalid @enderror" id="create_currency" name="currency" required>
                                 <option value="">Seleccionar moneda...</option>
@@ -380,21 +374,7 @@
                             </select>
                             @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-6">
-                            <label for="create_bank_account" class="form-label fw-medium">Número de cuenta <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('bank_account') is-invalid @enderror"
-                                   id="create_bank_account" name="bank_account" value="{{ old('bank_account') }}"
-                                   inputmode="numeric" required>
-                            @error('bank_account')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_bank_clabe" class="form-label fw-medium">CLABE interbancaria <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('bank_clabe') is-invalid @enderror"
-                                   id="create_bank_clabe" name="bank_clabe" value="{{ old('bank_clabe') }}"
-                                   inputmode="numeric" maxlength="18" required>
-                            @error('bank_clabe')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-12">
+                        <div class="col-md-8">
                             <label for="create_account_statement" class="form-label fw-medium">Carátula de estado de cuenta <span class="text-danger">*</span></label>
                             <input type="file" class="form-control @error('account_statement') is-invalid @enderror"
                                    id="create_account_statement" name="account_statement" accept=".pdf,.jpg,.jpeg,.png" required>

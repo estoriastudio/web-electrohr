@@ -5,6 +5,22 @@
     .profile-completeness-bar { height: 8px; }
     .missing-fields-list { columns: 2; gap: 1rem; }
     .kpi-card .card-body { padding: 1.25rem; }
+    .supplier-profile-section {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+    .supplier-profile-section-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+    }
 </style>
 @endpush
 
@@ -596,7 +612,7 @@
      MODAL — Configurar acceso portal proveedor
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalPortalAccessConfig" tabindex="-1" aria-labelledby="modalPortalAccessConfigLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalPortalAccessConfigLabel">
@@ -607,55 +623,80 @@
             <form action="{{ route('suppliers.portal_access.enable', $supplier) }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    <p class="text-muted fs-13 mb-3">
-                        Define las credenciales del proveedor para ingresar al Portal de Proveedores.
-                    </p>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Nombre de usuario</label>
-                        <input type="text" name="portal_name" class="form-control @error('portal_name') is-invalid @enderror"
-                               value="{{ old('portal_name', $supplier->portalUser?->name ?? ($supplier->commercial_name ?? $supplier->rfc_name)) }}"
-                               placeholder="Ej. Compras Proveedor SA">
-                        @error('portal_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Correo de acceso <span class="text-danger">*</span></label>
-                        <input type="email" name="portal_email" class="form-control @error('portal_email') is-invalid @enderror"
-                               value="{{ old('portal_email', $supplier->portalUser?->email ?? $supplier->email) }}"
-                               placeholder="portal.proveedor@empresa.com" required>
-                        @error('portal_email')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">
-                            Contraseña
-                            @if (!$supplier->portal_user_id)
-                                <span class="text-danger">*</span>
-                            @endif
-                        </label>
-                        <input type="password" name="portal_password" class="form-control @error('portal_password') is-invalid @enderror"
-                               placeholder="Mínimo 8 caracteres" autocomplete="new-password" @if (!$supplier->portal_user_id) required @endif>
-                        <div class="form-text">
-                            @if ($supplier->portal_user_id)
-                                Déjalo vacío para conservar la contraseña actual.
-                            @else
-                                Se usará para el primer inicio de sesión del proveedor.
-                            @endif
+                    <div class="border rounded-2 bg-light-subtle p-3 mb-4">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="avatar-sm bg-primary-subtle text-primary rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="ri-building-line fs-18"></i>
+                            </span>
+                            <div>
+                                <div class="text-muted fs-12">Proveedor</div>
+                                <div class="fw-semibold">{{ $supplier->commercial_name ?? $supplier->rfc_name }}</div>
+                            </div>
                         </div>
-                        @error('portal_password')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                     </div>
 
-                    <div class="mb-0">
-                           <label class="form-label fw-medium">Confirmar contraseña <span class="text-danger">*</span></label>
-                           <input type="password" name="portal_password_confirmation" class="form-control"
-                               placeholder="Repite la contraseña" autocomplete="new-password" @if (!$supplier->portal_user_id) required @endif>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="supplier-profile-section">
+                                <span class="supplier-profile-section-icon bg-primary-subtle text-primary">
+                                    <i class="ri-user-settings-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Identidad de acceso</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="portalName" class="form-label fw-medium">Nombre de usuario</label>
+                            <input type="text" name="portal_name" id="portalName"
+                                   class="form-control @error('portal_name') is-invalid @enderror"
+                                   value="{{ old('portal_name', $supplier->portalUser?->name ?? ($supplier->commercial_name ?? $supplier->rfc_name)) }}"
+                                   placeholder="Ej. Compras Proveedor SA">
+                            @error('portal_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="portalEmail" class="form-label fw-medium">Correo de acceso <span class="text-danger">*</span></label>
+                            <input type="email" name="portal_email" id="portalEmail"
+                                   class="form-control @error('portal_email') is-invalid @enderror"
+                                   value="{{ old('portal_email', $supplier->portalUser?->email ?? $supplier->email) }}"
+                                   placeholder="portal.proveedor@empresa.com" required>
+                            @error('portal_email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-12">
+                            <div class="supplier-profile-section">
+                                <span class="supplier-profile-section-icon bg-success-subtle text-success">
+                                    <i class="ri-lock-password-line"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-0 fw-semibold">Credenciales de acceso</h6>
+                                    @if ($supplier->portal_user_id)
+                                        <p class="mb-0 text-muted fs-12">Deja ambos campos vacíos para conservar la contraseña actual.</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="portalPassword" class="form-label fw-medium">
+                                Contraseña
+                                @if (!$supplier->portal_user_id)
+                                    <span class="text-danger">*</span>
+                                @endif
+                            </label>
+                            <input type="password" name="portal_password" id="portalPassword"
+                                   class="form-control @error('portal_password') is-invalid @enderror"
+                                   placeholder="Mínimo 8 caracteres" autocomplete="new-password" @if (!$supplier->portal_user_id) required @endif>
+                            @error('portal_password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="portalPasswordConfirmation" class="form-label fw-medium">
+                                Confirmar contraseña
+                                @if (!$supplier->portal_user_id)
+                                    <span class="text-danger">*</span>
+                                @endif
+                            </label>
+                            <input type="password" name="portal_password_confirmation" id="portalPasswordConfirmation"
+                                   class="form-control" placeholder="Repite la contraseña" autocomplete="new-password"
+                                   @if (!$supplier->portal_user_id) required @endif>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -684,7 +725,7 @@
      MODAL — Editar información general del proveedor
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalEditSupplier" tabindex="-1" aria-labelledby="modalEditSupplierLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalEditSupplierLabel">
@@ -696,60 +737,98 @@
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Razón social <span class="text-danger">*</span></label>
-                        <input type="text" name="rfc_name" class="form-control"
-                               value="{{ old('rfc_name', $supplier->rfc_name) }}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Nombre comercial</label>
-                        <input type="text" name="commercial_name" class="form-control"
-                               value="{{ old('commercial_name', $supplier->commercial_name) }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">RFC</label>
-                        <input type="text" name="rfc_num" class="form-control" maxlength="13"
-                               value="{{ old('rfc_num', $supplier->rfc_num) }}"
-                               id="editSupplierRfc"
-                               style="text-transform:uppercase;">
-                    </div>
-                    <hr class="my-3">
-                    <p class="fs-12 fw-semibold text-muted text-uppercase mb-3">Domicilio</p>
                     <div class="row g-3">
-                        <div class="col-sm-8">
-                            <label class="form-label fw-medium fs-13">Calle</label>
-                            <input type="text" name="street" class="form-control" value="{{ old('street', $supplier->street) }}">
+                        <div class="col-12">
+                            <div class="supplier-profile-section">
+                                <span class="supplier-profile-section-icon bg-primary-subtle text-primary">
+                                    <i class="ri-building-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Información general</h6>
+                            </div>
                         </div>
-                        <div class="col-sm-4">
-                            <label class="form-label fw-medium fs-13">Código Postal</label>
-                            <input type="text" name="postal_code" class="form-control" value="{{ old('postal_code', $supplier->postal_code) }}">
+                        <div class="col-md-6">
+                            <label for="editSupplierRfcName" class="form-label fw-medium">Razón social <span class="text-danger">*</span></label>
+                            <input type="text" name="rfc_name" id="editSupplierRfcName"
+                                   class="form-control @error('rfc_name') is-invalid @enderror"
+                                   value="{{ old('rfc_name', $supplier->rfc_name) }}" required>
+                            @error('rfc_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Colonia</label>
-                            <input type="text" name="colony" class="form-control" value="{{ old('colony', $supplier->colony) }}">
+                        <div class="col-md-6">
+                            <label for="editSupplierCommercialName" class="form-label fw-medium">Nombre comercial</label>
+                            <input type="text" name="commercial_name" id="editSupplierCommercialName"
+                                   class="form-control @error('commercial_name') is-invalid @enderror"
+                                   value="{{ old('commercial_name', $supplier->commercial_name) }}">
+                            @error('commercial_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-sm-6">
-                            <label class="form-label fw-medium fs-13">Ciudad</label>
-                            <input type="text" name="city" class="form-control" value="{{ old('city', $supplier->city) }}">
+                        <div class="col-md-6">
+                            <label for="editSupplierRfc" class="form-label fw-medium">RFC</label>
+                            <input type="text" name="rfc_num" id="editSupplierRfc" maxlength="13"
+                                   class="form-control @error('rfc_num') is-invalid @enderror"
+                                   value="{{ old('rfc_num', $supplier->rfc_num) }}"
+                                   style="text-transform:uppercase;">
+                            @error('rfc_num')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-sm-12">
-                            <label class="form-label fw-medium fs-13">Estado</label>
-                            <input type="text" name="state" class="form-control" value="{{ old('state', $supplier->state) }}">
+                        <div class="col-md-6">
+                            <label for="editSupplierStatus" class="form-label fw-medium">Estatus</label>
+                            <select name="status" id="editSupplierStatus" class="form-select @error('status') is-invalid @enderror">
+                                <option value="">Sin definir</option>
+                                <option value="active" {{ old('status', $supplier->status) === 'active' ? 'selected' : '' }}>Activo</option>
+                                <option value="inactive" {{ old('status', $supplier->status) === 'inactive' ? 'selected' : '' }}>Inactivo</option>
+                                <option value="blacklisted" {{ old('status', $supplier->status) === 'blacklisted' ? 'selected' : '' }}>Bloqueado</option>
+                            </select>
+                            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium fs-13">Estatus</label>
-                        <select name="status" class="form-select">
-                            <option value="">— Sin definir —</option>
-                            <option value="active"      {{ old('status', $supplier->status) === 'active'      ? 'selected' : '' }}>Activo</option>
-                            <option value="inactive"    {{ old('status', $supplier->status) === 'inactive'    ? 'selected' : '' }}>Inactivo</option>
-                            <option value="blacklisted" {{ old('status', $supplier->status) === 'blacklisted' ? 'selected' : '' }}>Bloqueado</option>
-                        </select>
+
+                        <div class="col-12">
+                            <div class="supplier-profile-section">
+                                <span class="supplier-profile-section-icon bg-info-subtle text-info">
+                                    <i class="ri-map-pin-line"></i>
+                                </span>
+                                <h6 class="mb-0 fw-semibold">Domicilio fiscal</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="editSupplierStreet" class="form-label fw-medium">Calle</label>
+                            <input type="text" name="street" id="editSupplierStreet"
+                                   class="form-control @error('street') is-invalid @enderror"
+                                   value="{{ old('street', $supplier->street) }}">
+                            @error('street')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editSupplierPostalCode" class="form-label fw-medium">Código Postal</label>
+                            <input type="text" name="postal_code" id="editSupplierPostalCode"
+                                   class="form-control @error('postal_code') is-invalid @enderror"
+                                   value="{{ old('postal_code', $supplier->postal_code) }}">
+                            @error('postal_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editSupplierColony" class="form-label fw-medium">Colonia</label>
+                            <input type="text" name="colony" id="editSupplierColony"
+                                   class="form-control @error('colony') is-invalid @enderror"
+                                   value="{{ old('colony', $supplier->colony) }}">
+                            @error('colony')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editSupplierCity" class="form-label fw-medium">Ciudad</label>
+                            <input type="text" name="city" id="editSupplierCity"
+                                   class="form-control @error('city') is-invalid @enderror"
+                                   value="{{ old('city', $supplier->city) }}">
+                            @error('city')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="editSupplierState" class="form-label fw-medium">Estado</label>
+                            <input type="text" name="state" id="editSupplierState"
+                                   class="form-control @error('state') is-invalid @enderror"
+                                   value="{{ old('state', $supplier->state) }}">
+                            @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-save-line me-1"></i> Guardar cambios
+                    </button>
                 </div>
             </form>
         </div>

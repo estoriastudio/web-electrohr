@@ -88,4 +88,43 @@ class SupplierProfileCompletenessTest extends TestCase
         $this->assertSame($missingFields, $supplier->purchaseOrderMissingFields());
         $this->assertSame(82, $supplier->profile_completeness);
     }
+
+    public function test_purchase_order_readiness_allows_missing_bank_details(): void
+    {
+        $supplier = new Supplier([
+            'rfc_name' => 'Proveedor de Prueba S.A. de C.V.',
+            'commercial_name' => 'Proveedor de Prueba',
+            'rfc_num' => 'PPR010101AAA',
+            'status' => 'active',
+            'street' => 'Calle Principal 123',
+            'postal_code' => '01000',
+            'colony' => 'Centro',
+            'city' => 'Ciudad de México',
+            'state' => 'Ciudad de México',
+        ]);
+
+        $supplier->setRelation('contacts', new Collection([
+            new SupplierContact([
+                'name' => 'Contacto principal',
+                'email' => 'contacto@example.test',
+                'phone' => '5555555555',
+                'is_primary' => true,
+            ]),
+        ]));
+        $supplier->setRelation('locations', new Collection([
+            new SupplierLocation([
+                'name' => 'Cuenta principal',
+                'currency' => 'MXN',
+                'account_statement_path' => 'supplier_locations/1/account_statements/1.pdf',
+            ]),
+        ]));
+
+        $this->assertSame([
+            'Banco',
+            'Cuenta bancaria',
+            'CLABE interbancaria',
+        ], $supplier->missing_fields);
+        $this->assertSame([], $supplier->purchaseOrderMissingFields());
+        $this->assertSame(82, $supplier->profile_completeness);
+    }
 }
