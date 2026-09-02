@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\PaidPaymentExport;
+use App\Exports\PayablePaymentExport;
 use Illuminate\Support\Facades\Auth;
 
 /* Modelos */
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 use Carbon\Carbon;
 
@@ -196,6 +199,19 @@ class PaymentController extends Controller
         ));
     }
 
+    public function exportPayable(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        return Excel::download(
+            new PayablePaymentExport($validated['start_date'], $validated['end_date']),
+            'pagos-por-pagar-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+        );
+    }
+
     public function paid(Request $request): View
     {
         $search           = trim($request->input('search', ''));
@@ -222,9 +238,23 @@ class PaymentController extends Controller
             })
             ->orderByDesc('payments.payment_date')
             ->orderByDesc('payments.id')
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
 
         return view('payments.paid', compact('payments', 'search', 'currency', 'paymentCondition'));
+    }
+
+    public function exportPaid(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        return Excel::download(
+            new PaidPaymentExport($validated['start_date'], $validated['end_date']),
+            'pagos-pagados-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+        );
     }
 
     public function syncPayableSelection(Request $request): \Illuminate\Http\JsonResponse

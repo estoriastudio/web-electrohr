@@ -16,9 +16,40 @@
                     <h4 class="card-title mb-0">Pagos pagados</h4>
                     <p class="text-muted fs-13 mb-0">Consulta los pagos liquidados y sus comprobantes SPEI.</p>
                 </div>
-                <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
-                    <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
-                </a>
+                <div class="d-flex flex-wrap gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-success dropdown-toggle" type="button" id="paidExportDropdown"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <i class="ri-file-excel-2-line me-1"></i> Exportar a Excel
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="paidExportDropdown" style="min-width: 290px;">
+                            <form method="GET" action="{{ route('payments.paid.export') }}" class="row g-2">
+                                <div class="col-12">
+                                    <h6 class="mb-1">Rango de exportación</h6>
+                                    <p class="text-muted fs-13 mb-1">Selecciona las fechas de pago a exportar.</p>
+                                </div>
+                                <div class="col-12">
+                                    <label for="paidExportStartDate" class="form-label fs-13 mb-1">Fecha de pago inicial</label>
+                                    <input type="date" id="paidExportStartDate" name="start_date"
+                                           value="{{ old('start_date') }}" class="form-control form-control-sm" required>
+                                </div>
+                                <div class="col-12">
+                                    <label for="paidExportEndDate" class="form-label fs-13 mb-1">Fecha de pago final</label>
+                                    <input type="date" id="paidExportEndDate" name="end_date"
+                                           value="{{ old('end_date') }}" class="form-control form-control-sm" required>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end mt-2">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="ri-download-2-line me-1"></i> Exportar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
+                        <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
+                    </a>
+                </div>
             </div>
 
             <div class="card-body border-bottom py-3">
@@ -87,6 +118,11 @@
                                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-dark fw-medium">
                                             #{{ $order->folio }}
                                         </a>
+                                        @if ($payment->milestone->payment_condition === 'contado')
+                                            <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Contado</span>
+                                        @elseif ($payment->milestone->payment_condition === 'credito')
+                                            <span class="badge bg-info-subtle text-info-emphasis ms-1">Crédito</span>
+                                        @endif
                                     </td>
                                     <td>
                                         @if ($supplier)
@@ -122,6 +158,11 @@
                     </table>
                 </div>
             </div>
+            @if ($payments->hasPages())
+                <div class="card-footer d-flex justify-content-end">
+                    {{ $payments->links('pagination::bootstrap-5') }}
+                </div>
+            @endif
         </div>
     </div>
 </div>

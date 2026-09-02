@@ -81,6 +81,35 @@
                     <p class="text-muted fs-13 mb-0">Aquí solo aparecen pagos en estatus autorizado para marcarlos como pagados.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-success dropdown-toggle" type="button" id="payableExportDropdown"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <i class="ri-file-excel-2-line me-1"></i> Exportar a Excel
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="payableExportDropdown" style="min-width: 290px;">
+                            <form method="GET" action="{{ route('payments.payable.export') }}" class="row g-2">
+                                <div class="col-12">
+                                    <h6 class="mb-1">Rango de exportación</h6>
+                                    <p class="text-muted fs-13 mb-1">Selecciona las fechas de pago a exportar.</p>
+                                </div>
+                                <div class="col-12">
+                                    <label for="payableExportStartDate" class="form-label fs-13 mb-1">Fecha de pago inicial</label>
+                                    <input type="date" id="payableExportStartDate" name="start_date"
+                                           value="{{ old('start_date') }}" class="form-control form-control-sm" required>
+                                </div>
+                                <div class="col-12">
+                                    <label for="payableExportEndDate" class="form-label fs-13 mb-1">Fecha de pago final</label>
+                                    <input type="date" id="payableExportEndDate" name="end_date"
+                                           value="{{ old('end_date') }}" class="form-control form-control-sm" required>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end mt-2">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="ri-download-2-line me-1"></i> Exportar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                     <button type="button" id="btnClearPaymentSelection" class="btn btn-sm btn-outline-secondary"
                             @disabled($persistedSelectedPaymentCount === 0)>
                         <i class="ri-delete-bin-line me-1"></i> Limpiar selección
@@ -90,9 +119,6 @@
                         <i class="ri-bank-card-line me-1"></i> Asociar SPEI y pagar
                         <span class="badge bg-light text-dark ms-1" id="selectedPaymentsCount">{{ $persistedSelectedPaymentCount }}</span>
                     </button>
-                    <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="ri-shield-check-line me-1"></i> Volver a Autorización
-                    </a>
                 </div>
             </div>
 

@@ -505,7 +505,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
+            Route::get('/pagos/por-pagar/exportar-excel', [PaymentController::class, 'exportPayable'])->name('payments.payable.export');
             Route::get('/pagos/pagados', [PaymentController::class, 'paid'])->name('payments.paid');
+            Route::get('/pagos/pagados/exportar-excel', [PaymentController::class, 'exportPaid'])->name('payments.paid.export');
             Route::middleware('role:admin')->group(function () {
                 Route::post('/pagos/autorizar/seleccion/sincronizar', [PaymentController::class, 'syncAuthorizationSelection'])
                     ->name('payments.authorization.selection.sync');

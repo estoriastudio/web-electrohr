@@ -388,7 +388,6 @@
                         <span class="nav-text">Hitos</span>
                     </a>
                 </li>
-                
 
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('payments.index') || request()->routeIs('payments.interactive') ? 'active' : '' }}"
@@ -413,6 +412,15 @@
                         @if(($paymentsToPayCount ?? 0) > 0)
                             <span class="badge bg-info badge-pill">{{ $paymentsToPayCount }}</span>
                         @endif
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('payments.paid') ? 'active' : '' }}" href="{{ route('payments.paid') }}">
+                        <span class="nav-icon">
+                            <i class="ri-file-chart-line"></i>
+                        </span>
+                        <span class="nav-text">Pagado</span>
                     </a>
                 </li>
             @endcan
