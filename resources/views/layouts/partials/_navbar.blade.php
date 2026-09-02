@@ -115,7 +115,7 @@
                 @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Proyectos|Solmat')
+            @hasanyrole('admin|Proyectos')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">

@@ -178,7 +178,7 @@
                     </h6>
                     <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
                 </div>
-                @role('admin|Proyectos|Solmat')
+                @role('admin|Proyectos')
                     @if ($project->works->isNotEmpty())
                         <button type="button" class="btn btn-sm btn-primary"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateProjectAgreement">
@@ -300,7 +300,7 @@
 @endforeach
 @endrole
 
-@role('admin|Proyectos|Solmat')
+@role('admin|Proyectos')
 @php
     $defaultAgreementAmount = number_format((float) ($project->current_agreement_value ?? $project->project_value), 2, '.', '');
     $selectedAgreementWorkIds = old('work_ids', []);
