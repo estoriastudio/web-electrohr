@@ -124,19 +124,20 @@
 								@forelse(($po?->milestones ?? collect())->values() as $index => $milestone)
 									@php
 										$concept = $milestone->concept ?: ($milestone->payment_condition === 'contado' ? 'Contado' : 'Crédito');
-										$effectiveAmount = $milestone->value_type === 'porcentaje'
-											? round(((float) $po->amount * (float) $milestone->value) / 100, 2)
-											: (float) $milestone->value;
+										$paymentAmount = (float) $milestone->payments
+											->reject(fn ($payment) => $payment->status === 'rechazado')
+											->sum('amount');
 									@endphp
 									<div class="col-md-12">
 										<div class="form-check border rounded p-2 bg-white">
 											<input class="form-check-input" type="checkbox"
 												name="milestone_ids[]"
 												value="{{ $milestone->id }}"
+												data-amount="{{ number_format($paymentAmount, 2, '.', '') }}"
 												id="show_milestone_{{ $milestone->id }}"
 												{{ in_array((int) $milestone->id, $currentMilestoneIds, true) ? 'checked' : '' }}>
 											<label class="form-check-label fs-13" for="show_milestone_{{ $milestone->id }}">
-												Hito #{{ $index + 1 }} - {{ $concept }} . {{ $invoice->currency }} {{ number_format($effectiveAmount, 2) }}
+												Hito #{{ $index + 1 }} - {{ $concept }} . {{ $invoice->currency }} {{ number_format($paymentAmount, 2) }}
 											</label>
 										</div>
 									</div>
@@ -144,6 +145,21 @@
 									<div class="col-12 text-muted fs-13">No hay hitos disponibles para esta orden de compra.</div>
 								@endforelse
 							</div>
+						</div>
+						<div class="border rounded p-3 bg-white mt-3" id="invoiceMilestoneSummary">
+							<div class="d-flex justify-content-between align-items-center gap-2">
+								<span class="text-muted fs-13">Total hitos seleccionados</span>
+								<span class="fw-semibold" id="invoiceMilestoneSelectedTotal">—</span>
+							</div>
+							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+								<span class="text-muted fs-13">Importe factura</span>
+								<span class="fw-semibold" id="invoiceMilestoneInvoiceAmount">{{ $invoice->currency }} {{ number_format((float) $invoice->amount, 2) }}</span>
+							</div>
+							<div class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
+								<span class="text-muted fs-13">Diferencia</span>
+								<span class="fw-semibold" id="invoiceMilestoneDifference">—</span>
+							</div>
+							<div class="fs-12 mt-2" id="invoiceMilestoneMatchStatus"></div>
 						</div>
 					</div>
 
@@ -199,6 +215,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	const statusSelect = document.getElementById('invoiceStatusSelect');
 	const milestonesBlock = document.getElementById('invoiceMilestonesBlock');
 	const milestoneChecks = form ? form.querySelectorAll('input[name="milestone_ids[]"]') : [];
+	const milestoneSelectedTotalEl = document.getElementById('invoiceMilestoneSelectedTotal');
+	const milestoneDifferenceEl = document.getElementById('invoiceMilestoneDifference');
+	const milestoneMatchStatusEl = document.getElementById('invoiceMilestoneMatchStatus');
+	const invoiceAmount = {{ number_format((float) $invoice->amount, 2, '.', '') }};
+	const invoiceCurrency = @json($invoice->currency);
 
 	function syncMilestonesBlock() {
 		if (!statusSelect || !milestonesBlock) return;
@@ -212,10 +233,48 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
+	function formatMilestoneAmount(amount) {
+		const formattedAmount = new Intl.NumberFormat('es-MX', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		}).format(amount);
+
+		return `${invoiceCurrency} ${formattedAmount}`;
+	}
+
+	function syncMilestoneSummary() {
+		if (!form || !milestoneSelectedTotalEl || !milestoneDifferenceEl || !milestoneMatchStatusEl) return;
+
+		const selectedTotal = Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked'))
+			.reduce(function (total, checkbox) {
+				return total + (Number(checkbox.dataset.amount) || 0);
+			}, 0);
+		const difference = selectedTotal - invoiceAmount;
+		const matchesInvoice = Math.abs(difference) < 0.01;
+
+		milestoneSelectedTotalEl.textContent = formatMilestoneAmount(selectedTotal);
+		milestoneDifferenceEl.textContent = `${difference > 0 ? '+' : difference < 0 ? '-' : ''}${formatMilestoneAmount(Math.abs(difference))}`;
+		milestoneDifferenceEl.classList.toggle('text-success', matchesInvoice);
+		milestoneDifferenceEl.classList.toggle('text-warning', !matchesInvoice);
+		milestoneMatchStatusEl.textContent = matchesInvoice
+			? 'El importe de los hitos coincide con la factura.'
+			: 'El importe de los hitos no coincide con la factura.';
+		milestoneMatchStatusEl.className = `fs-12 mt-2 ${matchesInvoice ? 'text-success' : 'text-warning'}`;
+	}
+
 	syncMilestonesBlock();
+	syncMilestoneSummary();
 
 	if (statusSelect) {
 		statusSelect.addEventListener('change', syncMilestonesBlock);
+	}
+
+	if (form) {
+		form.addEventListener('change', function (event) {
+			if (event.target.matches('input[name="milestone_ids[]"]')) {
+				syncMilestoneSummary();
+			}
+		});
 	}
 
 	if (form) {

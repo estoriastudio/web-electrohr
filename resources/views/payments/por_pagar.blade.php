@@ -45,6 +45,12 @@
         ->unique()
         ->all();
     $persistedSelectedPaymentCount = (int) data_get($selectionState ?? [], 'selected_count', count($persistedSelectedPaymentIds));
+    $payableTableQuery = function (array $overrides = []) {
+        return array_filter(
+            array_merge(request()->except('page'), $overrides),
+            fn ($value) => $value !== null && $value !== ''
+        );
+    };
 @endphp
 
 @if (session('success'))
@@ -124,6 +130,18 @@
 
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('payments.payable') }}" class="d-flex flex-wrap gap-2" id="payableSearchForm">
+                    @if ($sort !== 'urgent_first')
+                        <input type="hidden" name="sort" value="{{ $sort }}">
+                    @endif
+                    @if ($urgency)
+                        <input type="hidden" name="urgency" value="{{ $urgency }}">
+                    @endif
+                    @if ($paymentDateFrom)
+                        <input type="hidden" name="payment_date_from" value="{{ $paymentDateFrom }}">
+                    @endif
+                    @if ($paymentDateTo)
+                        <input type="hidden" name="payment_date_to" value="{{ $paymentDateTo }}">
+                    @endif
                     <div class="input-group input-group-sm" style="min-width:260px; flex:1 1 320px;">
                         <span class="input-group-text bg-light">
                             <i class="ri-search-line text-muted"></i>
@@ -133,7 +151,7 @@
                                placeholder="Buscar por pago, orden o proveedor…"
                                autocomplete="off">
                         @if ($search)
-                            <a href="{{ route('payments.payable') }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                            <a href="{{ route('payments.payable', $payableTableQuery(['search' => null])) }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif
@@ -162,13 +180,70 @@
                                     <input type="checkbox" class="form-check-input" id="selectAllPayments"
                                            title="Seleccionar todos los pagos">
                                 </th>
-                                <th>Urgencia</th>
+                                <th>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-link text-dark p-0 border-0 text-decoration-none dropdown-toggle" type="button"
+                                                id="payableUrgencyFilter" data-bs-toggle="dropdown" aria-expanded="false">
+                                            Urgencia
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="payableUrgencyFilter">
+                                            <li><a class="dropdown-item @if (!$urgency) active @endif" href="{{ route('payments.payable', $payableTableQuery(['urgency' => null])) }}">Todos los pagos</a></li>
+                                            <li><a class="dropdown-item @if ($urgency === 'urgent') active @endif" href="{{ route('payments.payable', $payableTableQuery(['urgency' => 'urgent'])) }}">Sólo urgentes</a></li>
+                                            <li><a class="dropdown-item @if ($urgency === 'not_urgent') active @endif" href="{{ route('payments.payable', $payableTableQuery(['urgency' => 'not_urgent'])) }}">Sin urgencia</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item @if ($sort === 'urgent_first') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'urgent_first'])) }}">Urgentes primero</a></li>
+                                            <li><a class="dropdown-item @if ($sort === 'urgent_last') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'urgent_last'])) }}">No urgentes primero</a></li>
+                                        </ul>
+                                    </div>
+                                </th>
                                 <th>Factura</th>
                                 <th>Folio pago</th>
                                 <th>Orden de compra</th>
-                                <th>Proveedor</th>
+                                <th>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-link text-dark p-0 border-0 text-decoration-none dropdown-toggle" type="button"
+                                                id="payableSupplierSort" data-bs-toggle="dropdown" aria-expanded="false">
+                                            Proveedor
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="payableSupplierSort">
+                                            <li><a class="dropdown-item @if ($sort === 'supplier_asc') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'supplier_asc'])) }}">Ordenar de A a Z</a></li>
+                                            <li><a class="dropdown-item @if ($sort === 'supplier_desc') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'supplier_desc'])) }}">Ordenar de Z a A</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="{{ route('payments.payable', $payableTableQuery(['sort' => null])) }}">Restablecer orden</a></li>
+                                        </ul>
+                                    </div>
+                                </th>
                                 <th>Monto</th>
-                                <th>Fecha pago</th>
+                                <th>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-link text-dark p-0 border-0 text-decoration-none dropdown-toggle" type="button"
+                                                id="payableDateFilter" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                            Fecha pago
+                                        </button>
+                                        <div class="dropdown-menu p-3" aria-labelledby="payableDateFilter" style="min-width: 270px;">
+                                            <form method="GET" action="{{ route('payments.payable') }}" class="row g-2">
+                                                @foreach ($payableTableQuery(['payment_date_from' => null, 'payment_date_to' => null]) as $name => $value)
+                                                    <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                                                @endforeach
+                                                <div class="col-12">
+                                                    <label for="payablePaymentDateFrom" class="form-label fs-13 mb-1">Desde</label>
+                                                    <input type="date" id="payablePaymentDateFrom" name="payment_date_from" value="{{ $paymentDateFrom }}" class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label for="payablePaymentDateTo" class="form-label fs-13 mb-1">Hasta</label>
+                                                    <input type="date" id="payablePaymentDateTo" name="payment_date_to" value="{{ $paymentDateTo }}" class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-12 d-flex justify-content-between mt-2">
+                                                    <a href="{{ route('payments.payable', $payableTableQuery(['payment_date_from' => null, 'payment_date_to' => null])) }}" class="btn btn-sm btn-light">Limpiar</a>
+                                                    <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+                                                </div>
+                                            </form>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item @if ($sort === 'payment_date_asc') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'payment_date_asc'])) }}">Más antigua primero</a>
+                                            <a class="dropdown-item @if ($sort === 'payment_date_desc') active @endif" href="{{ route('payments.payable', $payableTableQuery(['sort' => 'payment_date_desc'])) }}">Más reciente primero</a>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>Referencia</th>
                                 <th>Acción</th>
                             </tr>

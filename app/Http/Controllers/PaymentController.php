@@ -147,9 +147,21 @@ class PaymentController extends Controller
         $search     = trim($request->input('search', ''));
         $currency   = $this->selectedCurrency($request);
         $paymentCondition = $this->selectedPaymentCondition($request);
+        $sort = $request->input('sort', 'urgent_first');
+        $sort = in_array($sort, ['urgent_first', 'urgent_last', 'supplier_asc', 'supplier_desc', 'payment_date_asc', 'payment_date_desc'], true)
+            ? $sort
+            : 'urgent_first';
+        $urgency = $request->input('urgency', '');
+        $urgency = in_array($urgency, ['urgent', 'not_urgent'], true) ? $urgency : '';
+        $paymentDateFrom = $request->input('payment_date_from');
+        $paymentDateTo = $request->input('payment_date_to');
+        $request->validate([
+            'payment_date_from' => ['nullable', 'date', 'before_or_equal:payment_date_to'],
+            'payment_date_to' => ['nullable', 'date', 'after_or_equal:payment_date_from'],
+        ]);
         $selectionState = $this->getPayableSelectionState($request);
 
-        $payments = Payment::with([
+        $paymentsQuery = Payment::with([
             'milestone.invoices:id',
             'milestone.purchaseOrder.supplier',
             'milestone.purchaseOrder.projectRelation',
@@ -172,16 +184,40 @@ class PaymentController extends Controller
                         ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
                 });
             })
-            ->orderByRaw("
-                CASE
-                    WHEN purchase_order_milestones.due_date <= ? THEN 0
-                    ELSE 1
-                END ASC,
-                purchase_order_milestones.due_date ASC,
-                payments.id ASC
-            ", [$urgentDate->toDateString()])
-            ->paginate(25)
-            ->withQueryString();
+            ->when($paymentDateFrom, fn ($q) => $q->whereDate('payments.payment_date', '>=', $paymentDateFrom))
+            ->when($paymentDateTo, fn ($q) => $q->whereDate('payments.payment_date', '<=', $paymentDateTo))
+            ->when($urgency === 'urgent', fn ($q) => $q
+                ->whereNotNull('purchase_order_milestones.due_date')
+                ->whereDate('purchase_order_milestones.due_date', '<=', $urgentDate))
+            ->when($urgency === 'not_urgent', fn ($q) => $q->where(function ($urgencyQuery) use ($urgentDate) {
+                $urgencyQuery->whereNull('purchase_order_milestones.due_date')
+                    ->orWhereDate('purchase_order_milestones.due_date', '>', $urgentDate);
+            }));
+
+        match ($sort) {
+            'supplier_asc' => $paymentsQuery
+                ->orderByRaw('COALESCE(suppliers.rfc_name, suppliers.commercial_name) ASC')
+                ->orderBy('payments.id'),
+            'supplier_desc' => $paymentsQuery
+                ->orderByRaw('COALESCE(suppliers.rfc_name, suppliers.commercial_name) DESC')
+                ->orderBy('payments.id'),
+            'payment_date_asc' => $paymentsQuery
+                ->orderBy('payments.payment_date')
+                ->orderBy('payments.id'),
+            'payment_date_desc' => $paymentsQuery
+                ->orderByDesc('payments.payment_date')
+                ->orderByDesc('payments.id'),
+            'urgent_last' => $paymentsQuery
+                ->orderByRaw('CASE WHEN purchase_order_milestones.due_date <= ? THEN 1 ELSE 0 END ASC', [$urgentDate->toDateString()])
+                ->orderBy('purchase_order_milestones.due_date')
+                ->orderBy('payments.id'),
+            default => $paymentsQuery
+                ->orderByRaw('CASE WHEN purchase_order_milestones.due_date <= ? THEN 0 ELSE 1 END ASC', [$urgentDate->toDateString()])
+                ->orderBy('purchase_order_milestones.due_date')
+                ->orderBy('payments.id'),
+        };
+
+        $payments = $paymentsQuery->paginate(25)->withQueryString();
 
         $pageTotalsByCurrency = $payments->getCollection()
             ->groupBy(fn (Payment $payment) => $payment->milestone->purchaseOrder->currency)
@@ -194,6 +230,10 @@ class PaymentController extends Controller
             'search',
             'currency',
             'paymentCondition',
+            'sort',
+            'urgency',
+            'paymentDateFrom',
+            'paymentDateTo',
             'selectionState',
             'pageTotalsByCurrency',
         ));

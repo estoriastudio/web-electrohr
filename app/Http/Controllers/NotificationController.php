@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notification;
 use App\Models\NotificationRecipient;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -12,6 +13,27 @@ class NotificationController extends Controller
 {
     public function index(Request $request): View
     {
+        $activitySummary = Notification::query()
+            ->selectRaw('COUNT(*) as total_actions, MIN(created_at) as first_action_at')
+            ->first();
+        $activeDays = $activitySummary->first_action_at
+            ? Carbon::parse($activitySummary->first_action_at)->startOfDay()->diffInDays(today()) + 1
+            : 1;
+        $activityStats = [
+            'daily_average' => $activitySummary->total_actions / $activeDays,
+            'current_week' => Notification::query()
+                ->where('created_at', '>=', now()->startOfWeek())
+                ->count(),
+            'leaders' => Notification::query()
+                ->selectRaw('action_by, COUNT(*) as actions_count')
+                ->whereNotNull('action_by')
+                ->groupBy('action_by')
+                ->orderByDesc('actions_count')
+                ->limit(3)
+                ->with('user:id,name')
+                ->get(),
+        ];
+
         $query = Notification::with('user')
             ->latest();
 
@@ -25,7 +47,7 @@ class NotificationController extends Controller
 
         $notifications = $query->paginate(25)->withQueryString();
 
-        return view('notifications.index', compact('notifications'));
+        return view('notifications.index', compact('activityStats', 'notifications'));
     }
 
     public function inbox(Request $request): View

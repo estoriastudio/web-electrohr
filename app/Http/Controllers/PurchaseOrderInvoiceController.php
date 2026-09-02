@@ -56,6 +56,7 @@ class PurchaseOrderInvoiceController extends Controller
                 'purchaseOrder:id,folio,supplier_id,elaborated_by',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
+                'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
                 'milestones:id,concept,payment_condition',
             ])
             ->when($search !== '', function ($q) use ($search) {
@@ -116,6 +117,7 @@ class PurchaseOrderInvoiceController extends Controller
             'purchaseOrder:id,folio,supplier_id,elaborated_by,currency,amount',
             'purchaseOrder.supplier:id,rfc_name,commercial_name',
             'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
+            'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
             'milestones:id,concept,payment_condition',
         ]);
 

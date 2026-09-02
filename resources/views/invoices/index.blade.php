@@ -172,14 +172,15 @@
 								->values() ?? collect();
 							$netScope = (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
 							$milestoneOptions = $po
-								? $po->milestones->values()->map(function ($m, $index) use ($invoice, $po) {
+								? $po->milestones->values()->map(function ($m, $index) use ($invoice) {
 									$concept = $m->concept ?: ($m->payment_condition === 'contado' ? 'Contado' : 'Crédito');
-									$effectiveAmount = $m->value_type === 'porcentaje'
-										? round(((float) $po->amount * (float) $m->value) / 100, 2)
-										: (float) $m->value;
+									$paymentAmount = (float) $m->payments
+										->reject(fn ($payment) => $payment->status === 'rechazado')
+										->sum('amount');
 									return [
 										'id' => $m->id,
-										'label' => 'Hito #' . ($index + 1) . ' - ' . $concept . ' . ' . $invoice->currency . ' ' . number_format($effectiveAmount, 2),
+										'label' => 'Hito #' . ($index + 1) . ' - ' . $concept . ' . ' . $invoice->currency . ' ' . number_format($paymentAmount, 2),
+										'amount' => $paymentAmount,
 									];
 								})->all()
 								: [];
@@ -261,6 +262,8 @@
 											data-invoice-id="{{ $invoice->id }}"
 											data-invoice-folio="{{ $invoice->folio ?: ('FACT-' . $invoice->id) }}"
 											data-po-folio="{{ $po->folio ?: ('OC #' . $po->id) }}"
+											data-invoice-amount="{{ number_format((float) $invoice->amount, 2, '.', '') }}"
+											data-invoice-currency="{{ $invoice->currency }}"
 											data-current-status="{{ $invoice->status }}"
 											data-current-milestone-ids='@json($currentMilestoneIds)'
 											data-milestones='@json($milestoneOptions)'
@@ -328,6 +331,21 @@
 						<div id="modalMilestonesList" class="row g-2">
 							<div class="col-12 text-muted fs-13">No hay hitos para esta OC.</div>
 						</div>
+						<div class="border rounded p-3 bg-white mt-3" id="modalMilestoneSummary">
+							<div class="d-flex justify-content-between align-items-center gap-2">
+								<span class="text-muted fs-13">Total hitos seleccionados</span>
+								<span class="fw-semibold" id="modalMilestoneSelectedTotal">—</span>
+							</div>
+							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+								<span class="text-muted fs-13">Importe factura</span>
+								<span class="fw-semibold" id="modalMilestoneInvoiceAmount">—</span>
+							</div>
+							<div class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
+								<span class="text-muted fs-13">Diferencia</span>
+								<span class="fw-semibold" id="modalMilestoneDifference">—</span>
+							</div>
+							<div class="fs-12 mt-2" id="modalMilestoneMatchStatus"></div>
+						</div>
 					</div>
 				</div>
 				<div class="modal-footer">
@@ -388,6 +406,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	const poFolioEl = document.getElementById('modalPurchaseOrderFolio');
 	const milestonesBlock = document.getElementById('modalMilestonesBlock');
 	const milestonesList = document.getElementById('modalMilestonesList');
+	const milestoneSelectedTotalEl = document.getElementById('modalMilestoneSelectedTotal');
+	const milestoneInvoiceAmountEl = document.getElementById('modalMilestoneInvoiceAmount');
+	const milestoneDifferenceEl = document.getElementById('modalMilestoneDifference');
+	const milestoneMatchStatusEl = document.getElementById('modalMilestoneMatchStatus');
 	const exportForm = document.getElementById('invoiceExportForm');
 	const exportSubmit = document.getElementById('invoiceExportSubmit');
 
@@ -401,6 +423,38 @@ document.addEventListener('DOMContentLoaded', function () {
 				checkbox.required = false;
 			});
 		}
+	}
+
+	function formatMilestoneAmount(amount) {
+		const currency = form?.dataset.invoiceCurrency || '';
+		const formattedAmount = new Intl.NumberFormat('es-MX', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		}).format(amount);
+
+		return [currency, formattedAmount].filter(Boolean).join(' ');
+	}
+
+	function syncMilestoneSummary() {
+		if (!form || !milestoneSelectedTotalEl || !milestoneInvoiceAmountEl || !milestoneDifferenceEl || !milestoneMatchStatusEl) return;
+
+		const selectedTotal = Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked'))
+			.reduce(function (total, checkbox) {
+				return total + (Number(checkbox.dataset.amount) || 0);
+			}, 0);
+		const invoiceAmount = Number(form.dataset.invoiceAmount) || 0;
+		const difference = selectedTotal - invoiceAmount;
+		const matchesInvoice = Math.abs(difference) < 0.01;
+
+		milestoneSelectedTotalEl.textContent = formatMilestoneAmount(selectedTotal);
+		milestoneInvoiceAmountEl.textContent = formatMilestoneAmount(invoiceAmount);
+		milestoneDifferenceEl.textContent = `${difference > 0 ? '+' : difference < 0 ? '-' : ''}${formatMilestoneAmount(Math.abs(difference))}`;
+		milestoneDifferenceEl.classList.toggle('text-success', matchesInvoice);
+		milestoneDifferenceEl.classList.toggle('text-warning', !matchesInvoice);
+		milestoneMatchStatusEl.textContent = matchesInvoice
+			? 'El importe de los hitos coincide con la factura.'
+			: 'El importe de los hitos no coincide con la factura.';
+		milestoneMatchStatusEl.className = `fs-12 mt-2 ${matchesInvoice ? 'text-success' : 'text-warning'}`;
 	}
 
 	function renderMilestones(milestones, currentMilestoneIds, invoiceId) {
@@ -423,6 +477,7 @@ document.addEventListener('DOMContentLoaded', function () {
 						<input class="form-check-input" type="checkbox"
 							name="milestone_ids[]"
 							value="${milestone.id}"
+							data-amount="${milestone.amount}"
 							id="modal_milestone_${invoiceId}_${milestone.id}"
 							${checked}>
 						<label class="form-check-label fs-13" for="modal_milestone_${invoiceId}_${milestone.id}">
@@ -443,6 +498,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			const invoiceId = this.getAttribute('data-invoice-id') || '';
 			const invoiceFolio = this.getAttribute('data-invoice-folio') || '—';
 			const poFolio = this.getAttribute('data-po-folio') || '—';
+			const invoiceAmount = this.getAttribute('data-invoice-amount') || '0';
+			const invoiceCurrency = this.getAttribute('data-invoice-currency') || '';
 			const currentStatus = this.getAttribute('data-current-status') || 'en_proceso';
 			const currentMilestoneIdsJson = this.getAttribute('data-current-milestone-ids') || '[]';
 			const milestonesJson = this.getAttribute('data-milestones') || '[]';
@@ -465,10 +522,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
 			invoiceFolioEl.textContent = invoiceFolio;
 			poFolioEl.textContent = poFolio;
+			form.dataset.invoiceAmount = invoiceAmount;
+			form.dataset.invoiceCurrency = invoiceCurrency;
 			statusSelect.value = currentStatus;
 
 			renderMilestones(milestones, currentMilestoneIds, invoiceId);
 			syncMilestoneBlock();
+			syncMilestoneSummary();
 
 			modal.show();
 		});
@@ -476,6 +536,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	if (statusSelect) {
 		statusSelect.addEventListener('change', syncMilestoneBlock);
+	}
+
+	if (milestonesList) {
+		milestonesList.addEventListener('change', syncMilestoneSummary);
 	}
 
 	if (form) {

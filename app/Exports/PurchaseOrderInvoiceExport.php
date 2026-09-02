@@ -23,9 +23,11 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
     {
         return PurchaseOrderInvoice::query()
             ->with([
-                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder:id,folio,supplier_id,elaborated_by,tax_rate,isr_rate,retention_iva_rate,retention_isr_rate',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,payment_condition',
+                'purchaseOrder.items:id,purchase_order_id,quantity,unit_price',
+                'milestones.payments:id,milestone_id,payment_date',
             ])
             ->whereBetween('attached_at', [
                 Carbon::parse($this->startDate)->startOfDay(),
@@ -47,12 +49,17 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
             'Fecha carga',
             'Emisión',
             'Vencimiento',
+            'Fecha de pago',
             'Folio',
             'OC',
             'Tipo',
             'Proveedor',
             'Comprador',
             'Alcance líquido',
+            'Subtotal',
+            'IVA',
+            'Retenciones',
+            'Total',
             'Moneda',
         ];
     }
@@ -72,6 +79,13 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
             ->unique()
             ->map(fn (string $condition) => $condition === 'contado' ? 'Contado' : 'Crédito')
             ->implode(', ');
+        $paymentDates = $invoice->milestones
+            ->flatMap(fn ($milestone) => $milestone->payments)
+            ->filter(fn ($payment) => $payment->payment_date)
+            ->sortBy(fn ($payment) => $payment->payment_date->format('Y-m-d'))
+            ->map(fn ($payment) => $payment->payment_date->format('d/m/Y'))
+            ->unique()
+            ->implode(', ');
         $netScope = (float) ($invoice->net_scope ?? $invoice->amount ?? 0);
 
         return [
@@ -79,12 +93,17 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
             $invoice->attached_at?->format('d/m/Y H:i') ?? $invoice->created_at?->format('d/m/Y H:i'),
             $invoice->issue_date?->format('d/m/Y') ?? '',
             $invoice->due_date?->format('d/m/Y') ?? '',
+            $paymentDates,
             $invoice->folio ?: ('FACT-' . $invoice->id),
             $purchaseOrder?->folio ?? $purchaseOrder?->id ?? '',
             $paymentConditions,
             $supplierName ?? '',
             $purchaseOrder?->elaborated_by ?? '',
             $netScope,
+            $purchaseOrder?->subtotal ?? 0,
+            $purchaseOrder?->iva ?? 0,
+            $purchaseOrder?->additional_taxes_amount ?? 0,
+            $purchaseOrder?->total_with_iva ?? 0,
             $invoice->currency,
         ];
     }
