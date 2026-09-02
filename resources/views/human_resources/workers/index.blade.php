@@ -33,8 +33,8 @@
             <span class="text-muted fs-12">{{ $workers->total() }} registro(s) en la bandeja actual</span>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importPayrollModal"><i class="ri-upload-2-line me-1"></i> Importar nómina</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importTerminationsModal"><i class="ri-user-unfollow-line me-1"></i> Importar bajas</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importPayrollModal"><i class="ri-upload-2-line me-1"></i> Importar Trabajadores</button>
+            <!--<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importTerminationsModal"><i class="ri-user-unfollow-line me-1"></i> Importar bajas</button>-->
             <a href="{{ route('human_resources.workers.export') }}" class="btn btn-outline-secondary btn-sm"><i class="ri-download-2-line me-1"></i> Exportar</a>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createWorkerModal"><i class="ri-user-add-line me-1"></i> Nuevo trabajador</button>
         </div>
@@ -136,7 +136,49 @@
     </div>
 </div>
 
-<div class="modal fade" id="importPayrollModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.import-payroll') }}">@csrf<div class="modal-header"><h5 class="modal-title">Importar nómina</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted mb-3">Se importan número de cuenta, nombre, categoría y sueldo. La obra y fecha de alta quedan pendientes de asignación.</p><label class="form-label" for="payroll_file">Archivo CSV o Excel</label><input id="payroll_file" type="file" class="form-control" name="file" accept=".csv,.xls,.xlsx" required></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Importar</button></div></form></div></div></div>
+<div class="modal fade" id="importPayrollModal" tabindex="-1" aria-labelledby="importPayrollModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.import-payroll') }}">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importPayrollModalLabel">Importar trabajadores</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13 mb-3">El archivo debe incluir una fila de encabezados con las siguientes columnas:</p>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-sm fs-12 mb-0">
+                            <thead class="bg-light-subtle">
+                                <tr><th>Columna</th><th>Destino</th><th>Condición</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>LUGAR</code></td><td>Obra para vincular la cuadrilla</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>No. CUENTA</code></td><td>Número de cuenta</td><td class="text-danger">Requerida</td></tr>
+                                <tr><td><code>APELLDO PATERNO</code></td><td>Apellido paterno</td><td class="text-danger">Requerida</td></tr>
+                                <tr><td><code>APELLINO MATERNO</code></td><td>Apellido materno</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>NOMBRE</code></td><td>Nombre(s)</td><td class="text-danger">Requerida</td></tr>
+                                <tr><td><code>CATEGORIA</code></td><td>Categoría del puesto</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>SUELDO</code></td><td>Sueldo semanal</td><td class="text-danger">Requerida</td></tr>
+                                <tr><td><code>No. DE SEGURO SOCIAL</code></td><td>NSS</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>CURP</code></td><td>CURP</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>CUADRILLA</code></td><td>Cuadrilla vinculada a la obra</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>FECHA DE INGRESO</code></td><td>Fecha de ingreso</td><td class="text-muted">Opcional</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted fs-12 mb-3"><i class="ri-information-line me-1"></i>Si el NSS ya existe, se actualizará la información del trabajador. Sin NSS, la coincidencia se realiza por número de cuenta.</p>
+                    <label class="form-label" for="payroll_file">Archivo CSV o Excel</label>
+                    <input id="payroll_file" type="file" class="form-control" name="file" accept=".csv,.xls,.xlsx" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="importTerminationsModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.import-terminations') }}">@csrf<div class="modal-header"><h5 class="modal-title">Importar bajas</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted mb-3">Solo se registran filas de descanso con un trabajador existente; los casos no identificados se omiten.</p><label class="form-label" for="terminations_file">Archivo CSV o Excel</label><input id="terminations_file" type="file" class="form-control" name="file" accept=".csv,.xls,.xlsx" required></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Importar</button></div></form></div></div></div>
 @endsection
