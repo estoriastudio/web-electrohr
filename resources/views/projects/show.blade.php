@@ -639,9 +639,9 @@
                         </div>
                     </div>
 
-                    {{-- Valor de contrato / Moneda --}}
+                    {{-- Valor de contrato --}}
                     <div class="row g-3">
-                        <div class="col-md-8">
+                        <div class="col-12">
                             <label for="work_contract_value" class="form-label fw-medium">Valor del Contrato</label>
                             <input type="text"
                                    class="form-control @error('contract_value') is-invalid @enderror"
@@ -649,17 +649,6 @@
                                    value="{{ old('contract_value') }}"
                                    placeholder="Ej. 1,500,000.00">
                             @error('contract_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-4">
-                            <label for="work_currency" class="form-label fw-medium">Moneda</label>
-                            <select class="form-select @error('currency') is-invalid @enderror"
-                                    id="work_currency" name="currency">
-                                <option value="">— Seleccionar —</option>
-                                <option value="MXN" {{ old('currency') === 'MXN' ? 'selected' : '' }}>MXN</option>
-                                <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
-                                <option value="EUR" {{ old('currency') === 'EUR' ? 'selected' : '' }}>EUR</option>
-                            </select>
-                            @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
                 </div>

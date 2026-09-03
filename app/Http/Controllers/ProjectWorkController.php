@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Project;
 use App\Models\ProjectWork;
 use App\Models\User;
 use App\Services\NotificationService;
@@ -30,11 +31,14 @@ class ProjectWorkController extends Controller
             'contract_start_date' => 'nullable|date',
             'contract_end_date'   => 'nullable|date|after_or_equal:contract_start_date',
             'contract_value'      => 'nullable|string|max:255',
-            'currency'            => 'nullable|string|max:10',
         ]);
         $this->ensureEngineerResponsibles($validated);
 
-        $work = ProjectWork::create(array_merge($validated, ['status' => 'active']));
+        $project = Project::findOrFail($validated['project_id']);
+        $work = ProjectWork::create(array_merge($validated, [
+            'currency' => $project->currency,
+            'status'   => 'active',
+        ]));
 
         $this->notification->send([
             'type'         => 'ProjectWork',

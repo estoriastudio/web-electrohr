@@ -76,7 +76,7 @@
                                 <th>Nombre del Proyecto</th>
                                 <th>Nombre del Cliente</th>
                                 <th class="text-nowrap"># Obras</th>
-                                <th class="text-nowrap">Valor de proyecto</th>
+                                <th class="text-nowrap" style="min-width: 170px;">Valor de proyecto</th>
                                 <th class="text-nowrap">Docs</th>
                                 <th class="text-nowrap">Estatus</th>
                                 <th class="text-nowrap">Acciones</th>
@@ -117,9 +117,9 @@
                                             {{ $project->works_count }}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap" style="min-width: 170px;">
                                         <span class="fw-semibold text-dark">
-                                            $ {{ number_format((float) ($project->project_value ?? 0), 2) }}
+                                            {{ $project->currency }} {{ number_format((float) ($project->project_value ?? 0), 2) }}
                                         </span>
                                     </td>
                                     <td>
