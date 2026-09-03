@@ -130,11 +130,15 @@ class SupplierPortalController extends Controller
             ->with([
                 'purchaseOrder:id,folio,elaborated_by,supplier_id',
                 'milestones.payments' => function ($query) {
-                    $query->orderByDesc('id');
+                    $query->where('status', 'pagado')->orderByDesc('id');
                 },
             ])
             ->whereHas('purchaseOrder', function ($q) use ($supplier) {
                 $q->where('supplier_id', $supplier->id);
+            })
+            ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+            ->whereHas('milestones.payments', function ($query) {
+                $query->where('status', 'pagado');
             })
             ->orderByDesc('attached_at')
             ->orderByDesc('id')
