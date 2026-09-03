@@ -24,7 +24,6 @@
                         <th>Estatus</th>
                         <th>Fecha de carga</th>
                         <th>Fecha de emision</th>
-                        <th>Fecha de vencimiento</th>
                         <th>Folio factura</th>
                         <th>Orden de compra</th>
                         <th>Comprador</th>
@@ -62,7 +61,6 @@
                             </td>
                             <td>{{ optional($invoice->attached_at ?? $invoice->created_at)->format('d/m/Y H:i') }}</td>
                             <td>{{ optional($invoice->issue_date)->format('d/m/Y') ?: '—' }}</td>
-                            <td>{{ optional($invoice->due_date)->format('d/m/Y') ?: '—' }}</td>
                             <td class="fw-medium">{{ $invoice->folio ?: ('FACT-' . $invoice->id) }}</td>
                             <td>
                                 @if ($invoice->purchaseOrder)
@@ -90,7 +88,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">No hay facturas registradas para mostrar.</td>
+                            <td colspan="8" class="text-center text-muted py-4">No hay facturas registradas para mostrar.</td>
                         </tr>
                     @endforelse
                 </tbody>
