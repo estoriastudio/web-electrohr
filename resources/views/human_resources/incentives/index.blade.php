@@ -27,7 +27,7 @@
             <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
                 <div>
                     <h5 class="card-title mb-0">Historial de incentivos</h5>
-                    <span class="text-muted fs-12">El importe se calcula con la fórmula A–D y el sueldo de la línea de nómina.</span>
+                    <span class="text-muted fs-12">El importe se calcula según el concepto registrado.</span>
                 </div>
                 <form method="GET">
                     <select name="worker_id" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -43,10 +43,10 @@
                     <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Concepto</th><th>Fecha</th><th>Estatus</th><th>Notas</th><th class="text-end">Acciones</th></tr></thead>
                     <tbody>
                         @forelse($incentives as $incentive)
-                            @php($categoryLabel = ['overtime' => 'Tiempo extra', 'day_off_exchange' => 'Libranza', 'emergency' => 'Emergencia'][$incentive->category])
+                            @php($categoryLabel = ['incentive' => 'Incentivo', 'overtime' => 'Horas extra', 'day_off_exchange' => 'Libranza', 'emergency' => 'Emergencia'][$incentive->category] ?? $incentive->category)
                             <tr>
                                 <td><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $incentive->worker) }}">{{ $incentive->worker->first_name }} {{ $incentive->worker->last_name }}</a></td>
-                                <td>{{ $categoryLabel }} <span class="badge bg-light text-dark border">{{ $incentive->rate_type }}</span></td>
+                                <td>{{ $categoryLabel }} @if($incentive->category === 'overtime' && $incentive->overtime_hours !== null)<span class="badge bg-light text-dark border">{{ $incentive->overtime_hours }} h x ${{ number_format((float) $incentive->overtime_hourly_rate, 2) }}</span>@else<span class="badge bg-light text-dark border">{{ $incentive->rate_type }}</span>@endif</td>
                                 <td>{{ $incentive->incentive_date->format('d/m/Y') }}</td>
                                 <td><span class="badge {{ $incentive->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $incentive->status === 'active' ? 'Activo' : 'Cancelado' }}</span></td>
                                 <td class="text-muted">{{ $incentive->notes ?: '—' }}</td>

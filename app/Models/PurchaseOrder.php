@@ -31,6 +31,7 @@ class PurchaseOrder extends Model
         'isr_rate',
         'retention_iva_rate',
         'retention_isr_rate',
+            'cedular_rate',
         'status',
         'is_delivered',
         'recurrence_type',
@@ -52,6 +53,7 @@ class PurchaseOrder extends Model
         'isr_rate'              => 'decimal:4',
         'retention_iva_rate'    => 'decimal:4',
         'retention_isr_rate'    => 'decimal:4',
+            'cedular_rate'          => 'decimal:4',
         'is_destajo'            => 'boolean',
         'is_delivered'          => 'boolean',
         'recurrence_start_date' => 'date',
@@ -197,12 +199,18 @@ class PurchaseOrder extends Model
         return round($this->subtotal * ($rate / 100), 2);
     }
 
+    public function getCedularAmountAttribute(): float
+    {
+        $rate = (float) ($this->cedular_rate ?? 0);
+        return round($this->subtotal * ($rate / 100), 2);
+    }
+
     public function getAdditionalTaxesAmountAttribute(): float
     {
         return round(
             $this->isr_amount
             + $this->retention_iva_amount
-            + $this->retention_isr_amount,
+                + $this->retention_isr_amount,
             2
         );
     }
@@ -214,11 +222,29 @@ class PurchaseOrder extends Model
 
     public function getTotalWithTaxAttribute(): float
     {
-        return round($this->subtotal + $this->tax_amount - $this->additional_taxes_amount, 2);
+        return self::normalizeTotalAmount(
+            $this->subtotal
+            + $this->tax_amount
+            - $this->isr_amount
+            - $this->retention_iva_amount
+            - $this->retention_isr_amount
+            + $this->cedular_amount,
+            2
+        );
+    }
+
+    public static function normalizeTotalAmount(float $amount): float
+    {
+        $roundedAmount = round($amount, 2);
+        $cents = (int) round(($roundedAmount - floor($roundedAmount)) * 100);
+
+        return $cents >= 1 && $cents <= 9
+            ? (float) floor($roundedAmount)
+            : $roundedAmount;
     }
 
     /**
-     * Recalcula y persiste el campo `amount` a partir de los ítems (subtotal + IVA 16%).
+     * Recalcula y persiste el campo `amount` a partir de los ítems e impuestos aplicables.
      * Llamar después de crear / editar / eliminar ítems.
      */
     public function recalculateAmount(): bool
@@ -229,14 +255,18 @@ class PurchaseOrder extends Model
             $isrRate = (float) ($this->isr_rate ?? 0);
             $retentionIvaRate = (float) ($this->retention_iva_rate ?? 0);
             $retentionIsrRate = (float) ($this->retention_isr_rate ?? 0);
+            $cedularRate = (float) ($this->cedular_rate ?? 0);
 
-            $taxAmount = $subtotal * ($taxRate / 100);
-            $isrAmount = $subtotal * ($isrRate / 100);
-            $retentionIvaAmount = $subtotal * ($retentionIvaRate / 100);
-            $retentionIsrAmount = $subtotal * ($retentionIsrRate / 100);
+            $taxAmount = round($subtotal * ($taxRate / 100), 2);
+            $isrAmount = round($subtotal * ($isrRate / 100), 2);
+            $retentionIvaAmount = round($subtotal * ($retentionIvaRate / 100), 2);
+            $retentionIsrAmount = round($subtotal * ($retentionIsrRate / 100), 2);
+            $cedularAmount = round($subtotal * ($cedularRate / 100), 2);
 
             $this->update([
-                'amount' => round($subtotal + $taxAmount + $isrAmount + $retentionIvaAmount + $retentionIsrAmount, 2),
+                'amount' => self::normalizeTotalAmount(
+                    $subtotal + $taxAmount - $isrAmount - $retentionIvaAmount - $retentionIsrAmount + $cedularAmount
+                ),
             ]);
 
             return $this->syncPendingPercentageMilestonePayments();

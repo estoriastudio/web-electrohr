@@ -4,8 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjectEstimate extends Model
 {
@@ -81,18 +79,6 @@ class ProjectEstimate extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function allocations(): HasMany
-    {
-        return $this->hasMany(ProjectEstimateAllocation::class);
-    }
-
-    public function works(): BelongsToMany
-    {
-        return $this->belongsToMany(ProjectWork::class, 'project_estimate_allocations')
-            ->withPivot('estimate_amount')
-            ->withTimestamps();
     }
 
     public function getVatAmountAttribute(): float

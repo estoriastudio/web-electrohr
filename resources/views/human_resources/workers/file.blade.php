@@ -16,6 +16,8 @@
 	'medical_certificate_path' => ['label' => 'Certificado médico', 'expiration' => 'medical_certificate_expiration_date', 'worker_expiration' => true],
 	'cv_path' => ['label' => 'Currículum', 'expiration' => 'cv_expiration_date'],
 	'emergency_contact_ine_path' => ['label' => 'INE contacto de emergencia', 'expiration' => 'emergency_contact_ine_expiration_date'],
+	'professional_title_path' => ['label' => 'Título profesional (opcional)'],
+	'professional_license_path' => ['label' => 'Cédula profesional (opcional)'],
 ])
 <div class="card">
 	<div class="card-header d-flex justify-content-between align-items-center">
@@ -26,9 +28,11 @@
 		<a class="btn btn-light btn-sm" href="{{ route('human_resources.workers.show', $worker) }}">Volver al trabajador</a>
 	</div>
 	<div class="card-body">
+		@if($canManageWorkerFile)
 		<form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.file.update', $worker) }}">
 			@csrf
 			@method('PUT')
+		@endif
 			<div class="row g-3">
 				@foreach($documents as $field => $document)
 					<div class="col-lg-6">
@@ -39,19 +43,23 @@
 									<a class="btn btn-light btn-sm" href="{{ route('human_resources.workers.file.download', [$worker, $field]) }}" title="Descargar {{ $document['label'] }}"><i class="ri-download-2-line"></i></a>
 								@endif
 							</div>
-							<input id="{{ $field }}" name="{{ $field }}" type="file" accept=".pdf,.jpg,.jpeg,.png" class="form-control mb-2">
-							<label class="form-label fs-12" for="{{ $document['expiration'] }}">Fecha de vencimiento</label>
-							<input id="{{ $document['expiration'] }}" name="{{ $document['expiration'] }}" type="date" class="form-control" value="{{ old($document['expiration'], ($document['worker_expiration'] ?? false ? $worker->{$document['expiration']} : $workerFile->{$document['expiration']})?->format('Y-m-d')) }}">
+							@if($canManageWorkerFile)
+								<input id="{{ $field }}" name="{{ $field }}" type="file" accept=".pdf,.jpg,.jpeg,.png" class="form-control mb-2">
+							@endif
+							@if($canManageWorkerFile && isset($document['expiration']))
+								<label class="form-label fs-12" for="{{ $document['expiration'] }}">Fecha de vencimiento</label>
+								<input id="{{ $document['expiration'] }}" name="{{ $document['expiration'] }}" type="date" class="form-control" value="{{ old($document['expiration'], ($document['worker_expiration'] ?? false ? $worker->{$document['expiration']} : $workerFile->{$document['expiration']})?->format('Y-m-d')) }}">
+							@endif
 						</div>
 					</div>
 				@endforeach
-				<div class="col-12">
+				@if($canManageWorkerFile)<div class="col-12">
 					<label class="form-label" for="notes">Notas</label>
 					<textarea id="notes" name="notes" class="form-control" rows="3">{{ old('notes', $workerFile->notes) }}</textarea>
-				</div>
+				</div>@endif
 			</div>
-			<div class="mt-4"><button class="btn btn-primary" type="submit">Guardar expediente</button></div>
-		</form>
+			@if($canManageWorkerFile)<div class="mt-4"><button class="btn btn-primary" type="submit">Guardar expediente</button></div>@endif
+		@if($canManageWorkerFile)</form>@endif
 	</div>
 </div>
 
@@ -70,18 +78,18 @@
 						<div><span class="fw-medium">{{ $dc3->label }}</span><span class="text-muted fs-12 ms-2">Registrado {{ $dc3->created_at->format('d/m/Y') }}</span></div>
 						<div class="d-flex gap-1">
 							<a class="btn btn-light btn-sm" href="{{ route('human_resources.workers.file.dc3.download', [$worker, $dc3]) }}" title="Descargar {{ $dc3->label }}"><i class="ri-download-2-line"></i></a>
-							<form method="POST" action="{{ route('human_resources.workers.file.dc3.destroy', [$worker, $dc3]) }}" onsubmit="return confirm('¿Eliminar esta certificación DC3?')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" type="submit" title="Eliminar {{ $dc3->label }}"><i class="ri-delete-bin-line"></i></button></form>
+							@if($canManageWorkerFile)<form method="POST" action="{{ route('human_resources.workers.file.dc3.destroy', [$worker, $dc3]) }}" onsubmit="return confirm('¿Eliminar esta certificación DC3?')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" type="submit" title="Eliminar {{ $dc3->label }}"><i class="ri-delete-bin-line"></i></button></form>@endif
 						</div>
 					</div>
 				@endforeach
 			</div>
 		@endif
-		<form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.file.dc3.store', $worker) }}" class="row g-3 align-items-end">
+		@if($canManageWorkerFile)<form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.file.dc3.store', $worker) }}" class="row g-3 align-items-end">
 			@csrf
 			<div class="col-md-5"><label class="form-label" for="dc3_label">Identificador</label><input id="dc3_label" name="label" type="text" class="form-control @error('label') is-invalid @enderror" value="{{ old('label') }}" placeholder="DC3-1" required>@error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
 			<div class="col-md-5"><label class="form-label" for="dc3_file">Archivo</label><input id="dc3_file" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" class="form-control @error('file') is-invalid @enderror" required>@error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
 			<div class="col-md-2 d-grid"><button class="btn btn-primary" type="submit"><i class="ri-upload-2-line me-1"></i>Adjuntar</button></div>
-		</form>
+		</form>@endif
 	</div>
 </div>
 @endsection

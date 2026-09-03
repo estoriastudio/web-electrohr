@@ -8,7 +8,6 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -69,6 +68,62 @@ class PayrollPeriodController extends Controller
             ->with('success', 'Periodo de nómina cerrado correctamente.');
     }
 
+    public function update(Request $request, PayrollPeriod $payrollPeriod): RedirectResponse
+    {
+        if (! $this->isEditable($payrollPeriod)) {
+            return redirect()->route('human_resources.payroll-periods.index')
+                ->with('error', 'Solo se pueden editar periodos abiertos sin líneas de nómina generadas.');
+        }
+
+        $data = $request->validate([
+            'start_date' => 'required|date',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+
+        if (! $startDate->isFriday()) {
+            throw ValidationException::withMessages(['start_date' => 'El periodo de nómina debe iniciar en viernes.']);
+        }
+
+        $duplicate = PayrollPeriod::query()
+            ->where('week_number', $startDate->isoWeek())
+            ->where('year', $startDate->isoWeekYear())
+            ->whereKeyNot($payrollPeriod->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages(['start_date' => 'Ya existe un periodo para esa semana.']);
+        }
+
+        $payrollPeriod->update([
+            'week_number' => $startDate->isoWeek(),
+            'year' => $startDate->isoWeekYear(),
+            'start_date' => $startDate,
+            'end_date' => $startDate->copy()->addDays(6),
+            'cutoff_date' => $startDate->copy()->addDays(6),
+            'notes' => $data['notes'] ?? null,
+        ]);
+        $this->notify($payrollPeriod, 'update', "actualizó el periodo de nómina {$payrollPeriod->week_number}/{$payrollPeriod->year}.");
+
+        return redirect()->route('human_resources.payroll-periods.index')
+            ->with('success', 'Periodo de nómina actualizado correctamente.');
+    }
+
+    public function destroy(PayrollPeriod $payrollPeriod): RedirectResponse
+    {
+        if (! $this->isEditable($payrollPeriod)) {
+            return redirect()->route('human_resources.payroll-periods.index')
+                ->with('error', 'Solo se pueden eliminar periodos abiertos sin líneas de nómina generadas.');
+        }
+
+        $reference = "{$payrollPeriod->week_number}/{$payrollPeriod->year}";
+        $payrollPeriod->delete();
+        $this->notify($payrollPeriod, 'destroy', "eliminó el periodo de nómina {$reference}.");
+
+        return redirect()->route('human_resources.payroll-periods.index')
+            ->with('success', 'Periodo de nómina eliminado correctamente.');
+    }
+
     public function markPaid(PayrollPeriod $payrollPeriod): RedirectResponse
     {
         if ($payrollPeriod->status !== 'closed') {
@@ -81,6 +136,11 @@ class PayrollPeriodController extends Controller
 
         return redirect()->route('human_resources.payroll-periods.index')
             ->with('success', 'Periodo de nómina marcado como pagado.');
+    }
+
+    private function isEditable(PayrollPeriod $payrollPeriod): bool
+    {
+        return $payrollPeriod->status === 'open' && ! $payrollPeriod->lines()->exists();
     }
 
     private function notify(PayrollPeriod $payrollPeriod, string $action, string $data): void

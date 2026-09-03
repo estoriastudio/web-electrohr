@@ -1170,6 +1170,16 @@ class PurchaseRequestController extends Controller
             ->get()
             ->groupBy('assigned_to');
 
+        $activeOrdersByUser = PurchaseOrder::with([
+            'purchaseRequest.project',
+            'purchaseRequest.projectWork',
+        ])
+            ->whereIn('status', ['pendiente', 'emitida'])
+            ->whereHas('purchaseRequest', fn ($query) => $query->whereIn('assigned_to', $ordersUserIds))
+            ->orderByDesc('folio')
+            ->get()
+            ->groupBy(fn ($order) => $order->purchaseRequest->assigned_to);
+
         // SOLCOMs sin asignar pendientes de OC (detalle)
         $unassignedSolcoms = PurchaseRequest::with(['project', 'projectWork'])
             ->whereNull('assigned_to')
@@ -1185,6 +1195,7 @@ class PurchaseRequestController extends Controller
             'activeCounts',
             'unassignedCount',
             'pendingByUser',
+            'activeOrdersByUser',
             'unassignedSolcoms'
         ));
     }

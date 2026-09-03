@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProjectWork;
+use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProjectWorkController extends Controller
@@ -22,14 +24,15 @@ class ProjectWorkController extends Controller
         $validated = $request->validate([
             'project_id'          => 'required|exists:projects,id',
             'name'                => 'required|string|max:255',
-            'supervisor'          => 'nullable|string|max:255',
-            'resident'            => 'nullable|string|max:255',
+            'supervisor_user_id'  => 'nullable|exists:users,id',
+            'resident_user_id'    => 'nullable|exists:users,id',
             'contract_number'     => 'nullable|string|max:255',
             'contract_start_date' => 'nullable|date',
             'contract_end_date'   => 'nullable|date|after_or_equal:contract_start_date',
             'contract_value'      => 'nullable|string|max:255',
             'currency'            => 'nullable|string|max:10',
         ]);
+        $this->ensureEngineerResponsibles($validated);
 
         $work = ProjectWork::create(array_merge($validated, ['status' => 'active']));
 
@@ -49,6 +52,8 @@ class ProjectWorkController extends Controller
     {
         $projectWork->load([
             'project',
+            'supervisorUser',
+            'residentUser',
             'purchaseOrders' => function ($q) {
                 $q->with('supplier')
                   ->withCount('milestones')
@@ -61,7 +66,9 @@ class ProjectWorkController extends Controller
 
     public function edit(ProjectWork $projectWork): View
     {
-        return view('project_works.edit', compact('projectWork'));
+        $engineers = User::role('Engineer')->orderBy('name')->get(['id', 'name']);
+
+        return view('project_works.edit', compact('projectWork', 'engineers'));
     }
 
     public function update(Request $request, ProjectWork $projectWork): RedirectResponse
@@ -69,14 +76,15 @@ class ProjectWorkController extends Controller
         $validated = $request->validate([
             'name'                => 'required|string|max:255',
             'status'              => 'required|in:active,inactive',
-            'supervisor'          => 'nullable|string|max:255',
-            'resident'            => 'nullable|string|max:255',
+            'supervisor_user_id'  => 'nullable|exists:users,id',
+            'resident_user_id'    => 'nullable|exists:users,id',
             'contract_number'     => 'nullable|string|max:255',
             'contract_start_date' => 'nullable|date',
             'contract_end_date'   => 'nullable|date|after_or_equal:contract_start_date',
             'contract_value'      => 'nullable|string|max:255',
             'currency'            => 'nullable|string|max:10',
         ]);
+        $this->ensureEngineerResponsibles($validated);
 
         $projectWork->update($validated);
 
@@ -109,6 +117,21 @@ class ProjectWorkController extends Controller
 
         return redirect()->route('projects.show', $projectId)
             ->with('success', 'Obra eliminada correctamente.');
+    }
+
+    private function ensureEngineerResponsibles(array $data): void
+    {
+        foreach (['supervisor_user_id', 'resident_user_id'] as $field) {
+            if (! filled($data[$field] ?? null)) {
+                continue;
+            }
+
+            if (! User::role('Engineer')->whereKey($data[$field])->exists()) {
+                throw ValidationException::withMessages([
+                    $field => 'Selecciona un usuario con rol Engineer.',
+                ]);
+            }
+        }
     }
 }
 

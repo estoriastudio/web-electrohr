@@ -55,11 +55,11 @@ class WorkerPayrollImport implements ToCollection
                 $this->value($values, $headers['last_name_maternal']),
             ])));
 
-            if (! $firstName && ! $lastName && ! $employeeCode) {
+            if (! $firstName && ! $lastName && ! $nss) {
                 continue;
             }
 
-            if (! preg_match('/^\d+$/', $employeeCode)) {
+            if (! $nss) {
                 $this->summary['skipped']++;
                 $this->summary['warnings']++;
 
@@ -87,28 +87,25 @@ class WorkerPayrollImport implements ToCollection
                 $this->summary['warnings']++;
             }
 
-            $worker = $this->findWorker($nss, $employeeCode);
+            $worker = $this->findWorker($nss);
             $isNew = ! $worker;
-            $worker ??= new Worker(['employee_code' => $employeeCode]);
+            $worker ??= new Worker(['nss' => $nss]);
 
             if ($worker->trashed()) {
                 $worker->restore();
             }
 
             $worker->fill([
-                'employee_code' => $employeeCode,
+                'employee_code' => $employeeCode ?: null,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'position_category_id' => $this->positionCategoryId($this->value($values, $headers['position_category'])),
                 'weekly_salary' => $salary,
-                'nss' => $nss ?: null,
+                'nss' => $nss,
                 'curp' => $this->value($values, $headers['curp']) ?: null,
                 'hire_date' => $hireDate,
+                'status' => 'active',
             ]);
-
-            if ($isNew) {
-                $worker->status = 'pre_registered';
-            }
 
             $worker->save();
 
@@ -143,7 +140,7 @@ class WorkerPayrollImport implements ToCollection
         $group = $this->findIndex($headers, fn ($header) => $header === 'CUADRILLA');
         $hireDate = $this->findIndex($headers, fn ($header) => str_contains($header, 'FECHA DE INGRESO'));
 
-        if ($employeeCode === null || $firstName === null || $lastNamePaternal === null || $weeklySalary === null) {
+        if ($nss === null || $firstName === null || $lastNamePaternal === null || $weeklySalary === null) {
             return null;
         }
 
@@ -198,17 +195,9 @@ class WorkerPayrollImport implements ToCollection
         return is_numeric($normalized) ? (float) $normalized : null;
     }
 
-    private function findWorker(string $nss, string $employeeCode): ?Worker
+    private function findWorker(string $nss): ?Worker
     {
-        if ($nss !== '') {
-            $worker = Worker::withTrashed()->where('nss', $nss)->first();
-
-            if ($worker) {
-                return $worker;
-            }
-        }
-
-        return Worker::withTrashed()->where('employee_code', $employeeCode)->first();
+        return Worker::withTrashed()->where('nss', $nss)->first();
     }
 
     private function assignGroup(Worker $worker, string $place, string $groupName, ?string $hireDate): void

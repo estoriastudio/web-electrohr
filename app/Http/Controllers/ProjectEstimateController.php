@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectEstimate;
-use App\Models\ProjectWork;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProjectEstimateController extends Controller
@@ -30,21 +28,17 @@ class ProjectEstimateController extends Controller
 
     public function create(Project $project): View
     {
-        $project->load('works');
-
         return view('projects.estimates.create', compact('project'));
     }
 
     public function store(Request $request, Project $project): RedirectResponse
     {
-        [$data, $allocations] = $this->validatedData($request, $project);
+        $data = $this->validatedData($request, $project);
 
-        $estimate = DB::transaction(function () use ($project, $data, $allocations) {
+        $estimate = DB::transaction(function () use ($project, $data) {
             $estimate = $project->estimates()->create(array_merge($data, [
                 'created_by' => Auth::id(),
             ]));
-
-            $estimate->allocations()->createMany($allocations);
 
             return $estimate;
         });
@@ -66,12 +60,10 @@ class ProjectEstimateController extends Controller
         $this->ensureOwner($estimate);
 
         $project = $estimate->project;
-        [$data, $allocations] = $this->validatedData($request, $project, $estimate);
+        $data = $this->validatedData($request, $project, $estimate);
 
-        DB::transaction(function () use ($estimate, $data, $allocations) {
+        DB::transaction(function () use ($estimate, $data) {
             $estimate->update($data);
-            $estimate->allocations()->delete();
-            $estimate->allocations()->createMany($allocations);
         });
 
         $this->notification->send([
@@ -186,16 +178,6 @@ class ProjectEstimateController extends Controller
             }
         }
 
-        $request->merge([
-            'allocations' => collect($request->input('allocations', []))
-                ->map(function ($allocation) {
-                    $allocation['estimate_amount'] = str_replace(',', '', $allocation['estimate_amount'] ?? '');
-
-                    return $allocation;
-                })
-                ->all(),
-        ]);
-
         $validated = $request->validate([
             'estimate_number' => ['required', 'string', 'max:100', $estimateNumberRule],
             'estimate_date' => ['required', 'date'],
@@ -218,32 +200,7 @@ class ProjectEstimateController extends Controller
             'funeral_expense_amount' => ['nullable', 'numeric', 'min:0'],
             'delay_penalty_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'allocations' => ['required', 'array', 'min:1'],
-            'allocations.*.project_work_id' => ['required', 'integer', 'distinct', 'exists:project_works,id'],
-            'allocations.*.estimate_amount' => ['required', 'numeric', 'gt:0'],
         ]);
-
-        $workIds = collect($validated['allocations'])
-            ->pluck('project_work_id')
-            ->map(fn ($workId) => (int) $workId)
-            ->unique()
-            ->values();
-
-        if (ProjectWork::where('project_id', $project->id)->whereIn('id', $workIds)->count() !== $workIds->count()) {
-            throw ValidationException::withMessages([
-                'allocations' => 'Todas las obras seleccionadas deben pertenecer al proyecto.',
-            ]);
-        }
-
-        $allocatedCents = collect($validated['allocations'])
-            ->sum(fn ($allocation) => (int) round((float) $allocation['estimate_amount'] * 100));
-        $estimateCents = (int) round((float) $validated['estimate_amount'] * 100);
-
-        if ($allocatedCents !== $estimateCents) {
-            throw ValidationException::withMessages([
-                'allocations' => 'La suma de importes por obra debe coincidir con el importe de la estimación.',
-            ]);
-        }
 
         foreach ([
             'returned_retention_amount',
@@ -259,15 +216,7 @@ class ProjectEstimateController extends Controller
             $validated[$field] = ($validated[$field] ?? null) === '' ? 0 : ($validated[$field] ?? 0);
         }
 
-        $allocations = collect($validated['allocations'])
-            ->map(fn ($allocation) => [
-                'project_work_id' => $allocation['project_work_id'],
-                'estimate_amount' => $allocation['estimate_amount'],
-            ])
-            ->all();
-        unset($validated['allocations']);
-
-        return [$validated, $allocations];
+        return $validated;
     }
 
     private function ensureOwner(ProjectEstimate $estimate): void

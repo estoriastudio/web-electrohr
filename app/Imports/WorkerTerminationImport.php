@@ -38,16 +38,16 @@ class WorkerTerminationImport implements ToCollection
                 continue;
             }
 
-            $employeeCode = $this->value($values, $headers['employee_code']);
+            $nss = $this->value($values, $headers['nss']);
             $location = $this->normalize($this->value($values, $headers['location']));
 
-            if (! preg_match('/^\d+$/', $employeeCode) || ! $this->isRest($location)) {
+            if (! $nss || ! $this->isRest($location)) {
                 $this->summary['skipped']++;
                 $this->summary['warnings']++;
                 continue;
             }
 
-            $worker = Worker::where('employee_code', $employeeCode)->first();
+            $worker = Worker::where('nss', $nss)->first();
             $terminationDate = $this->date($this->value($values, $headers['termination_date']));
 
             if (! $worker || ! $terminationDate) {
@@ -91,18 +91,18 @@ class WorkerTerminationImport implements ToCollection
     {
         $headers = array_map(fn ($value) => $this->normalize($value), $values);
         $location = $this->findIndex($headers, fn ($header) => $header === 'LUGAR');
-        $employeeCode = $this->findIndex($headers, fn ($header) => str_contains($header, 'CUENTA'));
+        $nss = $this->findIndex($headers, fn ($header) => str_contains($header, 'SEGURO SOCIAL'));
         $positionCategory = $this->findIndex($headers, fn ($header) => $header === 'CATEGORIA');
         $salary = $this->findIndex($headers, fn ($header) => $header === 'SUELDO');
         $terminationDate = $this->findIndex($headers, fn ($header) => str_contains($header, 'DIA DE BAJA'));
         $reason = $this->findIndex($headers, fn ($header) => str_contains($header, 'PORQUE SE FUE'));
 
-        if ($location === null || $employeeCode === null || $terminationDate === null) {
+        if ($location === null || $nss === null || $terminationDate === null) {
             return null;
         }
 
-        return compact('location', 'employeeCode', 'positionCategory', 'salary', 'terminationDate', 'reason') + [
-            'employee_code' => $employeeCode,
+        return compact('location', 'nss', 'positionCategory', 'salary', 'terminationDate', 'reason') + [
+            'nss' => $nss,
             'position_category' => $positionCategory,
             'termination_date' => $terminationDate,
         ];

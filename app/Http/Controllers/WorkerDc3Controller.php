@@ -47,6 +47,7 @@ class WorkerDc3Controller extends Controller
 
     public function download(Worker $worker, WorkerDc3 $dc3): mixed
     {
+        $this->ensureWorkerAccess($worker);
         $this->ensureBelongsToWorker($worker, $dc3);
 
         abort_unless(Storage::disk('s3')->exists($dc3->file_path), 404);
@@ -76,5 +77,16 @@ class WorkerDc3Controller extends Controller
     private function ensureBelongsToWorker(Worker $worker, WorkerDc3 $dc3): void
     {
         abort_unless($dc3->worker_id === $worker->id, 404);
+    }
+
+    private function ensureWorkerAccess(Worker $worker): void
+    {
+        $user = Auth::user();
+
+        if ($user->hasAnyRole(['admin', 'Recursos Humanos'])) {
+            return;
+        }
+
+        abort_unless($worker->isAssignedToResponsibleWork($user), 403);
     }
 }

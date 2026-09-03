@@ -47,6 +47,8 @@ class IncentiveController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validatedData($request);
+        $data['status'] = 'active';
+
         try {
             $this->incentiveService->ensurePeriodOpen(new Incentive($data));
             $incentive = Incentive::create($data);
@@ -109,15 +111,34 @@ class IncentiveController extends Controller
     {
         $data = $request->validate([
             'worker_id' => 'required|exists:workers,id',
-            'category' => ['required', Rule::in(['overtime', 'day_off_exchange', 'emergency'])],
-            'rate_type' => ['required', Rule::in(['A', 'B', 'C', 'D'])],
+            'category' => ['required', Rule::in(['incentive', 'overtime', 'day_off_exchange'])],
+            'rate_type' => ['nullable', Rule::in(['A', 'B', 'C', 'D'])],
+            'overtime_hours' => 'nullable|numeric|min:0.01|max:99.99',
+            'overtime_hourly_rate' => 'nullable|numeric|min:0.01|max:99999.99',
             'incentive_date' => 'required|date',
-            'status' => ['required', Rule::in(['active', 'cancelled'])],
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        if ($data['rate_type'] === 'D' && $data['category'] !== 'overtime') {
-            throw ValidationException::withMessages(['rate_type' => 'El tipo D solo está disponible para tiempo extra.']);
+        if ($data['category'] === 'overtime') {
+            if (! $request->filled('overtime_hours') || ! $request->filled('overtime_hourly_rate')) {
+                throw ValidationException::withMessages([
+                    'overtime_hours' => 'Indica la cantidad de horas extra.',
+                    'overtime_hourly_rate' => 'Indica el valor de la hora extra.',
+                ]);
+            }
+
+            $data['rate_type'] = null;
+        } else {
+            if (! $request->filled('rate_type')) {
+                throw ValidationException::withMessages(['rate_type' => 'Selecciona un tipo de incentivo.']);
+            }
+
+            if ($data['category'] === 'day_off_exchange' && $data['rate_type'] === 'D') {
+                throw ValidationException::withMessages(['rate_type' => 'El tipo D no está disponible para libranza.']);
+            }
+
+            $data['overtime_hours'] = null;
+            $data['overtime_hourly_rate'] = null;
         }
 
         $duplicate = Incentive::query()

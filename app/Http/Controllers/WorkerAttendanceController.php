@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Incentive;
 use App\Models\Worker;
 use App\Models\WorkerAttendance;
 use App\Models\WorkerGroup;
 use App\Models\WorkerGroupMember;
 use App\Services\NotificationService;
+use App\Services\WorkerIncentiveService;
 use Carbon\Carbon;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +29,10 @@ class WorkerAttendanceController extends Controller
         'permission' => 'Permiso',
     ];
 
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private WorkerIncentiveService $incentiveService,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -52,6 +58,12 @@ class WorkerAttendanceController extends Controller
                     ->where('attended', false)
                     ->where('absence_reason', 'incapacity'),
             ])
+            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
+                $query->whereHas('projectWork', function ($projectWorkQuery) {
+                    $projectWorkQuery->where('supervisor_user_id', Auth::id())
+                        ->orWhere('resident_user_id', Auth::id());
+                });
+            })
             ->orderBy('name')
             ->get()
             ->each(function (WorkerGroup $workerGroup) {
@@ -90,6 +102,7 @@ class WorkerAttendanceController extends Controller
         $selectedDate = Carbon::parse($request->input('date', today()->toDateString()))->startOfDay()->locale('es');
         $date = $selectedDate->toDateString();
         $workerGroup->load('projectWork');
+        $this->ensureResponsibleWorkAccess($workerGroup);
 
         $members = $workerGroup->members()
             ->with('positionCategory')
@@ -106,24 +119,104 @@ class WorkerAttendanceController extends Controller
             ->whereDate('date', $date)
             ->get()
             ->keyBy('worker_id');
+        $incentives = Incentive::query()
+            ->whereIn('worker_id', $members->modelKeys())
+            ->where('status', 'active')
+            ->whereDate('incentive_date', $date)
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('worker_id');
         $previousDate = $selectedDate->copy()->subDay()->toDateString();
         $nextDate = $selectedDate->copy()->addDay()->toDateString();
         $canGoNext = $selectedDate->lt(today()->startOfDay());
+        $canAddIncentives = $selectedDate->lt(today()->startOfDay());
 
         return view('human_resources.worker-groups.attendance', compact(
             'workerGroup',
             'members',
             'attendances',
+            'incentives',
             'selectedDate',
             'date',
             'previousDate',
             'nextDate',
             'canGoNext',
+            'canAddIncentives',
         ));
+    }
+
+    public function storeGroupIncentive(Request $request, WorkerGroup $workerGroup, Worker $worker): JsonResponse
+    {
+        $this->ensureResponsibleWorkAccess($workerGroup);
+        $data = $this->validatedIncentiveData($request);
+        $incentiveDate = Carbon::parse($data['incentive_date'])->startOfDay();
+
+        if (! $incentiveDate->lt(today()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'incentive_date' => 'Los incentivos solo se pueden registrar desde asistencias de días previos.',
+            ]);
+        }
+
+        $duplicate = Incentive::query()
+            ->where('worker_id', $worker->id)
+            ->where('category', $data['category'])
+            ->where('rate_type', $data['rate_type'])
+            ->whereDate('incentive_date', $data['incentive_date'])
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'incentive_date' => 'El trabajador ya tiene ese incentivo en la fecha indicada.',
+            ]);
+        }
+
+        $this->ensureActiveMembership([
+            'worker_id' => $worker->id,
+            'worker_group_id' => $workerGroup->id,
+            'date' => $data['incentive_date'],
+        ]);
+
+        try {
+            $this->incentiveService->ensurePeriodOpen(new Incentive($data));
+            $incentive = Incentive::create($data);
+            $this->incentiveService->sync($incentive);
+        } catch (DomainException $exception) {
+            if (isset($incentive)) {
+                $incentive->delete();
+            }
+
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $this->notification->send([
+            'type' => 'Incentive',
+            'action_by' => Auth::id(),
+            'model_action' => 'create',
+            'model_id' => $incentive->id,
+            'data' => "registró un incentivo desde asistencia para {$worker->first_name} {$worker->last_name}.",
+        ]);
+
+        $labels = [
+            'incentive' => 'Incentivo',
+            'overtime' => 'Horas extra',
+            'day_off_exchange' => 'Libranza',
+        ];
+
+        return response()->json([
+            'message' => 'Incentivo registrado correctamente.',
+            'incentive' => [
+                'id' => $incentive->id,
+                'label' => $labels[$incentive->category],
+                'detail' => $incentive->category === 'overtime'
+                    ? number_format((float) $incentive->overtime_hours, 2) . ' h x $' . number_format((float) $incentive->overtime_hourly_rate, 2)
+                    : $incentive->rate_type,
+            ],
+        ]);
     }
 
     public function markGroupAttendance(Request $request, WorkerGroup $workerGroup, Worker $worker): JsonResponse
     {
+        $this->ensureResponsibleWorkAccess($workerGroup);
         $data = $request->validate([
             'date' => 'required|date',
             'attended' => 'required|boolean',
@@ -135,12 +228,6 @@ class WorkerAttendanceController extends Controller
         if (! $isAttending && blank($data['absence_reason'] ?? null)) {
             throw ValidationException::withMessages([
                 'absence_reason' => 'Selecciona el motivo de la inasistencia.',
-            ]);
-        }
-
-        if (! $isAttending && ! $request->hasFile('absence_document')) {
-            throw ValidationException::withMessages([
-                'absence_document' => 'Adjunta un comprobante para registrar la inasistencia.',
             ]);
         }
 
@@ -190,7 +277,9 @@ class WorkerAttendanceController extends Controller
             $attendance->absence_reason = null;
             $attendance->absence_document_path = null;
         } else {
-            $absenceDocumentPath = $this->storeAbsenceDocument($request, $worker->id);
+            $absenceDocumentPath = $request->hasFile('absence_document')
+                ? $this->storeAbsenceDocument($request, $worker->id)
+                : $previousDocumentPath;
             $attendance->absence_reason = $data['absence_reason'];
             $attendance->absence_document_path = $absenceDocumentPath;
         }
@@ -226,7 +315,7 @@ class WorkerAttendanceController extends Controller
         $this->ensureNoDuplicate($data);
         $this->ensureActiveMembership($data);
 
-        if (! $data['attended']) {
+        if (! $data['attended'] && $request->hasFile('absence_document')) {
             $data['absence_document_path'] = $this->storeAbsenceDocument($request, $data['worker_id']);
         }
 
@@ -331,15 +420,50 @@ class WorkerAttendanceController extends Controller
             throw ValidationException::withMessages([
                 'absence_reason' => 'Selecciona el motivo de la inasistencia.',
             ]);
-        } elseif (! $request->hasFile('absence_document') && ! $attendance?->absence_document_path) {
-            throw ValidationException::withMessages([
-                'absence_document' => 'Adjunta un comprobante para registrar la inasistencia.',
-            ]);
         }
 
         unset($data['absence_document']);
 
         return $data;
+    }
+
+    private function validatedIncentiveData(Request $request): array
+    {
+        $data = $request->validate([
+            'category' => ['required', Rule::in(['incentive', 'overtime', 'day_off_exchange'])],
+            'rate_type' => ['nullable', Rule::in(['A', 'B', 'C', 'D'])],
+            'overtime_hours' => 'nullable|numeric|min:0.01|max:99.99',
+            'overtime_hourly_rate' => 'nullable|numeric|min:0.01|max:99999.99',
+            'incentive_date' => 'required|date',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        if ($data['category'] === 'overtime') {
+            if (! $request->filled('overtime_hours') || ! $request->filled('overtime_hourly_rate')) {
+                throw ValidationException::withMessages([
+                    'overtime_hours' => 'Indica la cantidad de horas extra.',
+                    'overtime_hourly_rate' => 'Indica el valor de la hora extra.',
+                ]);
+            }
+
+            $data['rate_type'] = null;
+        } else {
+            if (! $request->filled('rate_type')) {
+                throw ValidationException::withMessages(['rate_type' => 'Selecciona un tipo de incentivo.']);
+            }
+
+            if ($data['category'] === 'day_off_exchange' && $data['rate_type'] === 'D') {
+                throw ValidationException::withMessages(['rate_type' => 'El tipo D no está disponible para libranza.']);
+            }
+
+            $data['overtime_hours'] = null;
+            $data['overtime_hourly_rate'] = null;
+        }
+
+        return $data + [
+            'worker_id' => $request->route('worker')->id,
+            'status' => 'active',
+        ];
     }
 
     private function storeAbsenceDocument(Request $request, int $workerId): string
@@ -400,6 +524,22 @@ class WorkerAttendanceController extends Controller
                 'attendance' => 'La asistencia ya forma parte de una nómina y no puede modificarse desde este módulo.',
             ]);
         }
+    }
+
+    private function requiresResponsibleWorkFilter(): bool
+    {
+        return ! Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
+    }
+
+    private function ensureResponsibleWorkAccess(WorkerGroup $workerGroup): void
+    {
+        if (! $this->requiresResponsibleWorkFilter()) {
+            return;
+        }
+
+        $workerGroup->loadMissing('projectWork');
+
+        abort_unless($workerGroup->projectWork?->isAttendanceResponsible(Auth::user()), 403);
     }
 
     private function notify(WorkerAttendance $attendance, string $action, string $data): void

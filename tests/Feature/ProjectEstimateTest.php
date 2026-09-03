@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\ProjectEstimate;
-use App\Models\ProjectWork;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,20 +22,14 @@ class ProjectEstimateTest extends TestCase
         $this->seed(RolesAndPermissionsSeeder::class);
     }
 
-    public function test_it_creates_an_estimate_for_multiple_project_works(): void
+    public function test_it_creates_an_estimate_for_the_full_project_value(): void
     {
         $project = $this->project();
-        $firstWork = $this->work($project, 'Obra norte');
-        $secondWork = $this->work($project, 'Obra sur');
         $admin = $this->admin();
 
         $this->actingAs($admin)
             ->post(route('projects.estimates.store', $project), $this->estimateData([
                 'estimate_amount' => '1,234.56',
-                'allocations' => [
-                    ['project_work_id' => $firstWork->id, 'estimate_amount' => '700.00'],
-                    ['project_work_id' => $secondWork->id, 'estimate_amount' => '534.56'],
-                ],
             ]))
             ->assertRedirect(route('projects.show', $project));
 
@@ -44,53 +37,26 @@ class ProjectEstimateTest extends TestCase
 
         $this->assertSame($project->id, $estimate->project_id);
         $this->assertSame(1234.56, (float) $estimate->estimate_amount);
-        $this->assertEqualsCanonicalizing([$firstWork->id, $secondWork->id], $estimate->allocations()->pluck('project_work_id')->all());
-        $this->assertDatabaseHas('project_estimate_allocations', [
-            'project_estimate_id' => $estimate->id,
-            'project_work_id' => $firstWork->id,
-            'estimate_amount' => 700,
-        ]);
     }
 
-    public function test_it_rejects_allocations_that_do_not_match_the_estimate_amount(): void
+    public function test_it_requires_an_estimate_amount(): void
     {
         $project = $this->project();
-        $work = $this->work($project, 'Obra norte');
 
         $this->actingAs($this->admin())
             ->from(route('projects.show', $project))
             ->post(route('projects.estimates.store', $project), $this->estimateData([
-                'estimate_amount' => '100.00',
-                'allocations' => [
-                    ['project_work_id' => $work->id, 'estimate_amount' => '99.99'],
-                ],
+                'estimate_amount' => '',
             ]))
             ->assertRedirect(route('projects.show', $project))
-            ->assertSessionHasErrors('allocations');
+            ->assertSessionHasErrors('estimate_amount');
 
         $this->assertDatabaseCount('project_estimates', 0);
-    }
-
-    public function test_it_rejects_an_allocation_for_a_work_from_another_project(): void
-    {
-        $project = $this->project();
-        $foreignWork = $this->work($this->project('Otro proyecto'), 'Obra externa');
-
-        $this->actingAs($this->admin())
-            ->from(route('projects.show', $project))
-            ->post(route('projects.estimates.store', $project), $this->estimateData([
-                'allocations' => [
-                    ['project_work_id' => $foreignWork->id, 'estimate_amount' => '100.00'],
-                ],
-            ]))
-            ->assertRedirect(route('projects.show', $project))
-            ->assertSessionHasErrors('allocations');
     }
 
     public function test_estimate_number_is_unique_per_project_but_can_be_reused_in_another_project(): void
     {
         $project = $this->project();
-        $work = $this->work($project, 'Obra norte');
         $admin = $this->admin();
         $project->estimates()->create(array_merge($this->estimateData(), [
             'created_by' => $admin->id,
@@ -98,70 +64,43 @@ class ProjectEstimateTest extends TestCase
 
         $this->actingAs($admin)
             ->from(route('projects.show', $project))
-            ->post(route('projects.estimates.store', $project), $this->estimateData([
-                'allocations' => [['project_work_id' => $work->id, 'estimate_amount' => '100.00']],
-            ]))
+            ->post(route('projects.estimates.store', $project), $this->estimateData())
             ->assertRedirect(route('projects.show', $project))
             ->assertSessionHasErrors('estimate_number');
 
         $otherProject = $this->project('Proyecto dos');
-        $otherWork = $this->work($otherProject, 'Obra sur');
 
         $this->actingAs($admin)
-            ->post(route('projects.estimates.store', $otherProject), $this->estimateData([
-                'allocations' => [['project_work_id' => $otherWork->id, 'estimate_amount' => '100.00']],
-            ]))
+            ->post(route('projects.estimates.store', $otherProject), $this->estimateData())
             ->assertRedirect(route('projects.show', $otherProject));
     }
 
-    public function test_it_replaces_allocations_when_an_estimate_is_updated(): void
+    public function test_it_updates_an_estimate_amount_for_the_project(): void
     {
         $project = $this->project();
-        $firstWork = $this->work($project, 'Obra norte');
-        $secondWork = $this->work($project, 'Obra sur');
         $creator = $this->admin();
         $estimate = $project->estimates()->create(array_merge($this->estimateData(), [
             'created_by' => $creator->id,
         ]));
-        $estimate->allocations()->create([
-            'project_work_id' => $firstWork->id,
-            'estimate_amount' => 100,
-        ]);
 
         $this->actingAs($creator)
             ->put(route('projects.estimates.update', $estimate), $this->estimateData([
-                'allocations' => [['project_work_id' => $secondWork->id, 'estimate_amount' => '100.00']],
+                'estimate_amount' => '250.00',
             ]))
             ->assertRedirect(route('projects.show', $project));
 
-        $this->assertDatabaseMissing('project_estimate_allocations', [
-            'project_estimate_id' => $estimate->id,
-            'project_work_id' => $firstWork->id,
-        ]);
-        $this->assertDatabaseHas('project_estimate_allocations', [
-            'project_estimate_id' => $estimate->id,
-            'project_work_id' => $secondWork->id,
-            'estimate_amount' => 100,
-        ]);
+        $this->assertSame(250.0, (float) $estimate->fresh()->estimate_amount);
     }
 
     public function test_only_the_creator_can_update_an_estimate(): void
     {
         $project = $this->project();
-        $work = $this->work($project, 'Obra norte');
         $creator = $this->admin();
         $estimate = $project->estimates()->create(array_merge($this->estimateData(), [
             'created_by' => $creator->id,
         ]));
-        $estimate->allocations()->create([
-            'project_work_id' => $work->id,
-            'estimate_amount' => 100,
-        ]);
-
         $this->actingAs($this->admin())
-            ->put(route('projects.estimates.update', $estimate), $this->estimateData([
-                'allocations' => [['project_work_id' => $work->id, 'estimate_amount' => '100.00']],
-            ]))
+            ->put(route('projects.estimates.update', $estimate), $this->estimateData())
             ->assertForbidden();
     }
 
@@ -170,13 +109,10 @@ class ProjectEstimateTest extends TestCase
         Storage::fake('s3');
 
         $project = $this->project();
-        $work = $this->work($project, 'Obra norte');
         $admin = $this->admin();
 
         $this->actingAs($admin)
-            ->post(route('projects.estimates.store', $project), $this->estimateData([
-                'allocations' => [['project_work_id' => $work->id, 'estimate_amount' => '100.00']],
-            ]))
+            ->post(route('projects.estimates.store', $project), $this->estimateData())
             ->assertRedirect(route('projects.show', $project));
 
         $estimate = ProjectEstimate::firstOrFail();
@@ -226,15 +162,6 @@ class ProjectEstimateTest extends TestCase
         ]);
     }
 
-    private function work(Project $project, string $name): ProjectWork
-    {
-        return ProjectWork::create([
-            'project_id' => $project->id,
-            'name' => $name,
-            'status' => 'active',
-        ]);
-    }
-
     private function admin(): User
     {
         $admin = User::factory()->create();
@@ -251,7 +178,6 @@ class ProjectEstimateTest extends TestCase
             'type' => 'estimacion',
             'estimate_amount' => '100.00',
             'status' => 'pendiente',
-            'allocations' => [],
         ], $overrides);
     }
 }

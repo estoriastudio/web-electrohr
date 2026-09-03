@@ -12,12 +12,16 @@ class Incentive extends Model
         'worker_id',
         'category',
         'rate_type',
+        'overtime_hours',
+        'overtime_hourly_rate',
         'incentive_date',
         'status',
         'notes',
     ];
 
     protected $casts = [
+        'overtime_hours' => 'decimal:2',
+        'overtime_hourly_rate' => 'decimal:2',
         'incentive_date' => 'date',
     ];
 

@@ -276,6 +276,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         });
 
+        Route::middleware('role:admin|Recursos Humanos|Engineer')
+            ->prefix('human_resources')
+            ->name('human_resources.')
+            ->group(function () {
+                Route::resource('worker-groups', WorkerGroupController::class)->only(['index', 'show']);
+                Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}/incentives', [WorkerAttendanceController::class, 'storeGroupIncentive'])->name('worker-groups.attendance.incentives.store');
+                Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['index']);
+                Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
+                Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
+                Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])->name('workers.file.download');
+                Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
+                Route::get('workers/{worker}', [WorkerController::class, 'show'])->name('workers.show');
+            });
+
         Route::middleware('role:admin|Recursos Humanos')
             ->prefix('human_resources')
             ->name('human_resources.')
@@ -283,31 +299,25 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export');
                 Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
                 Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
-                Route::resource('workers', WorkerController::class);
-                Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
+                Route::resource('workers', WorkerController::class)->except(['show']);
                 Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
                 Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
+                Route::post('workers/{worker}/reactivate', [WorkerController::class, 'reactivate'])->name('workers.reactivate');
                 Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
 
-                Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
                 Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
                 Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
-                Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])
-                    ->name('workers.file.download');
                 Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
-                Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
                 Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
 
-                Route::resource('worker-groups', WorkerGroupController::class);
+                Route::resource('worker-groups', WorkerGroupController::class)->except(['index', 'show']);
                 Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
-                Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
-                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
                 Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
                 Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
                 Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
 
                 Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
-                Route::resource('worker-attendances', WorkerAttendanceController::class);
+                Route::resource('worker-attendances', WorkerAttendanceController::class)->except(['index']);
 
                 Route::resource('worker-vacations', WorkerVacationController::class);
                 Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve');
@@ -315,7 +325,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
                 Route::resource('position-categories', PositionCategoryController::class);
 
-                Route::resource('payroll-periods', PayrollPeriodController::class)->only(['index', 'store']);
+                Route::resource('payroll-periods', PayrollPeriodController::class)->only(['index', 'store', 'update', 'destroy']);
                 Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
                 Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
 

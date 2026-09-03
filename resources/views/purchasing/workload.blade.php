@@ -30,6 +30,46 @@
         ->sortBy(fn($u) => strtolower($u->name))
         ->sortByDesc(fn($u) => (int) $activeCounts->get($u->id, 0))
         ->values();
+
+    $workloadDetails = [];
+    foreach ($summaryUsers as $u) {
+        $unlinkedDetails = $pendingByUser->get($u->id, collect())->map(function ($pr) {
+            return [
+                'type' => 'SOLCOM sin OC',
+                'folio' => 'SOLCOM #' . str_pad($pr->folio, 5, '0', STR_PAD_LEFT),
+                'description' => $pr->short_description ?? '—',
+                'project' => $pr->project?->name ?? ($pr->projectWork?->name ?? '—'),
+                'zone' => $pr->zone ?? '—',
+                'needDate' => $pr->need_date?->format('d/m/Y') ?? '—',
+                'url' => route('purchase_requests.show', $pr),
+            ];
+        });
+
+        $formatOrderDetail = function ($order) {
+            $purchaseRequest = $order->purchaseRequest;
+
+            return [
+                'type' => $order->status === 'pendiente' ? 'OC pendiente' : 'OC emitida',
+                'folio' => 'OC #' . str_pad($order->folio, 5, '0', STR_PAD_LEFT),
+                'description' => $purchaseRequest->short_description ?? '—',
+                'project' => $purchaseRequest->project?->name ?? ($purchaseRequest->projectWork?->name ?? '—'),
+                'zone' => $purchaseRequest->zone ?? '—',
+                'needDate' => $purchaseRequest->need_date?->format('d/m/Y') ?? '—',
+                'url' => route('purchase_orders.show', $order),
+            ];
+        };
+
+        $activeOrders = $activeOrdersByUser->get($u->id, collect());
+        $pendingDetails = $activeOrders->where('status', 'pendiente')->map($formatOrderDetail);
+        $issuedDetails = $activeOrders->where('status', 'emitida')->map($formatOrderDetail);
+
+        $workloadDetails[$u->id] = [
+            'name' => $u->name,
+            'active' => $unlinkedDetails->concat($pendingDetails)->concat($issuedDetails)->values(),
+            'without_order' => $unlinkedDetails->values(),
+            'pending' => $pendingDetails->values(),
+        ];
+    }
 @endphp
 
 {{-- ── Gráfico + Tabla resumen ────────────────────────────────────────────── --}}
@@ -130,7 +170,7 @@
                     <i class="ri-user-line me-2 text-primary"></i>
                     Resumen por Comprador
                 </h5>
-                <p class="text-muted fs-12 mb-0 mt-1">Click en una fila para ver el detalle</p>
+                <p class="text-muted fs-12 mb-0 mt-1">Selecciona un indicador para ver su desglose</p>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -143,7 +183,6 @@
                                 <th class="text-center">Pendientes</th>
                                 <th class="text-center">Emitidas</th>
                                 <th class="text-center">Finalizadas</th>
-                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -155,10 +194,8 @@
                                 $pendingOrders  = (int) $ordersByStatus->get('pendiente', 0);
                                 $issuedOrders   = (int) $ordersByStatus->get('emitida', 0);
                                 $completedOrders = (int) $ordersByStatus->get('autorizada', 0);
-                                $hasSolcoms = $pendingByUser->has($u->id);
                             @endphp
-                            <tr class="{{ $hasSolcoms ? 'cursor-pointer user-row' : '' }}"
-                                data-user-id="{{ $u->id }}" style="cursor: {{ $hasSolcoms ? 'pointer' : 'default' }}">
+                            <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="avatar-xs bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -175,19 +212,33 @@
                                 </td>
                                 <td class="text-center">
                                     @if ($active > 0)
-                                        <span class="badge bg-primary rounded-pill fs-12 px-2 py-1">{{ $active }}</span>
+                                        <button type="button" class="btn btn-xs btn-soft-primary workload-detail-trigger"
+                                                data-user-id="{{ $u->id }}" data-indicator="active"
+                                                aria-label="Ver carga activa de {{ $u->name }}">
+                                            {{ $active }}
+                                        </button>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="fs-13 {{ $withoutOrder > 0 ? 'fw-medium text-danger' : 'text-muted' }}">
-                                        {{ $withoutOrder ?: '—' }}
-                                    </span>
+                                    @if ($withoutOrder > 0)
+                                        <button type="button" class="btn btn-xs btn-soft-danger workload-detail-trigger"
+                                                data-user-id="{{ $u->id }}" data-indicator="without_order"
+                                                aria-label="Ver SOLCOMs sin OC de {{ $u->name }}">
+                                            {{ $withoutOrder }}
+                                        </button>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     @if ($pendingOrders > 0)
-                                        <span class="badge bg-warning-subtle text-warning fs-12 px-2 py-1">{{ $pendingOrders }}</span>
+                                        <button type="button" class="btn btn-xs btn-soft-warning workload-detail-trigger"
+                                                data-user-id="{{ $u->id }}" data-indicator="pending"
+                                                aria-label="Ver OC pendientes de {{ $u->name }}">
+                                            {{ $pendingOrders }}
+                                        </button>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
@@ -202,77 +253,7 @@
                                         {{ $completedOrders ?: '—' }}
                                     </span>
                                 </td>
-                                <td class="text-end">
-                                    @if ($hasSolcoms)
-                                    <button class="btn btn-xs btn-soft-primary toggle-detail" data-user-id="{{ $u->id }}">
-                                        <i class="ri-arrow-down-s-line" id="chevron-{{ $u->id }}"></i>
-                                    </button>
-                                    @endif
-                                </td>
                             </tr>
-
-                            {{-- Fila de detalle colapsable --}}
-                            @if ($hasSolcoms)
-                            <tr class="detail-row d-none" id="detail-{{ $u->id }}">
-                                <td colspan="7" class="p-0">
-                                    <div class="bg-light border-top border-bottom px-4 py-3">
-                                        <p class="text-muted fs-12 fw-medium mb-2">
-                                            <i class="ri-stack-line me-1"></i>
-                                            SOLCOMs sin OC — {{ $u->name }}
-                                        </p>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-bordered mb-0 bg-white">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th>Folio</th>
-                                                        <th>Descripción</th>
-                                                        <th>Proyecto</th>
-                                                        <th>Zona</th>
-                                                        <th>Fecha necesidad</th>
-                                                        <th></th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach ($pendingByUser->get($u->id) as $pr)
-                                                    @php
-                                                        $isUrgent = $pr->need_date && $pr->need_date->lte(\Carbon\Carbon::today()->addDays(5));
-                                                    @endphp
-                                                    <tr class="{{ $isUrgent ? 'table-warning' : '' }}">
-                                                        <td class="fw-medium">
-                                                            {{ str_pad($pr->folio, 5, '0', STR_PAD_LEFT) }}
-                                                            @if ($isUrgent)
-                                                                <i class="ri-alarm-warning-line text-warning ms-1" title="Urgente"></i>
-                                                            @endif
-                                                        </td>
-                                                        <td class="text-truncate" style="max-width:220px;" title="{{ $pr->short_description }}">
-                                                            {{ $pr->short_description ?? '—' }}
-                                                        </td>
-                                                        <td>{{ $pr->project?->name ?? ($pr->projectWork?->name ?? '—') }}</td>
-                                                        <td>{{ $pr->zone ?? '—' }}</td>
-                                                        <td>
-                                                            @if ($pr->need_date)
-                                                                <span class="{{ $isUrgent ? 'text-danger fw-medium' : '' }}">
-                                                                    {{ $pr->need_date->format('d/m/Y') }}
-                                                                </span>
-                                                            @else
-                                                                <span class="text-muted">—</span>
-                                                            @endif
-                                                        </td>
-                                                        <td>
-                                                            <a href="{{ route('purchase_requests.show', $pr) }}"
-                                                               class="btn btn-xs btn-soft-secondary" target="_blank">
-                                                                <i class="ri-eye-line"></i>
-                                                            </a>
-                                                        </td>
-                                                    </tr>
-                                                    @endforeach
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            @endif
 
                             @endforeach
                         </tbody>
@@ -356,12 +337,48 @@
 </div>
 @endif
 
+<div class="modal fade" id="workloadDetailModal" tabindex="-1" aria-labelledby="workloadDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="workloadDetailModalLabel">Detalle de carga</h5>
+                    <p class="text-muted fs-12 mb-0 mt-1" id="workloadDetailModalUser"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle table-hover table-centered mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Folio</th>
+                                <th>Descripción</th>
+                                <th>Proyecto</th>
+                                <th>Zona</th>
+                                <th>Fecha necesidad</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="workloadDetailBody"></tbody>
+                    </table>
+                </div>
+                <div class="d-none py-5 text-center text-muted" id="workloadDetailEmpty">
+                    No hay registros para este indicador.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
 @if ($totalActive > 0)
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const workloadDetails = @json($workloadDetails);
 
     // ── Gráfico de barras: carga activa por responsable ────────────────────
     const labels = @json($chartLabels);
@@ -413,26 +430,50 @@ document.addEventListener('DOMContentLoaded', function () {
 
     new ApexCharts(document.querySelector('#workloadChart'), opts).render();
 
-    // ── Toggle filas de detalle ─────────────────────────────────────────────
-    document.querySelectorAll('.toggle-detail').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            const userId   = this.dataset.userId;
-            const detailRow = document.getElementById('detail-' + userId);
-            const chevron   = document.getElementById('chevron-' + userId);
+    const detailModal = new bootstrap.Modal(document.getElementById('workloadDetailModal'));
+    const modalTitle = document.getElementById('workloadDetailModalLabel');
+    const modalUser = document.getElementById('workloadDetailModalUser');
+    const modalBody = document.getElementById('workloadDetailBody');
+    const modalEmpty = document.getElementById('workloadDetailEmpty');
+    const indicatorLabels = {
+        active: 'Activas',
+        without_order: 'Sin OC',
+        pending: 'Pendientes',
+    };
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+    })[character]);
 
-            detailRow.classList.toggle('d-none');
-            chevron.classList.toggle('ri-arrow-down-s-line');
-            chevron.classList.toggle('ri-arrow-up-s-line');
-        });
-    });
+    document.querySelectorAll('.workload-detail-trigger').forEach(button => {
+        button.addEventListener('click', function () {
+            const userDetail = workloadDetails[this.dataset.userId];
+            const indicator = this.dataset.indicator;
+            const details = userDetail?.[indicator] ?? [];
 
-    // También al hacer click en la fila entera
-    document.querySelectorAll('.user-row').forEach(row => {
-        row.addEventListener('click', function () {
-            const userId = this.dataset.userId;
-            const btn    = document.querySelector('.toggle-detail[data-user-id="' + userId + '"]');
-            if (btn) btn.click();
+            modalTitle.textContent = indicatorLabels[indicator] ?? 'Detalle de carga';
+            modalUser.textContent = userDetail?.name ?? '';
+            modalBody.innerHTML = details.map((detail) => `
+                <tr>
+                    <td><span class="badge bg-light text-dark border">${escapeHtml(detail.type)}</span></td>
+                    <td class="fw-medium">${escapeHtml(detail.folio)}</td>
+                    <td>${escapeHtml(detail.description)}</td>
+                    <td>${escapeHtml(detail.project)}</td>
+                    <td>${escapeHtml(detail.zone)}</td>
+                    <td>${escapeHtml(detail.needDate)}</td>
+                    <td class="text-end">
+                        <a href="${escapeHtml(detail.url)}" class="btn btn-xs btn-soft-secondary" target="_blank" aria-label="Ver ${escapeHtml(detail.folio)}">
+                            <i class="ri-eye-line"></i>
+                        </a>
+                    </td>
+                </tr>
+            `).join('');
+            modalEmpty.classList.toggle('d-none', details.length > 0);
+
+            detailModal.show();
         });
     });
 

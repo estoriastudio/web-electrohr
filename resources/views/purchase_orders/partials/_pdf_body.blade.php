@@ -170,6 +170,12 @@
                         <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->retention_isr_amount, 2) }}</td>
                     </tr>
                     @endif
+                        @if (!is_null($po->cedular_rate))
+                        <tr>
+                            <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">Impuesto cedular ({{ rtrim(rtrim(number_format((float) $po->cedular_rate, 4), '0'), '.') }}%)</td>
+                            <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($po->cedular_amount, 2) }}</td>
+                        </tr>
+                        @endif
                     <tr>
                         <td style="border: 1px solid #999; padding: 5px; font-weight: bold; background-color: #f0f0f0;">Total</td>
                         <td style="border: 1px solid #999; padding: 5px; text-align: right; font-weight: bold;">$ {{ number_format($po->total_with_iva, 2) }}</td>

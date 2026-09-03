@@ -6,18 +6,38 @@
 
 @section('content')
 @include('human_resources.partials.flash')
-<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
 	<div>
 		<h4 class="mb-1">{{ $workerGroup->name }}</h4>
-		<span class="text-muted">{{ $workerGroup->projectWork?->name }}</span>
+		<span class="text-muted"><i class="ri-building-line me-1"></i>{{ $workerGroup->projectWork?->name ?: 'Sin obra asignada' }}</span>
 	</div>
-	<div class="d-flex gap-2">
+	<div class="d-flex flex-wrap align-items-center gap-2">
+		@if($canManageWorkerGroup)
 		<a class="btn btn-outline-secondary" href="{{ route('human_resources.worker-groups.edit', $workerGroup) }}">Editar</a>
 		<button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#relocateWorkerGroupModal"><i class="ri-map-pin-line me-1"></i> Reubicar</button>
-		<a class="btn btn-primary" href="{{ route('human_resources.worker-groups.attendance', [$workerGroup, 'date' => today()->toDateString()]) }}"><i class="ri-calendar-check-line me-1"></i> Asistencia</a>
-		@if($workerGroup->status === 'active')
+		@endif
+		<a class="btn btn-primary" href="{{ route('human_resources.worker-groups.attendance', [$workerGroup, 'date' => $attendanceSummary['date']]) }}"><i class="ri-calendar-check-line me-1"></i> Abrir asistencias</a>
+		@if($canManageWorkerGroup && $workerGroup->status === 'active')
 			<a class="btn btn-primary" href="#workerGroupMemberPanel"><i class="ri-user-add-line me-1"></i> Agregar integrante</a>
 		@endif
+	</div>
+</div>
+
+<div class="row g-3 mb-3">
+	<div class="col-sm-6 col-xl">
+		<div class="card h-100"><div class="card-body"><span class="text-muted fs-12">Integrantes activos</span><h3 class="mb-0 mt-1">{{ $attendanceSummary['assigned'] }}</h3></div></div>
+	</div>
+	<div class="col-sm-6 col-xl">
+		<div class="card h-100"><div class="card-body"><span class="text-muted fs-12">Show hoy</span><h3 class="mb-0 mt-1 text-success">{{ $attendanceSummary['present'] }}</h3></div></div>
+	</div>
+	<div class="col-sm-6 col-xl">
+		<div class="card h-100"><div class="card-body"><span class="text-muted fs-12">No show hoy</span><h3 class="mb-0 mt-1 text-danger">{{ $attendanceSummary['absent'] }}</h3></div></div>
+	</div>
+	<div class="col-sm-6 col-xl">
+		<div class="card h-100"><div class="card-body"><span class="text-muted fs-12">Pendientes hoy</span><h3 class="mb-0 mt-1 {{ $attendanceSummary['pending'] > 0 ? 'text-warning' : 'text-success' }}">{{ $attendanceSummary['pending'] }}</h3></div></div>
+	</div>
+	<div class="col-sm-6 col-xl">
+		<div class="card h-100"><div class="card-body"><span class="text-muted fs-12">Cobertura hoy</span><h3 class="mb-0 mt-1 text-primary">{{ $attendanceSummary['rate'] }}%</h3><span class="text-muted fs-12">{{ today()->translatedFormat('d \d\e F') }}</span></div></div>
 	</div>
 </div>
 
@@ -25,35 +45,35 @@
 	<div class="col-12">
 		<div class="card">
 			<div class="card-header d-flex justify-content-between align-items-center">
-				<h5 class="card-title mb-0">Integrantes activos</h5>
+				<div><h5 class="card-title mb-0">Resumen de integrantes activos</h5><span class="text-muted fs-12">Personal actualmente asignado a esta cuadrilla.</span></div>
 				<span id="workerGroupMembersCount" class="badge bg-primary-subtle text-primary">{{ $workerGroup->activeMembers->count() }}</span>
 			</div>
 			<div class="table-responsive">
 				<table class="table align-middle mb-0">
-					<thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Puesto</th><th>Ingreso</th><th class="text-end">Acción</th></tr></thead>
+					<thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Puesto</th><th>Ingreso</th>@if($canManageWorkerGroup)<th class="text-end">Acción</th>@endif</tr></thead>
 					<tbody id="workerGroupMembersTbody">
 						@forelse($workerGroup->activeMembers as $member)
 							<tr class="worker-group-member-row" data-worker-id="{{ $member->id }}">
 								<td><a href="{{ route('human_resources.workers.show', $member) }}" class="text-dark">{{ $member->first_name }} {{ $member->last_name }}</a></td>
 								<td>{{ $member->positionCategory?->name ?: '—' }}</td>
 								<td>{{ $member->pivot->joined_at?->format('d/m/Y') }}</td>
-								<td class="text-end">
+								@if($canManageWorkerGroup)<td class="text-end">
 									<form class="d-inline-flex gap-2" method="POST" action="{{ route('human_resources.worker-groups.members.remove', [$workerGroup, $member]) }}">
 										@csrf
 										@method('DELETE')
 										<input type="date" name="left_at" value="{{ now()->format('Y-m-d') }}" class="form-control form-control-sm" required>
 										<button class="btn btn-sm btn-outline-danger" title="Remover"><i class="ri-user-unfollow-line"></i></button>
 									</form>
-								</td>
+								</td>@endif
 							</tr>
 						@empty
-							<tr id="workerGroupMembersEmpty"><td colspan="4" class="text-center text-muted py-4">No hay integrantes activos.</td></tr>
+							<tr id="workerGroupMembersEmpty"><td colspan="{{ $canManageWorkerGroup ? 4 : 3 }}" class="text-center text-muted py-4">No hay integrantes activos.</td></tr>
 						@endforelse
 					</tbody>
 				</table>
 			</div>
 
-			@if($workerGroup->status === 'active')
+			@if($canManageWorkerGroup && $workerGroup->status === 'active')
 				<div class="border-top px-3 py-3" id="workerGroupMemberPanel">
 					<div id="workerGroupMemberSearchState">
 						<p class="text-muted fs-12 mb-2 fw-medium"><i class="ri-user-search-line me-1 text-primary"></i>Buscar trabajador disponible</p>
@@ -95,6 +115,7 @@
 @php($selectedProjectId = old('project_id', $workerGroup->projectWork?->project_id))
 @php($selectedProjectWorkId = old('project_work_id', $workerGroup->project_work_id))
 @php($availableRelocationWorks = $selectedProjectId ? $projectWorks->where('project_id', $selectedProjectId) : collect())
+@if($canManageWorkerGroup)
 <div class="modal fade" id="relocateWorkerGroupModal" tabindex="-1" aria-labelledby="relocateWorkerGroupModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered">
 		<div class="modal-content">
@@ -135,6 +156,7 @@
 		</div>
 	</div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

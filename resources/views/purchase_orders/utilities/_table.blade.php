@@ -11,7 +11,7 @@
         : (request()->routeIs('purchase_orders.soft_deleted') ? 'trashed' : 'index');
 
     // Número de columnas para el colspan del empty-state
-    $colspan = 10 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -22,6 +22,7 @@
                 <th>Trazabilidad</th>
                 <th>Folio</th>
                 <th>Proveedor</th>
+                    <th>Comprador</th>
                 <th>Proyecto / Obra</th>
                 <th>Próx. Vencimiento</th>
                 <th>Importe</th>
@@ -45,6 +46,9 @@
                     ];
                     $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
                     $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—';
+                        $buyerName = trim((string) $order->elaborated_by) ?: 'Sin comprador asignado';
+                        $buyerGravatarHash = md5(strtolower($buyerName));
+                        $buyerGravatarUrl = "https://www.gravatar.com/avatar/{$buyerGravatarHash}?s=64&d=identicon";
                     $solcom = $order->purchaseRequest ?? null;
                     $solmat = $solcom?->materialRequest ?? null;
                     $currencyCode = strtoupper($order->currency ?? '');
@@ -213,6 +217,14 @@
                             </span>
                         @endif
                     </td>
+                    <td class="po-buyer-cell">
+                        <div class="d-flex align-items-center gap-2" title="{{ $buyerName }}">
+                            <img class="rounded-circle flex-shrink-0" width="32" height="32"
+                                 src="{{ $buyerGravatarUrl }}"
+                                 alt="{{ $buyerName }}">
+                            <span class="text-truncate fw-medium">{{ $buyerName }}</span>
+                        </div>
+                    </td>
                     <td style="max-width:160px">
                         @php
                             $proj = $order->projectRelation?->name ?? $order->project ?? null;
@@ -277,6 +289,12 @@
     <style>
     .po-orders-table-responsive {
         overflow: visible;
+        overflow-y: visible;
+    }
+
+    .po-orders-table-responsive .app-list-table {
+        table-layout: fixed;
+        width: 100%;
     }
 
     .po-orders-table-responsive .dropdown-menu {
@@ -285,6 +303,15 @@
 
     .po-supplier-cell {
         max-width: 360px;
+    }
+
+    .po-buyer-cell {
+        max-width: 210px;
+    }
+
+    .po-buyer-cell .text-truncate {
+        max-width: 160px;
+        min-width: 0;
     }
 
     .po-trace-map {
@@ -338,12 +365,7 @@
 
     @media (max-width: 1199.98px) {
         .po-orders-table-responsive {
-            overflow-x: auto;
-            overflow-y: visible;
-        }
-
-        .po-supplier-cell {
-            max-width: 260px;
+            overflow: visible;
         }
 
         .po-trace-map {

@@ -18,6 +18,11 @@
         @error('last_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-6">
+        <label class="form-label" for="nss">No. de empleado (NSS) <span class="text-danger">*</span></label>
+        <input id="nss" name="nss" type="text" class="form-control @error('nss') is-invalid @enderror" value="{{ old('nss', $worker?->nss) }}" required>
+        @error('nss')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-6">
         <label class="form-label" for="employee_code">No. de cuenta bancaria <span class="text-muted fw-normal">(opcional)</span></label>
         <input id="employee_code" name="employee_code" type="text" class="form-control @error('employee_code') is-invalid @enderror" value="{{ old('employee_code', $worker?->employee_code) }}">
         @error('employee_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -97,10 +102,6 @@
     <div class="col-md-6">
         <label class="form-label" for="emergency_contact_phone">Teléfono de emergencia <span class="text-muted fw-normal">(opcional)</span></label>
         <input id="emergency_contact_phone" name="emergency_contact_phone" type="text" class="form-control" value="{{ old('emergency_contact_phone', $worker?->emergency_contact_phone) }}">
-    </div>
-    <div class="col-md-6">
-        <label class="form-label" for="nss">NSS <span class="text-muted fw-normal">(opcional)</span></label>
-        <input id="nss" name="nss" type="text" class="form-control" value="{{ old('nss', $worker?->nss) }}">
     </div>
     <div class="col-12">
         <label class="form-label" for="notes">Notas <span class="text-muted fw-normal">(opcional)</span></label>

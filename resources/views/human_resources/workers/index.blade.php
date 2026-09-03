@@ -68,7 +68,7 @@
             <div class="col-md-5">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
-                    <input name="search" type="search" value="{{ $search }}" class="form-control" placeholder="Nombre, apodo, cuenta, puesto o cuadrilla" autocomplete="off">
+                    <input name="search" type="search" value="{{ $search }}" class="form-control" placeholder="Nombre, apodo, NSS, puesto o cuadrilla" autocomplete="off">
                 </div>
             </div>
             <div class="col-md-4">
@@ -98,7 +98,7 @@
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"><span class="fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span></div>
-                            <div><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $worker) }}">{{ $worker->last_name }}, {{ $worker->first_name }}</a><div class="text-muted fs-12">{{ $worker->employee_code ?: 'Sin número de cuenta bancaria' }}</div></div>
+                            <div><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $worker) }}">{{ $worker->last_name }}, {{ $worker->first_name }}</a><div class="text-muted fs-12">No. de empleado: {{ $worker->nss }}</div></div>
                         </div>
                     </td>
                     <td>{{ $worker->nickname ?: '—' }}</td>
@@ -154,20 +154,20 @@
                             </thead>
                             <tbody>
                                 <tr><td><code>LUGAR</code></td><td>Obra para vincular la cuadrilla</td><td class="text-muted">Opcional</td></tr>
-                                <tr><td><code>No. CUENTA</code></td><td>Número de cuenta</td><td class="text-danger">Requerida</td></tr>
+                                <tr><td><code>No. CUENTA</code></td><td>Número de cuenta</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>APELLDO PATERNO</code></td><td>Apellido paterno</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>APELLINO MATERNO</code></td><td>Apellido materno</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>NOMBRE</code></td><td>Nombre(s)</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>CATEGORIA</code></td><td>Categoría del puesto</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>SUELDO</code></td><td>Sueldo semanal</td><td class="text-danger">Requerida</td></tr>
-                                <tr><td><code>No. DE SEGURO SOCIAL</code></td><td>NSS</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>No. DE SEGURO SOCIAL</code></td><td>No. de empleado (NSS)</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>CURP</code></td><td>CURP</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>CUADRILLA</code></td><td>Cuadrilla vinculada a la obra</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>FECHA DE INGRESO</code></td><td>Fecha de ingreso</td><td class="text-muted">Opcional</td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <p class="text-muted fs-12 mb-3"><i class="ri-information-line me-1"></i>Si el NSS ya existe, se actualizará la información del trabajador. Sin NSS, la coincidencia se realiza por número de cuenta.</p>
+                    <p class="text-muted fs-12 mb-3"><i class="ri-information-line me-1"></i>El NSS es el identificador único del trabajador. Si ya existe, se actualizará su información.</p>
                     <label class="form-label" for="payroll_file">Archivo CSV o Excel</label>
                     <input id="payroll_file" type="file" class="form-control" name="file" accept=".csv,.xls,.xlsx" required>
                 </div>

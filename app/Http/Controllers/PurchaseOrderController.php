@@ -207,6 +207,7 @@ class PurchaseOrderController extends Controller
             'isr_rate'             => 'nullable|numeric|min:0|max:100',
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
+                'cedular_rate'         => 'nullable|numeric|min:0|max:100',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
@@ -319,6 +320,7 @@ class PurchaseOrderController extends Controller
         $validated['isr_rate'] = $this->normalizeOptionalRate($validated['isr_rate'] ?? null);
         $validated['retention_iva_rate'] = $this->normalizeOptionalRate($validated['retention_iva_rate'] ?? null);
         $validated['retention_isr_rate'] = $this->normalizeOptionalRate($validated['retention_isr_rate'] ?? null);
+            $validated['cedular_rate'] = $this->normalizeOptionalRate($validated['cedular_rate'] ?? null);
 
         if (empty($validated['elaborated_by'])) {
             $validated['elaborated_by'] = Auth::user()->name;
@@ -472,10 +474,12 @@ class PurchaseOrderController extends Controller
             'is_destajo'           => 'boolean',
             'supplier_id'          => 'required|exists:suppliers,id',
             'currency'             => 'required|in:MXN,USD,EUR',
+              'site'                 => 'nullable|string|max:255',
             'tax_rate'             => 'required|in:0,8,16,exempt',
             'isr_rate'             => 'nullable|numeric|min:0|max:100',
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
+              'cedular_rate'         => 'nullable|numeric|min:0|max:100',
             'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
@@ -496,6 +500,10 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate($rules);
     $validated['is_destajo'] = $request->boolean('is_destajo');
         $validated['status'] = $purchaseOrder->status;
+
+        if ($purchaseOrder->status === 'autorizada') {
+            unset($validated['site']);
+        }
 
         $selectedWorkIds = collect($validated['project_work_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -549,6 +557,7 @@ class PurchaseOrderController extends Controller
         $validated['isr_rate'] = $this->normalizeOptionalRate($validated['isr_rate'] ?? null);
         $validated['retention_iva_rate'] = $this->normalizeOptionalRate($validated['retention_iva_rate'] ?? null);
         $validated['retention_isr_rate'] = $this->normalizeOptionalRate($validated['retention_isr_rate'] ?? null);
+            $validated['cedular_rate'] = $this->normalizeOptionalRate($validated['cedular_rate'] ?? null);
 
         // Recalcular amount desde los ítems actuales (no viene del form)
         unset($validated['amount']);
@@ -557,7 +566,6 @@ class PurchaseOrderController extends Controller
             $validated['project_id']      = null;
             $validated['project_work_id'] = null;
             $validated['project']         = null;
-            $validated['site']            = null;
         } else {
             $validated['mobile_asset_id'] = null;
         }
@@ -947,12 +955,14 @@ class PurchaseOrderController extends Controller
                 'isr_amount'     => $purchaseOrder->isr_amount,
                 'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
                 'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
+                    'cedular_amount' => $purchaseOrder->cedular_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                    'cedular_rate'   => $purchaseOrder->cedular_rate,
                 'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }
@@ -994,12 +1004,14 @@ class PurchaseOrderController extends Controller
                 'isr_amount'     => $purchaseOrder->isr_amount,
                 'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
                 'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
+                    'cedular_amount' => $purchaseOrder->cedular_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                    'cedular_rate'   => $purchaseOrder->cedular_rate,
                 'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }
@@ -1029,12 +1041,14 @@ class PurchaseOrderController extends Controller
                 'isr_amount'     => $purchaseOrder->isr_amount,
                 'retention_iva_amount' => $purchaseOrder->retention_iva_amount,
                 'retention_isr_amount' => $purchaseOrder->retention_isr_amount,
+                    'cedular_amount' => $purchaseOrder->cedular_amount,
                 'total_with_iva' => $purchaseOrder->total_with_iva,
                 'amount'         => (float) $purchaseOrder->amount,
                 'tax_rate'       => $purchaseOrder->tax_rate,
                 'isr_rate'       => $purchaseOrder->isr_rate,
                 'retention_iva_rate' => $purchaseOrder->retention_iva_rate,
                 'retention_isr_rate' => $purchaseOrder->retention_isr_rate,
+                    'cedular_rate'   => $purchaseOrder->cedular_rate,
                 'percentage_milestone_payments_synchronized' => $percentageMilestonePaymentsSynchronized,
             ]);
         }

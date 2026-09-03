@@ -18,6 +18,7 @@ class WorkerExport implements FromCollection, WithHeadings, WithMapping, ShouldA
     public function headings(): array
     {
         return [
+            'No. de empleado (NSS)',
             'No. de cuenta bancaria',
             'Nombre(s)',
             'Apellidos',
@@ -32,6 +33,7 @@ class WorkerExport implements FromCollection, WithHeadings, WithMapping, ShouldA
     public function map($worker): array
     {
         return [
+            $worker->nss,
             $worker->employee_code,
             $worker->first_name,
             $worker->last_name,

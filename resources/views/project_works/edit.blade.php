@@ -71,21 +71,23 @@
                 {{-- Supervisor / Residente --}}
                 <div class="col-md-6">
                     <label for="supervisor" class="form-label fw-medium">Supervisor</label>
-                    <input type="text"
-                           class="form-control @error('supervisor') is-invalid @enderror"
-                           id="supervisor" name="supervisor"
-                           value="{{ old('supervisor', $projectWork->supervisor) }}"
-                           placeholder="Nombre del supervisor">
-                    @error('supervisor')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <select class="form-select @error('supervisor_user_id') is-invalid @enderror" id="supervisor" name="supervisor_user_id">
+                        <option value="">Sin asignar</option>
+                        @foreach($engineers as $engineer)
+                            <option value="{{ $engineer->id }}" @selected((string) old('supervisor_user_id', $projectWork->supervisor_user_id) === (string) $engineer->id)>{{ $engineer->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('supervisor_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label for="resident" class="form-label fw-medium">Residente</label>
-                    <input type="text"
-                           class="form-control @error('resident') is-invalid @enderror"
-                           id="resident" name="resident"
-                           value="{{ old('resident', $projectWork->resident) }}"
-                           placeholder="Nombre del residente">
-                    @error('resident')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <select class="form-select @error('resident_user_id') is-invalid @enderror" id="resident" name="resident_user_id">
+                        <option value="">Sin asignar</option>
+                        @foreach($engineers as $engineer)
+                            <option value="{{ $engineer->id }}" @selected((string) old('resident_user_id', $projectWork->resident_user_id) === (string) $engineer->id)>{{ $engineer->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('resident_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
                 {{-- Número de contrato --}}

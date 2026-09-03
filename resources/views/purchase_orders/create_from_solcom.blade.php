@@ -206,6 +206,7 @@
                             $oldIsrRate = old('isr_rate');
                             $oldRetentionIvaRate = old('retention_iva_rate');
                             $oldRetentionIsrRate = old('retention_isr_rate');
+                                $oldCedularRate = old('cedular_rate');
                         @endphp
                         <div class="col-md-4">
                             <label for="tax_rate" class="form-label fw-medium">Incluye impuesto <span class="text-danger">*</span></label>
@@ -223,7 +224,7 @@
                             <div class="border rounded-2 p-3 bg-light-subtle">
                                 <p class="mb-2 fw-medium fs-13">Impuestos adicionales (opcionales)</p>
                                 <div class="row g-3">
-                                    <div class="col-md-4">
+                                     <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_isr_rate"
@@ -242,7 +243,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_retention_iva_rate"
@@ -261,7 +262,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_retention_isr_rate"
@@ -279,6 +280,25 @@
                                             @error('retention_isr_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
+
+                                        <div class="col-md-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input js-extra-tax-toggle" type="checkbox"
+                                                       id="check_cedular_rate"
+                                                       data-target="cedular_rate_wrapper"
+                                                       {{ ($oldCedularRate !== null && $oldCedularRate !== '') ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="check_cedular_rate">Impuesto cedular</label>
+                                            </div>
+                                            <div id="cedular_rate_wrapper" style="display:none;">
+                                                <label for="cedular_rate" class="form-label fw-medium">Impuesto cedular (%)</label>
+                                                <input type="number" step="0.0001" min="0" max="100"
+                                                       class="form-control @error('cedular_rate') is-invalid @enderror"
+                                                       id="cedular_rate" name="cedular_rate"
+                                                       value="{{ $oldCedularRate }}"
+                                                       disabled>
+                                                @error('cedular_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
                                 </div>
                             </div>
                         </div>

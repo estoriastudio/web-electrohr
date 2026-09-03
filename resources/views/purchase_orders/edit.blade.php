@@ -117,6 +117,18 @@
                             @error('mobile_asset_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
+                            @if (in_array($purchaseOrder->status, ['pendiente', 'emitida'], true))
+                            <div class="col-12">
+                                <label for="site" class="form-label fw-medium">Dirección de Entrega</label>
+                                <input type="text" maxlength="255"
+                                       class="form-control @error('site') is-invalid @enderror"
+                                       id="site" name="site"
+                                       value="{{ old('site', $purchaseOrder->site) }}"
+                                       placeholder="Dirección de entrega para esta OC">
+                                @error('site')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            @endif
+
                         {{-- Moneda --}}
                         <div class="col-md-4">
                             <label for="currency" class="form-label fw-medium">Moneda <span class="text-danger">*</span></label>
@@ -134,6 +146,7 @@
                             $currentIsrRate = old('isr_rate', $purchaseOrder->isr_rate);
                             $currentRetentionIvaRate = old('retention_iva_rate', $purchaseOrder->retention_iva_rate);
                             $currentRetentionIsrRate = old('retention_isr_rate', $purchaseOrder->retention_isr_rate);
+                                $currentCedularRate = old('cedular_rate', $purchaseOrder->cedular_rate);
                         @endphp
                         <div class="col-md-4">
                             <label for="tax_rate" class="form-label fw-medium">Incluye impuesto <span class="text-danger">*</span></label>
@@ -150,7 +163,7 @@
                             <div class="border rounded-2 p-3 bg-light-subtle">
                                 <p class="mb-2 fw-medium fs-13">Impuestos adicionales (opcionales)</p>
                                 <div class="row g-3">
-                                    <div class="col-md-4">
+                                     <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_isr_rate"
@@ -169,7 +182,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_retention_iva_rate"
@@ -188,7 +201,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="form-check mb-2">
                                             <input class="form-check-input js-extra-tax-toggle" type="checkbox"
                                                    id="check_retention_isr_rate"
@@ -206,6 +219,25 @@
                                             @error('retention_isr_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                         </div>
                                     </div>
+
+                                        <div class="col-md-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input js-extra-tax-toggle" type="checkbox"
+                                                       id="check_cedular_rate"
+                                                       data-target="cedular_rate_wrapper"
+                                                       {{ ($currentCedularRate !== null && $currentCedularRate !== '') ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="check_cedular_rate">Impuesto cedular</label>
+                                            </div>
+                                            <div id="cedular_rate_wrapper" style="display:none;">
+                                                <label for="cedular_rate" class="form-label fw-medium">Impuesto cedular (%)</label>
+                                                <input type="number" step="0.0001" min="0" max="100"
+                                                       class="form-control @error('cedular_rate') is-invalid @enderror"
+                                                       id="cedular_rate" name="cedular_rate"
+                                                       value="{{ $currentCedularRate }}"
+                                                       disabled>
+                                                @error('cedular_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            </div>
+                                        </div>
                                 </div>
                             </div>
                         </div>

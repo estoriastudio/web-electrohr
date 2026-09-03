@@ -123,6 +123,12 @@ class WorkerIncentiveService
 
     public function amountFor(Incentive $incentive, float $baseSalary): float
     {
+        if ($incentive->category === 'overtime'
+            && $incentive->overtime_hours !== null
+            && $incentive->overtime_hourly_rate !== null) {
+            return round((float) $incentive->overtime_hours * (float) $incentive->overtime_hourly_rate, 2);
+        }
+
         $rate = data_get(config('payroll.incentive_rates'), "{$incentive->category}.{$incentive->rate_type}");
 
         if ($rate === null) {

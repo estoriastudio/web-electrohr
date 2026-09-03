@@ -61,7 +61,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      DATOS DEL CONTRATO
 ══════════════════════════════════════════════════════════════════ --}}
-@if ($projectWork->supervisor || $projectWork->resident || $projectWork->contract_number ||
+@if ($projectWork->supervisorUser || $projectWork->residentUser || $projectWork->supervisor || $projectWork->resident || $projectWork->contract_number ||
      $projectWork->contract_start_date || $projectWork->contract_end_date ||
      $projectWork->contract_value || $projectWork->currency)
 <div class="card mb-3">
@@ -75,16 +75,16 @@
     </div>
     <div class="card-body">
         <div class="row g-3">
-            @if ($projectWork->supervisor)
+            @if ($projectWork->supervisorUser || $projectWork->supervisor)
             <div class="col-md-6 col-xl-3">
                 <div class="text-muted fs-12 mb-1">Supervisor</div>
-                <div class="fw-medium fs-14"><i class="ri-user-star-line me-1 text-info"></i>{{ $projectWork->supervisor }}</div>
+                <div class="fw-medium fs-14"><i class="ri-user-star-line me-1 text-info"></i>{{ $projectWork->supervisorUser?->name ?? $projectWork->supervisor }}</div>
             </div>
             @endif
-            @if ($projectWork->resident)
+            @if ($projectWork->residentUser || $projectWork->resident)
             <div class="col-md-6 col-xl-3">
                 <div class="text-muted fs-12 mb-1">Residente</div>
-                <div class="fw-medium fs-14"><i class="ri-user-line me-1 text-info"></i>{{ $projectWork->resident }}</div>
+                <div class="fw-medium fs-14"><i class="ri-user-line me-1 text-info"></i>{{ $projectWork->residentUser?->name ?? $projectWork->resident }}</div>
             </div>
             @endif
             @if ($projectWork->contract_number)

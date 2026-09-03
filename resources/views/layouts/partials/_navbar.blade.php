@@ -131,6 +131,28 @@
             @endcan
             @endhasanyrole
 
+            @if(auth()->user()->hasRole('Engineer') && ! auth()->user()->hasAnyRole(['admin', 'Recursos Humanos']))
+            <li class="menu-title">Recursos Humanos</li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-groups.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-groups.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-team-line"></i>
+                    </span>
+                    <span class="nav-text">Cuadrillas</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-calendar-check-line"></i>
+                    </span>
+                    <span class="nav-text">Asistencias</span>
+                </a>
+            </li>
+            @endif
+
             @hasanyrole('admin|Recursos Humanos')
             <li class="menu-title">Recursos Humanos</li>
 

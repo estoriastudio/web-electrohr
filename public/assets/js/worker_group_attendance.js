@@ -8,6 +8,11 @@
     var absenceWorkerName = document.getElementById('reportAbsenceWorkerName');
     var absenceModal = absenceModalElement && window.bootstrap ? new bootstrap.Modal(absenceModalElement) : null;
     var selectedAbsenceRow = null;
+    var incentiveModalElement = document.getElementById('registerAttendanceIncentiveModal');
+    var incentiveForm = document.getElementById('registerAttendanceIncentiveForm');
+    var incentiveWorkerName = document.getElementById('registerAttendanceIncentiveWorkerName');
+    var incentiveModal = incentiveModalElement && window.bootstrap ? new bootstrap.Modal(incentiveModalElement) : null;
+    var selectedIncentiveRow = null;
 
     if (!config.markUrlBase || !config.date) {
         return;
@@ -55,7 +60,7 @@
     }
 
     function setRowLoading(row, loading) {
-        row.querySelectorAll('.js-mark-attendance, .js-report-absence').forEach(function (button) {
+        row.querySelectorAll('.js-mark-attendance, .js-report-absence, .js-add-incentive').forEach(function (button) {
             button.disabled = loading;
         });
     }
@@ -148,6 +153,112 @@
                 absenceModal.hide();
             })
             .catch(function () {});
+        });
+    }
+
+    function updateIncentiveFields() {
+        if (!incentiveForm) {
+            return;
+        }
+
+        var category = incentiveForm.querySelector('[name="category"]');
+        var rateField = incentiveForm.querySelector('[data-incentive-rate-field]');
+        var rateType = incentiveForm.querySelector('[name="rate_type"]');
+        var overtimeFields = incentiveForm.querySelectorAll('[data-overtime-field]');
+        var detailFields = incentiveForm.querySelectorAll('[data-incentive-details-field]');
+        var hasCategory = category.value !== '';
+        var isOvertime = category.value === 'overtime';
+        var allowedTypes = category.value === 'day_off_exchange' ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+
+        rateField.classList.toggle('d-none', !hasCategory || isOvertime);
+        rateType.disabled = !hasCategory || isOvertime;
+        overtimeFields.forEach(function (field) { field.classList.toggle('d-none', !isOvertime); });
+        detailFields.forEach(function (field) { field.classList.toggle('d-none', !hasCategory); });
+
+        Array.prototype.forEach.call(rateType.options, function (option) {
+            option.hidden = !allowedTypes.includes(option.value);
+        });
+
+        if (!allowedTypes.includes(rateType.value)) {
+            rateType.value = allowedTypes[0];
+        }
+    }
+
+    function renderIncentive(row, incentive) {
+        var container = row.querySelector('.js-worker-incentives');
+
+        if (!container) {
+            return;
+        }
+
+        var emptyState = container.querySelector('.js-no-incentives');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        var badge = document.createElement('span');
+        badge.className = 'badge bg-info-subtle text-info';
+        badge.textContent = incentive.label + ' ' + incentive.detail;
+        badge.title = incentive.label;
+        container.appendChild(badge);
+    }
+
+    document.querySelectorAll('.js-add-incentive').forEach(function (button) {
+        button.addEventListener('click', function () {
+            selectedIncentiveRow = button.closest('.worker-group-attendance-row');
+
+            if (!selectedIncentiveRow || !incentiveModal || !incentiveForm) {
+                return;
+            }
+
+            incentiveForm.reset();
+            incentiveWorkerName.textContent = selectedIncentiveRow.dataset.workerName;
+            updateIncentiveFields();
+            incentiveModal.show();
+        });
+    });
+
+    if (incentiveForm) {
+        incentiveForm.querySelector('[name="category"]').addEventListener('change', updateIncentiveFields);
+
+        incentiveForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            if (!selectedIncentiveRow || !config.incentiveUrlBase) {
+                return;
+            }
+
+            clearError();
+            setRowLoading(selectedIncentiveRow, true);
+
+            fetch(config.incentiveUrlBase + '/' + encodeURIComponent(selectedIncentiveRow.dataset.workerId) + '/incentives', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new FormData(incentiveForm)
+            })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok) {
+                        throw new Error(data.message || 'No fue posible registrar el incentivo.');
+                    }
+
+                    return data;
+                });
+            })
+            .then(function (data) {
+                renderIncentive(selectedIncentiveRow, data.incentive);
+                incentiveModal.hide();
+            })
+            .catch(function (error) {
+                showError(error.message);
+            })
+            .finally(function () {
+                setRowLoading(selectedIncentiveRow, false);
+            });
         });
     }
 }());

@@ -49,6 +49,7 @@ class WorkerPayrollImportTest extends TestCase
         $this->assertSame('41-91-76-0197-7', $worker->nss);
         $this->assertSame('LOOF760210HSPZRR03', $worker->curp);
         $this->assertSame('2014-02-01', $worker->hire_date->toDateString());
+        $this->assertSame('active', $worker->status);
         $this->assertSame($category->id, $worker->position_category_id);
         $this->assertSame(11000.0, (float) $worker->weekly_salary);
         $this->assertSame(1, Worker::where('nss', '41-91-76-0197-7')->count());
@@ -57,5 +58,19 @@ class WorkerPayrollImportTest extends TestCase
         $this->assertDatabaseHas('worker_groups', ['name' => 'ADMINISTRATIVO', 'project_work_id' => $secondWork->id]);
         $this->assertSame(2, $worker->groups()->count());
         $this->assertSame(1, $worker->groups()->wherePivotNull('left_at')->count());
+    }
+
+    public function test_it_skips_rows_without_an_nss(): void
+    {
+        $rows = new Collection([
+            ['LUGAR', 'No. CUENTA', 'APELLDO PATERNO', 'APELLINO MATERNO', 'NOMBRE', 'CATEGORIA', 'SUELDO', 'No. DE SEGURO SOCIAL', 'CURP', 'CUADRILLA', 'FECHA DE INGRESO'],
+            ['LUGAR NORTE', '1444396774', 'LOZA', 'OROZCO', 'FERMIN', 'GERENTE DE OBRA', '$ 10,000.00', '', 'LOOF760210HSPZRR03', 'ADMINISTRATIVO', '2/1/2014'],
+        ]);
+
+        $import = app(WorkerPayrollImport::class);
+        $import->collection($rows);
+
+        $this->assertSame(['created' => 0, 'updated' => 0, 'skipped' => 1, 'warnings' => 1], $import->summary());
+        $this->assertDatabaseCount('workers', 0);
     }
 }

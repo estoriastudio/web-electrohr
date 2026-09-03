@@ -118,4 +118,15 @@ class Worker extends Model
     {
         return $this->currentGroup()?->projectWork;
     }
+
+    public function isAssignedToResponsibleWork(User $user): bool
+    {
+        return $this->groups()
+            ->wherePivotNull('left_at')
+            ->whereHas('projectWork', function ($projectWorkQuery) use ($user) {
+                $projectWorkQuery->where('supervisor_user_id', $user->id)
+                    ->orWhere('resident_user_id', $user->id);
+            })
+            ->exists();
+    }
 }

@@ -696,6 +696,12 @@
                                 </td>
                                 <td class="text-end fw-medium" id="oc_retention_isr">${{ number_format($purchaseOrder->retention_isr_amount, 2) }}</td>
                             </tr>
+                                <tr id="oc_cedular_row" @if (is_null($purchaseOrder->cedular_rate)) style="display:none;" @endif>
+                                    <td class="text-muted fs-12" id="oc_cedular_label">
+                                        Impuesto cedular ({{ rtrim(rtrim(number_format((float) ($purchaseOrder->cedular_rate ?? 0), 4), '0'), '.') }}%)
+                                    </td>
+                                    <td class="text-end fw-medium" id="oc_cedular">${{ number_format($purchaseOrder->cedular_amount, 2) }}</td>
+                                </tr>
                             <tr class="border-top">
                                 <td class="fw-bold fs-14">Total</td>
                                 <td class="text-end fw-bold fs-14 text-primary" id="oc_total">${{ number_format($purchaseOrder->total_with_iva, 2) }}</td>
@@ -2380,6 +2386,17 @@
                 el('oc_retention_isr_label').textContent = 'Retenciones ISR (' + fmtRate(data.retention_isr_rate) + '%)';
             }
         }
+
+            if (data.cedular_amount !== undefined && el('oc_cedular')) {
+                el('oc_cedular').textContent = '$' + fmtMoney(data.cedular_amount);
+            }
+            if (data.cedular_rate !== undefined) {
+                var cedularRow = el('oc_cedular_row');
+                if (cedularRow) cedularRow.style.display = data.cedular_rate === null ? 'none' : '';
+                if (data.cedular_rate !== null && el('oc_cedular_label')) {
+                    el('oc_cedular_label').textContent = 'Impuesto cedular (' + fmtRate(data.cedular_rate) + '%)';
+                }
+            }
 
         var tot = data.total_with_iva !== undefined ? data.total_with_iva : data.total;
         if (tot !== undefined && el('oc_total')) el('oc_total').textContent = '$' + fmtMoney(tot);

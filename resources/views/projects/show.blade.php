@@ -486,10 +486,16 @@
 
                         {{-- Datos del contrato --}}
                         <div class="mb-3">
-                            @if ($work->supervisor)
+                            @if ($work->supervisorUser || $work->supervisor)
                                 <div class="text-muted fs-12 mb-1">
                                     <i class="ri-user-star-line me-1"></i>
-                                    <span class="fw-medium">Supervisor:</span> {{ $work->supervisor }}
+                                    <span class="fw-medium">Supervisor:</span> {{ $work->supervisorUser?->name ?? $work->supervisor }}
+                                </div>
+                            @endif
+                            @if ($work->residentUser || $work->resident)
+                                <div class="text-muted fs-12 mb-1">
+                                    <i class="ri-user-line me-1"></i>
+                                    <span class="fw-medium">Residente:</span> {{ $work->residentUser?->name ?? $work->resident }}
                                 </div>
                             @endif
                             @if ($work->contract_number)
@@ -582,21 +588,23 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label for="work_supervisor" class="form-label fw-medium">Supervisor</label>
-                            <input type="text"
-                                   class="form-control @error('supervisor') is-invalid @enderror"
-                                   id="work_supervisor" name="supervisor"
-                                   value="{{ old('supervisor') }}"
-                                   placeholder="Nombre del supervisor">
-                            @error('supervisor')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <select class="form-select @error('supervisor_user_id') is-invalid @enderror" id="work_supervisor" name="supervisor_user_id">
+                                <option value="">Sin asignar</option>
+                                @foreach($engineers as $engineer)
+                                    <option value="{{ $engineer->id }}" @selected((string) old('supervisor_user_id') === (string) $engineer->id)>{{ $engineer->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('supervisor_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label for="work_resident" class="form-label fw-medium">Residente</label>
-                            <input type="text"
-                                   class="form-control @error('resident') is-invalid @enderror"
-                                   id="work_resident" name="resident"
-                                   value="{{ old('resident') }}"
-                                   placeholder="Nombre del residente">
-                            @error('resident')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <select class="form-select @error('resident_user_id') is-invalid @enderror" id="work_resident" name="resident_user_id">
+                                <option value="">Sin asignar</option>
+                                @foreach($engineers as $engineer)
+                                    <option value="{{ $engineer->id }}" @selected((string) old('resident_user_id') === (string) $engineer->id)>{{ $engineer->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('resident_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
 

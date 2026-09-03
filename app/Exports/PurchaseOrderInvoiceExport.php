@@ -23,7 +23,7 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
     {
         return PurchaseOrderInvoice::query()
             ->with([
-                'purchaseOrder:id,folio,supplier_id,elaborated_by,tax_rate,isr_rate,retention_iva_rate,retention_isr_rate',
+                    'purchaseOrder:id,folio,supplier_id,elaborated_by,tax_rate,isr_rate,retention_iva_rate,retention_isr_rate,cedular_rate',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,payment_condition',
                 'purchaseOrder.items:id,purchase_order_id,quantity,unit_price',

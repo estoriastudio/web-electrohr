@@ -55,6 +55,7 @@ class WorkerController extends Controller
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($workerQuery) use ($search) {
                     $workerQuery->where('employee_code', 'like', "%{$search}%")
+                        ->orWhere('nss', 'like', "%{$search}%")
                         ->orWhere('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('nickname', 'like', "%{$search}%")
@@ -158,6 +159,9 @@ class WorkerController extends Controller
 
     public function show(Worker $worker): View
     {
+        $this->ensureWorkerAccess($worker);
+        $canManageWorker = $this->canManageWorkers();
+
         $worker->load([
             'positionCategory',
             'file',
@@ -170,7 +174,7 @@ class WorkerController extends Controller
             'attendances.workerGroup.projectWork',
         ]);
 
-        return view('human_resources.workers.show', compact('worker'));
+        return view('human_resources.workers.show', compact('worker', 'canManageWorker'));
     }
 
     public function edit(Worker $worker): View
@@ -222,21 +226,42 @@ class WorkerController extends Controller
                 ->with('error', 'No se puede activar a un trabajador dado de baja.');
         }
 
-        if (! $worker->file?->isComplete()) {
+        $isFileComplete = $worker->file?->isComplete() ?? false;
+
+        if (! $isFileComplete && ! Auth::user()?->hasRole('admin')) {
             return redirect()->route('human_resources.workers.show', $worker)
                 ->with('error', 'No se puede dar de alta hasta que el expediente esté completo.');
         }
 
         $worker->update(['status' => 'active']);
 
-        $this->notify($worker, 'update', "dio de alta al trabajador {$worker->first_name} {$worker->last_name}.");
+        $action = $isFileComplete ? 'dio de alta' : 'dio de alta sin expediente completo';
+        $this->notify($worker, 'update', "{$action} al trabajador {$worker->first_name} {$worker->last_name}.");
 
         return redirect()->route('human_resources.workers.show', $worker)
-            ->with('success', 'Trabajador dado de alta correctamente.');
+            ->with('success', $isFileComplete
+                ? 'Trabajador dado de alta correctamente.'
+                : 'Trabajador dado de alta sin expediente completo.');
+    }
+
+    public function reactivate(Worker $worker): RedirectResponse
+    {
+        if ($worker->status !== 'terminated') {
+            return redirect()->route('human_resources.workers.show', $worker)
+                ->with('error', 'Solo se puede reactivar a un trabajador dado de baja.');
+        }
+
+        $worker->update(['status' => 'active']);
+
+        $this->notify($worker, 'update', "reactivó al trabajador {$worker->first_name} {$worker->last_name}.");
+
+        return redirect()->route('human_resources.workers.show', $worker)
+            ->with('success', 'Trabajador reactivado y dado de alta correctamente.');
     }
 
     public function profilePhoto(Worker $worker): mixed
     {
+        $this->ensureWorkerAccess($worker);
         $path = $worker->profile_photo_path;
 
         abort_unless($path && Storage::disk('s3')->exists($path), 404);
@@ -251,7 +276,6 @@ class WorkerController extends Controller
                 'nullable',
                 'string',
                 'max:255',
-                Rule::unique('workers', 'employee_code')->ignore($worker?->id),
             ],
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -267,7 +291,12 @@ class WorkerController extends Controller
             'is_dc5' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:50',
-            'nss' => 'nullable|string|max:50',
+            'nss' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('workers', 'nss')->ignore($worker?->id),
+            ],
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -297,6 +326,20 @@ class WorkerController extends Controller
         if ($previousPath) {
             Storage::disk('s3')->delete($previousPath);
         }
+    }
+
+    private function canManageWorkers(): bool
+    {
+        return Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
+    }
+
+    private function ensureWorkerAccess(Worker $worker): void
+    {
+        if ($this->canManageWorkers()) {
+            return;
+        }
+
+        abort_unless($worker->isAssignedToResponsibleWork(Auth::user()), 403);
     }
 
     private function notify(object $model, string $action, string $data): void

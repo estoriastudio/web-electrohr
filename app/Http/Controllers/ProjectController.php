@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\ProjectWork;
 use App\Models\ProjectDocument;
+use App\Models\User;
 use App\Imports\ProjectImport;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -88,15 +89,16 @@ class ProjectController extends Controller
         );
         $project->loadCount('works');
         $project->load([
-            'works'     => fn ($q) => $q->withCount('purchaseOrders'),
+            'works'     => fn ($q) => $q->with(['supervisorUser', 'residentUser'])->withCount('purchaseOrders'),
             'documents',
             'agreements' => fn ($q) => $q->with('works')->latest(),
-            'estimates' => fn ($q) => $q->with(['creator', 'allocations.work'])->latest('estimate_date'),
+            'estimates' => fn ($q) => $q->with('creator')->latest('estimate_date'),
         ]);
 
         $docCategories = ProjectDocument::CATEGORIES;
+        $engineers = User::role('Engineer')->orderBy('name')->get(['id', 'name']);
 
-        return view('projects.show', compact('project', 'docCategories'));
+        return view('projects.show', compact('project', 'docCategories', 'engineers'));
     }
 
     public function edit(Project $project): View

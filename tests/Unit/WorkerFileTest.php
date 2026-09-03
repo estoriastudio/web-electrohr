@@ -13,7 +13,7 @@ class WorkerFileTest extends TestCase
 
         $this->assertFalse($workerFile->isComplete());
 
-        foreach (WorkerFile::DOCUMENT_COLUMNS as $column) {
+        foreach (WorkerFile::REQUIRED_DOCUMENT_COLUMNS as $column) {
             $workerFile->{$column} = "worker-files/1/{$column}.pdf";
         }
 

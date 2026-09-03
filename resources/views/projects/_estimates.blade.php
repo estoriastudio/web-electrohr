@@ -43,7 +43,6 @@
                         <th>EST</th>
                         <th>FACT</th>
                         <th>Archivos</th>
-                        <th>Obras aplicables</th>
                         <th class="text-end">IMP. EST</th>
                         <th class="text-end">ALCANCE LIQ.</th>
                         <th>FECHA PAGO</th>
@@ -57,10 +56,6 @@
                         @php
                             $type = $estimateTypeMap[$estimate->type] ?? ['label' => $estimate->type, 'class' => 'bg-secondary-subtle text-secondary'];
                             $status = $estimateStatusMap[$estimate->status] ?? ['label' => $estimate->status, 'class' => 'bg-secondary-subtle text-secondary'];
-                            $allocationData = $estimate->allocations->map(fn ($allocation) => [
-                                'project_work_id' => $allocation->project_work_id,
-                                'estimate_amount' => $allocation->estimate_amount,
-                            ])->values();
                         @endphp
                         <tr>
                             <td class="fw-semibold">{{ $estimate->estimate_number }}</td>
@@ -83,14 +78,6 @@
                                         @endif
                                     @endforeach
                                 </div>
-                            </td>
-                            <td style="min-width: 220px;">
-                                @foreach ($estimate->allocations as $allocation)
-                                    <div class="fs-12 {{ !$loop->last ? 'mb-1' : '' }}">
-                                        <span class="fw-medium">{{ $allocation->work->name }}</span>
-                                        <span class="text-muted">{{ $estimateCurrency }} {{ number_format((float) $allocation->estimate_amount, 2) }}</span>
-                                    </div>
-                                @endforeach
                             </td>
                             <td class="text-end fw-medium text-nowrap">{{ $estimateCurrency }} {{ number_format((float) $estimate->estimate_amount, 2) }}</td>
                             <td class="text-end fw-semibold text-success text-nowrap">{{ $estimateCurrency }} {{ number_format($estimate->liquid_amount, 2) }}</td>
@@ -125,8 +112,7 @@
                                                 data-advance-amortization-vat-amount="{{ $estimate->advance_amortization_vat_amount }}"
                                                 data-funeral-expense-amount="{{ $estimate->funeral_expense_amount }}"
                                                 data-delay-penalty-amount="{{ $estimate->delay_penalty_amount }}"
-                                                data-notes="{{ $estimate->notes }}"
-                                                data-allocations="{{ $allocationData->toJson() }}">
+                                                data-notes="{{ $estimate->notes }}">
                                             <i class="ri-edit-line"></i>
                                         </button>
                                         <form action="{{ route('projects.estimates.destroy', $estimate) }}" method="POST" onsubmit="return confirm('¿Eliminar esta estimación?')">
@@ -152,7 +138,7 @@
                 @if ($project->estimates->isNotEmpty())
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="4" class="fw-semibold">Totales: Estimaciones y Notas de Crédito</td>
+                            <td colspan="3" class="fw-semibold">Totales: Estimaciones y Notas de Crédito</td>
                             <td class="text-end fw-semibold text-nowrap">{{ $estimateCurrency }} {{ number_format($tableEstimateTotal, 2) }}</td>
                             <td class="text-end fw-semibold text-success text-nowrap">{{ $estimateCurrency }} {{ number_format($tableLiquidTotal, 2) }}</td>
                             <td colspan="4"></td>
@@ -238,19 +224,11 @@ document.addEventListener('DOMContentLoaded', function () {
             'disfp_deduction', 'apaee_deduction', 'inc_retention_amount', 'vat_retention_amount',
             'advance_amortization_amount', 'advance_amortization_vat_amount', 'funeral_expense_amount', 'delay_penalty_amount',
         ].reduce(function (total, field) { return total + inputValue(field); }, 0);
-        var allocatedTotal = Array.from(modal.querySelectorAll('.js-allocation-amount:not(:disabled)'))
-            .reduce(function (total, input) { return total + amount(input.value); }, 0);
-        var remaining = estimateAmount - allocatedTotal;
-        var remainingElement = modal.querySelector('.js-allocation-remaining');
-
         setCalculatedValue('.js-vat-amount', vatAmount);
         setCalculatedValue('.js-estimate-total', estimateTotal);
         setCalculatedValue('.js-payments-total', paymentsTotal);
         setCalculatedValue('.js-deductions-total', deductionsTotal);
         setCalculatedValue('.js-liquid-amount', paymentsTotal - deductionsTotal);
-        remainingElement.textContent = currency + ' ' + formatAmount(remaining);
-        remainingElement.classList.toggle('text-danger', Math.round(remaining * 100) !== 0);
-        remainingElement.classList.toggle('text-success', Math.round(remaining * 100) === 0);
     }
 
     ['edit'].forEach(function (prefix) {
@@ -262,30 +240,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 digitsOptional: true, allowMinus: false, rightAlign: false,
             }).mask(input);
         });
-        modal.querySelectorAll('.js-payment-amount, .js-deduction-amount, .js-allocation-amount').forEach(function (input) {
+        modal.querySelectorAll('.js-payment-amount, .js-deduction-amount').forEach(function (input) {
             input.addEventListener('input', function () { recalculateEstimate(prefix); });
         });
-        modal.querySelectorAll('.js-estimate-allocation-toggle').forEach(function (toggle) {
-            toggle.addEventListener('change', function () {
-                var allocationInput = toggle.closest('.js-estimate-allocation-row').querySelector('.js-allocation-amount');
-                allocationInput.disabled = !toggle.checked;
-                if (!toggle.checked) setMoneyValue(allocationInput, '');
-                recalculateEstimate(prefix);
-            });
-        });
-        modal.querySelector('form').addEventListener('submit', function (event) {
-            var estimateAmount = amount(document.getElementById(prefix + '_estimate_amount').value);
-            var allocatedAmount = Array.from(modal.querySelectorAll('.js-allocation-amount:not(:disabled)'))
-                .reduce(function (total, input) { return total + amount(input.value); }, 0);
-            var allocationError = modal.querySelector('.js-allocation-error');
-
-            if (Math.round(estimateAmount * 100) !== Math.round(allocatedAmount * 100)) {
-                event.preventDefault();
-                allocationError.textContent = 'La suma de importes por obra debe coincidir con el importe de la estimación.';
-                allocationError.classList.remove('d-none');
-                return;
-            }
-
+        modal.querySelector('form').addEventListener('submit', function () {
             modal.querySelectorAll('.js-estimate-money').forEach(function (input) {
                 if (input.inputmask) input.value = input.inputmask.unmaskedvalue();
             });
@@ -297,10 +255,6 @@ document.addEventListener('DOMContentLoaded', function () {
         button.addEventListener('click', function () {
             var form = document.getElementById('formEditEstimate');
             var modal = document.getElementById('modalEditEstimate');
-            var allocations = JSON.parse(this.dataset.allocations || '[]');
-            var allocationsByWork = Object.fromEntries(allocations.map(function (allocation) {
-                return [String(allocation.project_work_id), allocation.estimate_amount];
-            }));
             form.action = this.dataset.url;
             document.getElementById('edit_estimate_number').value = this.dataset.number;
             document.getElementById('edit_estimate_date').value = this.dataset.date;
@@ -317,15 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ['advance_amortization_vat_amount', 'advanceAmortizationVatAmount'],
                 ['funeral_expense_amount', 'funeralExpenseAmount'], ['delay_penalty_amount', 'delayPenaltyAmount'],
             ].forEach(function (field) { setMoneyValue(document.getElementById('edit_' + field[0]), this.dataset[field[1]] || 0); }, this);
-            modal.querySelectorAll('.js-estimate-allocation-toggle').forEach(function (toggle) {
-                var value = allocationsByWork[toggle.dataset.workId];
-                var allocationInput = toggle.closest('.js-estimate-allocation-row').querySelector('.js-allocation-amount');
-                toggle.checked = value !== undefined;
-                allocationInput.disabled = !toggle.checked;
-                setMoneyValue(allocationInput, value === undefined ? '' : value);
-            });
             document.getElementById('edit_notes').value = this.dataset.notes || '';
-            modal.querySelector('.js-allocation-error').classList.add('d-none');
             recalculateEstimate('edit');
         });
     });

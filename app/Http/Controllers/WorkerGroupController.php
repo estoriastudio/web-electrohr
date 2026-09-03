@@ -37,12 +37,27 @@ class WorkerGroupController extends Controller
             ->when($search, fn ($query) => $query->where('name', 'like', "%{$search}%"))
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($projectWorkId, fn ($query) => $query->where('project_work_id', $projectWorkId))
+            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
+                $query->whereHas('projectWork', function ($projectWorkQuery) {
+                    $projectWorkQuery->where('supervisor_user_id', Auth::id())
+                        ->orWhere('resident_user_id', Auth::id());
+                });
+            })
             ->orderBy('name')
             ->paginate(25)
             ->withQueryString();
 
-        $projects = Project::orderBy('name')->get();
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $projectWorks = ProjectWork::query()
+            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
+                $query->where('supervisor_user_id', Auth::id())
+                    ->orWhere('resident_user_id', Auth::id());
+            })
+            ->orderBy('name')
+            ->get();
+        $projects = Project::query()
+            ->whereIn('id', $projectWorks->pluck('project_id'))
+            ->orderBy('name')
+            ->get();
 
         return view('human_resources.worker-groups.index', compact('workerGroups', 'projects', 'projectWorks', 'search', 'status', 'projectWorkId'));
     }
@@ -65,11 +80,35 @@ class WorkerGroupController extends Controller
     public function show(WorkerGroup $workerGroup): View
     {
         $workerGroup->load(['projectWork', 'activeMembers.positionCategory', 'attendances.worker']);
+        $this->ensureResponsibleWorkAccess($workerGroup);
 
-        $projects = Project::orderBy('name')->get();
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $attendanceDate = today()->toDateString();
+        $attendanceSummary = [
+            'date' => $attendanceDate,
+            'assigned' => $workerGroup->activeMembers->count(),
+            'present' => $workerGroup->attendances()->whereDate('date', $attendanceDate)->where('attended', true)->count(),
+            'absent' => $workerGroup->attendances()->whereDate('date', $attendanceDate)->where('attended', false)->count(),
+        ];
+        $attendanceSummary['recorded'] = $attendanceSummary['present'] + $attendanceSummary['absent'];
+        $attendanceSummary['pending'] = max(0, $attendanceSummary['assigned'] - $attendanceSummary['recorded']);
+        $attendanceSummary['rate'] = $attendanceSummary['assigned'] > 0
+            ? round(($attendanceSummary['present'] / $attendanceSummary['assigned']) * 100)
+            : 0;
 
-        return view('human_resources.worker-groups.show', compact('workerGroup', 'projects', 'projectWorks'));
+        $canManageWorkerGroup = ! $this->requiresResponsibleWorkFilter();
+        $projectWorks = ProjectWork::query()
+            ->when(! $canManageWorkerGroup, function ($query) {
+                $query->where('supervisor_user_id', Auth::id())
+                    ->orWhere('resident_user_id', Auth::id());
+            })
+            ->orderBy('name')
+            ->get();
+        $projects = Project::query()
+            ->whereIn('id', $projectWorks->pluck('project_id'))
+            ->orderBy('name')
+            ->get();
+
+        return view('human_resources.worker-groups.show', compact('workerGroup', 'projects', 'projectWorks', 'canManageWorkerGroup', 'attendanceSummary'));
     }
 
     public function edit(WorkerGroup $workerGroup): View
@@ -147,16 +186,16 @@ class WorkerGroupController extends Controller
             ->where(function ($query) use ($search) {
                 $query->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('employee_code', 'like', "%{$search}%");
+                    ->orWhere('nss', 'like', "%{$search}%");
             })
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->limit(20)
             ->with('positionCategory:id,name')
-            ->get(['id', 'employee_code', 'first_name', 'last_name', 'position_category_id'])
+            ->get(['id', 'nss', 'first_name', 'last_name', 'position_category_id'])
             ->map(fn (Worker $worker) => [
                 'id' => $worker->id,
-                'employee_code' => $worker->employee_code,
+                'nss' => $worker->nss,
                 'first_name' => $worker->first_name,
                 'last_name' => $worker->last_name,
                 'position_category_name' => $worker->positionCategory?->name,
@@ -268,5 +307,19 @@ class WorkerGroupController extends Controller
             'model_id' => $workerGroup->id,
             'data' => $data,
         ]);
+    }
+
+    private function requiresResponsibleWorkFilter(): bool
+    {
+        return ! Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
+    }
+
+    private function ensureResponsibleWorkAccess(WorkerGroup $workerGroup): void
+    {
+        if (! $this->requiresResponsibleWorkFilter()) {
+            return;
+        }
+
+        abort_unless($workerGroup->projectWork?->isAttendanceResponsible(Auth::user()), 403);
     }
 }
