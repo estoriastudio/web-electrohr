@@ -85,45 +85,41 @@
                             <td><span class="badge {{ $status['class'] }} py-1 px-2 fs-12">{{ $status['label'] }}</span></td>
                             <td><span class="badge {{ $type['class'] }} py-1 px-2 fs-12">{{ $type['label'] }}</span></td>
                             <td>
-                                @if ((int) auth()->id() === (int) $estimate->created_by)
-                                    <div class="d-flex justify-content-end gap-2">
-                                        <button type="button" class="btn btn-soft-secondary btn-sm"
-                                                title="Gestionar archivos" data-bs-toggle="modal"
-                                                data-bs-target="#modalEstimateDocuments{{ $estimate->id }}">
-                                            <i class="ri-attachment-2"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-soft-primary btn-sm js-edit-estimate"
-                                                title="Editar estimación" data-bs-toggle="modal" data-bs-target="#modalEditEstimate"
-                                                data-url="{{ route('projects.estimates.update', $estimate) }}"
-                                                data-number="{{ $estimate->estimate_number }}"
-                                                data-date="{{ $estimate->estimate_date->format('Y-m-d') }}"
-                                                data-type="{{ $estimate->type }}"
-                                                data-invoice-number="{{ $estimate->invoice_number }}"
-                                                data-invoice-date="{{ $estimate->invoice_date?->format('Y-m-d') }}"
-                                                data-payment-date="{{ $estimate->payment_date?->format('Y-m-d') }}"
-                                                data-status="{{ $estimate->status }}"
-                                                data-estimate-amount="{{ $estimate->estimate_amount }}"
-                                                data-returned-retention-amount="{{ $estimate->returned_retention_amount }}"
-                                                data-disfp-deduction="{{ $estimate->disfp_deduction }}"
-                                                data-apaee-deduction="{{ $estimate->apaee_deduction }}"
-                                                data-inc-retention-amount="{{ $estimate->inc_retention_amount }}"
-                                                data-vat-retention-amount="{{ $estimate->vat_retention_amount }}"
-                                                data-advance-amortization-amount="{{ $estimate->advance_amortization_amount }}"
-                                                data-advance-amortization-vat-amount="{{ $estimate->advance_amortization_vat_amount }}"
-                                                data-funeral-expense-amount="{{ $estimate->funeral_expense_amount }}"
-                                                data-delay-penalty-amount="{{ $estimate->delay_penalty_amount }}"
-                                                data-notes="{{ $estimate->notes }}">
-                                            <i class="ri-edit-line"></i>
-                                        </button>
-                                        <form action="{{ route('projects.estimates.destroy', $estimate) }}" method="POST" onsubmit="return confirm('¿Eliminar esta estimación?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar estimación"><i class="ri-delete-bin-line"></i></button>
-                                        </form>
-                                    </div>
-                                @else
-                                    <span class="text-muted d-block text-end">—</span>
-                                @endif
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-soft-secondary btn-sm"
+                                            title="Gestionar archivos" data-bs-toggle="modal"
+                                            data-bs-target="#modalEstimateDocuments{{ $estimate->id }}">
+                                        <i class="ri-attachment-2"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-soft-primary btn-sm js-edit-estimate"
+                                            title="Editar estimación" data-bs-toggle="modal" data-bs-target="#modalEditEstimate"
+                                            data-url="{{ route('projects.estimates.update', $estimate) }}"
+                                            data-number="{{ $estimate->estimate_number }}"
+                                            data-date="{{ $estimate->estimate_date->format('Y-m-d') }}"
+                                            data-type="{{ $estimate->type }}"
+                                            data-invoice-number="{{ $estimate->invoice_number }}"
+                                            data-invoice-date="{{ $estimate->invoice_date?->format('Y-m-d') }}"
+                                            data-payment-date="{{ $estimate->payment_date?->format('Y-m-d') }}"
+                                            data-status="{{ $estimate->status }}"
+                                            data-estimate-amount="{{ $estimate->estimate_amount }}"
+                                            data-returned-retention-amount="{{ $estimate->returned_retention_amount }}"
+                                            data-disfp-deduction="{{ $estimate->disfp_deduction }}"
+                                            data-apaee-deduction="{{ $estimate->apaee_deduction }}"
+                                            data-inc-retention-amount="{{ $estimate->inc_retention_amount }}"
+                                            data-vat-retention-amount="{{ $estimate->vat_retention_amount }}"
+                                            data-advance-amortization-amount="{{ $estimate->advance_amortization_amount }}"
+                                            data-advance-amortization-vat-amount="{{ $estimate->advance_amortization_vat_amount }}"
+                                            data-funeral-expense-amount="{{ $estimate->funeral_expense_amount }}"
+                                            data-delay-penalty-amount="{{ $estimate->delay_penalty_amount }}"
+                                            data-notes="{{ $estimate->notes }}">
+                                        <i class="ri-edit-line"></i>
+                                    </button>
+                                    <form action="{{ route('projects.estimates.destroy', $estimate) }}" method="POST" onsubmit="return confirm('¿Eliminar esta estimación?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar estimación"><i class="ri-delete-bin-line"></i></button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @empty
