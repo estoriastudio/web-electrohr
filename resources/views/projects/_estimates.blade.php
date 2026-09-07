@@ -157,22 +157,22 @@
 </div>
 
 <div class="modal fade" id="modalEditEstimate" tabindex="-1" aria-labelledby="modalEditEstimateLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"><div class="modal-content">
-        <form id="formEditEstimate" action="" method="POST">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <form id="formEditEstimate" action="" method="POST" class="h-100">
+            <div class="modal-content">
             @csrf
             @method('PUT')
             <input type="hidden" name="estimate_form" value="edit">
             <div class="modal-header"><h5 class="modal-title" id="modalEditEstimateLabel"><i class="ri-edit-line me-1"></i> Editar estimación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">@include('estimates._form', ['prefix' => 'edit', 'estimate' => null])</div>
             <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Guardar cambios</button></div>
+            </div>
         </form>
-    </div></div>
+    </div>
 </div>
 
 @foreach ($project->estimates as $estimate)
-    @if ((int) auth()->id() === (int) $estimate->created_by)
-        @include('estimates._documents_modal', ['estimate' => $estimate])
-    @endif
+    @include('estimates._documents_modal', ['estimate' => $estimate])
 @endforeach
 
 @push('scripts')
