@@ -152,6 +152,38 @@ class ProjectEstimateTest extends TestCase
         Storage::disk('s3')->assertExists($estimate->invoice_pdf_path);
     }
 
+    public function test_an_authorized_user_can_upload_the_first_document_for_another_users_estimate(): void
+    {
+        Storage::fake('s3');
+
+        $project = $this->project();
+        $estimate = $project->estimates()->create(array_merge($this->estimateData(), [
+            'created_by' => $this->admin()->id,
+        ]));
+
+        $this->actingAs($this->admin())
+            ->put(route('projects.estimates.documents.update', $estimate), [
+                'invoice_pdf' => UploadedFile::fake()->create('factura.pdf', 10, 'application/pdf'),
+            ])
+            ->assertRedirect(route('projects.show', $project));
+
+        Storage::disk('s3')->assertExists($estimate->fresh()->invoice_pdf_path);
+    }
+
+    public function test_an_authorized_user_can_delete_another_users_estimate(): void
+    {
+        $project = $this->project();
+        $estimate = $project->estimates()->create(array_merge($this->estimateData(), [
+            'created_by' => $this->admin()->id,
+        ]));
+
+        $this->actingAs($this->admin())
+            ->delete(route('projects.estimates.destroy', $estimate))
+            ->assertRedirect(route('projects.show', $project));
+
+        $this->assertDatabaseMissing('project_estimates', ['id' => $estimate->id]);
+    }
+
     private function project(string $name = 'Proyecto de prueba'): Project
     {
         return Project::create([

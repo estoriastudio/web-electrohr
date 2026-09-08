@@ -80,7 +80,6 @@ class ProjectEstimateController extends Controller
 
     public function updateDocuments(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
-        $this->ensureOwner($estimate);
         $request->validateWithBag('estimateDocuments', $this->documentValidationRules());
 
         $uploadedPaths = [];
@@ -114,8 +113,6 @@ class ProjectEstimateController extends Controller
 
     public function destroy(ProjectEstimate $estimate): RedirectResponse
     {
-        $this->ensureOwner($estimate);
-
         $project = $estimate->project;
         $estimateNumber = $estimate->estimate_number;
         $documentPaths = $this->documentPaths($estimate);
