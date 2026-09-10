@@ -529,7 +529,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label fw-medium">Archivo <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 10 MB)</span></label>
+                            <label class="form-label fw-medium">Archivo <span class="text-muted fw-normal fs-12">(PDF, JPG, PNG — máx. 50 MB)</span></label>
                             <input type="file" name="file" class="form-control"
                                    accept=".pdf,.jpg,.jpeg,.png">
                             @if ($docRecord && $docRecord->file_path)
@@ -599,7 +599,7 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-medium">Archivo de inspección <span class="text-muted fw-normal fs-12">(PDF / imagen)</span></label>
+                            <label class="form-label fw-medium">Archivo de inspección <span class="text-muted fw-normal fs-12">(PDF / imagen — máx. 50 MB)</span></label>
                             <input type="file" name="inspection_file" class="form-control"
                                    accept=".pdf,.jpg,.jpeg,.png">
                         </div>

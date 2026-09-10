@@ -92,7 +92,7 @@ class ProjectEstimateTest extends TestCase
         $this->assertSame(250.0, (float) $estimate->fresh()->estimate_amount);
     }
 
-    public function test_only_the_creator_can_update_an_estimate(): void
+    public function test_an_authorized_user_can_update_another_users_estimate(): void
     {
         $project = $this->project();
         $creator = $this->admin();
@@ -100,8 +100,12 @@ class ProjectEstimateTest extends TestCase
             'created_by' => $creator->id,
         ]));
         $this->actingAs($this->admin())
-            ->put(route('projects.estimates.update', $estimate), $this->estimateData())
-            ->assertForbidden();
+            ->put(route('projects.estimates.update', $estimate), $this->estimateData([
+                'estimate_amount' => '250.00',
+            ]))
+            ->assertRedirect(route('projects.show', $project));
+
+        $this->assertSame(250.0, (float) $estimate->fresh()->estimate_amount);
     }
 
     public function test_it_stores_documents_in_s3_and_removes_a_replaced_document(): void

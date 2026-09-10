@@ -1055,6 +1055,7 @@
                                         @php
                                             $payStatusMap = [
                                                 'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
+                                                'pospuesto'     => ['label' => 'Pospuesto',     'class' => 'bg-secondary-subtle text-secondary'],
                                                 'autorizado'    => ['label' => 'Autorizado',    'class' => 'bg-info-subtle text-info'],
                                                 'pagado'        => ['label' => 'Pagado',        'class' => 'bg-success-subtle text-success'],
                                                 'rechazado'     => ['label' => 'Rechazado',     'class' => 'bg-danger-subtle text-danger'],
@@ -1062,6 +1063,7 @@
                                             $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
                                             $statusRowClassMap = [
                                                 'por_autorizar' => 'table-warning',
+                                                'pospuesto'     => 'table-warning',
                                                 'autorizado'    => 'table-info',
                                                 'pagado'        => 'table-success',
                                                 'rechazado'     => 'table-danger',
@@ -1086,7 +1088,7 @@
                                             // Transiciones permitidas por rol y estatus
                                             $transitions = $isAdminUser
                                                 ? match ($payment->status) {
-                                                    'por_autorizar' => [
+                                                    'por_autorizar', 'pospuesto' => [
                                                         'autorizado' => ['label' => 'Autorizar',  'icon' => 'ri-check-line',           'btn' => 'btn-soft-info',    'confirm' => '¿Autorizar este pago?'],
                                                         'rechazado'  => ['label' => 'Rechazar',   'icon' => 'ri-close-circle-line',    'btn' => 'btn-soft-danger',  'confirm' => '¿Rechazar este pago?'],
                                                     ],

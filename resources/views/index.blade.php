@@ -237,9 +237,8 @@
 {{-- ============================================================ --}}
 {{-- Bloque 2: Urgencias de OC — admin + orders                   --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']) && array_sum($urgencyValues) > 0)
+@if(auth()->user()->hasAnyRole(['admin']) && array_sum($urgencyValues) > 0)
 <div class="row mb-3">
-
     {{-- Tarjeta 3: Gráfico de urgencias por vencimiento --}}
     <div class="col-xl-6">
         <div class="card h-100">
@@ -335,7 +334,6 @@
             </div>
         </div>
     </div>
-
 </div>
 @endif
 

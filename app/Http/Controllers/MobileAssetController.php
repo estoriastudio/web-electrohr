@@ -491,7 +491,7 @@ class MobileAssetController extends Controller
         $noExpiry = in_array($docType, MobileAssetDocument::NO_EXPIRY_DOCS);
 
         $request->validate([
-            'file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
             'expiry_date' => 'nullable|date',
         ]);
 

@@ -19,7 +19,7 @@ class MaintenanceLogController extends Controller
             'next_maintenance_date' => 'nullable|date|after_or_equal:maintenance_date',
             'mileage_due'           => 'nullable|integer|min:0',
             'notes'                 => 'nullable|string|max:2000',
-            'inspection_file'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'inspection_file'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
         ]);
 
         $validated['folio'] = $this->generateNextFolio($mobileAsset);

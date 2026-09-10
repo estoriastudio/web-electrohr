@@ -57,8 +57,6 @@ class ProjectEstimateController extends Controller
 
     public function update(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
-        $this->ensureOwner($estimate);
-
         $project = $estimate->project;
         $data = $this->validatedData($request, $project, $estimate);
 
@@ -214,11 +212,6 @@ class ProjectEstimateController extends Controller
         }
 
         return $validated;
-    }
-
-    private function ensureOwner(ProjectEstimate $estimate): void
-    {
-        abort_unless((int) Auth::id() === (int) $estimate->created_by, 403);
     }
 
     private function documentValidationRules(): array
