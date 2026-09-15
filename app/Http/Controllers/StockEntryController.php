@@ -24,15 +24,19 @@ class StockEntryController extends Controller
     public function index(Request $request): View
     {
         $search = trim((string) $request->input('search', ''));
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
         $entries = StockEntry::with(['concept', 'tool', 'certificates'])
             ->when($search, fn ($query) => $query->whereHas('concept', fn ($conceptQuery) => $conceptQuery
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")))
+            ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->latest('received_at')->paginate(25)->withQueryString();
         $tools = Tool::whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
             ->get(['id', 'economic_number', 'name', 'description']);
-        return view('stocks.entries.index', compact('entries', 'search', 'tools'));
+        return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo', 'tools'));
     }
 
     public function create(): RedirectResponse

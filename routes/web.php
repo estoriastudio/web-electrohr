@@ -712,6 +712,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::resource('/inventario/salidas', StockExitController::class, [
                 'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],
             ])->except(['show', 'edit', 'update']);
+            Route::get('/inventario/entradas/{stockEntry}/factura', [StockController::class, 'downloadInvoice'])->name('stocks.entries.invoice.download');
+            Route::get('/inventario/certificados/{stockCertificate}/descargar', [StockController::class, 'downloadCertificate'])->name('stocks.certificates.download');
+            Route::get('/inventario/{concept}', [StockController::class, 'show'])->name('stocks.show');
         });
 
         Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {

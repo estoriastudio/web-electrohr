@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concept;
-use App\Models\Project;
 use App\Models\StockEntry;
 use App\Models\StockExit;
 use App\Models\Tool;
@@ -25,13 +24,21 @@ class StockExitController extends Controller
 
     public function index(Request $request): View
     {
+        $search = trim((string) $request->input('search', ''));
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
         $exits = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork'])
+            ->when($search, fn ($query) => $query->whereHas('concept', fn ($conceptQuery) => $conceptQuery
+                ->where('code', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%")))
+            ->when($dateFrom, fn ($query) => $query->whereDate('exited_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->whereDate('exited_at', '<=', $dateTo))
             ->latest('exited_at')->paginate(25)->withQueryString();
         $workers = Worker::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
         $tools = Tool::whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
             ->get(['id', 'economic_number', 'name', 'description']);
-        return view('stocks.exits.index', compact('exits', 'workers', 'tools'));
+        return view('stocks.exits.index', compact('exits', 'search', 'dateFrom', 'dateTo', 'workers', 'tools'));
     }
 
     public function create(): RedirectResponse

@@ -8,6 +8,7 @@ use App\Models\StockExit;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class StockController extends Controller
@@ -31,14 +32,71 @@ class StockController extends Controller
             $entries = (float) $concept->stockEntries()->sum('quantity');
             $exits = (float) $concept->stockExits()->where('exit_type', 'definitive')->sum('quantity');
             $concept->setAttribute('current_stock', $entries - $exits);
+
+            $lastEntry = $concept->stockEntries()->latest('received_at')->first(['id', 'received_at']);
+            $lastExit = $concept->stockExits()->where('exit_type', 'definitive')->latest('exited_at')->first(['id', 'exited_at']);
+            $lastMovement = ! $lastExit || ($lastEntry && $lastEntry->received_at->gte($lastExit->exited_at))
+                ? $lastEntry
+                : $lastExit;
+            $concept->setAttribute('last_movement_type', $lastMovement instanceof StockEntry ? 'entry' : ($lastMovement ? 'exit' : null));
+            $concept->setAttribute('last_movement_at', $lastMovement instanceof StockEntry ? $lastMovement->received_at : $lastMovement?->exited_at);
         });
 
-        $fiveYearsAgo = now()->subYears(5)->startOfDay();
-        $entries = StockEntry::with(['concept', 'tool'])->where('received_at', '>=', $fiveYearsAgo)->latest('received_at')->paginate(25, ['*'], 'entries_page')->withQueryString();
-        $exits = StockExit::with(['concept', 'tool', 'recipientWorker'])->where('exited_at', '>=', $fiveYearsAgo)->latest('exited_at')->paginate(25, ['*'], 'exits_page')->withQueryString();
         $overdueLoans = StockExit::with(['tool', 'recipientWorker'])->where('exit_type', 'tool_loan')->where('status', 'open')->whereDate('expected_return_at', '<', today())->orderBy('expected_return_at')->get();
 
-        return view('stocks.index', compact('concepts', 'entries', 'exits', 'overdueLoans', 'search'));
+        return view('stocks.index', compact('concepts', 'overdueLoans', 'search'));
+    }
+
+    public function show(Concept $concept): View
+    {
+        $fiveYearsAgo = now()->subYears(5)->startOfDay();
+        $entries = $concept->stockEntries()
+            ->with(['certificates', 'createdBy'])
+            ->where('received_at', '>=', $fiveYearsAgo)
+            ->latest('received_at')
+            ->get();
+        $exits = $concept->stockExits()
+            ->with(['recipientWorker', 'project', 'projectWork', 'createdBy'])
+            ->where('exit_type', 'definitive')
+            ->where('exited_at', '>=', $fiveYearsAgo)
+            ->latest('exited_at')
+            ->get();
+        $movements = $entries->map(fn (StockEntry $entry) => (object) [
+            'date' => $entry->received_at,
+            'direction' => 'entry',
+            'label' => $entry->entry_type === 'purchase' ? 'Compra' : 'Retorno de herramienta',
+            'quantity' => $entry->quantity,
+            'reference' => $entry->purchase_reference,
+            'record' => $entry,
+        ])->merge($exits->map(fn (StockExit $exit) => (object) [
+            'date' => $exit->exited_at,
+            'direction' => 'exit',
+            'label' => 'Salida definitiva',
+            'quantity' => $exit->quantity,
+            'reference' => $exit->voucher_number,
+            'record' => $exit,
+        ]))->sortByDesc('date')->values();
+        $currentStock = (float) $concept->stockEntries()->sum('quantity')
+            - (float) $concept->stockExits()->where('exit_type', 'definitive')->sum('quantity');
+
+        return view('stocks.show', compact('concept', 'movements', 'currentStock'));
+    }
+
+    public function downloadInvoice(StockEntry $stockEntry): mixed
+    {
+        abort_unless($stockEntry->invoice_file_path && Storage::disk($stockEntry->invoice_disk ?: 's3')->exists($stockEntry->invoice_file_path), 404);
+
+        return Storage::disk($stockEntry->invoice_disk ?: 's3')->download(
+            $stockEntry->invoice_file_path,
+            $stockEntry->invoice_file_name ?: 'factura.pdf'
+        );
+    }
+
+    public function downloadCertificate(\App\Models\StockCertificate $stockCertificate): mixed
+    {
+        abort_unless(Storage::disk($stockCertificate->disk)->exists($stockCertificate->file_path), 404);
+
+        return Storage::disk($stockCertificate->disk)->download($stockCertificate->file_path, $stockCertificate->file_name);
     }
 
     private function notifyOverdueLoans(): void
