@@ -28,15 +28,11 @@ class ProjectEstimateController extends Controller
 
     public function create(Project $project): View
     {
-        $this->ensureAssignedProjectAccess($project);
-
         return view('projects.estimates.create', compact('project'));
     }
 
     public function store(Request $request, Project $project): RedirectResponse
     {
-        $this->ensureAssignedProjectAccess($project);
-
         $data = $this->validatedData($request, $project);
 
         $estimate = DB::transaction(function () use ($project, $data) {
@@ -62,7 +58,6 @@ class ProjectEstimateController extends Controller
     public function update(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
         $project = $estimate->project;
-        $this->ensureAssignedProjectAccess($project);
         $data = $this->validatedData($request, $project, $estimate);
 
         DB::transaction(function () use ($estimate, $data) {
@@ -83,8 +78,6 @@ class ProjectEstimateController extends Controller
 
     public function updateDocuments(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
-        $this->ensureAssignedProjectAccess($estimate->project);
-
         $request->validateWithBag('estimateDocuments', $this->documentValidationRules());
 
         $uploadedPaths = [];
@@ -119,7 +112,6 @@ class ProjectEstimateController extends Controller
     public function destroy(ProjectEstimate $estimate): RedirectResponse
     {
         $project = $estimate->project;
-        $this->ensureAssignedProjectAccess($project);
         $estimateNumber = $estimate->estimate_number;
         $documentPaths = $this->documentPaths($estimate);
         $estimate->delete();
@@ -139,8 +131,6 @@ class ProjectEstimateController extends Controller
 
     public function download(ProjectEstimate $estimate, string $document): mixed
     {
-        $this->ensureAssignedProjectAccess($estimate->project);
-
         abort_unless(array_key_exists($document, self::DOCUMENTS), 404);
 
         $definition = self::DOCUMENTS[$document];
@@ -152,18 +142,6 @@ class ProjectEstimateController extends Controller
             $path,
             $estimate->estimate_number . '-' . $document . '.' . $definition['extension']
         );
-    }
-
-    private function ensureAssignedProjectAccess(Project $project): void
-    {
-        if (Auth::user()->hasRole('admin')) {
-            return;
-        }
-
-        abort_unless($project->works()
-            ->where('supervisor_user_id', Auth::id())
-            ->orWhere('resident_user_id', Auth::id())
-            ->exists(), 403);
     }
 
     private function validatedData(
