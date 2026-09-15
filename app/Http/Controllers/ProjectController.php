@@ -24,6 +24,7 @@ class ProjectController extends Controller
     public function index(Request $request): View
     {
         $search = trim($request->input('search', ''));
+        $isAdmin = Auth::user()->hasRole('admin');
 
         $projects = Project::query()
             ->withCount('works')
@@ -33,8 +34,13 @@ class ProjectController extends Controller
                     ->selectRaw('COALESCE(SUM(CAST(REPLACE(contract_value, ",", "") AS DECIMAL(15,2))), 0)')
                     ->whereColumn('project_id', 'projects.id'),
             ])
-            ->when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('client_name', 'like', "%{$search}%"))
+            ->when(! $isAdmin, fn ($query) => $query->whereHas('works', function ($workQuery) {
+                $workQuery->where('supervisor_user_id', Auth::id())
+                    ->orWhere('resident_user_id', Auth::id());
+            }))
+            ->when($search, fn ($q) => $q->where(fn ($searchQuery) => $searchQuery
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('client_name', 'like', "%{$search}%")))
             ->latest()
             ->paginate(25)
             ->withQueryString();
@@ -45,7 +51,7 @@ class ProjectController extends Controller
             }
         });
 
-        return view('projects.index', compact('projects', 'search'));
+        return view('projects.index', compact('projects', 'search', 'isAdmin'));
     }
 
     public function create(): RedirectResponse
@@ -79,6 +85,8 @@ class ProjectController extends Controller
 
     public function show(Project $project): View
     {
+        $this->ensureAssignedProjectAccess($project);
+
         $project->setAttribute(
             'project_value',
             $project->current_agreement_value !== null
@@ -151,6 +159,8 @@ class ProjectController extends Controller
 
     public function worksJson(Project $project): JsonResponse
     {
+        $this->ensureAssignedProjectAccess($project);
+
         $works = $project->works()
             ->where('status', 'active')
             ->orderBy('name')
@@ -169,6 +179,10 @@ class ProjectController extends Controller
 
         return response()->json(
             Project::where('status', 'active')
+                ->when(! Auth::user()->hasRole('admin'), fn ($projectQuery) => $projectQuery->whereHas('works', function ($workQuery) {
+                    $workQuery->where('supervisor_user_id', Auth::id())
+                        ->orWhere('resident_user_id', Auth::id());
+                }))
                 ->where(fn ($builder) => $builder
                     ->where('name', 'like', "%{$query}%")
                     ->orWhere('client_name', 'like', "%{$query}%"))
@@ -180,6 +194,8 @@ class ProjectController extends Controller
 
     public function searchWorks(Request $request, Project $project): JsonResponse
     {
+        $this->ensureAssignedProjectAccess($project);
+
         $query = trim((string) $request->input('q', ''));
 
         if (mb_strlen($query) < 3) {
@@ -193,6 +209,18 @@ class ProjectController extends Controller
                 ->limit(30)
                 ->get(['id', 'name'])
         );
+    }
+
+    private function ensureAssignedProjectAccess(Project $project): void
+    {
+        if (Auth::user()->hasRole('admin')) {
+            return;
+        }
+
+        abort_unless($project->works()
+            ->where('supervisor_user_id', Auth::id())
+            ->orWhere('resident_user_id', Auth::id())
+            ->exists(), 403);
     }
 
     public function uploadDocument(Request $request, Project $project, string $docType): RedirectResponse

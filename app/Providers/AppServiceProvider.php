@@ -31,7 +31,15 @@ class AppServiceProvider extends ServiceProvider
             $supplier = auth()->user()?->supplier;
             $hasMaterialVouchers = $supplier !== null
                 && MaterialVoucher::where('supplier_id', $supplier->id)->exists();
-            $activeProjectsCount = Project::where('status', 'active')->count();
+            $currentUser = auth()->user();
+            $activeProjectsCount = Project::where('status', 'active')
+                ->when(! $currentUser?->hasRole('admin'), function ($query) use ($currentUser) {
+                    $query->whereHas('works', function ($workQuery) use ($currentUser) {
+                        $workQuery->where('supervisor_user_id', $currentUser?->id)
+                            ->orWhere('resident_user_id', $currentUser?->id);
+                    });
+                })
+                ->count();
             $paymentsToAuthorizeCount = Payment::query()
                 ->where('status', 'por_autorizar')
                 ->whereHas('milestone.purchaseOrder', function ($query) {

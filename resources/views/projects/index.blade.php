@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Proyectos')
+@section('page_title', $isAdmin ? 'Proyectos' : 'Mis proyectos')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
@@ -32,7 +32,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
-                    <h4 class="card-title mb-0">Listado de proyectos</h4>
+                    <h4 class="card-title mb-0">{{ $isAdmin ? 'Listado de proyectos' : 'Mis proyectos' }}</h4>
                 </div>
                 @hasanyrole('admin|Proyectos')
                 @can('create')

@@ -62,7 +62,7 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 | Alta de Facturas (interna) | Pagos, Recepción, Orden de compra |
 | Evidencias de Entrega OC   | admin, Solmat, Pagos, Orden de compra |
 | Autorización de Pagos      | Pagos                           |
-| Proyectos                  | Proyectos, Solmat               |
+| Proyectos                  | Proyectos, Solmat, Engineer     |
 | Solicitudes de Compra      | Solcom, Orden de compra, admin  |
 | Pila SOLCOM                | Solcom, Orden de compra         |
 | Carga de Trabajo           | Orden de compra                 |
@@ -85,3 +85,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-07-13: Se agrega rol `supplier_portal_access` y su mapeo de Portal de Proveedores. Se documenta tambien `Proveedor` en Vales de Material y se actualizan mapeos de Hitos/Alta de Facturas segun rutas actuales.
 - 2026-07-13: Se agrega el modulo funcional Evidencias de Entrega OC con acceso para admin, Solmat, Pagos y Orden de compra.
 - 2026-09-14: Se agrega el rol Inventario para consulta y gestión de existencias, entradas y salidas.
+- 2026-09-15: Engineer accede a Proyectos solo cuando está asignado como supervisor o residente de una obra; admin conserva el listado completo.

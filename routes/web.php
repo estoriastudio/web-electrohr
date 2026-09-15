@@ -211,7 +211,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
         Route::get('/proyectos/{project}/obras/buscar', [ProjectController::class, 'searchWorks'])->name('projects.works.search');
 
-        Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
+        Route::middleware('role:admin|Proyectos|Solmat|Engineer')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
                 'names' => [
                     'index' => 'projects.index',
