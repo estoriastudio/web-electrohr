@@ -87,9 +87,47 @@
                 @endhasanyrole
             </div>
 
+            {{-- Cobertura de información del perfil --}}
+            <div class="card-body border-bottom py-2">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="ri-file-chart-line text-muted"></i>
+                    <span class="fs-13 fw-medium">Cobertura de información</span>
+                    <span class="text-muted fs-12">{{ $supplierCount }} proveedores</span>
+                    @if ($documentMissing)
+                        <a href="{{ route('suppliers.index', request()->except(['document_missing', 'page'])) }}"
+                           class="btn btn-sm btn-light ms-auto" title="Limpiar filtro de requisito" aria-label="Limpiar filtro de requisito">
+                            <i class="ri-close-line"></i>
+                        </a>
+                    @endif
+                </div>
+                <div class="row g-2">
+                    @foreach ($profileRequirements as $key => $requirement)
+                        @php
+                            $coverage = $documentCoverage[$key];
+                            $isActiveDocumentFilter = $documentMissing === $key;
+                        @endphp
+                        <div class="col-6 col-sm-4 col-lg-3 col-xl-3">
+                            <a href="{{ route('suppliers.index', array_merge(request()->except(['document_missing', 'page']), ['document_missing' => $key])) }}"
+                               class="d-block h-100 border rounded-2 p-2 text-decoration-none {{ $isActiveDocumentFilter ? 'border-primary bg-primary-subtle' : 'text-dark' }}"
+                               title="Ver proveedores sin {{ strtolower($requirement['label']) }}">
+                                <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+                                    <span class="text-truncate fs-12 fw-medium">{{ $requirement['label'] }}</span>
+                                    <i class="{{ $requirement['icon'] }} text-muted flex-shrink-0"></i>
+                                </div>
+                                <div class="fw-semibold fs-14">{{ $coverage['completed'] }} / {{ $supplierCount }}</div>
+                                <div class="fs-11 {{ $coverage['missing'] ? 'text-danger' : 'text-success' }}">Faltan {{ $coverage['missing'] }} proveedores</div>
+                            </a>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
             {{-- Barra de búsqueda --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('suppliers.index') }}" class="d-flex gap-2">
+                    @if ($documentMissing)
+                        <input type="hidden" name="document_missing" value="{{ $documentMissing }}">
+                    @endif
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light">
                             <i class="ri-search-line text-muted"></i>
@@ -99,7 +137,7 @@
                                placeholder="Buscar por razón social o nombre comercial…"
                                autocomplete="off">
                         @if ($search)
-                            <a href="{{ route('suppliers.index') }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
+                            <a href="{{ route('suppliers.index', request()->except(['search', 'page'])) }}" class="btn btn-outline-secondary" title="Limpiar búsqueda">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif

@@ -9,6 +9,7 @@ use App\Models\MobileAsset;
 use App\Models\Concept;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
+use App\Models\PurchaseOrderEvidence;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
@@ -89,9 +90,9 @@ class PurchaseOrderController extends Controller
                 });
             })
             ->when($tipo, fn ($q) => $q->where('type', $tipo))
-            ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('is_delivered', false))
-            ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('is_delivered', false))
-            ->when($tray === 'delivered', fn ($q) => $q->where('is_delivered', true))
+            ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('delivery_status', '!=', 'entregado'))
+            ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado'))
+            ->when($tray === 'delivered', fn ($q) => $q->where('delivery_status', 'entregado'))
             ->when($sortDue === 'asc', function ($q) {
                 $q->withMin('milestones', 'due_date')
                   ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
@@ -126,9 +127,9 @@ class PurchaseOrderController extends Controller
         $trayCounts = Auth::user()->hasRole('admin')
             ? [
                 'all' => PurchaseOrder::whereNull('archived_at')->count(),
-                'issued' => PurchaseOrder::whereNull('archived_at')->where('status', 'emitida')->where('is_delivered', false)->count(),
-                'authorized' => PurchaseOrder::whereNull('archived_at')->where('status', 'autorizada')->where('is_delivered', false)->count(),
-                'delivered' => PurchaseOrder::whereNull('archived_at')->where('is_delivered', true)->count(),
+                'issued' => PurchaseOrder::whereNull('archived_at')->where('status', 'emitida')->where('delivery_status', '!=', 'entregado')->count(),
+                'authorized' => PurchaseOrder::whereNull('archived_at')->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado')->count(),
+                'delivered' => PurchaseOrder::whereNull('archived_at')->where('delivery_status', 'entregado')->count(),
             ]
             : [];
 
@@ -732,21 +733,51 @@ class PurchaseOrderController extends Controller
     public function updateDeliveryStatus(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         $validated = $request->validate([
-            'is_delivered' => 'required|boolean',
+            'delivery_status' => ['required', Rule::in(['por_entregar', 'parcial', 'entregado'])],
+            'delivery_evidence' => 'required_if:delivery_status,parcial|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
-        $isDelivered = (bool) $validated['is_delivered'];
-        $purchaseOrder->update(['is_delivered' => $isDelivered]);
+        $deliveryStatus = $validated['delivery_status'];
+        $deliveryLabels = [
+            'por_entregar' => 'Por entregar',
+            'parcial' => 'Entrega parcial',
+            'entregado' => 'Entregado',
+        ];
+        $deliveryLabel = $deliveryLabels[$deliveryStatus];
+        $evidenceFileName = null;
+
+        if ($deliveryStatus === 'parcial' && $request->hasFile('delivery_evidence')) {
+            $file = $request->file('delivery_evidence');
+            $nextNumber = $purchaseOrder->evidences()->count() + 1;
+            $extension = strtolower($file->getClientOriginalExtension());
+            $evidenceFileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
+            $filePath = $file->storeAs('evidences/' . $purchaseOrder->id, $evidenceFileName);
+
+            PurchaseOrderEvidence::create([
+                'purchase_order_id' => $purchaseOrder->id,
+                'uploaded_by' => Auth::id(),
+                'file_name' => $evidenceFileName,
+                'file_path' => $filePath,
+                'mime_type' => $file->getClientMimeType(),
+                'source' => 'internal',
+                'description' => 'Evidencia de entrega parcial',
+            ]);
+        }
+
+        $purchaseOrder->update([
+            'delivery_status' => $deliveryStatus,
+            'delivery_evidence' => null,
+            'is_delivered' => $deliveryStatus === 'entregado',
+        ]);
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
-        $deliveryLabel = $isDelivered ? 'Entregado' : 'Por entregar';
 
         $this->notification->send([
             'type'         => 'PurchaseOrder',
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $purchaseOrder->id,
-            'data'         => 'actualizó el estatus de entrega a "' . $deliveryLabel . '" en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
+            'data'         => 'actualizó el estatus de entrega a "' . $deliveryLabel . '"' . ($evidenceFileName ? ' y registró la evidencia ' . $evidenceFileName : '') . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)

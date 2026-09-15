@@ -48,7 +48,12 @@ class ConceptController extends Controller
         $validated = $request->validate([
             'description'             => ['required', 'string', 'max:2500'],
             'unit'                    => ['required', 'string', 'max:50'],
+            'warehouse_location'      => ['required', 'string', 'max:255'],
             'unit_price'              => ['nullable', 'numeric', 'min:0'],
+            'minimum_stock'           => ['nullable', 'numeric', 'min:0'],
+            'maximum_stock'           => ['nullable', 'numeric', 'gte:minimum_stock'],
+            'requires_origin_certificate' => ['nullable', 'boolean'],
+            'requires_safety_certificate' => ['nullable', 'boolean'],
             'status'                  => ['required', Rule::in(['active', 'inactive'])],
             'type'                    => ['required', Rule::in(['materiales', 'mantenimiento'])],
             'concept_category_id'     => ['required', 'exists:concept_categories,id'],
@@ -74,6 +79,8 @@ class ConceptController extends Controller
 
         $validated['code'] = $this->buildNextCode($category, $subcategory);
 
+        $validated['requires_origin_certificate'] = $request->boolean('requires_origin_certificate');
+        $validated['requires_safety_certificate'] = $request->boolean('requires_safety_certificate');
         Concept::create($validated);
 
         return redirect()->route('concepts.index')
@@ -86,13 +93,20 @@ class ConceptController extends Controller
             'code'                    => ['required', 'string', 'max:100', Rule::unique('concepts', 'code')->ignore($concept->id)],
             'description'             => ['required', 'string', 'max:2500'],
             'unit'                    => ['required', 'string', 'max:50'],
+            'warehouse_location'      => ['required', 'string', 'max:255'],
             'unit_price'              => ['nullable', 'numeric', 'min:0'],
+            'minimum_stock'           => ['nullable', 'numeric', 'min:0'],
+            'maximum_stock'           => ['nullable', 'numeric', 'gte:minimum_stock'],
+            'requires_origin_certificate' => ['nullable', 'boolean'],
+            'requires_safety_certificate' => ['nullable', 'boolean'],
             'status'                  => ['required', Rule::in(['active', 'inactive'])],
             'type'                    => ['required', Rule::in(['materiales', 'mantenimiento'])],
             'concept_category_id'     => ['nullable', 'exists:concept_categories,id'],
             'concept_subcategory_id'  => ['nullable', 'exists:concept_subcategories,id'],
         ]);
 
+        $validated['requires_origin_certificate'] = $request->boolean('requires_origin_certificate');
+        $validated['requires_safety_certificate'] = $request->boolean('requires_safety_certificate');
         $concept->update($validated);
 
         return redirect()->route('concepts.index')

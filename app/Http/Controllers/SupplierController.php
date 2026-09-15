@@ -32,6 +32,27 @@ class SupplierController extends Controller
     public function index(Request $request)
     {
         $search = trim($request->input('search', ''));
+        $documentMissing = trim($request->input('document_missing', ''));
+        $profileRequirements = Supplier::PROFILE_REQUIREMENTS;
+
+        if (!array_key_exists($documentMissing, $profileRequirements)) {
+            $documentMissing = '';
+        }
+
+        $coverageQuery = Supplier::query();
+        $supplierCount = (clone $coverageQuery)->count();
+        $documentCoverage = [];
+
+        foreach ($profileRequirements as $key => $requirement) {
+            $missingCount = (clone $coverageQuery)
+                ->missingProfileRequirement($key)
+                ->count();
+
+            $documentCoverage[$key] = [
+                'completed' => $supplierCount - $missingCount,
+                'missing' => $missingCount,
+            ];
+        }
 
         $suppliers = Supplier::withCount('purchaseOrders')
             ->with('portalUser')
@@ -41,11 +62,21 @@ class SupplierController extends Controller
                         ->orWhere('commercial_name', 'like', '%' . $search . '%');
                 });
             })
+            ->when($documentMissing, function ($query) use ($documentMissing) {
+                $query->missingProfileRequirement($documentMissing);
+            })
             ->orderByRaw('COALESCE(NULLIF(rfc_name, \'\'), commercial_name) ASC')
             ->paginate(25)
             ->withQueryString();
 
-        return view('suppliers.index', compact('suppliers', 'search'));
+        return view('suppliers.index', compact(
+            'suppliers',
+            'search',
+            'documentMissing',
+            'profileRequirements',
+            'documentCoverage',
+            'supplierCount',
+        ));
     }
 
     /**

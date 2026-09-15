@@ -101,7 +101,7 @@
                             @error('operator')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
-                        <div class="col-md-6" id="createPlatesField" style="display:none;">
+                        <div class="col-md-6" id="createPlatesField" style="{{ in_array(old('type', $type), ['parque_vehicular', 'semiremolque'], true) ? '' : 'display:none;' }}">
                             <label for="create_plates" class="form-label fw-medium">Placas</label>
                             <input type="text" id="create_plates" name="plates"
                                    class="form-control @error('plates') is-invalid @enderror"

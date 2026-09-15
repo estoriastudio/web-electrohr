@@ -30,6 +30,9 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\SupplierPortalController;
 use App\Http\Controllers\SupplierPortalInvoiceController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockEntryController;
+use App\Http\Controllers\StockExitController;
 use App\Http\Controllers\ToolCalibrationController;
 use App\Http\Controllers\ToolCategoryController;
 use App\Http\Controllers\ToolControlController;
@@ -204,7 +207,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Proyectos
+        Route::get('/proyectos/buscar', [ProjectController::class, 'search'])->name('projects.search');
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
+        Route::get('/proyectos/{project}/obras/buscar', [ProjectController::class, 'searchWorks'])->name('projects.works.search');
 
         Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
@@ -698,6 +703,17 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Vales de Material ───────────────────────────────────────────────
+        Route::middleware('role:admin|Inventario')->group(function () {
+            Route::get('/inventario', [StockController::class, 'index'])->name('stocks.index');
+            Route::resource('/inventario/entradas', StockEntryController::class, [
+                'names' => 'stocks.entries', 'parameters' => ['entradas' => 'stockEntry'],
+            ])->except(['show', 'edit', 'update']);
+            Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])->name('stocks.exits.return');
+            Route::resource('/inventario/salidas', StockExitController::class, [
+                'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],
+            ])->except(['show', 'edit', 'update']);
+        });
+
         Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
                 'names' => [

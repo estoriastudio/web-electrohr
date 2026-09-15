@@ -159,6 +159,42 @@ class ProjectController extends Controller
         return response()->json($works);
     }
 
+    public function search(Request $request): JsonResponse
+    {
+        $query = trim((string) $request->input('q', ''));
+
+        if (mb_strlen($query) < 3) {
+            return response()->json([]);
+        }
+
+        return response()->json(
+            Project::where('status', 'active')
+                ->where(fn ($builder) => $builder
+                    ->where('name', 'like', "%{$query}%")
+                    ->orWhere('client_name', 'like', "%{$query}%"))
+                ->orderBy('name')
+                ->limit(30)
+                ->get(['id', 'name'])
+        );
+    }
+
+    public function searchWorks(Request $request, Project $project): JsonResponse
+    {
+        $query = trim((string) $request->input('q', ''));
+
+        if (mb_strlen($query) < 3) {
+            return response()->json([]);
+        }
+
+        return response()->json(
+            $project->works()->where('status', 'active')
+                ->where('name', 'like', "%{$query}%")
+                ->orderBy('name')
+                ->limit(30)
+                ->get(['id', 'name'])
+        );
+    }
+
     public function uploadDocument(Request $request, Project $project, string $docType): RedirectResponse
     {
         if (! array_key_exists($docType, ProjectDocument::allDocTypes())) {

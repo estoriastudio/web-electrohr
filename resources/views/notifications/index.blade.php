@@ -12,6 +12,7 @@
 <div class="row">
     <div class="col-xl-12">
 
+        @if (! $hasFilters)
         <div class="row g-3 mb-3">
             <div class="col-md-4">
                 <div class="card h-100">
@@ -80,6 +81,51 @@
                 </div>
             </div>
         </div>
+        @elseif ($selectedUser)
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="avatar-sm bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                                    <i class="ri-bar-chart-line text-primary fs-18"></i>
+                                </div>
+                                <span class="text-muted fs-12 fw-medium">Acciones de {{ $selectedUser->name }}</span>
+                            </div>
+                            <h3 class="fw-bold mb-0">{{ number_format($userStats['total']) }}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="avatar-sm bg-success bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                                    <i class="ri-add-circle-line text-success fs-18"></i>
+                                </div>
+                                <span class="text-muted fs-12 fw-medium">Creaciones realizadas</span>
+                            </div>
+                            <h3 class="fw-bold mb-0">{{ number_format($userStats['created']) }}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="avatar-sm bg-warning bg-opacity-10 rounded d-flex align-items-center justify-content-center flex-shrink-0">
+                                    <i class="ri-edit-line text-warning fs-18"></i>
+                                </div>
+                                <span class="text-muted fs-12 fw-medium">Actualizaciones realizadas</span>
+                            </div>
+                            <h3 class="fw-bold mb-0">{{ number_format($userStats['updated']) }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- Filtros --}}
         @include('notifications.utilities._search_options')

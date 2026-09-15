@@ -12,7 +12,12 @@ class Concept extends Model
         'code',
         'description',
         'unit',
+        'warehouse_location',
         'unit_price',
+        'minimum_stock',
+        'maximum_stock',
+        'requires_origin_certificate',
+        'requires_safety_certificate',
         'status',
         'type',
         'concept_category_id',
@@ -21,6 +26,10 @@ class Concept extends Model
 
     protected $casts = [
         'unit_price' => 'decimal:2',
+        'minimum_stock' => 'decimal:3',
+        'maximum_stock' => 'decimal:3',
+        'requires_origin_certificate' => 'boolean',
+        'requires_safety_certificate' => 'boolean',
     ];
 
     public function category(): BelongsTo
@@ -46,5 +55,20 @@ class Concept extends Model
     public function purchaseOrderItems(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function stockEntries(): HasMany
+    {
+        return $this->hasMany(StockEntry::class);
+    }
+
+    public function stockExits(): HasMany
+    {
+        return $this->hasMany(StockExit::class);
+    }
+
+    public function stockCertificates(): HasManyThrough
+    {
+        return $this->hasManyThrough(StockCertificate::class, StockEntry::class);
     }
 }

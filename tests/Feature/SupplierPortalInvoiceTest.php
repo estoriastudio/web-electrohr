@@ -171,6 +171,55 @@ XML;
         ]);
     }
 
+    public function test_supplier_evidence_does_not_change_the_internal_delivery_status(): void
+    {
+        $user = User::factory()->create();
+        $supplier = Supplier::create([
+            'rfc_name' => 'Proveedor de prueba',
+            'portal_user_id' => $user->id,
+        ]);
+        $purchaseOrder = PurchaseOrder::create([
+            'folio' => 12348,
+            'type' => 'materiales_servicios',
+            'supplier_id' => $supplier->id,
+            'currency' => 'MXN',
+            'amount' => 100,
+            'status' => 'autorizada',
+            'recurrence_type' => 'unico',
+            'is_delivered' => false,
+        ]);
+        $uuid = '44444444-4444-4444-8444-444444444444';
+        $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Fecha="2026-08-19">
+    <cfdi:Complemento>
+        <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" UUID="{$uuid}" />
+    </cfdi:Complemento>
+</cfdi:Comprobante>
+XML;
+
+        $this->actingAs($user)
+            ->post(route('supplier_portal.invoices.store', $purchaseOrder), [
+                'due_date' => '2026-09-01',
+                'folio' => $uuid,
+                'amount' => 100,
+                'pdf_file' => UploadedFile::fake()->create('factura.pdf', 100, 'application/pdf'),
+                'xml_file' => UploadedFile::fake()->createWithContent('factura.xml', $xml),
+                'evidence_file' => UploadedFile::fake()->create('evidencia.pdf', 100, 'application/pdf'),
+            ])
+            ->assertRedirect(route('supplier_portal.purchase_orders.index'));
+
+        $this->assertDatabaseHas('purchase_order_invoices', [
+            'purchase_order_id' => $purchaseOrder->id,
+            'folio' => $uuid,
+            'evidence_file_name' => 'OC' . $purchaseOrder->id . '-FACT1-EVIDENCIA.pdf',
+        ]);
+        $this->assertDatabaseMissing('purchase_order_evidences', [
+            'purchase_order_id' => $purchaseOrder->id,
+        ]);
+        $this->assertFalse($purchaseOrder->fresh()->is_delivered);
+    }
+
     private function createInvoice(PurchaseOrder $purchaseOrder, string $status, float $amount): void
     {
         PurchaseOrderInvoice::create([

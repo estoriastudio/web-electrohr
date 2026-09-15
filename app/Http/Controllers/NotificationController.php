@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notification;
 use App\Models\NotificationRecipient;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,14 @@ class NotificationController extends Controller
 {
     public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'type' => ['nullable', 'string'],
+            'action' => ['nullable', 'string'],
+            'user_id' => ['nullable', 'integer'],
+            'start_date' => ['nullable', 'date_format:Y-m-d'],
+            'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
+        ]);
+
         $activitySummary = Notification::query()
             ->selectRaw('COUNT(*) as total_actions, MIN(created_at) as first_action_at')
             ->first();
@@ -45,9 +54,41 @@ class NotificationController extends Controller
             $query->where('model_action', $request->action);
         }
 
+        if (! empty($filters['user_id'])) {
+            $query->where('action_by', $filters['user_id']);
+        }
+
+        if (! empty($filters['start_date'])) {
+            $query->where('created_at', '>=', Carbon::parse($filters['start_date'])->startOfDay());
+        }
+
+        if (! empty($filters['end_date'])) {
+            $query->where('created_at', '<=', Carbon::parse($filters['end_date'])->endOfDay());
+        }
+
+        $users = User::query()
+            ->whereIn('id', Notification::query()->whereNotNull('action_by')->select('action_by')->distinct())
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $hasFilters = $request->hasAny(['type', 'action', 'user_id', 'start_date', 'end_date']);
+        $selectedUser = ! empty($filters['user_id'])
+            ? $users->firstWhere('id', (int) $filters['user_id'])
+            : null;
+        $userStats = $selectedUser ? [
+            'total' => (clone $query)->count(),
+            'created' => (clone $query)->where('model_action', 'create')->count(),
+            'updated' => (clone $query)->where('model_action', 'update')->count(),
+        ] : null;
         $notifications = $query->paginate(25)->withQueryString();
 
-        return view('notifications.index', compact('activityStats', 'notifications'));
+        return view('notifications.index', compact(
+            'activityStats',
+            'hasFilters',
+            'notifications',
+            'selectedUser',
+            'userStats',
+            'users',
+        ));
     }
 
     public function inbox(Request $request): View

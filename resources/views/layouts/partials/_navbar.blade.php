@@ -268,6 +268,30 @@
             @endcan
             @endhasanyrole
 
+            @hasanyrole('admin|Inventario')
+            @can('read')
+            <li class="menu-title">Inventario</li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('stocks.index') ? 'active' : '' }}" href="{{ route('stocks.index') }}">
+                    <span class="nav-icon"><i class="ri-archive-line"></i></span>
+                    <span class="nav-text">Consulta</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('stocks.entries.*') ? 'active' : '' }}" href="{{ route('stocks.entries.index') }}">
+                    <span class="nav-icon"><i class="ri-inbox-line"></i></span>
+                    <span class="nav-text">Entradas</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('stocks.exits.*') ? 'active' : '' }}" href="{{ route('stocks.exits.index') }}">
+                    <span class="nav-icon"><i class="ri-arrow-right-circle-line"></i></span>
+                    <span class="nav-text">Salidas</span>
+                </a>
+            </li>
+            @endcan
+            @endhasanyrole
+
             @hasanyrole('admin|Solcom|Solmat|suministros|Orden de compra')
             @can('read')
             <li class="nav-item">

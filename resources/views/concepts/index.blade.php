@@ -327,6 +327,11 @@
                                 @enderror
                             </div>
                         </div>
+                        <div class="col-md-6"><label class="form-label fw-medium">Ubicación</label><input name="warehouse_location" value="{{ old('warehouse_location', 'Almacén principal') }}" class="form-control" required></div>
+                        <div class="col-md-3"><label class="form-label fw-medium">Mínimo</label><input name="minimum_stock" type="number" step="0.001" min="0" class="form-control"></div>
+                        <div class="col-md-3"><label class="form-label fw-medium">Máximo</label><input name="maximum_stock" type="number" step="0.001" min="0" class="form-control"></div>
+                        <div class="col-md-6"><div class="form-check"><input name="requires_origin_certificate" value="1" type="checkbox" class="form-check-input" id="create_origin"><label class="form-check-label" for="create_origin">Requiere certificado de origen</label></div></div>
+                        <div class="col-md-6"><div class="form-check"><input name="requires_safety_certificate" value="1" type="checkbox" class="form-check-input" id="create_safety"><label class="form-check-label" for="create_safety">Requiere certificado de seguridad</label></div></div>
                         <div class="col-md-6">
                             <label for="create_status" class="form-label fw-medium">
                                 Estado <span class="text-danger">*</span>

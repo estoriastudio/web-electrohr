@@ -200,9 +200,9 @@
                             @enderror
                         </div>
 
-                        {{-- Placas — solo para parque vehicular --}}
+                            {{-- Placas — parque vehicular y semiremolques --}}
                         <div class="col-md-6" id="platesField"
-                             style="{{ old('type', $mobileAsset->type) === 'parque_vehicular' ? '' : 'display:none;' }}">
+                                style="{{ in_array(old('type', $mobileAsset->type), ['parque_vehicular', 'semiremolque'], true) ? '' : 'display:none;' }}">
                             <label for="plates" class="form-label fw-medium">Placas</label>
                             <input type="text"
                                    class="form-control @error('plates') is-invalid @enderror"
@@ -269,11 +269,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const platesField = document.getElementById('platesField');
 
     function togglePlates() {
-        if (typeSelect.value === 'parque_vehicular') {
+        if (['parque_vehicular', 'semiremolque'].includes(typeSelect.value)) {
             platesField.style.display = '';
         } else {
             platesField.style.display = 'none';
-            document.getElementById('plates').value = '';
         }
     }
 

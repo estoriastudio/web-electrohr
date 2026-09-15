@@ -41,14 +41,11 @@ class MobileAssetDocument extends Model
         ],
         'maquinaria_pesada' => [
             'poliza_seguro',
-            'verificacion',
             'ficha_tecnica',
             'manual',
-            'licencia_conducir',
         ],
         'semiremolque' => [
             'tarjeta_circulacion',
-            'placas',
             'inspeccion_fisico_mecanica',
         ],
     ];

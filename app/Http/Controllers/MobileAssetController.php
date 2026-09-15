@@ -83,6 +83,8 @@ class MobileAssetController extends Controller
                     $searchQuery->where('folio', $search)
                         ->orWhere('name', 'like', "%{$search}%")
                         ->orWhere('brand', 'like', "%{$search}%")
+                        ->orWhere('model', 'like', "%{$search}%")
+                        ->orWhere('plates', 'like', "%{$search}%")
                         ->orWhere('operator', 'like', "%{$search}%");
                 });
             })
@@ -162,7 +164,7 @@ class MobileAssetController extends Controller
             'status'         => 'nullable|in:activo,vendido,obsoleto,reparacion',
         ]);
 
-        if (($validated['type'] ?? null) !== 'parque_vehicular') {
+        if (($validated['type'] ?? null) === 'maquinaria_pesada') {
             $validated['plates'] = null;
         }
 
@@ -193,7 +195,9 @@ class MobileAssetController extends Controller
         $mobileAsset->load([
             'documents',
             'maintenanceLogs',
-            'maintenanceOrders' => fn ($q) => $q->orderByDesc('created_at'),
+            'maintenanceOrders' => fn ($q) => $q
+                ->withSum(['payments as paid_amount' => fn ($paymentQuery) => $paymentQuery->where('status', 'pagado')], 'amount')
+                ->orderByDesc('created_at'),
         ]);
         $mobileAsset->loadCount('maintenanceOrders');
 
@@ -204,7 +208,9 @@ class MobileAssetController extends Controller
         $hasDownloadableDocuments = $mobileAsset->documents
             ->whereIn('document_type', $applicableDocTypes)
             ->whereNotNull('file_path')
-            ->isNotEmpty();
+            ->isNotEmpty()
+            || $mobileAsset->maintenanceLogs->whereNotNull('inspection_file')->isNotEmpty();
+        $totalMaintenanceSpent = (float) $mobileAsset->maintenanceOrders->sum('paid_amount');
 
         return view('mobile_assets.show', compact(
             'mobileAsset',
@@ -212,7 +218,8 @@ class MobileAssetController extends Controller
             'docLabels',
             'noExpiryDocs',
             'nextMaintenanceFolio',
-            'hasDownloadableDocuments'
+            'hasDownloadableDocuments',
+            'totalMaintenanceSpent',
         ));
     }
 
@@ -269,8 +276,11 @@ class MobileAssetController extends Controller
             ->whereIn('document_type', $applicableTypes)
             ->whereNotNull('file_path')
             ->get();
+        $inspectionLogs = $mobileAsset->maintenanceLogs()
+            ->whereNotNull('inspection_file')
+            ->get();
 
-        if ($documents->isEmpty()) {
+        if ($documents->isEmpty() && $inspectionLogs->isEmpty()) {
             return redirect()->route('mobile_assets.show', $mobileAsset)
                 ->with('error', 'Este bien no tiene documentos para descargar.');
         }
@@ -304,6 +314,20 @@ class MobileAssetController extends Controller
             $fileName = Str::slug($label) . ($extension ? '.' . strtolower($extension) : '');
 
             $zip->addFromString($fileName, $contents);
+        }
+
+        foreach ($inspectionLogs as $log) {
+            $disk = Storage::disk('s3');
+
+            if (! $disk->exists($log->inspection_file)) {
+                continue;
+            }
+
+            $extension = pathinfo($log->inspection_file, PATHINFO_EXTENSION);
+            $folio = Str::slug($log->folio ?: 'inspeccion');
+            $fileName = 'bitacora/' . $folio . '-' . $log->id . ($extension ? '.' . strtolower($extension) : '');
+
+            $zip->addFromString($fileName, $disk->get($log->inspection_file));
         }
 
         $zip->close();
@@ -353,7 +377,7 @@ class MobileAssetController extends Controller
             'status'         => 'nullable|in:activo,vendido,obsoleto,reparacion',
         ]);
 
-        if (($validated['type'] ?? null) !== 'parque_vehicular') {
+        if (($validated['type'] ?? null) === 'maquinaria_pesada') {
             $validated['plates'] = null;
         }
 

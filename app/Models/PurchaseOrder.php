@@ -34,6 +34,8 @@ class PurchaseOrder extends Model
             'cedular_rate',
         'status',
         'is_delivered',
+        'delivery_status',
+        'delivery_evidence',
         'recurrence_type',
         'recurrence_frequency',
         'recurrence_start_date',

@@ -304,6 +304,50 @@
             </div>
         </div>
 
+        {{-- ── Órdenes de compra vinculadas ──────────────────────────── --}}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title mb-0"><i class="ri-file-list-3-line me-1 text-muted"></i> Órdenes de Compra Vinculadas</h5>
+                <div class="text-end">
+                    <div class="text-muted fs-12">Gasto realizado</div>
+                    <div class="fw-semibold text-success">${{ number_format($totalMaintenanceSpent, 2) }}</div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                        <thead class="bg-light-subtle">
+                            <tr>
+                                <th>OC</th>
+                                <th>Fecha</th>
+                                <th>Estatus</th>
+                                <th class="text-end">Importe</th>
+                                <th class="text-end">Pagado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($mobileAsset->maintenanceOrders as $order)
+                                <tr>
+                                    <td><a href="{{ route('purchase_orders.show', $order) }}" class="fw-medium">{{ $order->folio ?? 'OC #' . $order->id }}</a></td>
+                                    <td class="text-muted fs-12">{{ $order->created_at?->format('d/m/Y') ?? '—' }}</td>
+                                    <td><span class="badge bg-secondary-subtle text-secondary fs-11">{{ ucfirst($order->status ?? '—') }}</span></td>
+                                    <td class="text-end">${{ number_format((float) $order->amount, 2) }}</td>
+                                    <td class="text-end fw-medium">${{ number_format((float) $order->paid_amount, 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="ri-file-list-3-line fs-24 d-block mb-1 opacity-50"></i>
+                                        No hay órdenes de compra de mantenimiento vinculadas.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         {{-- ── Bitácora de mantenimiento ──────────────────────────────── --}}
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
@@ -418,14 +462,18 @@
                     <dt class="col-sm-5 text-muted fw-normal">Número Económico</dt>
                     <dd class="col-sm-7 fw-medium">{{ $mobileAsset->folio ?? '—' }}</dd>
 
+                    @if ($mobileAsset->type !== 'semiremolque')
                     <dt class="col-sm-5 text-muted fw-normal">Póliza</dt>
                     <dd class="col-sm-7">{{ $mobileAsset->policy ?? '—' }}</dd>
+                    @endif
 
                     <dt class="col-sm-5 text-muted fw-normal">No. Tarjeta</dt>
                     <dd class="col-sm-7">{{ $mobileAsset->card_number ?? '—' }}</dd>
 
+                    @if ($mobileAsset->type !== 'semiremolque')
                     <dt class="col-sm-5 text-muted fw-normal">Kilometraje</dt>
                     <dd class="col-sm-7">{{ $mobileAsset->milage ? (is_numeric($mobileAsset->milage) ? number_format($mobileAsset->milage) . ' km' : $mobileAsset->milage) : '—' }}</dd>
+                    @endif
 
                     <dt class="col-sm-5 text-muted fw-normal">Nombre</dt>
                     <dd class="col-sm-7 fw-medium">{{ $mobileAsset->name }}</dd>
@@ -445,7 +493,7 @@
                     <dt class="col-sm-5 text-muted fw-normal">Color</dt>
                     <dd class="col-sm-7">{{ $mobileAsset->color ?? '—' }}</dd>
 
-                    @if ($mobileAsset->type === 'parque_vehicular')
+                    @if (in_array($mobileAsset->type, ['parque_vehicular', 'semiremolque'], true))
                     <dt class="col-sm-5 text-muted fw-normal">Placas</dt>
                     <dd class="col-sm-7">{{ $mobileAsset->plates ?? '—' }}</dd>
                     @endif

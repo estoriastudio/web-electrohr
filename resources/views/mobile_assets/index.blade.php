@@ -125,8 +125,8 @@
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                     <input type="text" name="search" value="{{ $search }}"
-                              class="form-control" placeholder="Buscar por número económico, nombre, marca o chofer"
-                              aria-label="Número económico, nombre, marca o chofer"
+                              class="form-control" placeholder="Buscar por número económico, nombre, marca, modelo, placas o chofer"
+                              aria-label="Número económico, nombre, marca, modelo, placas o chofer"
                            autocomplete="off">
                     @if ($search)
                         <a href="{{ route('mobile_assets.index', ['type' => $type]) }}"
@@ -382,7 +382,7 @@
 
     function togglePlates() {
         if (typeSelect && platesField) {
-            platesField.style.display = typeSelect.value === 'parque_vehicular' ? '' : 'none';
+            platesField.style.display = ['parque_vehicular', 'semiremolque'].includes(typeSelect.value) ? '' : 'none';
         }
     }
 

@@ -63,10 +63,13 @@
         ->groupBy(fn ($e) => optional($e->created_at)->format('Y-m-d') ?? 'sin-fecha');
     $minDueDate = now()->format('Y-m-d');
     $conceptSearchType = $purchaseOrder->type === 'mantenimiento' ? 'mantenimiento' : 'materiales';
-    $isDelivered = (bool) $purchaseOrder->is_delivered;
-    $deliveryBadge = $isDelivered
-        ? ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line']
-        : ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'];
+    $deliveryStatus = $purchaseOrder->delivery_status ?: ($purchaseOrder->is_delivered ? 'entregado' : 'por_entregar');
+    $deliveryBadgeMap = [
+        'por_entregar' => ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'],
+        'parcial' => ['label' => 'Entrega parcial', 'class' => 'bg-info-subtle text-info', 'icon' => 'ri-truck-line'],
+        'entregado' => ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line'],
+    ];
+    $deliveryBadge = $deliveryBadgeMap[$deliveryStatus] ?? $deliveryBadgeMap['por_entregar'];
     $supplier = $purchaseOrder->supplier;
     $primarySupplierContact = $supplier?->contacts->firstWhere('is_primary', true) ?? $supplier?->contacts->first();
     $supplierBankDetails = $supplier?->locations->first();
@@ -504,7 +507,7 @@
 <div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <form action="{{ route('purchase_orders.delivery_status.update', $purchaseOrder) }}" method="POST">
+            <form action="{{ route('purchase_orders.delivery_status.update', $purchaseOrder) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PATCH')
                 <div class="modal-header">
@@ -517,11 +520,19 @@
                     <p class="text-muted fs-13 mb-3">
                         Define manualmente el estatus de entrega para la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}.
                     </p>
-                    <label for="is_delivered" class="form-label fw-medium">Estatus de entrega <span class="text-danger">*</span></label>
-                    <select id="is_delivered" name="is_delivered" class="form-select" required>
-                        <option value="0" {{ $isDelivered ? '' : 'selected' }}>Por entregar</option>
-                        <option value="1" {{ $isDelivered ? 'selected' : '' }}>Entregado</option>
+                    <label for="delivery_status" class="form-label fw-medium">Estatus de entrega <span class="text-danger">*</span></label>
+                    <select id="delivery_status" name="delivery_status" class="form-select @error('delivery_status') is-invalid @enderror" required>
+                        <option value="por_entregar" {{ old('delivery_status', $deliveryStatus) === 'por_entregar' ? 'selected' : '' }}>Por entregar</option>
+                        <option value="parcial" {{ old('delivery_status', $deliveryStatus) === 'parcial' ? 'selected' : '' }}>Entrega parcial</option>
+                        <option value="entregado" {{ old('delivery_status', $deliveryStatus) === 'entregado' ? 'selected' : '' }}>Entregado</option>
                     </select>
+                    @error('delivery_status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <div id="delivery_evidence_group" class="mt-3 {{ old('delivery_status', $deliveryStatus) === 'parcial' ? '' : 'd-none' }}">
+                        <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
+                        <input id="delivery_evidence" name="delivery_evidence" type="file" class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                        <div class="form-text">PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
+                        @error('delivery_evidence')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
                     <div class="form-text">Este estatus es independiente del estatus de la OC (Emitida, Pendiente, Autorizada).</div>
                 </div>
                 <div class="modal-footer">
@@ -2276,6 +2287,23 @@
 
 @push('scripts')
 <script>
+(function () {
+    var deliveryStatus = document.getElementById('delivery_status');
+    var evidenceGroup = document.getElementById('delivery_evidence_group');
+    var evidenceInput = document.getElementById('delivery_evidence');
+
+    if (!deliveryStatus || !evidenceGroup || !evidenceInput) return;
+
+    function toggleDeliveryEvidence() {
+        var isPartial = deliveryStatus.value === 'parcial';
+        evidenceGroup.classList.toggle('d-none', !isPartial);
+        evidenceInput.required = isPartial;
+    }
+
+    deliveryStatus.addEventListener('change', toggleDeliveryEvidence);
+    toggleDeliveryEvidence();
+})();
+
 (function () {
     var csrf     = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var tbody    = document.getElementById('oc_items_tbody');

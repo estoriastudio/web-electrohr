@@ -32,6 +32,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Proyectos',
             'Moviles',
             'Recepción',
+            'Inventario',
             'supplier_portal_access',
         ];
 

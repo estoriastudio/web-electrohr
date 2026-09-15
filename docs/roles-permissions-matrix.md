@@ -13,6 +13,7 @@ Cuando se agreguen o cambien roles, actualiza este archivo primero.
 - Proveedor
 - Proyectos
 - Recepción
+- Inventario
 - Solcom
 - Solmat
 - supplier_portal_access
@@ -38,6 +39,7 @@ Cuando se agreguen o cambien roles, actualiza este archivo primero.
 | Proveedor        |   SI   |  SI  |   SI   |   SI   |
 | Proyectos        |   SI   |  SI  |   SI   |   SI   |
 | Recepción        |   SI   |  SI  |   SI   |   SI   |
+| Inventario       |   SI   |  SI  |   SI   |   SI   |
 | Solcom           |   SI   |  SI  |   SI   |   SI   |
 | Solmat           |   SI   |  SI  |   SI   |   SI   |
 | supplier_portal_access | SI | SI | SI | SI |
@@ -66,6 +68,7 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 | Carga de Trabajo           | Orden de compra                 |
 | Solicitudes de Material    | Solmat                          |
 | Pila SOLMAT                | Solmat, Orden de compra         |
+| Inventario                 | Inventario                      |
 
 ## Convenciones
 
@@ -81,3 +84,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-06-16: Roles renombrados a español; eliminados `orders`/`payments` (inglés). Agregado rol `Recepción` (solo Alta de Facturas). Bienes Móviles y Proyectos ahora protegidos por middleware. Solmat accede a Proyectos y Pila SOLMAT. Orden de compra reemplaza a Solcom como nombre de rol.
 - 2026-07-13: Se agrega rol `supplier_portal_access` y su mapeo de Portal de Proveedores. Se documenta tambien `Proveedor` en Vales de Material y se actualizan mapeos de Hitos/Alta de Facturas segun rutas actuales.
 - 2026-07-13: Se agrega el modulo funcional Evidencias de Entrega OC con acceso para admin, Solmat, Pagos y Orden de compra.
+- 2026-09-14: Se agrega el rol Inventario para consulta y gestión de existencias, entradas y salidas.

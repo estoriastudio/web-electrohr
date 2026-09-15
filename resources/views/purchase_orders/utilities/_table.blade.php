@@ -58,9 +58,13 @@
                         'EUR' => '€',
                         default => '$',
                     };
-                    $deliveryBadge = $order->is_delivered
-                        ? ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line']
-                        : ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'];
+                    $deliveryStatus = $order->delivery_status ?: ($order->is_delivered ? 'entregado' : 'por_entregar');
+                    $deliveryBadgeMap = [
+                        'por_entregar' => ['label' => 'Por entregar', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-truck-line'],
+                        'parcial' => ['label' => 'Entrega parcial', 'class' => 'bg-info-subtle text-info', 'icon' => 'ri-truck-line'],
+                        'entregado' => ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line'],
+                    ];
+                    $deliveryBadge = $deliveryBadgeMap[$deliveryStatus] ?? $deliveryBadgeMap['por_entregar'];
 
                 @endphp
                 <tr @if ($mode === 'trashed') class="table-danger" @endif>

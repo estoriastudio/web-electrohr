@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderEvidence;
 use App\Models\PurchaseOrderInvoice;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -199,18 +198,6 @@ class SupplierPortalInvoiceController extends Controller
                 'credit_note_xml_file_path' => $creditNoteXmlPath,
                 'credit_note_amount' => $resolvedCreditNoteAmount,
                 'net_scope' => $netScope,
-            ]);
-
-            PurchaseOrderEvidence::create([
-                'purchase_order_id' => $purchaseOrder->id,
-                'purchase_order_milestone_id' => null,
-                'purchase_order_invoice_id' => $invoice->id,
-                'uploaded_by' => $request->user()->id,
-                'file_name' => $evidenceName,
-                'file_path' => $evidencePath,
-                'mime_type' => $request->file('evidence_file')->getClientMimeType(),
-                'source' => 'supplier_portal',
-                'description' => 'Evidencia subida por proveedor junto con factura.',
             ]);
         });
 
