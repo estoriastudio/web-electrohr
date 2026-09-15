@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\WorkerAttendanceExport;
 use App\Models\Incentive;
 use App\Models\Worker;
 use App\Models\WorkerAttendance;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class WorkerAttendanceController extends Controller
 {
@@ -94,6 +96,23 @@ class WorkerAttendanceController extends Controller
             'nextDate',
             'canGoNext',
         ));
+    }
+
+    public function export(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        return Excel::download(
+            new WorkerAttendanceExport(
+                $validated['start_date'],
+                $validated['end_date'],
+                $this->requiresResponsibleWorkFilter() ? Auth::id() : null,
+            ),
+            'asistencias-por-cuadrilla-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+        );
     }
 
     public function groupAttendance(Request $request, WorkerGroup $workerGroup): View

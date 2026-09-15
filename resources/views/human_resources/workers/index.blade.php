@@ -97,7 +97,13 @@
                 <tr>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <div class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"><span class="fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span></div>
+                            <div class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 overflow-hidden">
+                                @if($worker->profile_photo_path)
+                                    <img src="{{ route('human_resources.workers.profile-photo', $worker) }}" alt="Fotografía de {{ $worker->first_name }} {{ $worker->last_name }}" class="w-100 h-100" style="object-fit: cover;">
+                                @else
+                                    <span class="fw-semibold">{{ strtoupper(substr($worker->first_name, 0, 1)) }}{{ strtoupper(substr($worker->last_name, 0, 1)) }}</span>
+                                @endif
+                            </div>
                             <div><a class="text-dark fw-medium" href="{{ route('human_resources.workers.show', $worker) }}">{{ $worker->last_name }}, {{ $worker->first_name }}</a><div class="text-muted fs-12">No. de empleado: {{ $worker->nss }}</div></div>
                         </div>
                     </td>

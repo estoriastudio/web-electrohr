@@ -14,6 +14,24 @@
 	<div>
 		<h4 class="mb-1">Asistencia diaria</h4>
 		<span class="text-muted">Resumen por cuadrilla</span>
+		<div class="dropdown mt-2">
+			<button class="btn btn-success btn-sm dropdown-toggle" type="button" id="attendanceExportDropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+				<i class="ri-file-excel-2-line me-1"></i>Exportar a Excel
+			</button>
+			<div class="dropdown-menu p-3" aria-labelledby="attendanceExportDropdown" style="min-width: 280px;">
+				<form action="{{ route('human_resources.worker-attendances.export') }}" method="GET">
+					<div class="mb-2">
+						<label for="attendanceExportStartDate" class="form-label mb-1">Fecha inicio</label>
+						<input type="date" id="attendanceExportStartDate" name="start_date" value="{{ old('start_date', $date) }}" class="form-control form-control-sm" required>
+					</div>
+					<div class="mb-3">
+						<label for="attendanceExportEndDate" class="form-label mb-1">Fecha fin</label>
+						<input type="date" id="attendanceExportEndDate" name="end_date" value="{{ old('end_date', $date) }}" class="form-control form-control-sm" required>
+					</div>
+					<button type="submit" class="btn btn-success btn-sm w-100"><i class="ri-download-2-line me-1"></i>Descargar reporte</button>
+				</form>
+			</div>
+		</div>
 	</div>
 	<div class="d-flex align-items-center gap-2">
 		<a href="{{ route('human_resources.worker-attendances.index', ['date' => $previousDate]) }}" class="btn btn-light" title="Día anterior"><i class="ri-arrow-left-s-line"></i></a>

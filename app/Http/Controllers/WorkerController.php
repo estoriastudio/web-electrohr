@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Exports\WorkerExport;
 use App\Imports\WorkerPayrollImport;
 use App\Imports\WorkerTerminationImport;
+use App\Models\PayrollLine;
 use App\Models\PositionCategory;
 use App\Models\Worker;
 use App\Models\ProjectWork;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\NotificationService;
 use App\Services\WorkerTerminationService;
 use Illuminate\Http\RedirectResponse;
@@ -172,15 +174,39 @@ class WorkerController extends Controller
             'vacations' => fn ($query) => $query->orderByDesc('start_date'),
             'incentives' => fn ($query) => $query->orderByDesc('incentive_date'),
             'attendances.workerGroup.projectWork',
+            'payrollLines' => fn ($query) => $query
+                ->with('payrollPeriod')
+                ->whereHas('payrollPeriod', fn ($periodQuery) => $periodQuery->where('status', 'paid'))
+                ->orderByDesc('payroll_period_id'),
         ]);
 
         return view('human_resources.workers.show', compact('worker', 'canManageWorker'));
     }
 
+    public function downloadPayrollReceipt(Worker $worker, PayrollLine $payrollLine)
+    {
+        $this->ensureWorkerAccess($worker);
+
+        abort_unless(
+            (int) $payrollLine->worker_id === (int) $worker->id
+                && $payrollLine->payrollPeriod()->where('status', 'paid')->exists(),
+            404
+        );
+
+        $payrollLine->load(['payrollPeriod', 'worker', 'projectWork', 'workerGroup', 'positionCategory']);
+
+        $pdf = Pdf::loadView('human_resources.workers.payroll_receipt_pdf', compact('worker', 'payrollLine'))
+            ->setPaper('letter', 'portrait');
+        $period = $payrollLine->payrollPeriod;
+        $filename = sprintf('RECIBO-NOMINA-%s-SEMANA-%s-%s.pdf', $worker->nss ?: $worker->id, $period->week_number, $period->year);
+
+        return $pdf->download($filename);
+    }
+
     public function edit(Worker $worker): View
     {
         $positionCategories = PositionCategory::query()
-            ->where(fn ($query) => $query->where('active', true)->orWhereKey($worker->position_category_id))
+            ->where(fn ($query) => $query->where('active', true)->orWhere('id', $worker->position_category_id))
             ->orderBy('name')
             ->get();
 

@@ -161,6 +161,33 @@
     </div>
 </div>
 
+<div class="card mt-3">
+    <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+        <div><h4 class="card-title mb-0"><i class="ri-file-text-line me-2 text-primary"></i>Recibos de nómina</h4><span class="text-muted fs-12">Pagos semanales realizados.</span></div>
+        <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">{{ $worker->payrollLines->count() }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                <thead class="bg-light-subtle"><tr><th>Semana</th><th>Periodo</th><th>Obra</th><th class="text-end">Pago realizado</th><th class="text-end">Recibo</th></tr></thead>
+                <tbody>
+                    @forelse($worker->payrollLines as $payrollLine)
+                        <tr>
+                            <td class="fw-medium">{{ $payrollLine->payrollPeriod->week_number }}/{{ $payrollLine->payrollPeriod->year }}</td>
+                            <td>{{ $payrollLine->payrollPeriod->start_date->format('d/m/Y') }} - {{ $payrollLine->payrollPeriod->end_date->format('d/m/Y') }}</td>
+                            <td>{{ $payrollLine->projectWork?->name ?: 'Sin obra asignada' }}</td>
+                            <td class="text-end fw-semibold">${{ number_format((float) $payrollLine->total_amount, 2) }}</td>
+                            <td class="text-end"><a href="{{ route('human_resources.workers.payroll-receipt.download', [$worker, $payrollLine]) }}" class="btn btn-light btn-sm" title="Descargar recibo PDF"><i class="ri-download-2-line"></i></a></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1"></i>No hay pagos de nómina realizados.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 @if($canManageWorker)
 <div class="card mt-3">
     <div class="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">

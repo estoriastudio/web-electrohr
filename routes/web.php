@@ -289,11 +289,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
                 Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
                 Route::post('worker-groups/{workerGroup}/attendance/{worker}/incentives', [WorkerAttendanceController::class, 'storeGroupIncentive'])->name('worker-groups.attendance.incentives.store');
+                Route::get('worker-attendances/export', [WorkerAttendanceController::class, 'export'])->name('worker-attendances.export');
                 Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['index']);
                 Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
                 Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
                 Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])->name('workers.file.download');
                 Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
+                Route::get('workers/{worker}/payroll-lines/{payrollLine}/receipt', [WorkerController::class, 'downloadPayrollReceipt'])->name('workers.payroll-receipt.download');
                 Route::get('workers/{worker}', [WorkerController::class, 'show'])->name('workers.show');
             });
 
