@@ -25,6 +25,7 @@ use Carbon\Carbon;
 /* Notificaciones */
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
+use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PaymentController extends Controller
 {
@@ -35,6 +36,7 @@ class PaymentController extends Controller
     public function __construct(
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
+        private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
     ) {}
 
     public function index(Request $request): View
@@ -361,11 +363,15 @@ class PaymentController extends Controller
             'status' => 'required|in:autorizado,rechazado,pospuesto,por_autorizar',
         ]);
 
+        $milestone = $payment->milestone()->with('purchaseOrder')->firstOrFail();
+        $this->paymentSequenceValidator->ensureStatusSequence(
+            $milestone->purchaseOrder,
+            [$payment->id => $validated['status']],
+        );
         $payment->update(['status' => $validated['status']]);
 
         // Solo notificar si no es un undo (revertir a por_autorizar)
         if (!in_array($validated['status'], ['por_autorizar', 'pospuesto'])) {
-            $milestone = $payment->milestone;
             $this->notification->send([
                 'type'         => 'Payment',
                 'action_by'    => Auth::id(),
@@ -421,6 +427,14 @@ class PaymentController extends Controller
                 $firstPayment = $payments->first();
                 $targetAmount = round($milestone->effective_amount, 2);
                 $newAmount = round((float) $validated['amount'], 2);
+
+                if ($firstPayment === null) {
+                    $this->paymentSequenceValidator->ensureExistingMilestoneFirstPaymentDate(
+                        $milestone->purchaseOrder,
+                        $milestone->id,
+                        $validated['payment_date'],
+                    );
+                }
 
                 $canSplitInitialPayment = $payments->count() === 1
                     && $firstPayment?->status === 'por_autorizar';
@@ -510,6 +524,10 @@ class PaymentController extends Controller
                 return ['error' => 'La OC debe estar autorizada para solicitar la reactivación de un pago.'];
             }
 
+            $this->paymentSequenceValidator->ensureStatusSequence(
+                $purchaseOrder,
+                [$lockedPayment->id => 'por_autorizar'],
+            );
             $lockedPayment->update(['status' => 'por_autorizar']);
 
             return [
@@ -562,6 +580,13 @@ class PaymentController extends Controller
         if ($hasSpeiFile && $payment->status !== 'autorizado') {
             return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado.');
+        }
+
+        if (!$hasStatusChange) {
+            $this->paymentSequenceValidator->ensureStatusSequence(
+                $milestone->purchaseOrder,
+                [$payment->id => 'pagado'],
+            );
         }
 
         if ($hasSpeiFile) {
@@ -623,6 +648,10 @@ class PaymentController extends Controller
                 ->with('error', 'Transición de estatus no permitida.');
         }
 
+        $this->paymentSequenceValidator->ensureStatusSequence(
+            $milestone->purchaseOrder,
+            [$payment->id => $newStatus],
+        );
         $payment->status = $newStatus;
         $payment->save();
 
@@ -709,6 +738,21 @@ class PaymentController extends Controller
                     ->lockForUpdate()
                     ->get()
                     ->keyBy('id');
+                $purchaseOrders = PurchaseOrder::query()
+                    ->whereIn('id', $milestones->pluck('purchase_order_id')->unique())
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+                $statusUpdatesByPurchaseOrder = $payments
+                    ->groupBy(fn (Payment $payment) => $milestones->get($payment->milestone_id)->purchase_order_id)
+                    ->map(fn ($orderPayments) => $orderPayments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'pagado'])->all());
+
+                foreach ($statusUpdatesByPurchaseOrder as $purchaseOrderId => $statusUpdates) {
+                    $this->paymentSequenceValidator->ensureStatusSequence(
+                        $purchaseOrders->get($purchaseOrderId),
+                        $statusUpdates,
+                    );
+                }
 
                 foreach ($payments as $payment) {
                     $payment->update([
@@ -795,6 +839,17 @@ class PaymentController extends Controller
                 throw ValidationException::withMessages([
                     'payment_ids' => 'Todos los pagos seleccionados deben seguir pendientes y pertenecer a una OC autorizada.',
                 ]);
+            }
+
+            $statusUpdatesByPurchaseOrder = $payments
+                ->groupBy(fn (Payment $payment) => $milestones->get($payment->milestone_id)->purchase_order_id)
+                ->map(fn ($orderPayments) => $orderPayments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all());
+
+            foreach ($statusUpdatesByPurchaseOrder as $purchaseOrderId => $statusUpdates) {
+                $this->paymentSequenceValidator->ensureStatusSequence(
+                    $purchaseOrders->get($purchaseOrderId),
+                    $statusUpdates,
+                );
             }
 
             foreach ($payments as $payment) {

@@ -19,12 +19,14 @@ use Illuminate\Validation\ValidationException;
 /* Notificaciones */
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
+use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PurchaseOrderMilestoneController extends Controller
 {
     public function __construct(
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
+        private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
     ) {}
 
     /**
@@ -119,6 +121,11 @@ class PurchaseOrderMilestoneController extends Controller
                 (string) $validated['value_type'],
                 (float) $validated['value'],
             );
+            $this->paymentSequenceValidator->ensureNewInitialPaymentDate(
+                $lockedPurchaseOrder,
+                $validated['due_date'],
+                'due_date',
+            );
 
             $milestone = PurchaseOrderMilestone::create($validated);
             $milestone->load('purchaseOrder');
@@ -205,12 +212,28 @@ class PurchaseOrderMilestoneController extends Controller
                 ->orderBy('id')
                 ->get();
 
+            $firstPayment = $payments->first();
+            if ($firstPayment?->status === 'por_autorizar') {
+                $this->paymentSequenceValidator->ensurePaymentDateSequence(
+                    $purchaseOrderMilestone->purchaseOrder,
+                    [$firstPayment->id => $validated['due_date']],
+                    'due_date',
+                );
+            }
+
             $purchaseOrderMilestone->update($validated);
             $purchaseOrderMilestone->refresh()->load('purchaseOrder');
 
             $targetAmount = $purchaseOrderMilestone->effective_amount;
 
             if ($payments->isEmpty()) {
+                $this->paymentSequenceValidator->ensureExistingMilestoneFirstPaymentDate(
+                    $purchaseOrderMilestone->purchaseOrder,
+                    $purchaseOrderMilestone->id,
+                    $purchaseOrderMilestone->due_date,
+                    'due_date',
+                );
+
                 Payment::create([
                     'milestone_id'     => $purchaseOrderMilestone->id,
                     'folio'            => $this->paymentFolioGenerator->generate(),

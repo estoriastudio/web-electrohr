@@ -2795,12 +2795,6 @@
 })();
 
 $(function () {
-    // Abrir modal de hito si hay errores de validación relacionados
-    @if ($errors->hasBag('default') && old('purchase_order_id') && $canCreateMilestone)
-        var modal = new bootstrap.Modal(document.getElementById('modalCreateMilestone'));
-        modal.show();
-    @endif
-
     // ── Validación dinámica del campo Valor en Nuevo Hito ──
     var ocAmount = {{ $importeTotal }};
 
