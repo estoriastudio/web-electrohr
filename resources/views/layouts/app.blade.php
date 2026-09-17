@@ -125,6 +125,38 @@
      </div>
      <!-- END Wrapper -->
 
+    @if ($errors->any() || session('error'))
+    <div class="modal fade" id="validationFeedbackModal" tabindex="-1" aria-labelledby="validationFeedbackModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="validationFeedbackModalLabel">
+                        <i class="ri-error-warning-line text-danger me-1"></i>No se pudo completar la operación
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (session('error'))
+                        <div class="alert alert-danger mb-{{ $errors->any() ? '3' : '0' }}" role="alert">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+                    @if ($errors->any())
+                        <ul class="mb-0 ps-3">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
      <!-- Vendor Javascript (Require in all Page) -->
      <script src="{{ asset('assets/js/vendor.js') }}"></script>
 
@@ -133,6 +165,17 @@
 
      <!-- App Javascript (Require in all Page) -->
      <script src="{{ asset('assets/js/app.js') }}"></script>
+
+    @if ($errors->any() || session('error'))
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var modalElement = document.getElementById('validationFeedbackModal');
+            if (modalElement) {
+                bootstrap.Modal.getOrCreateInstance(modalElement).show();
+            }
+        });
+    </script>
+    @endif
 
     @stack('scripts')
 </body>

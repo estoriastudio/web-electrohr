@@ -687,11 +687,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     applySelectedIdsToPage();
     updateSelection();
-
-    @if ($errors->has('payment_ids') || $errors->has('spei_receipt_file'))
-        modalCount.textContent = selectedIds.size;
-        bootstrap.Modal.getOrCreateInstance(modalElement).show();
-    @endif
 });
 </script>
 @endpush

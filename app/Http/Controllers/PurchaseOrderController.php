@@ -31,10 +31,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PurchaseOrderController extends Controller
 {
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
+    ) {}
 
     private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
     {
@@ -694,6 +698,10 @@ class PurchaseOrderController extends Controller
                 ]);
             }
 
+            $this->paymentSequenceValidator->ensureStatusSequence(
+                $lockedPurchaseOrder,
+                $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),
+            );
             $lockedPurchaseOrder->update(['status' => 'autorizada']);
             $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado']));
 
