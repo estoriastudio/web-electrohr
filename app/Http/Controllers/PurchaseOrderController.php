@@ -964,7 +964,7 @@ class PurchaseOrderController extends Controller
             'unit'          => 'required|string|max:50',
             'quantity'      => 'required|numeric|min:0.0001|decimal:0,4',
             'unit_price'    => 'required|numeric|min:0',
-            'delivery_due_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
+            'delivery_due_date' => 'nullable|date_format:Y-m-d',
         ]);
 
         // Si viene del catálogo, normalizar con la definición oficial del concepto.
@@ -1029,7 +1029,7 @@ class PurchaseOrderController extends Controller
         $data = $request->validate([
             'quantity'          => 'sometimes|numeric|min:0.0001|decimal:0,4',
             'unit_price'        => 'sometimes|numeric|min:0',
-            'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d|after_or_equal:today',
+            'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d',
         ]);
 
         $item->update($data);

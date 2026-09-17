@@ -635,7 +635,7 @@
                                     <td style="min-width:150px;">
                                         @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
-                                        <input type="date" min="{{ $minDueDate }}"
+                                             <input type="date"
                                                class="form-control form-control-sm oc-delivery-input"
                                                value="{{ $item->delivery_due_date?->format('Y-m-d') ?? '' }}"
                                                data-item-id="{{ $item->id }}"
@@ -795,7 +795,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
-                                <input type="date" id="oc_inp_delivery" class="form-control" min="{{ $minDueDate }}">
+                                <input type="date" id="oc_inp_delivery" class="form-control">
                             </div>
                             <div class="col-md-3 d-flex align-items-end">
                                 <div id="oc_add_error" class="text-danger fs-12 mb-2 d-none"></div>
@@ -835,7 +835,7 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
-                                <input type="date" id="oc_inp_manual_delivery" class="form-control" min="{{ $minDueDate }}">
+                                <input type="date" id="oc_inp_manual_delivery" class="form-control">
                             </div>
                         </div>
                         <button type="button" id="oc_btn_save_manual" class="btn btn-primary">
@@ -2749,7 +2749,7 @@
                 + '<td class="text-end"><input type="number" step="0.0001" min="0.0001" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(formatQuantity(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(formatQuantity(data.quantity)) + '"></td>'
                 + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm text-end oc-qty-input oc-price-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
                 + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
-                + '<td><input type="date" min="{{ $minDueDate }}" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_due_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_due_date || '') + '"></td>'
+                + '<td><input type="date" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_due_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_due_date || '') + '"></td>'
                 + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>';
             tbody.appendChild(tr);
             formatPriceInput(tr.querySelector('.oc-price-input'));
