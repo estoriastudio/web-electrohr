@@ -125,7 +125,22 @@
             <td style="border: 1px solid #999; padding: 5px; text-align: center;">{{ $item->unit }}</td>
             <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($item->unit_price, 2) }}</td>
             <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($item->total, 2) }}</td>
-            <td style="border: 1px solid #999; padding: 5px; text-align: center;">{{ $item->delivery_date ?? '—' }}</td>
+            <td style="border: 1px solid #999; padding: 5px; text-align: center;">
+                @if ($item->delivery_due_date && $po->created_at)
+                    @php
+                        $deliveryDays = $po->created_at->copy()->startOfDay()->diffInDays($item->delivery_due_date, false);
+                    @endphp
+                    @if ($deliveryDays >= 7 && $deliveryDays % 7 === 0)
+                        {{ intdiv($deliveryDays, 7) }} {{ intdiv($deliveryDays, 7) === 1 ? 'SEMANA' : 'SEMANAS' }}
+                    @elseif ($deliveryDays >= 0)
+                        {{ $deliveryDays }} {{ $deliveryDays === 1 ? 'DIA' : 'DIAS' }}
+                    @else
+                        {{ $item->delivery_due_date->format('d/m/Y') }}
+                    @endif
+                @else
+                    {{ $item->delivery_date ?? '—' }}
+                @endif
+            </td>
         </tr>
         @empty
         <tr>
