@@ -16,11 +16,13 @@ class PurchaseOrderItem extends Model
         'quantity',
         'unit_price',
         'delivery_date',
+        'delivery_due_date',
     ];
 
     protected $casts = [
-        'quantity'   => 'decimal:4',
-        'unit_price' => 'decimal:8',
+        'quantity'          => 'decimal:4',
+        'unit_price'        => 'decimal:8',
+        'delivery_due_date' => 'date',
     ];
 
     public function getTotalAttribute(): float
