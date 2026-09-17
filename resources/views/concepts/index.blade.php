@@ -169,11 +169,22 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if ($concept->status === 'active')
-                                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Activo</span>
-                                        @else
-                                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Inactivo</span>
-                                        @endif
+                                        <div class="d-flex flex-wrap gap-1" style="max-width:220px;">
+                                            @if ($concept->status === 'active')
+                                                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Activo</span>
+                                            @else
+                                                <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Inactivo</span>
+                                            @endif
+                                            <span class="badge bg-info-subtle text-info py-1 px-2 fs-12" title="Ubicación de almacén">
+                                                <i class="ri-map-pin-line me-1"></i>{{ $concept->warehouse_location ?: 'Sin ubicación' }}
+                                            </span>
+                                            <span class="badge {{ $concept->requires_origin_certificate ? 'bg-primary-subtle text-primary' : 'bg-light text-muted border' }} py-1 px-2 fs-12" title="Certificado de origen">
+                                                <i class="ri-earth-line me-1"></i>Origen: {{ $concept->requires_origin_certificate ? 'Sí' : 'No' }}
+                                            </span>
+                                            <span class="badge {{ $concept->requires_safety_certificate ? 'bg-warning-subtle text-warning' : 'bg-light text-muted border' }} py-1 px-2 fs-12" title="Certificado de seguridad">
+                                                <i class="ri-shield-check-line me-1"></i>Seguridad: {{ $concept->requires_safety_certificate ? 'Sí' : 'No' }}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="d-flex gap-2">
@@ -185,6 +196,11 @@
                                                     data-description="{{ $concept->description }}"
                                                     data-unit="{{ $concept->unit }}"
                                                     data-unit-price="{{ $concept->unit_price }}"
+                                                    data-warehouse-location="{{ $concept->warehouse_location }}"
+                                                    data-minimum-stock="{{ $concept->minimum_stock }}"
+                                                    data-maximum-stock="{{ $concept->maximum_stock }}"
+                                                    data-requires-origin-certificate="{{ $concept->requires_origin_certificate ? '1' : '0' }}"
+                                                    data-requires-safety-certificate="{{ $concept->requires_safety_certificate ? '1' : '0' }}"
                                                     data-status="{{ $concept->status }}"
                                                     data-type="{{ $concept->type }}"
                                                     data-category-id="{{ $concept->concept_category_id }}"
@@ -427,6 +443,30 @@
                             </div>
                         </div>
                         <div class="col-md-6">
+                            <label for="edit_warehouse_location" class="form-label fw-medium">Ubicación <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_warehouse_location" name="warehouse_location" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="edit_minimum_stock" class="form-label fw-medium">Mínimo</label>
+                            <input type="number" class="form-control" id="edit_minimum_stock" name="minimum_stock" step="0.001" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="edit_maximum_stock" class="form-label fw-medium">Máximo</label>
+                            <input type="number" class="form-control" id="edit_maximum_stock" name="maximum_stock" step="0.001" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input name="requires_origin_certificate" value="1" type="checkbox" class="form-check-input" id="edit_origin">
+                                <label class="form-check-label" for="edit_origin">Requiere certificado de origen</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input name="requires_safety_certificate" value="1" type="checkbox" class="form-check-input" id="edit_safety">
+                                <label class="form-check-label" for="edit_safety">Requiere certificado de seguridad</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
                             <label for="edit_status" class="form-label fw-medium">
                                 Estado <span class="text-danger">*</span>
                             </label>
@@ -663,6 +703,11 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         var description   = this.dataset.description;
         var unit          = this.dataset.unit;
         var unitPrice     = this.dataset.unitPrice;
+        var warehouseLocation = this.dataset.warehouseLocation;
+        var minimumStock  = this.dataset.minimumStock;
+        var maximumStock  = this.dataset.maximumStock;
+        var requiresOriginCertificate = this.dataset.requiresOriginCertificate === '1';
+        var requiresSafetyCertificate = this.dataset.requiresSafetyCertificate === '1';
         var status        = this.dataset.status;
         var type          = this.dataset.type;
         var categoryId    = this.dataset.categoryId;
@@ -675,6 +720,11 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         document.getElementById('edit_description').value = description;
         document.getElementById('edit_unit').value        = unit;
         document.getElementById('edit_unit_price').value  = unitPrice;
+        document.getElementById('edit_warehouse_location').value = warehouseLocation || '';
+        document.getElementById('edit_minimum_stock').value = minimumStock || '';
+        document.getElementById('edit_maximum_stock').value = maximumStock || '';
+        document.getElementById('edit_origin').checked = requiresOriginCertificate;
+        document.getElementById('edit_safety').checked = requiresSafetyCertificate;
         document.getElementById('edit_status').value      = status;
         editType.value = type || 'materiales';
 
