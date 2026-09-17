@@ -41,22 +41,11 @@
                         <tbody>
                             @forelse($orders as $order)
                                 @php
-                                    $oldestOverdue = $order->items
-                                        ->whereNotNull('delivery_date')
-                                        ->filter(function ($item) {
-                                            try {
-                                                return \Carbon\Carbon::parse($item->delivery_date)->lt(\Carbon\Carbon::today());
-                                            } catch (\Exception $exception) {
-                                                return false;
-                                            }
-                                        })
-                                        ->sortBy('delivery_date')
-                                        ->first()?->delivery_date;
+                                    $oldestOverdue = $order->items->first()?->delivery_due_date;
                                     $supplierName = $order->supplier?->commercial_name ?: $order->supplier?->rfc_name ?: '—';
                                     $buyerName = $order->purchaseRequest?->assignedTo?->name ?? 'Sin asignar';
                                     $locationType = $order->purchaseRequest?->materialRequest?->location_type ?? 'sitio';
-                                    $overdueDate = $oldestOverdue ? \Carbon\Carbon::parse($oldestOverdue) : null;
-                                    $daysLate = $overdueDate ? (int) $overdueDate->diffInDays(\Carbon\Carbon::today()) : null;
+                                    $daysLate = $oldestOverdue ? (int) $oldestOverdue->diffInDays(\Carbon\Carbon::today()) : null;
                                 @endphp
                                 <tr>
                                     <td class="fw-semibold">#{{ $order->folio ?? $order->id }}</td>
@@ -73,7 +62,7 @@
                                             </span>
                                         @endif
                                     </td>
-                                    <td class="text-danger fw-medium">{{ $overdueDate?->format('d/m/Y') ?? '—' }}</td>
+                                    <td class="text-danger fw-medium">{{ $oldestOverdue?->format('d/m/Y') ?? '—' }}</td>
                                     <td>
                                         @if(!is_null($daysLate))
                                             <span class="badge bg-danger-subtle text-danger py-1 px-2 fs-12">{{ $daysLate }} dias</span>

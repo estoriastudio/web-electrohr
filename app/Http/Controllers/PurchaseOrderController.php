@@ -149,20 +149,26 @@ class PurchaseOrderController extends Controller
             ->select('purchase_orders.*')
             ->selectSub(
                 PurchaseOrderItem::query()
-                    ->selectRaw('MIN(delivery_date)')
+                    ->selectRaw('MIN(delivery_due_date)')
                     ->whereColumn('purchase_order_items.purchase_order_id', 'purchase_orders.id')
-                    ->whereNotNull('delivery_date')
-                    ->whereRaw('delivery_date < CURDATE()'),
-                'oldest_overdue_delivery_date'
+                    ->whereNotNull('delivery_due_date')
+                    ->whereDate('delivery_due_date', '<', today()),
+                'oldest_overdue_delivery_due_date'
             )
             ->where('purchase_orders.status', 'autorizada')
             ->whereNull('purchase_orders.archived_at')
-            ->with(['supplier', 'purchaseRequest.assignedTo', 'purchaseRequest.materialRequest', 'items'])
+            ->where('purchase_orders.delivery_status', '!=', 'entregado')
+            ->with([
+                'supplier',
+                'purchaseRequest.assignedTo',
+                'purchaseRequest.materialRequest',
+                'items' => fn ($query) => $query->whereNotNull('delivery_due_date')->orderBy('delivery_due_date'),
+            ])
             ->whereHas('items', function ($query) {
-                $query->whereNotNull('delivery_date')
-                    ->whereRaw('delivery_date < CURDATE()');
+                $query->whereNotNull('delivery_due_date')
+                    ->whereDate('delivery_due_date', '<', today());
             })
-            ->orderBy('oldest_overdue_delivery_date')
+            ->orderBy('oldest_overdue_delivery_due_date')
             ->paginate(25);
 
         return view('purchase_orders.overdue_deliveries', compact('orders'));
@@ -958,7 +964,7 @@ class PurchaseOrderController extends Controller
             'unit'          => 'required|string|max:50',
             'quantity'      => 'required|numeric|min:0.0001|decimal:0,4',
             'unit_price'    => 'required|numeric|min:0',
-            'delivery_date' => 'nullable|string|max:100',
+            'delivery_due_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
         ]);
 
         // Si viene del catálogo, normalizar con la definición oficial del concepto.
@@ -988,7 +994,7 @@ class PurchaseOrderController extends Controller
                 'quantity'       => (float) $item->quantity,
                 'unit_price'     => $item->unit_price,
                 'total'          => $item->total,
-                'delivery_date'  => $item->delivery_date,
+                'delivery_due_date' => $item->delivery_due_date?->format('Y-m-d'),
                 'subtotal'       => $purchaseOrder->subtotal,
                 'iva'            => $purchaseOrder->iva,
                 'isr_amount'     => $purchaseOrder->isr_amount,
@@ -1021,9 +1027,9 @@ class PurchaseOrderController extends Controller
         }
 
         $data = $request->validate([
-            'quantity'      => 'sometimes|numeric|min:0.0001|decimal:0,4',
-            'unit_price'    => 'sometimes|numeric|min:0',
-            'delivery_date' => 'nullable|string|max:100',
+            'quantity'          => 'sometimes|numeric|min:0.0001|decimal:0,4',
+            'unit_price'        => 'sometimes|numeric|min:0',
+            'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d|after_or_equal:today',
         ]);
 
         $item->update($data);
@@ -1037,7 +1043,7 @@ class PurchaseOrderController extends Controller
                 'quantity'       => (float) $item->quantity,
                 'unit_price'     => $item->unit_price,
                 'total'          => $item->total,
-                'delivery_date'  => $item->delivery_date,
+                'delivery_due_date' => $item->delivery_due_date?->format('Y-m-d'),
                 'subtotal'       => $purchaseOrder->subtotal,
                 'iva'            => $purchaseOrder->iva,
                 'isr_amount'     => $purchaseOrder->isr_amount,

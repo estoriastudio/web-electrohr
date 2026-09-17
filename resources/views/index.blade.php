@@ -616,10 +616,7 @@
                         <tbody>
                             @forelse($ocsPendientesEntregarSitio->take(8) as $oc)
                                 @php
-                                    $nearestDelivery = $oc->items
-                                        ->whereNotNull('delivery_date')
-                                        ->sortBy('delivery_date')
-                                        ->first()?->delivery_date;
+                                    $nearestDelivery = $oc->items->first()?->delivery_due_date;
                                 @endphp
                                 <tr>
                                     <td>
@@ -628,22 +625,9 @@
                                     </td>
                                     <td>
                                         @if($nearestDelivery)
-                                            @php
-                                                try {
-                                                    $dDate = \Carbon\Carbon::parse($nearestDelivery);
-                                                    $isPastDelivery = $dDate->lt(\Carbon\Carbon::today());
-                                                } catch (\Exception $e) {
-                                                    $dDate = null;
-                                                    $isPastDelivery = false;
-                                                }
-                                            @endphp
-                                            @if($dDate)
-                                                <span class="{{ $isPastDelivery ? 'text-danger fw-medium' : '' }}">
-                                                    {{ $dDate->format('d/m/Y') }}
-                                                </span>
-                                            @else
-                                                <span class="text-muted">{{ $nearestDelivery }}</span>
-                                            @endif
+                                            <span class="{{ $nearestDelivery->lt(\Carbon\Carbon::today()) ? 'text-danger fw-medium' : '' }}">
+                                                {{ $nearestDelivery->format('d/m/Y') }}
+                                            </span>
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
@@ -684,10 +668,7 @@
                         <tbody>
                             @forelse($ocsPendientesEntregarElectrohr->take(8) as $oc)
                                 @php
-                                    $nearestDelivery = $oc->items
-                                        ->whereNotNull('delivery_date')
-                                        ->sortBy('delivery_date')
-                                        ->first()?->delivery_date;
+                                    $nearestDelivery = $oc->items->first()?->delivery_due_date;
                                 @endphp
                                 <tr>
                                     <td>
@@ -696,22 +677,9 @@
                                     </td>
                                     <td>
                                         @if($nearestDelivery)
-                                            @php
-                                                try {
-                                                    $dDate = \Carbon\Carbon::parse($nearestDelivery);
-                                                    $isPastDelivery = $dDate->lt(\Carbon\Carbon::today());
-                                                } catch (\Exception $e) {
-                                                    $dDate = null;
-                                                    $isPastDelivery = false;
-                                                }
-                                            @endphp
-                                            @if($dDate)
-                                                <span class="{{ $isPastDelivery ? 'text-danger fw-medium' : '' }}">
-                                                    {{ $dDate->format('d/m/Y') }}
-                                                </span>
-                                            @else
-                                                <span class="text-muted">{{ $nearestDelivery }}</span>
-                                            @endif
+                                            <span class="{{ $nearestDelivery->lt(\Carbon\Carbon::today()) ? 'text-danger fw-medium' : '' }}">
+                                                {{ $nearestDelivery->format('d/m/Y') }}
+                                            </span>
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif
@@ -767,17 +735,7 @@
                         <tbody>
                             @foreach($ocsVencidasEntrega->take(5) as $oc)
                                 @php
-                                    $oldestOverdue = $oc->items
-                                        ->whereNotNull('delivery_date')
-                                        ->filter(function ($item) {
-                                            try {
-                                                return \Carbon\Carbon::parse($item->delivery_date)->lt(\Carbon\Carbon::today());
-                                            } catch (\Exception $e) {
-                                                return false;
-                                            }
-                                        })
-                                        ->sortBy('delivery_date')
-                                        ->first()?->delivery_date;
+                                    $oldestOverdue = $oc->items->first()?->delivery_due_date;
                                     $locType = $oc->purchaseRequest?->materialRequest?->location_type ?? 'sitio';
                                 @endphp
                                 <tr>
@@ -797,23 +755,10 @@
                                     </td>
                                     <td>
                                         @if($oldestOverdue)
-                                            @php
-                                                try {
-                                                    $overdueDate = \Carbon\Carbon::parse($oldestOverdue);
-                                                    $daysLate = (int) $overdueDate->diffInDays(\Carbon\Carbon::today());
-                                                } catch (\Exception $e) {
-                                                    $overdueDate = null;
-                                                    $daysLate = 0;
-                                                }
-                                            @endphp
-                                            @if($overdueDate)
-                                                <span class="text-danger fw-medium">
-                                                    {{ $overdueDate->format('d/m/Y') }}
-                                                </span>
-                                                <small class="text-danger ms-1">({{ $daysLate }} días)</small>
-                                            @else
-                                                <span class="text-danger">{{ $oldestOverdue }}</span>
-                                            @endif
+                                            <span class="text-danger fw-medium">
+                                                {{ $oldestOverdue->format('d/m/Y') }}
+                                            </span>
+                                            <small class="text-danger ms-1">({{ (int) $oldestOverdue->diffInDays(\Carbon\Carbon::today()) }} días)</small>
                                         @else
                                             <span class="text-muted">—</span>
                                         @endif

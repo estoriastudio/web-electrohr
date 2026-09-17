@@ -635,17 +635,33 @@
                                     <td style="min-width:150px;">
                                         @hasanyrole('admin|Orden de compra')
                                         @if (!$ocLocked)
-                                        <input type="text" maxlength="80"
+                                        <input type="date" min="{{ $minDueDate }}"
                                                class="form-control form-control-sm oc-delivery-input"
-                                               value="{{ $item->delivery_date ?? '' }}"
+                                               value="{{ $item->delivery_due_date?->format('Y-m-d') ?? '' }}"
                                                data-item-id="{{ $item->id }}"
-                                               data-original="{{ $item->delivery_date ?? '' }}"
-                                               placeholder="Ej. 4 SEMANAS">
-                                        @else
-                                        {{ $item->delivery_date ?? '—' }}
+                                               data-original="{{ $item->delivery_due_date?->format('Y-m-d') ?? '' }}">
+                                        @if (!$item->delivery_due_date && $item->delivery_date)
+                                            <small class="d-block text-muted mt-1" title="Valor histórico sin fecha confirmada">
+                                                {{ $item->delivery_date }}
+                                            </small>
                                         @endif
                                         @else
-                                        {{ $item->delivery_date ?? '—' }}
+                                        @if ($item->delivery_due_date)
+                                            {{ $item->delivery_due_date->format('d/m/Y') }}
+                                        @elseif ($item->delivery_date)
+                                            <span class="text-muted" title="Valor histórico sin fecha confirmada">{{ $item->delivery_date }}</span>
+                                        @else
+                                            —
+                                        @endif
+                                        @endif
+                                        @else
+                                        @if ($item->delivery_due_date)
+                                            {{ $item->delivery_due_date->format('d/m/Y') }}
+                                        @elseif ($item->delivery_date)
+                                            <span class="text-muted" title="Valor histórico sin fecha confirmada">{{ $item->delivery_date }}</span>
+                                        @else
+                                            —
+                                        @endif
                                         @endhasanyrole
                                     </td>
                                     @if (!$ocLocked)
@@ -779,7 +795,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
-                                <input type="text" id="oc_inp_delivery" class="form-control" maxlength="80" placeholder="Ej. 4 SEMANAS">
+                                <input type="date" id="oc_inp_delivery" class="form-control" min="{{ $minDueDate }}">
                             </div>
                             <div class="col-md-3 d-flex align-items-end">
                                 <div id="oc_add_error" class="text-danger fs-12 mb-2 d-none"></div>
@@ -819,7 +835,7 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fs-12 fw-medium mb-1">Fecha Entrega</label>
-                                <input type="text" id="oc_inp_manual_delivery" class="form-control" maxlength="80" placeholder="4 SEMANAS">
+                                <input type="date" id="oc_inp_manual_delivery" class="form-control" min="{{ $minDueDate }}">
                             </div>
                         </div>
                         <button type="button" id="oc_btn_save_manual" class="btn btn-primary">
@@ -2548,10 +2564,11 @@
 
         input.disabled = true;
 
-        fetch(url, { method: 'PATCH', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify({ delivery_date: val }) })
+        fetch(url, { method: 'PATCH', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify({ delivery_due_date: val }) })
         .then(function (r) { if (!r.ok) throw r; return r.json(); })
-        .then(function () {
-            input.dataset.original = val;
+        .then(function (data) {
+            input.dataset.original = data.delivery_due_date || '';
+            input.value = input.dataset.original;
             input.disabled = false;
             input.classList.add('is-saved');
             setTimeout(function () { input.classList.remove('is-saved'); }, 1200);
@@ -2732,7 +2749,7 @@
                 + '<td class="text-end"><input type="number" step="0.0001" min="0.0001" class="form-control form-control-sm text-end oc-qty-input" style="max-width:100px;display:inline-block;" value="' + escHtml(formatQuantity(data.quantity)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="quantity" data-original="' + escHtml(formatQuantity(data.quantity)) + '"></td>'
                 + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm text-end oc-qty-input oc-price-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
                 + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
-                + '<td><input type="text" maxlength="80" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_date || '') + '" placeholder="Ej. 4 SEMANAS"></td>'
+                + '<td><input type="date" min="{{ $minDueDate }}" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_due_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_due_date || '') + '"></td>'
                 + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>';
             tbody.appendChild(tr);
             formatPriceInput(tr.querySelector('.oc-price-input'));
@@ -2757,7 +2774,7 @@
             unit:          selectedData.unit || '',
             quantity:      qty,
             unit_price:    price,
-            delivery_date: del,
+            delivery_due_date: del,
         })
         .then(function () {
             stateSelected.classList.add('d-none');
@@ -2781,7 +2798,7 @@
         var price = document.getElementById('oc_inp_manual_price').value;
         var del   = document.getElementById('oc_inp_manual_delivery').value;
         if (!desc || !unit || !qty || !price) { alert('Descripción, Unidad, Cantidad y P/U son requeridos.'); return; }
-        addItem({ description: desc, unit: unit, quantity: qty, unit_price: price, delivery_date: del })
+        addItem({ description: desc, unit: unit, quantity: qty, unit_price: price, delivery_due_date: del })
         .then(function () {
             stateManual.classList.add('d-none');
             stateSearch.classList.remove('d-none');

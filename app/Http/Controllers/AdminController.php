@@ -174,8 +174,15 @@ class AdminController extends Controller
             // ── OCs pendientes de entregar (autorizadas con delivery_date) ─
             $ocsPendientesEntregar = PurchaseOrder::where('status', 'autorizada')
                 ->whereNull('archived_at')
-                ->with(['supplier', 'purchaseRequest.materialRequest', 'items'])
-                ->whereHas('items', fn ($q) => $q->whereNotNull('delivery_date'))
+                ->where('delivery_status', '!=', 'entregado')
+                ->with([
+                    'supplier',
+                    'purchaseRequest.materialRequest',
+                    'items' => fn ($query) => $query->whereNotNull('delivery_due_date')->orderBy('delivery_due_date'),
+                ])
+                ->whereHas('items', fn ($q) => $q->whereNotNull('delivery_due_date'))
+                ->withMin('items as next_delivery_due_date', 'delivery_due_date')
+                ->orderBy('next_delivery_due_date')
                 ->get();
 
             $ocsPendientesEntregarSitio = $ocsPendientesEntregar
@@ -189,11 +196,19 @@ class AdminController extends Controller
             // ── OCs vencidas en tiempos de entrega ─────────────────────────
             $ocsVencidasEntrega = PurchaseOrder::where('status', 'autorizada')
                 ->whereNull('archived_at')
-                ->with(['supplier', 'purchaseRequest.assignedTo', 'purchaseRequest.materialRequest', 'items'])
+                ->where('delivery_status', '!=', 'entregado')
+                ->with([
+                    'supplier',
+                    'purchaseRequest.assignedTo',
+                    'purchaseRequest.materialRequest',
+                    'items' => fn ($query) => $query->whereNotNull('delivery_due_date')->orderBy('delivery_due_date'),
+                ])
                 ->whereHas('items', function ($q) {
-                    $q->whereNotNull('delivery_date')
-                      ->whereRaw("delivery_date < CURDATE()");
+                    $q->whereNotNull('delivery_due_date')
+                      ->whereDate('delivery_due_date', '<', Carbon::today());
                 })
+                ->withMin('items as oldest_overdue_delivery_due_date', 'delivery_due_date')
+                ->orderBy('oldest_overdue_delivery_due_date')
                 ->get();
         }
 
