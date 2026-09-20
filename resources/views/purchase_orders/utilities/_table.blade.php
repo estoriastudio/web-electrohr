@@ -11,7 +11,7 @@
         : (request()->routeIs('purchase_orders.soft_deleted') ? 'trashed' : 'index');
 
     // Número de columnas para el colspan del empty-state
-    $colspan = 12 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -24,8 +24,7 @@
                 <th>Proveedor</th>
                     <th>Comprador</th>
                 <th>Proyecto / Obra</th>
-                <th>Venc. pago</th>
-                <th>Venc. entrega</th>
+                <th>Vencimientos</th>
                 <th>Importe</th>
                 <th>Saldo cubierto</th>
                 <th>Estatus</th>
@@ -247,8 +246,21 @@
                         @endif
                         @if (!$proj && !$obra)—@endif
                     </td>
-                    <td>{{ $order->next_payment_due_date ? \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->format('d/m/Y') : '—' }}</td>
-                    <td>{{ $order->next_delivery_due_date ? \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->format('d/m/Y') : '—' }}</td>
+                    <td class="po-due-dates-cell">
+                        @if ($order->next_payment_due_date)
+                            <div title="Vencimiento de pago">
+                                <i class="ri-calendar-line me-1 text-warning"></i>{{ \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->translatedFormat('d M Y') }}
+                            </div>
+                        @endif
+                        @if ($order->next_delivery_due_date)
+                            <div title="Vencimiento de entrega">
+                                <i class="ri-calendar-line me-1 text-primary"></i>{{ \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->translatedFormat('d M Y') }}
+                            </div>
+                        @endif
+                        @if (!$order->next_payment_due_date && !$order->next_delivery_due_date)
+                            —
+                        @endif
+                    </td>
                     <td>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}</td>
                     <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
                     <td>
@@ -318,6 +330,10 @@
     .po-buyer-cell .text-truncate {
         max-width: 160px;
         min-width: 0;
+    }
+
+    .po-due-dates-cell {
+        white-space: nowrap;
     }
 
     .po-trace-map {
