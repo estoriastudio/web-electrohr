@@ -254,17 +254,24 @@
                             <div title="Vencimiento de entrega">
                                 <i class="ri-calendar-line me-1 text-primary"></i> Entrega: {{ \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->translatedFormat('d M Y') }}
                             </div>
-                        @endif
-                        @if (!$order->next_payment_due_date && !$order->next_delivery_due_date)
-                            —
+                        @else
+                            <div class="text-muted" title="Fecha de entrega sin configurar">
+                                <i class="ri-calendar-close-line me-1"></i> Entrega sin configurar
+                            </div>
                         @endif
                     </td>
                     <td>
                         <div class="d-flex flex-column align-items-start gap-1">
-                            <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12" title="Importe total">
+                            <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="top"
+                                  title="Importe total de la OC">
                                 <i class="ri-money-dollar-circle-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}
                             </span>
-                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12" title="Saldo cubierto">
+                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="top"
+                                  title="Saldo cubierto de la OC">
                                 <i class="ri-bank-card-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->saldo_cubierto, 2) }} {{ $currencyCode ?: '—' }}
                             </span>
                         </div>
