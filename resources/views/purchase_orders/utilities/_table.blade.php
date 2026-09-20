@@ -11,7 +11,7 @@
         : (request()->routeIs('purchase_orders.soft_deleted') ? 'trashed' : 'index');
 
     // Número de columnas para el colspan del empty-state
-    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 9 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -25,15 +25,13 @@
                     <th>Comprador</th>
                 <th>Proyecto / Obra</th>
                 <th>Vencimientos</th>
-                <th>Importe</th>
-                <th>Saldo cubierto</th>
+                    <th>Importes</th>
                 <th>Estatus</th>
                 @if ($mode === 'archived')
                     <th>Archivada el</th>
                 @elseif ($mode === 'trashed')
                     <th>Eliminada el</th>
                 @endif
-                <th>Estatus de entrega</th>
             </tr>
         </thead>
         <tbody>
@@ -261,10 +259,24 @@
                             —
                         @endif
                     </td>
-                    <td>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}</td>
-                    <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
                     <td>
-                        <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                        <div class="d-flex flex-column align-items-start gap-1">
+                            <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12" title="Importe total">
+                                <i class="ri-money-dollar-circle-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}
+                            </span>
+                            <span class="badge bg-success-subtle text-success py-1 px-2 fs-12" title="Saldo cubierto">
+                                <i class="ri-bank-card-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->saldo_cubierto, 2) }} {{ $currencyCode ?: '—' }}
+                            </span>
+                        </div>
+                    </td>
+
+                    <td>
+                        <div class="d-flex flex-column align-items-start gap-1">
+                            <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                            <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
+                                <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
+                            </span>
+                        </div>
                     </td>
 
                     {{-- Columna condicional: fecha de archivo o eliminación --}}
@@ -277,12 +289,6 @@
                             <small class="text-danger">{{ $order->deleted_at->format('d/m/Y H:i') }}</small>
                         </td>
                     @endif
-
-                    <td>
-                        <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
-                            <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
-                        </span>
-                    </td>
 
                 </tr>
             @empty
