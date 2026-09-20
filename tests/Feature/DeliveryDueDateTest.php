@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderMilestone;
+use App\Models\Payment;
 use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -120,6 +122,49 @@ class DeliveryDueDateTest extends TestCase
             ->assertDontSee('#10004');
     }
 
+    public function test_listing_excludes_completed_orders_and_sorts_by_payment_or_delivery_due_date(): void
+    {
+        $admin = $this->admin();
+        $paymentFirst = $this->purchaseOrder(['folio' => 20001]);
+        $deliveryFirst = $this->purchaseOrder(['folio' => 20002]);
+        $completed = $this->purchaseOrder([
+            'folio' => 20003,
+            'delivery_status' => 'entregado',
+        ]);
+
+        $this->milestone($paymentFirst, today()->addDay()->toDateString());
+        $this->milestone($deliveryFirst, today()->addDays(10)->toDateString());
+        $completedMilestone = $this->milestone($completed, today()->addDays(2)->toDateString());
+        Payment::create([
+            'milestone_id' => $completedMilestone->id,
+            'folio' => 'PAY-COMPLETE-20003',
+            'amount' => 1000,
+            'payment_date' => today()->toDateString(),
+            'status' => 'pagado',
+        ]);
+
+        $this->item($paymentFirst, today()->addDays(10)->toDateString());
+        $this->item($deliveryFirst, today()->addDay()->toDateString());
+        $this->item($completed, today()->addDays(2)->toDateString());
+
+        $paymentSorted = $this->actingAs($admin)
+            ->get(route('purchase_orders.index', ['sort_due' => 'payment_asc']))
+            ->assertOk()
+            ->viewData('orders');
+        $deliverySorted = $this->actingAs($admin)
+            ->get(route('purchase_orders.index', ['sort_due' => 'delivery_asc']))
+            ->assertOk()
+            ->viewData('orders');
+
+        $paymentIds = collect($paymentSorted->items())->pluck('id')->all();
+        $deliveryIds = collect($deliverySorted->items())->pluck('id')->all();
+
+        $this->assertSame([$paymentFirst->id, $deliveryFirst->id], $paymentIds);
+        $this->assertSame([$deliveryFirst->id, $paymentFirst->id], $deliveryIds);
+        $this->assertNotContains($completed->id, $paymentIds);
+        $this->assertNotContains($completed->id, $deliveryIds);
+    }
+
     private function admin(): User
     {
         $admin = User::factory()->create();
@@ -153,6 +198,19 @@ class DeliveryDueDateTest extends TestCase
             'quantity' => 1,
             'unit_price' => 100,
             'delivery_due_date' => $deliveryDueDate,
+        ]);
+    }
+
+    private function milestone(PurchaseOrder $purchaseOrder, string $dueDate): PurchaseOrderMilestone
+    {
+        return PurchaseOrderMilestone::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 1000,
+            'covered_amount' => 0,
+            'due_date' => $dueDate,
         ]);
     }
 

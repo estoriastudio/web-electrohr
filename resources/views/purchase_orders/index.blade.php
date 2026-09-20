@@ -220,8 +220,10 @@
                     <div class="col-md-2 col-xl-2">
                         <select name="sort_due" class="form-select form-select-sm">
                             <option value="">Más recientes primero</option>
-                            <option value="asc" {{ $sortDue === 'asc' ? 'selected' : '' }}>Vence próximo primero</option>
-                            <option value="desc" {{ $sortDue === 'desc' ? 'selected' : '' }}>Vence más tarde primero</option>
+                            <option value="payment_asc" {{ $sortDue === 'payment_asc' ? 'selected' : '' }}>Pago vence próximo</option>
+                            <option value="payment_desc" {{ $sortDue === 'payment_desc' ? 'selected' : '' }}>Pago vence más tarde</option>
+                            <option value="delivery_asc" {{ $sortDue === 'delivery_asc' ? 'selected' : '' }}>Entrega vence próximo</option>
+                            <option value="delivery_desc" {{ $sortDue === 'delivery_desc' ? 'selected' : '' }}>Entrega vence más tarde</option>
                         </select>
                     </div>
 

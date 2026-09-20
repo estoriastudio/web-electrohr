@@ -11,7 +11,7 @@
         : (request()->routeIs('purchase_orders.soft_deleted') ? 'trashed' : 'index');
 
     // Número de columnas para el colspan del empty-state
-    $colspan = 11 + ($mode !== 'index' ? 1 : 0);
+    $colspan = 12 + ($mode !== 'index' ? 1 : 0);
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -24,7 +24,8 @@
                 <th>Proveedor</th>
                     <th>Comprador</th>
                 <th>Proyecto / Obra</th>
-                <th>Próx. Vencimiento</th>
+                <th>Venc. pago</th>
+                <th>Venc. entrega</th>
                 <th>Importe</th>
                 <th>Saldo cubierto</th>
                 <th>Estatus</th>
@@ -246,8 +247,9 @@
                         @endif
                         @if (!$proj && !$obra)—@endif
                     </td>
-                    <td>{{ $order->next_due_date ?? '—' }}</td>
-                        <td>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}</td>
+                    <td>{{ $order->next_payment_due_date ? \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->format('d/m/Y') : '—' }}</td>
+                    <td>{{ $order->next_delivery_due_date ? \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->format('d/m/Y') : '—' }}</td>
+                    <td>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}</td>
                     <td><i class="ri-money-dollar-circle-line me-1 text-muted"></i>{{ number_format($order->saldo_cubierto, 2) }}</td>
                     <td>
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>

@@ -54,7 +54,12 @@ class PurchaseOrderController extends Controller
     {
         $search  = trim($request->input('search', ''));
         $tipo    = $request->input('tipo', '');
-        $sortDue = $request->input('sort_due', '');
+        $sortDue = match ($request->input('sort_due', '')) {
+            'asc' => 'payment_asc',
+            'desc' => 'payment_desc',
+            'payment_asc', 'payment_desc', 'delivery_asc', 'delivery_desc' => $request->input('sort_due'),
+            default => '',
+        };
         $tray    = $request->input('tray', 'all');
         $searchMode = $request->input('search_mode', 'default');
         $trays   = ['all', 'issued', 'authorized', 'delivered'];
@@ -70,6 +75,19 @@ class PurchaseOrderController extends Controller
         $orders = PurchaseOrder::with(['supplier', 'items'])
             ->withCount(['milestones', 'children'])
             ->whereNull('archived_at')
+            ->where(function ($query) {
+                $query->whereNull('delivery_status')
+                    ->orWhere('delivery_status', '!=', 'entregado')
+                    ->orWhereRaw(
+                        "COALESCE((SELECT SUM(payments.amount)
+                            FROM payments
+                            INNER JOIN purchase_order_milestones
+                                ON purchase_order_milestones.id = payments.milestone_id
+                            WHERE purchase_order_milestones.purchase_order_id = purchase_orders.id
+                                AND payments.status = ?), 0) < purchase_orders.amount",
+                        ['pagado']
+                    );
+            })
             ->when($search && $searchMode === 'default', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {
@@ -97,18 +115,26 @@ class PurchaseOrderController extends Controller
             ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'delivered', fn ($q) => $q->where('delivery_status', 'entregado'))
-            ->when($sortDue === 'asc', function ($q) {
-                $q->withMin('milestones', 'due_date')
-                  ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
-                  ->orderBy('milestones_min_due_date', 'asc');
-            }, function ($q) use ($sortDue) {
-                if ($sortDue === 'desc') {
-                    $q->withMin('milestones', 'due_date')
-                      ->orderByRaw('ISNULL(milestones_min_due_date) ASC')
-                      ->orderBy('milestones_min_due_date', 'desc');
-                } else {
-                    $q->latest();
-                }
+            ->withMin([
+                'milestones as next_payment_due_date' => fn ($query) => $query
+                    ->whereNotNull('due_date')
+                    ->whereColumn('covered_amount', '<', 'value'),
+            ], 'due_date')
+            ->withMin([
+                'items as next_delivery_due_date' => fn ($query) => $query
+                    ->whereNotNull('delivery_due_date'),
+            ], 'delivery_due_date')
+            ->when(in_array($sortDue, ['payment_asc', 'payment_desc', 'delivery_asc', 'delivery_desc'], true), function ($query) use ($sortDue) {
+                $column = str_starts_with($sortDue, 'payment_')
+                    ? 'next_payment_due_date'
+                    : 'next_delivery_due_date';
+                $direction = str_ends_with($sortDue, '_asc') ? 'asc' : 'desc';
+
+                $query->orderByRaw("CASE WHEN {$column} IS NULL THEN 1 ELSE 0 END")
+                    ->orderBy($column, $direction)
+                    ->orderByDesc('purchase_orders.created_at');
+            }, function ($query) {
+                $query->latest();
             })
             ->paginate(25)
             ->withQueryString();
