@@ -249,12 +249,12 @@
                     <td class="po-due-dates-cell">
                         @if ($order->next_payment_due_date)
                             <div title="Vencimiento de pago">
-                                <i class="ri-calendar-line me-1 text-warning"></i>{{ \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->translatedFormat('d M Y') }}
+                                <i class="ri-calendar-line me-1 text-warning"></i> Pago: {{ \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->translatedFormat('d M Y') }}
                             </div>
                         @endif
                         @if ($order->next_delivery_due_date)
                             <div title="Vencimiento de entrega">
-                                <i class="ri-calendar-line me-1 text-primary"></i>{{ \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->translatedFormat('d M Y') }}
+                                <i class="ri-calendar-line me-1 text-primary"></i> Entrega: {{ \Illuminate\Support\Carbon::parse($order->next_delivery_due_date)->translatedFormat('d M Y') }}
                             </div>
                         @endif
                         @if (!$order->next_payment_due_date && !$order->next_delivery_due_date)
