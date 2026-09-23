@@ -506,6 +506,7 @@ class MaterialRequestController extends Controller
                     'material_request_item_id' => $item->id,
                     'project_work_id' => (int) $row['work_id'],
                     'quantity' => (float) $row['quantity'],
+                    'committed_quantity' => 0,
                     'is_committed' => false,
                 ]);
             }

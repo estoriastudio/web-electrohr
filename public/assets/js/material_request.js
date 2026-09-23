@@ -73,6 +73,28 @@
         return Number(value || 0).toFixed(4);
     }
 
+    function isValidQuantity(value) {
+        return /^\d+(\.\d{1,4})?$/.test(String(value).trim()) && Number(value) > 0;
+    }
+
+    function responseErrorMessage(response) {
+        return response.json().then(function (payload) {
+            if (payload && payload.errors) {
+                var messages = Object.keys(payload.errors).reduce(function (result, key) {
+                    return result.concat(payload.errors[key]);
+                }, []);
+
+                if (messages.length > 0) {
+                    return messages.join(' ');
+                }
+            }
+
+            return (payload && payload.message) || 'Error al agregar el concepto. Intenta de nuevo.';
+        }).catch(function () {
+            return 'Error al agregar el concepto. Intenta de nuevo.';
+        });
+    }
+
     /**
      * Cuenta las filas de concepto actualmente en la tabla.
      * @returns {number}
@@ -758,15 +780,26 @@
     function doAdd() {
         if (!selectedConcept) return;
 
-        // Solo obras con cantidad válida (> 0).
+        // Solo obras con cantidades válidas de hasta cuatro decimales.
         var workRows = Object.keys(selectedWorkQuantities).map(function (workId) {
             return {
                 work_id: workId,
                 quantity: selectedWorkQuantities[workId]
             };
         }).filter(function (row) {
-            return row.quantity !== '' && !isNaN(parseFloat(row.quantity)) && parseFloat(row.quantity) > 0;
+            return row.quantity !== '' && isValidQuantity(row.quantity);
         });
+
+        var hasInvalidQuantity = Object.keys(selectedWorkQuantities).some(function (workId) {
+            var quantity = selectedWorkQuantities[workId];
+            return quantity !== '' && !isValidQuantity(quantity);
+        });
+
+        if (hasInvalidQuantity) {
+            addError.textContent = 'Cada cantidad debe ser mayor que cero y tener hasta cuatro decimales.';
+            addError.classList.remove('d-none');
+            return;
+        }
 
         if (workRows.length === 0) {
             addError.textContent = 'Ingresa al menos una cantidad válida por obra.';
@@ -806,17 +839,22 @@
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             body: fd
         })
-        .then(function (r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.json();
+        .then(function (response) {
+            if (!response.ok) {
+                return responseErrorMessage(response).then(function (message) {
+                    throw new Error(message);
+                });
+            }
+
+            return response.json();
         })
         .then(function (item) {
             appendRow(item);
             updateBadge();
             showSearch();
         })
-        .catch(function () {
-            addError.textContent = 'Error al agregar el concepto. Intenta de nuevo.';
+        .catch(function (error) {
+            addError.textContent = error.message || 'Error al agregar el concepto. Intenta de nuevo.';
             addError.classList.remove('d-none');
         })
         .finally(function () {
