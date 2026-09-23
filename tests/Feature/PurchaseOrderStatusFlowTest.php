@@ -22,6 +22,30 @@ class PurchaseOrderStatusFlowTest extends TestCase
         $this->seed(RolesAndPermissionsSeeder::class);
     }
 
+    public function test_direct_folio_search_includes_a_completed_purchase_order(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->completedPurchaseOrder();
+
+        $this->actingAs($admin)
+            ->get(route('purchase_orders.index', ['search' => $purchaseOrder->folio]))
+            ->assertOk()
+            ->assertSee((string) $purchaseOrder->folio);
+    }
+
+    public function test_due_date_sort_excludes_a_completed_purchase_order(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $purchaseOrder = $this->completedPurchaseOrder();
+
+        $this->actingAs($admin)
+            ->get(route('purchase_orders.index', ['sort_due' => 'payment_asc']))
+            ->assertOk()
+            ->assertDontSee((string) $purchaseOrder->folio);
+    }
+
     public function test_purchase_order_role_can_emit_a_pending_purchase_order(): void
     {
         $user = User::factory()->create();
@@ -244,6 +268,31 @@ class PurchaseOrderStatusFlowTest extends TestCase
             'is_destajo' => $isDestajo,
             'recurrence_type' => 'unico',
         ]);
+    }
+
+    private function completedPurchaseOrder(): PurchaseOrder
+    {
+        $purchaseOrder = $this->purchaseOrder('autorizada');
+        $purchaseOrder->update(['delivery_status' => 'entregado']);
+
+        $milestone = PurchaseOrderMilestone::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 1000,
+            'covered_amount' => 1000,
+        ]);
+
+        Payment::create([
+            'milestone_id' => $milestone->id,
+            'folio' => 'PAY-COMPLETED-' . random_int(10000, 99999),
+            'amount' => 1000,
+            'payment_date' => '2026-09-01',
+            'status' => 'pagado',
+        ]);
+
+        return $purchaseOrder;
     }
 
     private function milestoneData(PurchaseOrder $purchaseOrder): array

@@ -75,7 +75,7 @@ class PurchaseOrderController extends Controller
         $orders = PurchaseOrder::with(['supplier', 'items'])
             ->withCount(['milestones', 'children'])
             ->whereNull('archived_at')
-            ->where(function ($query) {
+            ->when($sortDue, function ($query) {
                 $query->whereNull('delivery_status')
                     ->orWhere('delivery_status', '!=', 'entregado')
                     ->orWhereRaw(
