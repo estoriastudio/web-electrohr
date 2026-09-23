@@ -48,6 +48,11 @@ class StockEntry extends Model
         return $this->hasMany(StockCertificate::class);
     }
 
+    public function items(): HasMany
+    {
+        return $this->hasMany(StockEntryItem::class);
+    }
+
     public function returnedExit(): HasOne
     {
         return $this->hasOne(StockExit::class, 'return_stock_entry_id');

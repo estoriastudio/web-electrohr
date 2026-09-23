@@ -105,8 +105,7 @@ class MaterialRequest extends Model
     {
         return (float) $this->items
             ->flatMap(fn (MaterialRequestItem $item) => $item->workQuantities)
-            ->where('is_committed', true)
-            ->sum('quantity');
+            ->sum('committed_quantity');
     }
 
     public function getTotalRequestedQuantityAttribute(): float
@@ -135,9 +134,10 @@ class MaterialRequest extends Model
                 return (float) $item->workQuantities
                     ->filter(fn (MaterialRequestItemProjectWork $workQuantity) =>
                         $projectWorkIds->contains((int) $workQuantity->project_work_id)
-                        && !$workQuantity->is_committed
                     )
-                    ->sum('quantity') > 0;
+                    ->sum(fn (MaterialRequestItemProjectWork $workQuantity) =>
+                        max(0, (float) $workQuantity->quantity - (float) $workQuantity->committed_quantity)
+                    ) > 0;
             }
 
             return (float) $item->quantity > 0;

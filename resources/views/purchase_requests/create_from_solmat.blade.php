@@ -5,16 +5,23 @@
     $sourceMaterialRequests = $sourceMaterialRequests ?? collect([$materialRequest]);
     $availableProjectWorks = $availableProjectWorks ?? $materialRequest->projectWorks;
     $previewItems = $previewItems ?? $materialRequest->items->map(function ($item) {
+        $committedQuantity = (float) $item->workQuantities->sum('committed_quantity');
+
         return [
             'concept_id' => $item->concept_id,
             'code' => $item->code,
             'description' => $item->description,
             'unit' => $item->unit,
-            'resolved_quantity' => (float) $item->total_quantity,
+            'resolved_quantity' => max(0, (float) $item->total_quantity - $committedQuantity),
+            'committed_quantity' => $committedQuantity,
             'work_quantities' => $item->workQuantities->map(fn ($row) => [
                 'work_id' => (string) $row->project_work_id,
-                'quantity' => (float) $row->quantity,
-            ])->values()->all(),
+                'quantity' => max(0, (float) $row->quantity - (float) $row->committed_quantity),
+            ])->filter(fn ($row) => $row['quantity'] > 0)->values()->all(),
+            'committed_work_quantities' => $item->workQuantities->map(fn ($row) => [
+                'work_id' => (string) $row->project_work_id,
+                'quantity' => (float) $row->committed_quantity,
+            ])->filter(fn ($row) => $row['quantity'] > 0)->values()->all(),
             'source_folios' => [(int) $materialRequest->folio],
         ];
     });
@@ -332,12 +339,12 @@
                                                 <td>{{ $item['unit'] ?? '—' }}</td>
                                                 <td class="text-end js-solmat-committed-qty">
                                                     @if ($committedQuantity > 0)
-                                                        <span class="badge bg-warning-subtle text-warning">{{ number_format($committedQuantity, 2, '.', '') }}</span>
+                                                        <span class="badge bg-warning-subtle text-warning">{{ number_format($committedQuantity, 4, '.', '') }}</span>
                                                     @else
                                                         <span class="text-muted">—</span>
                                                     @endif
                                                 </td>
-                                                <td class="text-end js-solmat-total-qty">{{ number_format($resolvedQuantity, 2, '.', '') }}</td>
+                                                <td class="text-end js-solmat-available-qty">{{ number_format($resolvedQuantity, 4, '.', '') }}</td>
                                                 <td class="text-end fw-semibold text-primary js-solcom-total-qty">0.00</td>
                                             </tr>
                                         @empty
@@ -391,7 +398,7 @@
     }
 
     function formatQty(value) {
-        return Number(value || 0).toFixed(2);
+        return Number(value || 0).toFixed(4);
     }
 
     function updateItemQuantities() {
@@ -399,6 +406,7 @@
 
         itemRows.forEach(function (row) {
             const totalCell = row.querySelector('.js-solcom-total-qty');
+            const availableCell = row.querySelector('.js-solmat-available-qty');
             const committedCell = row.querySelector('.js-solmat-committed-qty');
             const total = parseFloat(row.getAttribute('data-item-total') || '0');
             let selectedTotal = 0;
@@ -431,6 +439,9 @@
 
             if (totalCell) {
                 totalCell.textContent = formatQty(selectedTotal);
+            }
+            if (availableCell) {
+                availableCell.textContent = formatQty(selectedTotal);
             }
             if (committedCell) {
                 committedCell.innerHTML = selectedCommitted > 0

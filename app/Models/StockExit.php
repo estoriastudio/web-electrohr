@@ -58,6 +58,11 @@ class StockExit extends Model
         return $this->belongsTo(ProjectWork::class);
     }
 
+    public function items(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(StockExitItem::class);
+    }
+
     public function returnStockEntry(): BelongsTo
     {
         return $this->belongsTo(StockEntry::class, 'return_stock_entry_id');

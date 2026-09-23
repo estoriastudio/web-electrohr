@@ -327,6 +327,7 @@
                                         <th>Concepto</th>
                                         <th>Obra</th>
                                         <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Comprometer</th>
                                         <th>Última confirmación</th>
                                         <th class="text-center">Comprometido</th>
                                     </tr>
@@ -334,18 +335,32 @@
                                 <tbody>
                                     @forelse ($mr->items as $item)
                                         @forelse ($item->workQuantities as $workQuantity)
+                                            @php
+                                                $committedQuantity = (float) $workQuantity->committed_quantity;
+                                            @endphp
                                             <tr>
                                                 <td>
                                                     <span class="fw-semibold d-block">{{ $item->code }}</span>
                                                     <small class="text-muted">{{ $item->description }}</small>
                                                 </td>
                                                 <td>{{ $workQuantity->projectWork?->name ?? '—' }}</td>
-                                                <td class="text-end fw-semibold">{{ number_format((float) $workQuantity->quantity, 2, '.', '') }}</td>
+                                                <td class="text-end fw-semibold">{{ number_format((float) $workQuantity->quantity, 4, '.', '') }}</td>
+                                                <td class="text-end" style="min-width: 130px;">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm text-end js-commitment-quantity"
+                                                           id="commitment_quantity_{{ $mr->id }}_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
+                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}][quantity]"
+                                                           value="{{ number_format($committedQuantity, 4, '.', '') }}"
+                                                           min="0"
+                                                           max="{{ number_format((float) $workQuantity->quantity, 4, '.', '') }}"
+                                                           step="0.0001"
+                                                           @disabled($committedQuantity <= 0)>
+                                                </td>
                                                 <td>
-                                                    @if ($workQuantity->is_committed && $workQuantity->committedBy)
+                                                    @if ($committedQuantity > 0 && $workQuantity->committedBy)
                                                         <small class="d-block">{{ $workQuantity->committedBy->name }}</small>
                                                         <small class="text-muted">{{ $workQuantity->committed_at?->format('d/m/Y H:i') }}</small>
-                                                    @elseif ($workQuantity->is_committed)
+                                                    @elseif ($committedQuantity > 0)
                                                         <small class="text-muted">Confirmado previamente</small>
                                                     @else
                                                         <small class="text-muted">Disponible para compra</small>
@@ -353,14 +368,15 @@
                                                 </td>
                                                 <td class="text-center">
                                                     <input type="hidden"
-                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}]"
+                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}][is_committed]"
                                                            value="0">
                                                     <input type="checkbox"
-                                                           class="form-check-input"
+                                                           class="form-check-input js-commitment-toggle"
                                                            id="commitment_{{ $mr->id }}_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
-                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}]"
+                                                           name="commitments[{{ $item->id }}][{{ $workQuantity->project_work_id }}][is_committed]"
                                                            value="1"
-                                                           @checked($workQuantity->is_committed)>
+                                                           data-quantity-input="#commitment_quantity_{{ $mr->id }}_{{ $item->id }}_{{ $workQuantity->project_work_id }}"
+                                                           @checked($committedQuantity > 0)>
                                                 </td>
                                             </tr>
                                         @empty
@@ -370,7 +386,22 @@
                                                     <small class="text-muted">{{ $item->description }}</small>
                                                 </td>
                                                 <td>{{ $legacyWork?->name ?? 'Desglose pendiente' }}</td>
-                                                <td class="text-end fw-semibold">{{ number_format((float) $item->quantity, 2, '.', '') }}</td>
+                                                <td class="text-end fw-semibold">{{ number_format((float) $item->quantity, 4, '.', '') }}</td>
+                                                <td class="text-end" style="min-width: 130px;">
+                                                    @if ($legacyWork)
+                                                        <input type="number"
+                                                               class="form-control form-control-sm text-end js-commitment-quantity"
+                                                               id="commitment_quantity_legacy_{{ $mr->id }}_{{ $item->id }}"
+                                                               name="commitments[{{ $item->id }}][{{ $legacyWork->id }}][quantity]"
+                                                               value="0.0000"
+                                                               min="0"
+                                                               max="{{ number_format((float) $item->quantity, 4, '.', '') }}"
+                                                               step="0.0001"
+                                                               disabled>
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
                                                 <td>
                                                     @if ($legacyWork)
                                                         <small class="text-muted">Concepto legacy; se asignará a la única obra.</small>
@@ -381,13 +412,14 @@
                                                 <td class="text-center">
                                                     @if ($legacyWork)
                                                         <input type="hidden"
-                                                               name="commitments[{{ $item->id }}][{{ $legacyWork->id }}]"
+                                                                                    name="commitments[{{ $item->id }}][{{ $legacyWork->id }}][is_committed]"
                                                                value="0">
                                                         <input type="checkbox"
-                                                               class="form-check-input"
+                                                                                    class="form-check-input js-commitment-toggle"
                                                                id="commitment_legacy_{{ $mr->id }}_{{ $item->id }}"
-                                                               name="commitments[{{ $item->id }}][{{ $legacyWork->id }}]"
-                                                               value="1">
+                                                                                    name="commitments[{{ $item->id }}][{{ $legacyWork->id }}][is_committed]"
+                                                                                    value="1"
+                                                                                    data-quantity-input="#commitment_quantity_legacy_{{ $mr->id }}_{{ $item->id }}">
                                                     @else
                                                         <input type="checkbox" class="form-check-input" disabled title="Este concepto requiere desglose por obra">
                                                     @endif
@@ -396,7 +428,7 @@
                                         @endforelse
                                     @empty
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted py-4">La SOLMAT no tiene conceptos para revisar.</td>
+                                            <td colspan="6" class="text-center text-muted py-4">La SOLMAT no tiene conceptos para revisar.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -420,6 +452,23 @@
 @push('scripts')
 <script>
 (function () {
+    document.querySelectorAll('.js-commitment-toggle').forEach(function (checkbox) {
+        const quantityInput = document.querySelector(checkbox.dataset.quantityInput);
+
+        if (!quantityInput) {
+            return;
+        }
+
+        checkbox.addEventListener('change', function () {
+            quantityInput.disabled = !checkbox.checked;
+            if (!checkbox.checked) {
+                quantityInput.value = '0.00';
+            } else if (Number(quantityInput.value) <= 0) {
+                quantityInput.value = quantityInput.max;
+            }
+        });
+    });
+
     const initialSelectedIds = @json($persistedSelectedIds);
     const initialSelectedProjectId = @json($persistedSelectedProjectId);
     const syncUrl = @json(route('warehouse.solmat_pile.selection.sync'));

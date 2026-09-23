@@ -15,13 +15,15 @@ class MaterialRequestItemProjectWork extends Model
         'material_request_item_id',
         'project_work_id',
         'quantity',
+        'committed_quantity',
         'is_committed',
         'committed_by',
         'committed_at',
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'quantity' => 'decimal:4',
+        'committed_quantity' => 'decimal:4',
         'is_committed' => 'boolean',
         'committed_at' => 'datetime',
     ];

@@ -25,6 +25,7 @@ class MaterialRequestAvailabilityTest extends TestCase
             new MaterialRequestItemProjectWork([
                 'project_work_id' => 63,
                 'quantity' => 4,
+                'committed_quantity' => 0,
                 'is_committed' => false,
             ]),
         ]));
@@ -41,6 +42,7 @@ class MaterialRequestAvailabilityTest extends TestCase
             new MaterialRequestItemProjectWork([
                 'project_work_id' => 63,
                 'quantity' => 4,
+                'committed_quantity' => 4,
                 'is_committed' => true,
             ]),
         ]));
@@ -48,6 +50,23 @@ class MaterialRequestAvailabilityTest extends TestCase
         $materialRequest = $this->materialRequestWith([$item], [63]);
 
         $this->assertFalse($materialRequest->hasAvailableQuantityForProjectWorks());
+    }
+
+    public function test_request_with_partially_committed_quantity_is_available(): void
+    {
+        $item = new MaterialRequestItem(['quantity' => 0]);
+        $item->setRelation('workQuantities', new Collection([
+            new MaterialRequestItemProjectWork([
+                'project_work_id' => 63,
+                'quantity' => 4,
+                'committed_quantity' => 1.5,
+                'is_committed' => true,
+            ]),
+        ]));
+
+        $materialRequest = $this->materialRequestWith([$item], [63]);
+
+        $this->assertTrue($materialRequest->hasAvailableQuantityForProjectWorks());
     }
 
     private function materialRequestWith(array $items, array $projectWorkIds): MaterialRequest

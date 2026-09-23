@@ -62,9 +62,19 @@ class Concept extends Model
         return $this->hasMany(StockEntry::class);
     }
 
+    public function stockEntryItems(): HasMany
+    {
+        return $this->hasMany(StockEntryItem::class);
+    }
+
     public function stockExits(): HasMany
     {
         return $this->hasMany(StockExit::class);
+    }
+
+    public function stockExitItems(): HasMany
+    {
+        return $this->hasMany(StockExitItem::class);
     }
 
     public function stockCertificates(): HasManyThrough

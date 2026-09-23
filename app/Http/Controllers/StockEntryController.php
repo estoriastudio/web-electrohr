@@ -26,8 +26,8 @@ class StockEntryController extends Controller
         $search = trim((string) $request->input('search', ''));
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
-        $entries = StockEntry::with(['concept', 'tool', 'certificates'])
-            ->when($search, fn ($query) => $query->whereHas('concept', fn ($conceptQuery) => $conceptQuery
+        $entries = StockEntry::with(['concept', 'tool', 'certificates', 'items.concept'])
+            ->when($search, fn ($query) => $query->whereHas('items.concept', fn ($conceptQuery) => $conceptQuery
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")))
             ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
@@ -48,51 +48,55 @@ class StockEntryController extends Controller
     {
         $validated = $request->validate([
             'entry_type' => ['required', Rule::in(['purchase', 'tool_return'])],
-            'concept_code' => ['nullable', 'string', 'max:100'],
             'tool_id' => ['nullable', 'exists:tools,id'],
             'purchase_reference' => ['nullable', 'string', 'max:255'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
             'received_at' => ['required', 'date'],
             'invoice' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
-            'origin_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
-            'safety_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
             'observations' => ['nullable', 'string', 'max:2000'],
         ]);
-
-        $concept = $validated['concept_code'] ?? null
-            ? Concept::where('code', $validated['concept_code'])->first()
-            : null;
-
-        if ($validated['entry_type'] === 'purchase' && ! $concept) {
-            throw ValidationException::withMessages(['concept_code' => 'El código de suministro no existe.']);
-        }
-
-        if ($validated['entry_type'] === 'purchase' && ! $request->hasFile('invoice')) {
-            throw ValidationException::withMessages(['invoice' => 'La factura es obligatoria para una compra.']);
-        }
-
-        if ($concept?->requires_origin_certificate && ! $request->hasFile('origin_certificate')) {
-            throw ValidationException::withMessages(['origin_certificate' => 'El certificado de origen es obligatorio para este suministro.']);
-        }
-
-        if ($concept?->requires_safety_certificate && ! $request->hasFile('safety_certificate')) {
-            throw ValidationException::withMessages(['safety_certificate' => 'El certificado de seguridad es obligatorio para este suministro.']);
-        }
 
         if ($validated['entry_type'] === 'tool_return' && empty($validated['tool_id'])) {
             throw ValidationException::withMessages(['tool_id' => 'Seleccione la herramienta que retorna.']);
         }
 
+        if ($validated['entry_type'] === 'purchase') {
+            $purchase = $request->validate([
+                'items' => ['required', 'array', 'min:1'],
+                'items.*.concept_code' => ['required', 'string', 'max:100', 'distinct'],
+                'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+                'items.*.origin_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
+                'items.*.safety_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
+                'invoice' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            ]);
+            $items = collect($purchase['items'])->values()->map(function (array $item, int $index) {
+                $concept = Concept::where('code', $item['concept_code'])->first();
+                if (! $concept) {
+                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe.']);
+                }
+                if ($concept->requires_origin_certificate && ! request()->hasFile("items.{$index}.origin_certificate")) {
+                    throw ValidationException::withMessages(["items.{$index}.origin_certificate" => 'El certificado de origen es obligatorio para este suministro.']);
+                }
+                if ($concept->requires_safety_certificate && ! request()->hasFile("items.{$index}.safety_certificate")) {
+                    throw ValidationException::withMessages(["items.{$index}.safety_certificate" => 'El certificado de seguridad es obligatorio para este suministro.']);
+                }
+
+                return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
+            });
+        } else {
+            $items = collect();
+        }
+
         $paths = [];
         try {
-            $entry = DB::transaction(function () use ($request, $validated, $concept, &$paths) {
+            $entry = DB::transaction(function () use ($request, $validated, $items, &$paths) {
                 $tool = ! empty($validated['tool_id']) ? Tool::findOrFail($validated['tool_id']) : null;
                 $entry = StockEntry::create([
-                    'concept_id' => $concept?->id,
+                    'concept_id' => null,
                     'tool_id' => $tool?->id,
                     'entry_type' => $validated['entry_type'],
                     'purchase_reference' => $validated['purchase_reference'] ?? null,
-                    'quantity' => $validated['quantity'],
+                    'quantity' => $items->isNotEmpty() ? $items->sum('quantity') : $validated['quantity'],
                     'received_at' => $validated['received_at'],
                     'observations' => $validated['observations'] ?? null,
                     'created_by' => Auth::id(),
@@ -101,24 +105,38 @@ class StockEntryController extends Controller
                 if ($request->hasFile('invoice')) {
                     $file = $request->file('invoice');
                     $path = $file->store("stocks/entries/{$entry->id}/invoices", 's3');
+                    if ($path === false) {
+                        throw ValidationException::withMessages(['invoice' => 'No fue posible guardar la factura en S3.']);
+                    }
                     $paths[] = $path;
                     $entry->update(['invoice_file_name' => $file->getClientOriginalName(), 'invoice_file_path' => $path, 'invoice_disk' => 's3']);
                 }
 
-                foreach (['origin' => 'origin_certificate', 'safety' => 'safety_certificate'] as $type => $input) {
-                    if (! $request->hasFile($input)) {
-                        continue;
-                    }
-                    $file = $request->file($input);
-                    $path = $file->store("stocks/entries/{$entry->id}/certificates", 's3');
-                    $paths[] = $path;
-                    StockCertificate::create([
-                        'stock_entry_id' => $entry->id, 'concept_id' => $concept->id,
-                        'certificate_type' => $type, 'file_name' => $file->getClientOriginalName(),
-                        'file_path' => $path, 'disk' => 's3', 'mime_type' => $file->getMimeType(),
-                        'file_size' => $file->getSize(), 'uploaded_by' => Auth::id(),
+                $items->each(function (array $item, int $lineNumber) use ($entry, $request, &$paths) {
+                    $entry->items()->create([
+                        'concept_id' => $item['concept']->id,
+                        'line_number' => $lineNumber + 1,
+                        'quantity' => $item['quantity'],
                     ]);
-                }
+
+                    foreach (['origin' => 'origin_certificate', 'safety' => 'safety_certificate'] as $type => $input) {
+                        if (! $request->hasFile("items.{$item['index']}.{$input}")) {
+                            continue;
+                        }
+                        $file = $request->file("items.{$item['index']}.{$input}");
+                        $path = $file->store("stocks/entries/{$entry->id}/certificates", 's3');
+                        if ($path === false) {
+                            throw ValidationException::withMessages(["items.{$item['index']}.{$input}" => 'No fue posible guardar el certificado en S3.']);
+                        }
+                        $paths[] = $path;
+                        StockCertificate::create([
+                            'stock_entry_id' => $entry->id, 'concept_id' => $item['concept']->id,
+                            'certificate_type' => $type, 'file_name' => $file->getClientOriginalName(),
+                            'file_path' => $path, 'disk' => 's3', 'mime_type' => $file->getMimeType(),
+                            'file_size' => $file->getSize(), 'uploaded_by' => Auth::id(),
+                        ]);
+                    }
+                });
 
                 return $entry;
             });

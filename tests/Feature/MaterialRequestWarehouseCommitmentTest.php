@@ -36,7 +36,7 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
         $this->actingAs($warehouseUser)
             ->post(route('warehouse.solmat_pile.commitments.update', $materialRequest), [
                 'commitments' => [
-                    $item->id => [$work->id => 1],
+                    $item->id => [$work->id => ['is_committed' => 1, 'quantity' => 4]],
                 ],
             ])
             ->assertRedirect(route('warehouse.solmat_pile'));
@@ -45,6 +45,7 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
             'material_request_item_id' => $item->id,
             'project_work_id' => $work->id,
             'is_committed' => true,
+            'committed_quantity' => 4,
             'committed_by' => $warehouseUser->id,
         ]);
         $this->assertNotNull(MaterialRequestItemProjectWork::query()
@@ -75,6 +76,30 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
             ->hasAvailableQuantityForProjectWorks());
     }
 
+    public function test_suministros_can_partially_commit_an_item_and_leave_the_remainder_available(): void
+    {
+        [$materialRequest, $item, $work] = $this->materialRequest('sent_to_warehouse');
+        $warehouseUser = $this->userWithRole('suministros');
+
+        $this->actingAs($warehouseUser)
+            ->post(route('warehouse.solmat_pile.commitments.update', $materialRequest), [
+                'commitments' => [
+                    $item->id => [$work->id => ['is_committed' => 1, 'quantity' => 1.5]],
+                ],
+            ])
+            ->assertRedirect(route('warehouse.solmat_pile'));
+
+        $this->assertDatabaseHas('material_request_item_project_works', [
+            'material_request_item_id' => $item->id,
+            'project_work_id' => $work->id,
+            'committed_quantity' => 1.5,
+            'is_committed' => true,
+        ]);
+        $this->assertTrue($materialRequest->fresh()
+            ->load(['projectWorks', 'items.workQuantities'])
+            ->hasAvailableQuantityForProjectWorks());
+    }
+
     public function test_solmat_cannot_access_the_warehouse_commitment_endpoint(): void
     {
         [$materialRequest, $item, $work] = $this->materialRequest('sent_to_warehouse');
@@ -83,7 +108,7 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
         $this->actingAs($solmatUser)
             ->post(route('warehouse.solmat_pile.commitments.update', $materialRequest), [
                 'commitments' => [
-                    $item->id => [$work->id => 1],
+                    $item->id => [$work->id => ['is_committed' => 1, 'quantity' => 4]],
                 ],
             ])
             ->assertForbidden();
@@ -104,7 +129,7 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
         $this->actingAs($warehouseUser)
             ->post(route('warehouse.solmat_pile.commitments.update', $materialRequest), [
                 'commitments' => [
-                    $item->id => [$work->id => 1],
+                    $item->id => [$work->id => ['is_committed' => 1, 'quantity' => 4]],
                 ],
             ])
             ->assertRedirect(route('warehouse.solmat_pile'));
@@ -113,6 +138,7 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
             'material_request_item_id' => $item->id,
             'project_work_id' => $work->id,
             'quantity' => 4,
+            'committed_quantity' => 4,
             'is_committed' => true,
             'committed_by' => $warehouseUser->id,
         ]);

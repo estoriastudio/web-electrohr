@@ -465,7 +465,7 @@ class MaterialRequestController extends Controller
             'unit' => 'required|string|max:50',
             'work_quantities' => 'required|array|min:1',
             'work_quantities.*.work_id' => 'required|exists:project_works,id',
-            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4'],
             'spec_file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
@@ -576,7 +576,7 @@ class MaterialRequestController extends Controller
         $data = $request->validate([
             'work_quantities' => 'required|array|min:1',
             'work_quantities.*.work_id' => 'required|exists:project_works,id',
-            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.01', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'work_quantities.*.quantity' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4'],
         ]);
 
         if ($item->workQuantities->isEmpty()) {
@@ -632,7 +632,8 @@ class MaterialRequestController extends Controller
         $data = $request->validate([
             'commitments' => 'required|array|min:1',
             'commitments.*' => 'required|array|min:1',
-            'commitments.*.*' => 'required|boolean',
+            'commitments.*.*.is_committed' => 'required|boolean',
+            'commitments.*.*.quantity' => 'nullable|numeric|min:0|decimal:0,4',
         ]);
 
         $changeCount = DB::transaction(function () use ($data, $materialRequest) {
@@ -674,14 +675,23 @@ class MaterialRequestController extends Controller
                         ]);
                     }
 
-                    if (! (bool) $itemCommitments[$workId]) {
+                    $commitment = $itemCommitments[$workId] ?? null;
+                    if (! is_array($commitment) || ! (bool) $commitment['is_committed']) {
                         continue;
+                    }
+
+                    $committedQuantity = (float) ($commitment['quantity'] ?? 0);
+                    if ($committedQuantity <= 0 || $committedQuantity > (float) $item->quantity) {
+                        throw ValidationException::withMessages([
+                            'commitments' => 'La cantidad comprometida debe ser mayor que cero y no superar la cantidad solicitada.',
+                        ]);
                     }
 
                     MaterialRequestItemProjectWork::create([
                         'material_request_item_id' => $item->id,
                         'project_work_id' => $workId,
                         'quantity' => $item->quantity,
+                        'committed_quantity' => $committedQuantity,
                         'is_committed' => true,
                         'committed_by' => Auth::id(),
                         'committed_at' => now(),
@@ -693,7 +703,7 @@ class MaterialRequestController extends Controller
                         'description' => $item->description,
                         'work_id' => $workId,
                         'work_name' => $legacyWork->name,
-                        'quantity' => (float) $item->quantity,
+                        'quantity' => $committedQuantity,
                         'is_committed' => true,
                     ];
 
@@ -704,14 +714,22 @@ class MaterialRequestController extends Controller
                     $itemCommitments = $data['commitments'][$item->id] ?? null;
                     $workId = $workQuantity->project_work_id;
 
-                    if (! is_array($itemCommitments) || ! array_key_exists($workId, $itemCommitments)) {
+                    if (! is_array($itemCommitments) || ! array_key_exists($workId, $itemCommitments) || ! is_array($itemCommitments[$workId])) {
                         throw ValidationException::withMessages([
                             'commitments' => 'Debes confirmar el estado de cada concepto y obra de la SOLMAT.',
                         ]);
                     }
 
-                    $isCommitted = (bool) $itemCommitments[$workId];
-                    if ($workQuantity->is_committed === $isCommitted) {
+                    $commitment = $itemCommitments[$workId];
+                    $isCommitted = (bool) $commitment['is_committed'];
+                    $committedQuantity = $isCommitted ? (float) ($commitment['quantity'] ?? 0) : 0;
+                    if ($committedQuantity < 0 || $committedQuantity > (float) $workQuantity->quantity || ($isCommitted && $committedQuantity <= 0)) {
+                        throw ValidationException::withMessages([
+                            'commitments' => 'La cantidad comprometida debe ser mayor que cero y no superar la cantidad solicitada.',
+                        ]);
+                    }
+
+                    if ((float) $workQuantity->committed_quantity === $committedQuantity) {
                         continue;
                     }
 
@@ -719,7 +737,8 @@ class MaterialRequestController extends Controller
                         ->where('material_request_item_id', $item->id)
                         ->where('project_work_id', $workId)
                         ->update([
-                            'is_committed' => $isCommitted,
+                            'committed_quantity' => $committedQuantity,
+                            'is_committed' => $committedQuantity > 0,
                             'committed_by' => $isCommitted ? Auth::id() : null,
                             'committed_at' => $isCommitted ? now() : null,
                         ]);
@@ -730,8 +749,8 @@ class MaterialRequestController extends Controller
                         'description' => $item->description,
                         'work_id' => $workId,
                         'work_name' => $workQuantity->projectWork?->name,
-                        'quantity' => (float) $workQuantity->quantity,
-                        'is_committed' => $isCommitted,
+                        'quantity' => $committedQuantity,
+                        'is_committed' => $committedQuantity > 0,
                     ];
                 }
             }

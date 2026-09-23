@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Concept;
 use App\Models\StockEntry;
+use App\Models\StockEntryItem;
 use App\Models\StockExit;
+use App\Models\StockExitItem;
 use App\Models\Tool;
 use App\Models\Worker;
 use App\Services\NotificationService;
@@ -27,8 +29,8 @@ class StockExitController extends Controller
         $search = trim((string) $request->input('search', ''));
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
-        $exits = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork'])
-            ->when($search, fn ($query) => $query->whereHas('concept', fn ($conceptQuery) => $conceptQuery
+        $exits = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork', 'items.concept'])
+            ->when($search, fn ($query) => $query->whereHas('items.concept', fn ($conceptQuery) => $conceptQuery
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")))
             ->when($dateFrom, fn ($query) => $query->whereDate('exited_at', '>=', $dateFrom))
@@ -50,17 +52,13 @@ class StockExitController extends Controller
     {
         $validated = $request->validate([
             'exit_type' => ['required', Rule::in(['definitive', 'tool_loan'])],
-            'concept_code' => ['nullable', 'string', 'max:100'], 'tool_id' => ['nullable', 'exists:tools,id'],
+            'tool_id' => ['nullable', 'exists:tools,id'],
             'voucher_number' => ['required', 'string', 'max:100'], 'recipient_name' => ['nullable', 'string', 'max:150'],
             'recipient_worker_id' => ['nullable', 'exists:workers,id'], 'project_id' => ['nullable', 'exists:projects,id'],
-            'project_work_id' => ['nullable', 'exists:project_works,id'], 'quantity' => ['required', 'numeric', 'gt:0'],
+            'project_work_id' => ['nullable', 'exists:project_works,id'], 'quantity' => ['nullable', 'numeric', 'gt:0'],
             'exited_at' => ['required', 'date'], 'expected_return_at' => ['nullable', 'date', 'after_or_equal:exited_at'],
             'observations' => ['nullable', 'string', 'max:2000'],
         ]);
-        $concept = ! empty($validated['concept_code']) ? Concept::where('code', $validated['concept_code'])->first() : null;
-        if ($validated['exit_type'] === 'definitive' && ! $concept) {
-            throw ValidationException::withMessages(['concept_code' => 'El código de suministro no existe.']);
-        }
         if ($validated['exit_type'] === 'definitive' && empty($validated['recipient_name'])) {
             throw ValidationException::withMessages(['recipient_name' => 'Indique a quién se entrega el material.']);
         }
@@ -68,19 +66,52 @@ class StockExitController extends Controller
             throw ValidationException::withMessages(['tool_id' => 'El préstamo requiere herramienta, trabajador, proyecto, obra y fecha de retorno.']);
         }
         if ($validated['exit_type'] === 'definitive') {
-            $available = StockEntry::where('concept_id', $concept->id)->sum('quantity') - StockExit::where('concept_id', $concept->id)->where('exit_type', 'definitive')->sum('quantity');
-            if ((float) $validated['quantity'] > (float) $available) {
-                throw ValidationException::withMessages(['quantity' => 'La cantidad excede el stock disponible.']);
-            }
+            $definitive = $request->validate([
+                'items' => ['required', 'array', 'min:1'],
+                'items.*.concept_code' => ['required', 'string', 'max:100', 'distinct'],
+                'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            ]);
+            $items = collect($definitive['items'])->values()->map(function (array $item, int $index) {
+                $concept = Concept::where('code', $item['concept_code'])->first();
+                if (! $concept) {
+                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe.']);
+                }
+                return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
+            });
+        } else {
+            $items = collect();
         }
-        $exit = StockExit::create([
-            'concept_id' => $concept?->id, 'tool_id' => $validated['tool_id'] ?? null, 'exit_type' => $validated['exit_type'],
-            'voucher_number' => $validated['voucher_number'], 'recipient_worker_id' => $validated['recipient_worker_id'] ?? null,
-            'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,
-            'project_work_id' => $validated['project_work_id'] ?? null, 'quantity' => $validated['exit_type'] === 'tool_loan' ? 1 : $validated['quantity'],
-            'exited_at' => $validated['exited_at'], 'expected_return_at' => $validated['expected_return_at'] ?? null,
-            'status' => $validated['exit_type'] === 'tool_loan' ? 'open' : 'completed', 'observations' => $validated['observations'] ?? null, 'created_by' => Auth::id(),
-        ]);
+
+        $exit = DB::transaction(function () use ($validated, $items) {
+            if ($items->isNotEmpty()) {
+                foreach ($items as $item) {
+                    $available = StockEntryItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity')
+                        - StockExitItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity');
+                    if ((float) $item['quantity'] > (float) $available) {
+                        throw ValidationException::withMessages(["items.{$item['index']}.quantity" => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
+                    }
+                }
+            }
+
+            $exit = StockExit::create([
+                'concept_id' => null, 'tool_id' => $validated['tool_id'] ?? null, 'exit_type' => $validated['exit_type'],
+                'voucher_number' => $validated['voucher_number'], 'recipient_worker_id' => $validated['recipient_worker_id'] ?? null,
+                'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,
+                'project_work_id' => $validated['project_work_id'] ?? null, 'quantity' => $items->isNotEmpty() ? $items->sum('quantity') : 1,
+                'exited_at' => $validated['exited_at'], 'expected_return_at' => $validated['expected_return_at'] ?? null,
+                'status' => $validated['exit_type'] === 'tool_loan' ? 'open' : 'completed', 'observations' => $validated['observations'] ?? null, 'created_by' => Auth::id(),
+            ]);
+
+            $items->each(function (array $item, int $lineNumber) use ($exit) {
+                $exit->items()->create([
+                    'concept_id' => $item['concept']->id,
+                    'line_number' => $lineNumber + 1,
+                    'quantity' => $item['quantity'],
+                ]);
+            });
+
+            return $exit;
+        });
         $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $exit->id, 'data' => 'registró una salida de inventario #' . $exit->id . '.']);
         return redirect()->route('stocks.exits.index')->with('success', 'Salida registrada correctamente.');
     }

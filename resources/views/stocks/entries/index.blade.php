@@ -17,7 +17,9 @@
 			<div class="col-md-3 d-flex gap-1"><button class="btn btn-primary btn-sm flex-fill"><i class="ri-filter-3-line me-1"></i>Filtrar</button>@if($search || $dateFrom || $dateTo)<a href="{{ route('stocks.entries.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros"><i class="ri-close-line"></i></a>@endif</div>
 		</form>
 	</div>
-	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto / Herramienta</th><th>Tipo de entrada</th><th class="text-end">Cantidad</th><th>Referencia</th><th>Documentos</th></tr></thead><tbody>@forelse($entries as $entry)@php($isPurchase = $entry->entry_type === 'purchase')<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $entry->received_at->format('d/m/Y') }}</td><td><span class="fw-semibold d-block">{{ $entry->concept?->code ?? $entry->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $entry->concept?->description ?? ($entry->tool?->name ?: $entry->tool?->description) }}</span></td><td><span class="badge {{ $isPurchase ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info' }} py-1 px-2 fs-12"><i class="{{ $isPurchase ? 'ri-shopping-bag-3-line' : 'ri-tools-line' }} me-1"></i>{{ $isPurchase ? 'Compra' : 'Retorno de herramienta' }}</span></td><td class="text-end fw-semibold">{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
+	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto / Herramienta</th><th>Tipo de entrada</th><th class="text-end">Cantidad</th><th>Referencia</th><th>Documentos</th></tr></thead><tbody>@forelse($entries as $entry)@php($isPurchase = $entry->entry_type === 'purchase')<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $entry->received_at->format('d/m/Y') }}</td><td>@if($isPurchase)@forelse($entry->items as $item)<span class="fw-semibold d-block">{{ $item->concept->code }}</span><span class="text-muted fs-12 d-block">{{ $item->concept->description }}</span>@empty<span class="text-muted">—</span>@endforelse
+@else<span class="fw-semibold d-block">{{ $entry->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $entry->tool?->name ?: $entry->tool?->description }}</span>@endif</td><td><span class="badge {{ $isPurchase ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info' }} py-1 px-2 fs-12"><i class="{{ $isPurchase ? 'ri-shopping-bag-3-line' : 'ri-tools-line' }} me-1"></i>{{ $isPurchase ? 'Compra' : 'Retorno de herramienta' }}</span></td><td class="text-end fw-semibold">@if($isPurchase)@foreach($entry->items as $item)<span class="d-block">{{ rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.') }}</span>@endforeach
+@else{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}@endif</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($entries->hasPages())<div class="card-footer d-flex justify-content-end">{{ $entries->links('pagination::bootstrap-5') }}</div>@endif
 </div>
 <div class="modal fade" id="entryModal" tabindex="-1" aria-labelledby="entryModalLabel" aria-hidden="true">
@@ -46,19 +48,9 @@
 					<div class="alert alert-light border py-2 fs-13">Los campos marcados con <span class="text-danger">*</span> son obligatorios.</div>
 
 					<div id="purchaseFields" class="d-none">
-						<h6 class="text-uppercase fs-12 text-muted mb-3">Datos del suministro</h6>
-						<div class="row g-3">
-							<div class="col-md-6"><label for="concept_code" class="form-label">Suministro <span class="text-danger">*</span></label><select id="concept_code" name="concept_code" class="form-select"><option value="">Escriba al menos 3 caracteres</option></select><div class="form-text">Busque por código o descripción. La descripción y unidad se obtienen del concepto registrado.</div></div>
-							<div class="col-md-3"><label for="purchase_quantity" class="form-label">Cantidad <span class="text-danger">*</span></label><input id="purchase_quantity" name="quantity" type="number" step="0.001" min="0.001" class="form-control"></div>
-							<div class="col-md-3"><label for="purchase_received_at" class="form-label">Fecha de entrada <span class="text-danger">*</span></label><input id="purchase_received_at" name="received_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div>
-						</div>
-						<h6 class="text-uppercase fs-12 text-muted border-top pt-3 mt-4 mb-3">Documentos</h6>
-						<div class="row g-3">
-							<div class="col-md-6"><label for="purchase_reference" class="form-label">Número SOLCOM u OC</label><input id="purchase_reference" name="purchase_reference" class="form-control"><div class="form-text">La referencia puede no coincidir con un registro existente.</div></div>
-							<div class="col-md-6"><label for="invoice" class="form-label">Factura PDF <span class="text-danger">*</span></label><input id="invoice" name="invoice" type="file" accept="application/pdf" class="form-control"><div class="form-text">Máximo 20 MB. Se guarda en S3.</div></div>
-							<div class="col-md-6"><label for="origin_certificate" class="form-label">Certificado de origen</label><input id="origin_certificate" name="origin_certificate" type="file" accept="application/pdf" class="form-control"><div class="form-text">Obligatorio solo si el concepto lo requiere.</div></div>
-							<div class="col-md-6"><label for="safety_certificate" class="form-label">Certificado de seguridad</label><input id="safety_certificate" name="safety_certificate" type="file" accept="application/pdf" class="form-control"><div class="form-text">Obligatorio solo si el concepto lo requiere.</div></div>
-						</div>
+						<h6 class="text-uppercase fs-12 text-muted mb-3">Datos de la compra</h6>
+						<div class="row g-3"><div class="col-md-4"><label for="purchase_received_at" class="form-label">Fecha de entrada <span class="text-danger">*</span></label><input id="purchase_received_at" name="received_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div><div class="col-md-4"><label for="purchase_reference" class="form-label">Número SOLCOM u OC</label><input id="purchase_reference" name="purchase_reference" class="form-control"></div><div class="col-md-4"><label for="invoice" class="form-label">Factura PDF <span class="text-danger">*</span></label><input id="invoice" name="invoice" type="file" accept="application/pdf" class="form-control"></div></div>
+						<div id="stockPurchaseItems" class="mt-4" data-stock-items="purchase"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="text-uppercase fs-12 text-muted mb-0">Suministros <span class="text-danger">*</span></h6><span class="badge bg-primary-subtle text-primary" data-items-count>0 conceptos</span></div><div class="table-responsive border"><table class="table table-sm align-middle mb-0"><thead class="bg-light-subtle"><tr><th>Código</th><th>Descripción</th><th>Unidad</th><th class="text-end">Cantidad</th><th>Certificados</th><th></th></tr></thead><tbody data-items-body><tr data-empty-row><td colspan="6" class="text-center text-muted py-3">Agregue al menos un suministro.</td></tr></tbody></table></div><div class="border border-top-0 p-3"><div data-search-state><label class="form-label fs-12 mb-1">Agregar suministro</label><div class="position-relative"><div class="input-group"><span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span><input type="search" class="form-control" data-concept-search placeholder="Buscar por código o descripción" autocomplete="off"></div><ul class="list-group position-absolute w-100 shadow d-none" data-concept-results style="z-index:1060;max-height:220px;overflow-y:auto"></ul></div></div><div class="d-none" data-selected-state><div class="row g-2 align-items-end"><div class="col-md-7"><span class="fw-semibold d-block" data-selected-code></span><span class="text-muted fs-12" data-selected-description></span></div><div class="col-md-3"><label class="form-label fs-12 mb-1">Cantidad</label><input type="number" min="0.001" step="0.001" class="form-control" data-selected-quantity></div><div class="col-md-2 d-flex gap-1"><button type="button" class="btn btn-light" data-change-concept title="Cambiar"><i class="ri-arrow-left-line"></i></button><button type="button" class="btn btn-primary flex-fill" data-add-item>Agregar</button></div></div><div class="row g-2 mt-1"><div class="col-md-6"><label class="form-label fs-12 mb-1">Certificado de origen</label><input type="file" accept="application/pdf" class="form-control form-control-sm" data-origin-certificate></div><div class="col-md-6"><label class="form-label fs-12 mb-1">Certificado de seguridad</label><input type="file" accept="application/pdf" class="form-control form-control-sm" data-safety-certificate></div></div></div><div class="text-danger fs-12 mt-2 d-none" data-items-error></div></div></div>
 					</div>
 
 					<div id="returnFields" class="d-none">
@@ -95,13 +87,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	var title = document.getElementById('entryTypeTitle');
 	var purchaseInputs = purchaseFields.querySelectorAll('input');
 	var requiredPurchaseInputs = [
-		document.getElementById('concept_code'),
-		document.getElementById('purchase_quantity'),
 		document.getElementById('purchase_received_at'),
 		document.getElementById('invoice')
 	];
 	var returnInputs = returnFields.querySelectorAll('input, select');
-	var conceptChoices = null;
 
 	function setRequired(inputs, required) {
 		inputs.forEach(function (input) { input.required = required; input.disabled = !required; });
@@ -145,32 +134,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		setRequired(purchaseInputs, false);
 		setRequired(returnInputs, false);
 	});
-	function initializeConceptSearch() {
-		var select = document.getElementById('concept_code');
-		conceptChoices = new Choices(select, {
-			searchEnabled: true, searchFloor: 3, searchPlaceholderValue: 'Escriba al menos 3 caracteres...',
-			itemSelectText: '', noResultsText: 'Sin resultados', noChoicesText: 'Escriba para buscar', shouldSort: false
-		});
-		var searchInput = conceptChoices.containerOuter.element.querySelector('.choices__input--cloned');
-		var debounceTimer = null;
-		searchInput.addEventListener('input', function () {
-			var query = this.value.trim();
-			clearTimeout(debounceTimer);
-			if (query.length < 3) return;
-			debounceTimer = setTimeout(function () {
-				fetch(@json(route('concepts.search')) + '?q=' + encodeURIComponent(query) + '&limit=30', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-					.then(function (response) { return response.json(); })
-					.then(function (concepts) {
-						conceptChoices.clearChoices();
-						conceptChoices.setChoices(concepts.map(function (concept) { return { value: concept.code, label: concept.code + ' - ' + concept.description }; }), 'value', 'label', true);
-					});
-			}, 250);
-		});
-	}
-	modal.addEventListener('shown.bs.modal', function () { if (!conceptChoices) initializeConceptSearch(); });
-	modal.addEventListener('hidden.bs.modal', function () {
-		if (conceptChoices) { conceptChoices.destroy(); conceptChoices = null; }
-	});
 });
 </script>
+<script>
+window.stockPurchaseItemsConfig = { searchUrl: @json(route('concepts.search')) + '?type=materiales&limit=30' };
+</script>
+<script src="{{ asset('assets/js/stock_movement_items.js') }}"></script>
 @endpush

@@ -220,7 +220,7 @@
                                     $breakdownJson = $item->workQuantities->map(fn ($workQuantity) => [
                                         'work_id' => $workQuantity->project_work_id,
                                         'work_name' => $workQuantity->projectWork?->name,
-                                        'quantity' => number_format((float) $workQuantity->quantity, 2, '.', ''),
+                                        'quantity' => number_format((float) $workQuantity->quantity, 4, '.', ''),
                                         'is_committed' => $workQuantity->is_committed,
                                     ])->values();
                                 @endphp
@@ -235,7 +235,7 @@
                                                 data-breakdown='@json($breakdownJson)'
                                                 title="Desglose por obra">
                                             <span class="d-inline-flex align-items-center gap-1">
-                                                <span>{{ number_format((float) $item->total_quantity, 2, '.', '') }}</span>
+                                                <span>{{ number_format((float) $item->total_quantity, 4, '.', '') }}</span>
                                                 <i class="ri-information-line fs-13 text-primary"></i>
                                             </span>
                                         </button>
@@ -295,7 +295,7 @@
                                                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                                                         <span class="text-muted fs-12 fw-semibold">Editar cantidades por obra</span>
                                                         <span class="badge bg-primary-subtle text-primary">
-                                                            Total: <span class="js-solmat-breakdown-total">{{ number_format((float) $item->total_quantity, 2, '.', '') }}</span>
+                                                            Total: <span class="js-solmat-breakdown-total">{{ number_format((float) $item->total_quantity, 4, '.', '') }}</span>
                                                         </span>
                                                     </div>
                                                     <div class="row g-2">
@@ -305,9 +305,9 @@
                                                                 <input type="number"
                                                                        name="work_quantities[{{ $loop->index }}][quantity]"
                                                                        class="form-control js-solmat-breakdown-qty"
-                                                                       value="{{ number_format((float) $workQuantity->quantity, 2, '.', '') }}"
-                                                                       min="0.01"
-                                                                       step="0.01"
+                                                                       value="{{ number_format((float) $workQuantity->quantity, 4, '.', '') }}"
+                                                                       min="0.0001"
+                                                                       step="0.0001"
                                                                        inputmode="decimal">
                                                                 <input type="hidden"
                                                                        name="work_quantities[{{ $loop->index }}][work_id]"
@@ -485,7 +485,7 @@
                             <div class="mt-2 d-flex flex-wrap gap-1">
                                 @foreach (data_get($note->payload, 'commitments', []) as $commitment)
                                     <span class="badge {{ data_get($commitment, 'is_committed') ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success' }} border">
-                                        {{ data_get($commitment, 'code') }} · {{ data_get($commitment, 'work_name', 'Obra') }} · {{ number_format((float) data_get($commitment, 'quantity'), 2, '.', '') }}
+                                        {{ data_get($commitment, 'code') }} · {{ data_get($commitment, 'work_name', 'Obra') }} · {{ number_format((float) data_get($commitment, 'quantity'), 4, '.', '') }}
                                         {{ data_get($commitment, 'is_committed') ? 'comprometido' : 'disponible' }}
                                     </span>
                                 @endforeach

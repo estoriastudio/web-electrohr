@@ -261,12 +261,12 @@
                                                     data-breakdown='@json($breakdownJson)'
                                                     title="Desglose por obra">
                                                 <span class="d-inline-flex align-items-center gap-1">
-                                                    <span>{{ number_format((float) $item->requested_quantity, 2, '.', '') }}</span>
+                                                    <span>{{ number_format((float) $item->requested_quantity, 4, '.', '') }}</span>
                                                     <i class="ri-information-line fs-13 text-primary"></i>
                                                 </span>
                                             </button>
                                         @else
-                                            {{ number_format((float) $item->requested_quantity, 2, '.', '') }}
+                                            {{ number_format((float) $item->requested_quantity, 4, '.', '') }}
                                         @endif
                                     </td>
                                     <td style="min-width:170px">

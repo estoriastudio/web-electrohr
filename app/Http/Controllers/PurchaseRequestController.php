@@ -420,7 +420,7 @@ class PurchaseRequestController extends Controller
             $breakdown = collect($workTotals)
                 ->sortBy('work_name')
                 ->map(function ($row) {
-                    $row['quantity'] = number_format((float) $row['quantity'], 2, '.', '');
+                    $row['quantity'] = number_format((float) $row['quantity'], 4, '.', '');
                     return $row;
                 })
                 ->values()
@@ -1410,9 +1410,8 @@ class PurchaseRequestController extends Controller
     {
         if ($materialRequestItem->relationLoaded('workQuantities') && $materialRequestItem->workQuantities->isNotEmpty()) {
             return (float) $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
-                return $selectedWorkIds->contains((int) $workQuantity->project_work_id)
-                    && !$workQuantity->is_committed;
-            })->sum('quantity');
+                return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
+            })->sum(fn ($workQuantity) => max(0, (float) $workQuantity->quantity - (float) $workQuantity->committed_quantity));
         }
 
         return (float) $materialRequestItem->quantity;
@@ -1425,9 +1424,8 @@ class PurchaseRequestController extends Controller
         }
 
         return (float) $materialRequestItem->workQuantities->filter(function ($workQuantity) use ($selectedWorkIds) {
-            return $selectedWorkIds->contains((int) $workQuantity->project_work_id)
-                && $workQuantity->is_committed;
-        })->sum('quantity');
+            return $selectedWorkIds->contains((int) $workQuantity->project_work_id);
+        })->sum('committed_quantity');
     }
 
     private function loadSourceMaterialRequestsByIds($ids): Collection
@@ -1536,12 +1534,18 @@ class PurchaseRequestController extends Controller
                             continue;
                         }
 
-                        if ($workQuantity->is_committed) {
+                        $committedQuantity = (float) $workQuantity->committed_quantity;
+                        $availableQuantity = max(0, (float) $workQuantity->quantity - $committedQuantity);
+
+                        if ($committedQuantity > 0) {
                             if (!isset($aggregatedItems[$itemKey]['committed_work_quantities'][$workId])) {
                                 $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] = 0;
                             }
 
-                            $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] += (float) $workQuantity->quantity;
+                            $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] += $committedQuantity;
+                        }
+
+                        if ($availableQuantity <= 0) {
                             continue;
                         }
 
@@ -1549,7 +1553,7 @@ class PurchaseRequestController extends Controller
                             $aggregatedItems[$itemKey]['work_quantities'][$workId] = 0;
                         }
 
-                        $aggregatedItems[$itemKey]['work_quantities'][$workId] += (float) $workQuantity->quantity;
+                        $aggregatedItems[$itemKey]['work_quantities'][$workId] += $availableQuantity;
                     }
                 } else {
                     $legacyWorkId = $selectedWorkIds->first();

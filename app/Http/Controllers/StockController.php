@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Concept;
 use App\Models\StockEntry;
+use App\Models\StockEntryItem;
 use App\Models\StockExit;
+use App\Models\StockExitItem;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,12 +31,14 @@ class StockController extends Controller
             ->orderBy('code')->paginate(25)->withQueryString();
 
         $concepts->getCollection()->each(function (Concept $concept) {
-            $entries = (float) $concept->stockEntries()->sum('quantity');
-            $exits = (float) $concept->stockExits()->where('exit_type', 'definitive')->sum('quantity');
+            $entries = (float) $concept->stockEntryItems()->sum('quantity');
+            $exits = (float) $concept->stockExitItems()->sum('quantity');
             $concept->setAttribute('current_stock', $entries - $exits);
 
-            $lastEntry = $concept->stockEntries()->latest('received_at')->first(['id', 'received_at']);
-            $lastExit = $concept->stockExits()->where('exit_type', 'definitive')->latest('exited_at')->first(['id', 'exited_at']);
+            $lastEntry = StockEntry::whereHas('items', fn ($query) => $query->where('concept_id', $concept->id))
+                ->latest('received_at')->first(['id', 'received_at']);
+            $lastExit = StockExit::whereHas('items', fn ($query) => $query->where('concept_id', $concept->id))
+                ->latest('exited_at')->first(['id', 'exited_at']);
             $lastMovement = ! $lastExit || ($lastEntry && $lastEntry->received_at->gte($lastExit->exited_at))
                 ? $lastEntry
                 : $lastExit;
@@ -50,34 +54,33 @@ class StockController extends Controller
     public function show(Concept $concept): View
     {
         $fiveYearsAgo = now()->subYears(5)->startOfDay();
-        $entries = $concept->stockEntries()
-            ->with(['certificates', 'createdBy'])
-            ->where('received_at', '>=', $fiveYearsAgo)
-            ->latest('received_at')
+        $entries = StockEntryItem::with(['stockEntry.certificates', 'stockEntry.createdBy'])
+            ->where('concept_id', $concept->id)
+            ->whereHas('stockEntry', fn ($query) => $query->where('received_at', '>=', $fiveYearsAgo))
+            ->latest('id')
             ->get();
-        $exits = $concept->stockExits()
-            ->with(['recipientWorker', 'project', 'projectWork', 'createdBy'])
-            ->where('exit_type', 'definitive')
-            ->where('exited_at', '>=', $fiveYearsAgo)
-            ->latest('exited_at')
+        $exits = StockExitItem::with(['stockExit.recipientWorker', 'stockExit.project', 'stockExit.projectWork', 'stockExit.createdBy'])
+            ->where('concept_id', $concept->id)
+            ->whereHas('stockExit', fn ($query) => $query->where('exited_at', '>=', $fiveYearsAgo))
+            ->latest('id')
             ->get();
-        $movements = $entries->map(fn (StockEntry $entry) => (object) [
-            'date' => $entry->received_at,
+        $movements = $entries->map(fn (StockEntryItem $item) => (object) [
+            'date' => $item->stockEntry->received_at,
             'direction' => 'entry',
-            'label' => $entry->entry_type === 'purchase' ? 'Compra' : 'Retorno de herramienta',
-            'quantity' => $entry->quantity,
-            'reference' => $entry->purchase_reference,
-            'record' => $entry,
-        ])->merge($exits->map(fn (StockExit $exit) => (object) [
-            'date' => $exit->exited_at,
+            'label' => $item->stockEntry->entry_type === 'purchase' ? 'Compra' : 'Retorno de herramienta',
+            'quantity' => $item->quantity,
+            'reference' => $item->stockEntry->purchase_reference,
+            'record' => $item->stockEntry,
+        ])->merge($exits->map(fn (StockExitItem $item) => (object) [
+            'date' => $item->stockExit->exited_at,
             'direction' => 'exit',
             'label' => 'Salida definitiva',
-            'quantity' => $exit->quantity,
-            'reference' => $exit->voucher_number,
-            'record' => $exit,
+            'quantity' => $item->quantity,
+            'reference' => $item->stockExit->voucher_number,
+            'record' => $item->stockExit,
         ]))->sortByDesc('date')->values();
-        $currentStock = (float) $concept->stockEntries()->sum('quantity')
-            - (float) $concept->stockExits()->where('exit_type', 'definitive')->sum('quantity');
+        $currentStock = (float) $concept->stockEntryItems()->sum('quantity')
+            - (float) $concept->stockExitItems()->sum('quantity');
 
         return view('stocks.show', compact('concept', 'movements', 'currentStock'));
     }

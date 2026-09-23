@@ -65,12 +65,12 @@
     }
 
     /**
-     * Normaliza un número a texto con dos decimales.
+    * Normaliza un número a texto con cuatro decimales.
      * @param {*} value  Valor numérico (o convertible).
-     * @returns {string} p.ej. "12.50". Devuelve "0.00" si no es numérico.
+    * @returns {string} p.ej. "12.5000". Devuelve "0.0000" si no es numérico.
      */
     function formatQty(value) {
-        return Number(value || 0).toFixed(2);
+        return Number(value || 0).toFixed(4);
     }
 
     /**
@@ -213,7 +213,7 @@
 
         var totalBadge = form.querySelector('.js-solmat-breakdown-total');
         if (totalBadge) {
-            totalBadge.textContent = total.toFixed(2);
+            totalBadge.textContent = total.toFixed(4);
         }
     }
 
@@ -244,7 +244,7 @@
         var qtyF = formatQty(item.quantity);
         var breakdown = Array.isArray(item.work_quantities) ? item.work_quantities : [];
 
-        // Desglose normalizado (con cantidades a 2 decimales) para el popover.
+        // Desglose normalizado con cantidades a cuatro decimales para el popover.
         var breakdownJson = JSON.stringify(breakdown.map(function (row) {
             return {
                 work_id: row.work_id,
@@ -319,7 +319,7 @@
                     return ''
                         + '<div class="col-md-6 col-lg-4">'
                         + '<label class="form-label fs-12 mb-1">' + escHtml(row.work_name || row.work_id) + '</label>'
-                        + '<input type="number" name="work_quantities[' + index + '][quantity]" class="form-control js-solmat-breakdown-qty" value="' + escHtml(formatQty(row.quantity)) + '" min="0.01" step="0.01" inputmode="decimal">'
+                        + '<input type="number" name="work_quantities[' + index + '][quantity]" class="form-control js-solmat-breakdown-qty" value="' + escHtml(formatQty(row.quantity)) + '" min="0.0001" step="0.0001" inputmode="decimal">'
                         + '<input type="hidden" name="work_quantities[' + index + '][work_id]" value="' + escHtml(String(row.work_id)) + '">'
                         + '</div>';
                 }).join('')
@@ -587,8 +587,8 @@
                 + '  <input type="number"'
                 + '         class="form-control text-end js-solmat-work-qty"'
                 + '         data-work-id="' + escHtml(work.id) + '"'
-                + '         min="0" step="0.01" inputmode="decimal"'
-                + '         placeholder="0.00" value="' + escHtml(value) + '">'
+                + '         min="0" step="0.0001" inputmode="decimal"'
+                + '         placeholder="0.0000" value="' + escHtml(value) + '">'
                 + '</div>';
         });
 
