@@ -3,55 +3,77 @@
 namespace App\Imports;
 
 use App\Models\Concept;
-use Maatwebsite\Excel\Concerns\WithBatchInserts;
-use Maatwebsite\Excel\Concerns\ToModel;
+use App\Models\StockEntry;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
-use Maatwebsite\Excel\Concerns\WithUpserts;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 
-class ConceptImport implements ToModel, WithHeadingRow, WithChunkReading, WithBatchInserts, WithUpserts, SkipsEmptyRows
+class ConceptImport implements ToCollection, WithHeadingRow, WithChunkReading, SkipsEmptyRows
 {
-    public function batchSize(): int
-    {
-        return 500;
-    }
-
     public function chunkSize(): int
     {
         return 500;
     }
 
-    public function uniqueBy(): string
+    public function collection(Collection $rows): void
     {
-        return 'code';
+        foreach ($rows as $row) {
+            $this->importRow($row->all());
+        }
     }
 
-    public function model(array $row): ?Concept
+    private function importRow(array $row): void
     {
-        // WithHeadingRow normaliza los encabezados (minúsculas, sin acentos, guiones bajos)
-        // "Codigo" → "codigo" | "Descripción" → "descripcion" | "Costo" → "costo"
         $code = strtoupper(trim($row['codigo'] ?? $row['code'] ?? ''));
 
-        // Se requiere código para procesar la fila
         if (empty($code)) {
-            return null;
+            return;
         }
 
         $description = trim($row['descripcion'] ?? $row['description'] ?? $row['descripción'] ?? '');
         $unit        = trim($row['unidad']      ?? $row['unit']        ?? '');
-        $cost        = $row['costo']            ?? $row['unit_price']  ?? $row['precio']     ?? null;
+        $location    = trim($row['ubicacion'] ?? $row['ubicación'] ?? $row['warehouse_location'] ?? '');
+        $quantity    = $this->normalizeQuantity($row['cantidad'] ?? $row['quantity'] ?? null);
 
-        // Convertir costo a decimal y tolerar formato con separador de miles
-        $normalizedCost = is_string($cost) ? str_replace(',', '', trim($cost)) : $cost;
-        $unitPrice = is_numeric($normalizedCost) ? (float) $normalizedCost : 0.0;
-
-        return new Concept([
+        $concept = Concept::updateOrCreate(['code' => $code], [
             'code'        => $code,
             'description' => $description ?: $code,
             'unit'        => $unit ?: '—',
-            'unit_price'  => $unitPrice,
+            'warehouse_location' => $location,
             'status'      => 'active',
         ]);
+
+        if ($quantity > 0 && ! $concept->stockEntries()->exists() && ! $concept->stockExits()->exists()) {
+            StockEntry::create([
+                'concept_id' => $concept->id,
+                'entry_type' => 'purchase',
+                'purchase_reference' => 'Importación inicial de inventario',
+                'quantity' => $quantity,
+                'received_at' => today(),
+                'observations' => 'Existencia inicial cargada desde la importación de conceptos.',
+                'created_by' => Auth::id(),
+            ]);
+        }
+    }
+
+    private function normalizeQuantity(mixed $quantity): float
+    {
+        if (is_numeric($quantity)) {
+            return (float) $quantity;
+        }
+
+        $quantity = trim((string) $quantity);
+        if ($quantity === '') {
+            return 0.0;
+        }
+
+        $normalizedQuantity = str_contains($quantity, ',') && str_contains($quantity, '.')
+            ? str_replace(['.', ','], ['', '.'], $quantity)
+            : str_replace(',', '.', $quantity);
+
+        return is_numeric($normalizedQuantity) ? (float) $normalizedQuantity : 0.0;
     }
 }

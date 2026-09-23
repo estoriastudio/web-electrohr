@@ -543,13 +543,14 @@
                                 <tr><td><code>codigo</code></td><td>Código del concepto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
                                 <tr><td><code>descripcion</code></td><td>Descripción</td><td class="text-center text-muted">—</td></tr>
                                 <tr><td><code>unidad</code></td><td>Unidad de medida</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>costo</code></td><td>Precio unitario</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td class="text-center text-muted">—</td></tr>
                             </tbody>
                         </table>
                     </div>
                     <p class="text-muted fs-12 mb-3">
                         <i class="ri-information-line me-1"></i>
-                        Si el código ya existe, se actualizará su información. Las demás columnas del archivo serán ignoradas.
+                        Si el código ya existe, se actualizará su información. La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.
                     </p>
                     <div class="mb-0">
                         <label for="concept_import_file" class="form-label fw-medium">Archivo Excel <span class="text-danger">*</span></label>
