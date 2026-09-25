@@ -75,6 +75,7 @@
                                                 <i class="{{ $definition['icon'] }}"></i>
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><h6 class="dropdown-header">{{ $definition['label'] }}</h6></li>
                                                 @if ($hasDocument)
                                                     <li>
                                                         <a href="{{ route('projects.estimates.documents.download', [$estimate, $document]) }}"
