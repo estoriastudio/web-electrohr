@@ -19,11 +19,11 @@
     $remainingToEstimate = $contractValue - $advanceAmount - $estimatedWorkAmount - $creditNoteAmount;
     $physicalProgress = $contractValue > 0 ? ($estimatedWorkAmount / $contractValue) * 100 : 0;
     $estimateDocuments = [
-        'invoice_pdf' => ['label' => 'Factura PDF', 'path' => 'invoice_pdf_path'],
-        'invoice_xml' => ['label' => 'Factura XML', 'path' => 'invoice_xml_path'],
-        'credit_note_pdf' => ['label' => 'Nota de crédito PDF', 'path' => 'credit_note_pdf_path'],
-        'credit_note_xml' => ['label' => 'Nota de crédito XML', 'path' => 'credit_note_xml_path'],
-        'spei_receipt' => ['label' => 'Comprobante SPEI', 'path' => 'spei_receipt_path'],
+        'invoice_pdf' => ['label' => 'Factura PDF', 'path' => 'invoice_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
+        'invoice_xml' => ['label' => 'Factura XML', 'path' => 'invoice_xml_path', 'icon' => 'ri-file-code-line'],
+        'credit_note_pdf' => ['label' => 'Nota de crédito PDF', 'path' => 'credit_note_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
+        'credit_note_xml' => ['label' => 'Nota de crédito XML', 'path' => 'credit_note_xml_path', 'icon' => 'ri-file-code-line'],
+        'spei_receipt' => ['label' => 'Comprobante SPEI', 'path' => 'spei_receipt_path', 'icon' => 'ri-bank-card-line'],
     ];
     $documentErrorModalId = old('estimate_document_form') ? 'modalEstimateDocuments' . old('estimate_document_form') : null;
 @endphp
@@ -66,16 +66,42 @@
                             <td class="text-nowrap">
                                 <div class="d-flex gap-1">
                                     @foreach ($estimateDocuments as $document => $definition)
-                                        @if ($estimate->{$definition['path']})
-                                            <a href="{{ route('projects.estimates.documents.download', [$estimate, $document]) }}"
-                                               class="rounded-circle d-inline-block bg-success"
-                                               style="width: 10px; height: 10px;" target="_blank"
-                                               data-bs-toggle="tooltip" title="{{ $definition['label'] }}: disponible"></a>
-                                        @else
-                                            <span class="rounded-circle d-inline-block bg-secondary opacity-50"
-                                                  style="width: 10px; height: 10px;" data-bs-toggle="tooltip"
-                                                  title="{{ $definition['label'] }}: pendiente"></span>
-                                        @endif
+                                        @php($hasDocument = (bool) $estimate->{$definition['path']})
+                                        <div class="dropdown">
+                                            <button type="button" class="btn btn-sm btn-soft-secondary py-0 px-1 {{ $hasDocument ? 'text-success' : 'text-muted' }}"
+                                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                                    title="{{ $definition['label'] }}: {{ $hasDocument ? 'disponible' : 'pendiente' }}"
+                                                    aria-label="Acciones de {{ $definition['label'] }}">
+                                                <i class="{{ $definition['icon'] }}"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                @if ($hasDocument)
+                                                    <li>
+                                                        <a href="{{ route('projects.estimates.documents.download', [$estimate, $document]) }}"
+                                                           class="dropdown-item" target="_blank">
+                                                            <i class="ri-download-2-line me-1"></i> Descargar
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <form action="{{ route('projects.estimates.documents.destroy', [$estimate, $document]) }}" method="POST">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="dropdown-item text-danger"
+                                                                    onclick="return confirm('¿Eliminar {{ $definition['label'] }}?')">
+                                                                <i class="ri-delete-bin-line me-1"></i> Eliminar
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @else
+                                                    <li>
+                                                        <button type="button" class="dropdown-item" data-bs-toggle="modal"
+                                                                data-bs-target="#modalEstimateDocuments{{ $estimate->id }}">
+                                                            <i class="ri-upload-2-line me-1"></i> Cargar
+                                                        </button>
+                                                    </li>
+                                                @endif
+                                            </ul>
+                                        </div>
                                     @endforeach
                                 </div>
                             </td>

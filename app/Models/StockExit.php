@@ -22,6 +22,7 @@ class StockExit extends Model
         'status',
         'return_stock_entry_id',
         'overdue_notified_at',
+        'is_adjustment',
         'observations',
         'created_by',
     ];
@@ -31,6 +32,7 @@ class StockExit extends Model
         'exited_at' => 'date',
         'expected_return_at' => 'date',
         'overdue_notified_at' => 'datetime',
+        'is_adjustment' => 'boolean',
     ];
 
     public function concept(): BelongsTo

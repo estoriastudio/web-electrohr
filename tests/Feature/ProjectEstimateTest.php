@@ -174,6 +174,32 @@ class ProjectEstimateTest extends TestCase
         Storage::disk('s3')->assertExists($estimate->fresh()->invoice_pdf_path);
     }
 
+    public function test_it_deletes_an_estimate_document_from_s3_and_the_estimate(): void
+    {
+        Storage::fake('s3');
+
+        $project = $this->project();
+        $admin = $this->admin();
+        $estimate = $project->estimates()->create(array_merge($this->estimateData(), [
+            'created_by' => $admin->id,
+        ]));
+
+        $this->actingAs($admin)
+            ->put(route('projects.estimates.documents.update', $estimate), [
+                'invoice_pdf' => UploadedFile::fake()->create('factura.pdf', 10, 'application/pdf'),
+            ])
+            ->assertRedirect(route('projects.show', $project));
+
+        $path = $estimate->fresh()->invoice_pdf_path;
+
+        $this->actingAs($admin)
+            ->delete(route('projects.estimates.documents.destroy', [$estimate, 'invoice_pdf']))
+            ->assertRedirect(route('projects.show', $project));
+
+        $this->assertNull($estimate->fresh()->invoice_pdf_path);
+        Storage::disk('s3')->assertMissing($path);
+    }
+
     public function test_an_authorized_user_can_delete_another_users_estimate(): void
     {
         $project = $this->project();

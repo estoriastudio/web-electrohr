@@ -8,9 +8,12 @@ use App\Models\StockEntryItem;
 use App\Models\StockExit;
 use App\Models\StockExitItem;
 use App\Services\NotificationService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class StockController extends Controller
@@ -67,14 +70,14 @@ class StockController extends Controller
         $movements = $entries->map(fn (StockEntryItem $item) => (object) [
             'date' => $item->stockEntry->received_at,
             'direction' => 'entry',
-            'label' => $item->stockEntry->entry_type === 'purchase' ? 'Compra' : 'Retorno de herramienta',
+            'label' => $item->stockEntry->is_adjustment ? 'Ajuste manual (+)' : ($item->stockEntry->entry_type === 'purchase' ? 'Compra' : 'Retorno de herramienta'),
             'quantity' => $item->quantity,
             'reference' => $item->stockEntry->purchase_reference,
             'record' => $item->stockEntry,
         ])->merge($exits->map(fn (StockExitItem $item) => (object) [
             'date' => $item->stockExit->exited_at,
             'direction' => 'exit',
-            'label' => 'Salida definitiva',
+            'label' => $item->stockExit->is_adjustment ? 'Ajuste manual (-)' : 'Salida definitiva',
             'quantity' => $item->quantity,
             'reference' => $item->stockExit->voucher_number,
             'record' => $item->stockExit,
@@ -83,6 +86,78 @@ class StockController extends Controller
             - (float) $concept->stockExitItems()->sum('quantity');
 
         return view('stocks.show', compact('concept', 'movements', 'currentStock'));
+    }
+
+    public function adjust(Request $request, Concept $concept): RedirectResponse
+    {
+        $validated = $request->validate([
+            'direction' => ['required', 'in:increase,decrease'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'adjusted_at' => ['required', 'date'],
+            'observations' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $movement = DB::transaction(function () use ($concept, $validated) {
+            if ($validated['direction'] === 'decrease') {
+                $available = (float) StockEntryItem::where('concept_id', $concept->id)->lockForUpdate()->sum('quantity')
+                    - (float) StockExitItem::where('concept_id', $concept->id)->lockForUpdate()->sum('quantity');
+
+                if ((float) $validated['quantity'] > $available) {
+                    throw ValidationException::withMessages([
+                        'quantity' => 'La cantidad del ajuste excede el stock disponible (' . rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.') . ' ' . $concept->unit . ').',
+                    ]);
+                }
+
+                $exit = StockExit::create([
+                    'concept_id' => null,
+                    'exit_type' => 'definitive',
+                    'voucher_number' => 'AJUSTE-' . now()->format('YmdHis') . '-' . random_int(100, 999),
+                    'quantity' => $validated['quantity'],
+                    'exited_at' => $validated['adjusted_at'],
+                    'status' => 'completed',
+                    'is_adjustment' => true,
+                    'observations' => $validated['observations'],
+                    'created_by' => Auth::id(),
+                ]);
+
+                $exit->items()->create([
+                    'concept_id' => $concept->id,
+                    'line_number' => 1,
+                    'quantity' => $validated['quantity'],
+                ]);
+
+                return $exit;
+            }
+
+            $entry = StockEntry::create([
+                'concept_id' => null,
+                'entry_type' => 'purchase',
+                'purchase_reference' => 'Ajuste manual de inventario',
+                'quantity' => $validated['quantity'],
+                'received_at' => $validated['adjusted_at'],
+                'is_adjustment' => true,
+                'observations' => $validated['observations'],
+                'created_by' => Auth::id(),
+            ]);
+
+            $entry->items()->create([
+                'concept_id' => $concept->id,
+                'line_number' => 1,
+                'quantity' => $validated['quantity'],
+            ]);
+
+            return $entry;
+        });
+
+        $this->notification->send([
+            'type' => $movement instanceof StockEntry ? 'StockEntry' : 'StockExit',
+            'action_by' => Auth::id(),
+            'model_action' => 'create',
+            'model_id' => $movement->id,
+            'data' => 'registró un ajuste manual de inventario para ' . $concept->code . '.',
+        ]);
+
+        return redirect()->route('stocks.show', $concept)->with('success', 'Ajuste manual de stock registrado correctamente.');
     }
 
     public function downloadInvoice(StockEntry $stockEntry): mixed

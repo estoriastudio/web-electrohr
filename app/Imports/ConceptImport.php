@@ -6,6 +6,7 @@ use App\Models\Concept;
 use App\Models\StockEntry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -38,25 +39,33 @@ class ConceptImport implements ToCollection, WithHeadingRow, WithChunkReading, S
         $location    = trim($row['ubicacion'] ?? $row['ubicación'] ?? $row['warehouse_location'] ?? '');
         $quantity    = $this->normalizeQuantity($row['cantidad'] ?? $row['quantity'] ?? null);
 
-        $concept = Concept::updateOrCreate(['code' => $code], [
-            'code'        => $code,
-            'description' => $description ?: $code,
-            'unit'        => $unit ?: '—',
-            'warehouse_location' => $location,
-            'status'      => 'active',
-        ]);
-
-        if ($quantity > 0 && ! $concept->stockEntries()->exists() && ! $concept->stockExits()->exists()) {
-            StockEntry::create([
-                'concept_id' => $concept->id,
-                'entry_type' => 'purchase',
-                'purchase_reference' => 'Importación inicial de inventario',
-                'quantity' => $quantity,
-                'received_at' => today(),
-                'observations' => 'Existencia inicial cargada desde la importación de conceptos.',
-                'created_by' => Auth::id(),
+        DB::transaction(function () use ($code, $description, $unit, $location, $quantity) {
+            $concept = Concept::updateOrCreate(['code' => $code], [
+                'code'        => $code,
+                'description' => $description ?: $code,
+                'unit'        => $unit ?: '—',
+                'warehouse_location' => $location,
+                'status'      => 'active',
             ]);
-        }
+
+            if ($quantity > 0 && ! $concept->stockEntryItems()->exists() && ! $concept->stockExitItems()->exists()) {
+                $entry = StockEntry::create([
+                    'concept_id' => null,
+                    'entry_type' => 'purchase',
+                    'purchase_reference' => 'Importación inicial de inventario',
+                    'quantity' => $quantity,
+                    'received_at' => today(),
+                    'observations' => 'Existencia inicial cargada desde la importación de conceptos.',
+                    'created_by' => Auth::id(),
+                ]);
+
+                $entry->items()->create([
+                    'concept_id' => $concept->id,
+                    'line_number' => 1,
+                    'quantity' => $quantity,
+                ]);
+            }
+        });
     }
 
     private function normalizeQuantity(mixed $quantity): float

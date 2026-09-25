@@ -144,6 +144,30 @@ class ProjectEstimateController extends Controller
         );
     }
 
+    public function destroyDocument(ProjectEstimate $estimate, string $document): RedirectResponse
+    {
+        abort_unless(array_key_exists($document, self::DOCUMENTS), 404);
+
+        $definition = self::DOCUMENTS[$document];
+        $path = $estimate->{$definition['column']};
+
+        abort_unless($path, 404);
+
+        $estimate->update([$definition['column'] => null]);
+        $this->deleteStoredPaths([$path]);
+
+        $this->notification->send([
+            'type' => 'ProjectEstimate',
+            'action_by' => Auth::id(),
+            'model_action' => 'update',
+            'model_id' => $estimate->id,
+            'data' => 'eliminó el archivo ' . $document . ' de la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
+        ]);
+
+        return redirect()->route('projects.show', $estimate->project)
+            ->with('success', 'Archivo de la estimación eliminado correctamente.');
+    }
+
     private function validatedData(
         Request $request,
         Project $project,

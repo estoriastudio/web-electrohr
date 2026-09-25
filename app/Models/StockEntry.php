@@ -19,6 +19,7 @@ class StockEntry extends Model
         'invoice_file_name',
         'invoice_file_path',
         'invoice_disk',
+        'is_adjustment',
         'observations',
         'created_by',
     ];
@@ -26,6 +27,7 @@ class StockEntry extends Model
     protected $casts = [
         'quantity' => 'decimal:3',
         'received_at' => 'date',
+        'is_adjustment' => 'boolean',
     ];
 
     public function concept(): BelongsTo

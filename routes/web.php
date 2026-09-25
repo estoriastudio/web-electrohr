@@ -258,6 +258,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('projects.estimates.update');
             Route::put('/proyectos/estimaciones/{estimate}/documentos', [ProjectEstimateController::class, 'updateDocuments'])
                 ->name('projects.estimates.documents.update');
+            Route::delete('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'destroyDocument'])
+                ->name('projects.estimates.documents.destroy');
             Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
                 ->name('projects.estimates.destroy');
             Route::get('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'download'])
@@ -716,6 +718,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ])->except(['show', 'edit', 'update']);
             Route::get('/inventario/entradas/{stockEntry}/factura', [StockController::class, 'downloadInvoice'])->name('stocks.entries.invoice.download');
             Route::get('/inventario/certificados/{stockCertificate}/descargar', [StockController::class, 'downloadCertificate'])->name('stocks.certificates.download');
+            Route::post('/inventario/{concept}/ajuste', [StockController::class, 'adjust'])->name('stocks.adjust');
             Route::get('/inventario/{concept}', [StockController::class, 'show'])->name('stocks.show');
         });
 
