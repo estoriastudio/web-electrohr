@@ -301,6 +301,36 @@ class PaymentMultipleMilestoneTest extends TestCase
         $this->assertSame(1000.0, (float) $milestone->fresh()->covered_amount);
     }
 
+    public function test_payments_user_can_replace_spei_for_a_paid_payment_without_changing_its_covered_amount(): void
+    {
+        Storage::fake('s3');
+
+        $milestone = $this->milestoneWithInitialPayment();
+        $payment = $milestone->payments()->first();
+        $previousPath = 'payments/spei/' . $milestone->id . '/SPEI-OLD.pdf';
+        Storage::disk('s3')->put($previousPath, 'old receipt');
+        $milestone->update(['covered_amount' => 1000]);
+        $payment->update([
+            'status' => 'pagado',
+            'spei_receipt_path' => $previousPath,
+            'spei_receipt_name' => 'SPEI-OLD.pdf',
+        ]);
+
+        $this->actingAs($this->paymentsUser())
+            ->patch(route('payments.update', $payment), [
+                'spei_receipt_file' => UploadedFile::fake()->create('replacement.pdf', 100, 'application/pdf'),
+            ])
+            ->assertRedirect(route('purchase_orders.show', $milestone->purchaseOrder));
+
+        $payment->refresh();
+
+        $this->assertSame('pagado', $payment->status);
+        $this->assertNotSame($previousPath, $payment->spei_receipt_path);
+        Storage::disk('s3')->assertMissing($previousPath);
+        Storage::disk('s3')->assertExists($payment->spei_receipt_path);
+        $this->assertSame(1000.0, (float) $milestone->fresh()->covered_amount);
+    }
+
     public function test_admin_can_persist_and_authorize_multiple_pending_payments(): void
     {
         $firstMilestone = $this->milestoneWithInitialPayment();

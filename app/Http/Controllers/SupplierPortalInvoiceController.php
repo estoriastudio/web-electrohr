@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class SupplierPortalInvoiceController extends Controller
 {
+    private const PURCHASE_ORDER_AMOUNT_TOLERANCE = 0.50;
+
     public function create(Request $request, PurchaseOrder $purchaseOrder)
     {
         $supplier = $request->user()->supplier;
@@ -111,7 +113,7 @@ class SupplierPortalInvoiceController extends Controller
             ]);
         }
 
-        if ($netScope > $pendingAmount) {
+        if ($netScope > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
             return redirect()->back()->withInput()->withErrors([
                 'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($pendingAmount, 2) . ' ' . $purchaseOrder->currency . ').',
             ]);
@@ -161,7 +163,7 @@ class SupplierPortalInvoiceController extends Controller
             $lockedInvoicedAmount = $this->resolveInvoicedAmount($lockedPurchaseOrder);
             $lockedPendingAmount = $this->resolvePendingAmount($lockedPurchaseOrder, $lockedInvoicedAmount);
 
-            if ($netScope > $lockedPendingAmount || $lockedPendingAmount <= 0) {
+            if ($netScope > $lockedPendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE || $lockedPendingAmount <= 0) {
                 throw ValidationException::withMessages([
                     'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($lockedPendingAmount, 2) . ' ' . $lockedPurchaseOrder->currency . ').',
                 ]);

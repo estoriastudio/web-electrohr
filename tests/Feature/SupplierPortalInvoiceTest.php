@@ -115,7 +115,7 @@ XML;
         ]);
     }
 
-    public function test_supplier_invoice_amount_is_normalized_to_the_purchase_order_total(): void
+    public function test_supplier_invoice_amount_up_to_fifty_cents_above_the_purchase_order_total_is_allowed(): void
     {
         $user = User::factory()->create();
         $supplier = Supplier::create([
@@ -156,7 +156,7 @@ XML;
             ->post(route('supplier_portal.invoices.store', $purchaseOrder), [
                 'due_date' => '2026-09-01',
                 'folio' => $uuid,
-                'amount' => 8200.01,
+                'amount' => 8200.50,
                 'pdf_file' => UploadedFile::fake()->create('factura.pdf', 100, 'application/pdf'),
                 'xml_file' => UploadedFile::fake()->createWithContent('factura.xml', $xml),
                 'evidence_file' => UploadedFile::fake()->create('evidencia.pdf', 100, 'application/pdf'),
@@ -166,9 +166,49 @@ XML;
         $this->assertDatabaseHas('purchase_order_invoices', [
             'purchase_order_id' => $purchaseOrder->id,
             'folio' => $uuid,
-            'amount' => 8200.00,
-            'net_scope' => 8200.00,
+            'amount' => 8200.50,
+            'net_scope' => 8200.50,
         ]);
+    }
+
+    public function test_supplier_invoice_amount_above_fifty_cents_over_the_purchase_order_total_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $supplier = Supplier::create([
+            'rfc_name' => 'Proveedor de prueba',
+            'portal_user_id' => $user->id,
+        ]);
+        $purchaseOrder = PurchaseOrder::create([
+            'folio' => 12349,
+            'type' => 'materiales_servicios',
+            'supplier_id' => $supplier->id,
+            'currency' => 'MXN',
+            'amount' => 100,
+            'status' => 'autorizada',
+            'recurrence_type' => 'unico',
+        ]);
+        $uuid = '55555555-5555-4555-8555-555555555555';
+        $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Fecha="2026-08-19">
+    <cfdi:Complemento>
+        <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" UUID="{$uuid}" />
+    </cfdi:Complemento>
+</cfdi:Comprobante>
+XML;
+
+        $this->actingAs($user)
+            ->post(route('supplier_portal.invoices.store', $purchaseOrder), [
+                'due_date' => '2026-09-01',
+                'folio' => $uuid,
+                'amount' => 100.51,
+                'pdf_file' => UploadedFile::fake()->create('factura.pdf', 100, 'application/pdf'),
+                'xml_file' => UploadedFile::fake()->createWithContent('factura.xml', $xml),
+                'evidence_file' => UploadedFile::fake()->create('evidencia.pdf', 100, 'application/pdf'),
+            ])
+            ->assertSessionHasErrors('amount');
+
+        $this->assertDatabaseCount('purchase_order_invoices', 0);
     }
 
     public function test_supplier_evidence_does_not_change_the_internal_delivery_status(): void

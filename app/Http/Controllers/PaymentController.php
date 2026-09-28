@@ -577,12 +577,12 @@ class PaymentController extends Controller
                 ->with('error', 'No se enviaron cambios para actualizar el pago.');
         }
 
-        if ($hasSpeiFile && $payment->status !== 'autorizado') {
+        if ($hasSpeiFile && !in_array($payment->status, ['autorizado', 'pagado'], true)) {
             return $this->paymentUpdateRedirect($returnTo, $orderId)
-                ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado.');
+                ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado o pagado.');
         }
 
-        if (!$hasStatusChange) {
+        if (!$hasStatusChange && $payment->status !== 'pagado') {
             $this->paymentSequenceValidator->ensureStatusSequence(
                 $milestone->purchaseOrder,
                 [$payment->id => 'pagado'],
@@ -611,7 +611,7 @@ class PaymentController extends Controller
             $payment->spei_receipt_name = $fileName;
         }
 
-        if (!$hasStatusChange) {
+        if (!$hasStatusChange && $payment->status !== 'pagado') {
             $payment->status = 'pagado';
             $payment->save();
             $milestone->increment('covered_amount', $payment->amount);
@@ -626,6 +626,21 @@ class PaymentController extends Controller
 
             return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('success', 'Comprobante SPEI registrado y pago marcado como pagado.');
+        }
+
+        if (!$hasStatusChange) {
+            $payment->save();
+
+            $this->notification->send([
+                'type'         => 'Payment',
+                'action_by'    => Auth::id(),
+                'model_action' => 'update',
+                'model_id'     => $payment->id,
+                'data'         => 'reemplazó el comprobante SPEI del pago #' . $payment->folio . ' en el hito #' . $milestone->id . ' de la orden de compra #' . $orderId,
+            ]);
+
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('success', 'Comprobante SPEI reemplazado.');
         }
 
         $previousStatus = $payment->status;
