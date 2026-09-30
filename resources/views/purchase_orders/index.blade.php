@@ -131,11 +131,11 @@
                     <h4 class="card-title mb-0">{{ $scope === 'all' ? 'Listado completo de órdenes de compra' : 'Mis órdenes de compra' }}</h4>
                 </div>
                 <div>
-                    @hasrole('admin')
+                    @hasanyrole('admin|Pagos')
                     <a href="{{ route('purchase_orders.index', ['scope' => $scope === 'all' ? 'mine' : 'all']) }}" class="btn btn-sm btn-outline-secondary">
                         <i class="{{ $scope === 'all' ? 'ri-user-line' : 'ri-list-unordered' }} me-1"></i>{{ $scope === 'all' ? 'Mis OC' : 'Listado completo' }}
                     </a>
-                    @endhasrole
+                    @endhasanyrole
                     @hasanyrole('admin|Orden de compra')
                     @can('create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">

@@ -187,7 +187,7 @@ class PurchaseOrderController extends Controller
 
     private function listingScope(Request $request): string
     {
-        return Auth::user()->hasRole('admin') && $request->input('scope', 'all') !== 'mine' ? 'all' : 'mine';
+        return Auth::user()->hasAnyRole(['admin', 'Pagos']) && $request->input('scope', 'all') !== 'mine' ? 'all' : 'mine';
     }
 
     public function overdueDeliveries(): View

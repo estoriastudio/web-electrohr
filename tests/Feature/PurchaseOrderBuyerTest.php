@@ -397,7 +397,39 @@ class PurchaseOrderBuyerTest extends TestCase
         $this->assertSame(2, $global['pendingCount']);
         $this->assertSame(2, $global['invoices']->total());
         $orders = app(PurchaseOrderController::class)->index(Request::create('/ordenes-de-compra', 'GET', ['scope' => 'all']))->getData();
-        $this->assertSame('mine', $orders['scope']);
-        $this->assertSame([$owned->id], $orders['orders']->pluck('id')->all());
+        $this->assertSame('all', $orders['scope']);
+        $this->assertSame(2, $orders['orders']->total());
+    }
+
+    public function test_payments_can_switch_complete_and_owned_active_and_archived_lists(): void
+    {
+        $user = User::create(['name' => 'Pagos', 'email' => 'payments@example.com', 'password' => 'password']);
+        $user->assignRole('Pagos');
+        $this->actingAs($user);
+        $owned = PurchaseOrder::create(['buyer_id' => $user->id]);
+        $foreign = PurchaseOrder::create([]);
+        $ownedArchived = PurchaseOrder::create(['buyer_id' => $user->id, 'archived_at' => now()]);
+        PurchaseOrder::create(['archived_at' => now()]);
+        foreach ([$owned, $foreign] as $order) {
+            DB::table('purchase_order_invoices')->insert(['purchase_order_id' => $order->id, 'status' => 'en_proceso']);
+        }
+
+        foreach ([[], ['scope' => 'all']] as $query) {
+            $data = app(PurchaseOrderController::class)->index(Request::create('/ordenes-de-compra', 'GET', $query))->getData();
+            $this->assertSame('all', $data['scope']);
+            $this->assertSame(2, $data['orders']->total());
+            $this->assertCount(2, $data['recentPendingInvoices']);
+            $archived = app(PurchaseOrderController::class)->archived(Request::create('/ordenes-de-compra/archivadas', 'GET', $query))->getData();
+            $this->assertSame('all', $archived['scope']);
+            $this->assertSame(2, $archived['orders']->total());
+        }
+
+        $mine = app(PurchaseOrderController::class)->index(Request::create('/ordenes-de-compra', 'GET', ['scope' => 'mine']))->getData();
+        $this->assertSame('mine', $mine['scope']);
+        $this->assertSame([$owned->id], $mine['orders']->pluck('id')->all());
+        $this->assertSame([$owned->id], $mine['recentPendingInvoices']->pluck('purchase_order_id')->all());
+        $archived = app(PurchaseOrderController::class)->archived(Request::create('/ordenes-de-compra/archivadas', 'GET', ['scope' => 'mine']))->getData();
+        $this->assertSame('mine', $archived['scope']);
+        $this->assertSame([$ownedArchived->id], $archived['orders']->pluck('id')->all());
     }
 }
