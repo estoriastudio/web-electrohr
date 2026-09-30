@@ -110,7 +110,7 @@
                                         </li>
                                         @if ($mode === 'index')
                                             @hasanyrole('admin|Solmat')
-                                            @can('update')
+                                            @can('material_requests.update')
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('material_requests.edit', $mr) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
@@ -147,7 +147,7 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @can('delete')
+                                        @can('material_requests.delete')
                                         @if ($mode === 'index')
                                         <li>
                                             <form action="{{ route('material_requests.destroy', $mr) }}"

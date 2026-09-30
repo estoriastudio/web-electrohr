@@ -114,11 +114,11 @@
             <span class="badge {{ $statusBadge['class'] }} fs-12">{{ $statusBadge['label'] }}</span>
         </div>
     </div>
-    @role('admin|Moviles')
+    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
     <a href="{{ route('mobile_assets.edit', $mobileAsset) }}" class="btn btn-primary btn-sm">
         <i class="ri-edit-line me-1"></i> Editar bien
     </a>
-    @endrole
+    @endif
 </div>
 
 {{-- ── Layout principal ──────────────────────────────────────────────── --}}
@@ -152,7 +152,7 @@
                                            class="btn btn-sm btn-light" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @role('admin|Moviles')
+                                        @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -160,7 +160,7 @@
                                                 <i class="ri-delete-bin-line"></i>
                                             </button>
                                         </form>
-                                        @endrole
+                                        @endif
                                     </div>
                                 </div>
                             @else
@@ -170,7 +170,7 @@
                                         <a href="#" target="_blank" class="btn btn-sm btn-light photo-view-btn" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @role('admin|Moviles')
+                                        @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -178,13 +178,13 @@
                                                 <i class="ri-delete-bin-line"></i>
                                             </button>
                                         </form>
-                                        @endrole
+                                        @endif
                                     </div>
                                 </div>
                             @endif
 
                             {{-- Dropzone (visible si no hay foto; oculto si ya hay) --}}
-                            @role('admin|Moviles')
+                            @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                             <div class="photo-dz-zone {{ $photoUrl ? 'd-none' : '' }}"
                                  id="dropzone-slot-{{ $slot }}"
                                  data-slot="{{ $slot }}"
@@ -204,7 +204,7 @@
                                     <i class="ri-refresh-line me-1"></i> Reemplazar
                                 </button>
                             @endif
-                            @endrole
+                            @endif
                         </div>
                     @endfor
                 </div>
@@ -225,9 +225,9 @@
                                 <th>Documento</th>
                                 <th>Vencimiento</th>
                                 <th>Archivo</th>
-                                @role('admin|Moviles')
+                                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                 <th>Actualizar</th>
-                                @endrole
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -280,7 +280,7 @@
                                             <span class="text-muted fs-12">Sin archivo</span>
                                         @endif
                                     </td>
-                                    @role('admin|Moviles')
+                                    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                     <td>
                                         <button type="button" class="btn btn-soft-primary btn-sm"
                                                 data-bs-toggle="modal"
@@ -289,7 +289,7 @@
                                             {{ $docRecord && $docRecord->file_path ? 'Reemplazar' : 'Subir' }}
                                         </button>
                                     </td>
-                                    @endrole
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
@@ -354,12 +354,12 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-file-list-3-line me-1 text-muted"></i> Bitácora de Mantenimiento
                 </h5>
-                @role('admin|Moviles')
+                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalAddLog">
                     <i class="ri-add-line me-1"></i> Registrar
                 </button>
-                @endrole
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -372,9 +372,9 @@
                                 <th>Km a vencer</th>
                                 <th>Evidencia</th>
                                 <th>Notas</th>
-                                @role('admin|Moviles')
+                                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                 <th></th>
-                                @endrole
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -420,7 +420,7 @@
                                     <td class="fs-12 text-muted" style="max-width: 200px; white-space: normal;">
                                         {{ $log->notes ? \Illuminate\Support\Str::limit($log->notes, 80) : '—' }}
                                     </td>
-                                    @role('admin|Moviles')
+                                    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
                                     <td>
                                         <form action="{{ route('maintenance_logs.destroy', [$mobileAsset, $log]) }}"
                                               method="POST"
@@ -431,7 +431,7 @@
                                             </button>
                                         </form>
                                     </td>
-                                    @endrole
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
@@ -557,7 +557,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODALES — Documentos (uno por tipo)
 ══════════════════════════════════════════════════════════════════ --}}
-@role('admin|Moviles')
+@if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
 @foreach ($applicableDocTypes as $dt)
     @php
         $docRecord = $mobileAsset->documents->firstWhere('document_type', $dt);
@@ -670,7 +670,7 @@
         </div>
     </div>
 </div>
-@endrole
+@endif
 
 @endsection
 

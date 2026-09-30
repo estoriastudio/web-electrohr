@@ -189,10 +189,12 @@
                                             {{-- Botón crear OC solo si no tiene notas pendientes --}}
                                             @if ($pendingNotes === 0)
                                                 @hasanyrole('admin|Orden de compra')
+                                                @can('purchase_orders.create')
                                                 <a href="{{ route('purchase_orders.create_from_solcom', $pr) }}"
                                                    class="btn btn-primary btn-sm" title="Crear OC vinculada a esta SOLCOM">
                                                     <i class="ri-file-list-3-line me-1"></i>Crear OC
                                                 </a>
+                                                @endcan
                                                 @endhasanyrole
                                             @endif
                                         </div>

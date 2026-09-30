@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('purchase_requests.update')
+
 @section('page_title', 'Editar SOLCOM #' . $purchaseRequest->folio)
 
 @section('breadcrumbs')
@@ -180,3 +182,5 @@
 })();
 </script>
 @endpush
+
+@endcan

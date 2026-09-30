@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('material_requests.update')
+
 @section('page_title', 'Editar SOLMAT #' . $materialRequest->folio)
 
 @section('breadcrumbs')
@@ -198,3 +200,5 @@
 }());
 </script>
 @endpush
+
+@endcan

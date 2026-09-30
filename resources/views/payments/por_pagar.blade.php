@@ -116,6 +116,7 @@
                             </form>
                         </div>
                     </div>
+                    @can('payments.update')
                     <button type="button" id="btnClearPaymentSelection" class="btn btn-sm btn-outline-secondary"
                             @disabled($persistedSelectedPaymentCount === 0)>
                         <i class="ri-delete-bin-line me-1"></i> Limpiar selección
@@ -125,6 +126,7 @@
                         <i class="ri-bank-card-line me-1"></i> Asociar SPEI y pagar
                         <span class="badge bg-light text-dark ms-1" id="selectedPaymentsCount">{{ $persistedSelectedPaymentCount }}</span>
                     </button>
+                    @endcan
                 </div>
             </div>
 
@@ -177,8 +179,10 @@
                         <thead class="bg-light-subtle">
                             <tr>
                                 <th style="width:44px;">
+                                    @can('payments.update')
                                     <input type="checkbox" class="form-check-input" id="selectAllPayments"
                                            title="Seleccionar todos los pagos">
+                                    @endcan
                                 </th>
                                 <th>
                                     <div class="dropdown">
@@ -261,9 +265,11 @@
                                 @endphp
                                 <tr class="{{ $isUrgent ? 'table-warning' : '' }}">
                                     <td>
+                                                                                @can('payments.update')
                                         <input type="checkbox" class="form-check-input js-payment-select"
                                                value="{{ $payment->id }}" aria-label="Seleccionar pago {{ $payment->folio }}"
                                                  @checked(in_array($payment->id, $persistedSelectedPaymentIds, true))>
+                                                                                @endcan
                                     </td>
                                     <td>
                                         @if ($isUrgent)
@@ -303,10 +309,12 @@
                                     <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                     <td>{{ $payment->reference_number ?? '—' }}</td>
                                     <td>
+                                        @can('payments.update')
                                         <button type="button" class="btn btn-soft-success btn-sm"
                                                 data-bs-toggle="modal" data-bs-target="#modalIndividualSpei{{ $payment->id }}">
                                             <i class="ri-upload-2-line me-1"></i> Cargar SPEI
                                         </button>
+                                        @endcan
                                     </td>
                                 </tr>
                             @empty
@@ -342,6 +350,7 @@
     </div>
 </div>
 
+@can('payments.update')
 @foreach ($payments as $payment)
 <div class="modal fade" id="modalIndividualSpei{{ $payment->id }}" tabindex="-1"
      aria-labelledby="modalIndividualSpeiLabel{{ $payment->id }}" aria-hidden="true">
@@ -425,6 +434,7 @@
         </div>
     </div>
 </div>
+@endcan
 @endsection
 
 @push('scripts')

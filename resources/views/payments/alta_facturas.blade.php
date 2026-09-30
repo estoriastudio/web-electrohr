@@ -126,6 +126,7 @@
     </div>
 
     {{-- Panel derecho: formulario de alta de factura --}}
+    @can('invoices.create')
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
@@ -221,6 +222,7 @@
         </div>
     </div>
 
+    @endcan
 </div>
 
 @endsection

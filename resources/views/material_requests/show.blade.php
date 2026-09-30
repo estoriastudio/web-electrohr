@@ -84,7 +84,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @hasanyrole('admin|Solmat')
+                        @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                         @if ($canEditSolmatContent)
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
@@ -100,16 +100,16 @@
                             </button>
                         </form>
                         @endif
-                        @endhasanyrole
+                        @endif
 
-                        @hasanyrole('admin|Solcom|Solmat')
+                        @if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
                         @if ($materialRequest->status === 'sent_to_warehouse')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChangesSolmat">
                             <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
                         </button>
                         @endif
-                        @endhasanyrole
+                        @endif
 
                         <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
@@ -259,7 +259,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|Solmat')
+                                        @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                                         @if ($canEditSolmatContent)
                                         <div class="d-flex gap-1">
                                             @if ($item->workQuantities->isNotEmpty())
@@ -280,11 +280,11 @@
                                             </form>
                                         </div>
                                         @endif
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                 </tr>
                                 @if ($item->workQuantities->isNotEmpty())
-                                    @hasanyrole('admin|Solmat')
+                                    @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                                     @if ($canEditSolmatContent)
                                         <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
                                             <td colspan="7" class="py-2">
@@ -327,7 +327,7 @@
                                             </td>
                                         </tr>
                                     @endif
-                                    @endhasanyrole
+                                    @endif
                                 @endif
                             @empty
                                 <tr id="solmat_empty_row">
@@ -342,7 +342,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @hasanyrole('admin|Solmat')
+            @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
             @if ($canEditSolmatContent)
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
@@ -417,7 +417,7 @@
 
             </div>
             @endif
-            @endhasanyrole
+            @endif
 
         </div>
     </div>
@@ -469,7 +469,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @hasanyrole('admin|Solcom|Solmat')
+                                @if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -477,7 +477,7 @@
                                         <i class="ri-check-line me-1"></i>Marcar como resuelta
                                     </button>
                                 </form>
-                                @endhasanyrole
+                                @endif
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
@@ -522,7 +522,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @hasanyrole('admin|Solmat')
+                                    @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -541,12 +541,12 @@
                                             Eliminar
                                         </button>
                                     </form>
-                                    @endhasanyrole
+                                    @endif
                                 </div>
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @hasanyrole('admin|Solmat')
+                            @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                             <div class="collapse mt-2" id="solmat_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('material_requests.notes.update', [$materialRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -557,7 +557,7 @@
                                     </div>
                                 </form>
                             </div>
-                            @endhasanyrole
+                            @endif
                         </div>
                     </div>
                     <hr class="my-2">
@@ -566,7 +566,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @hasanyrole('admin|Solmat')
+                @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -581,14 +581,14 @@
                         </button>
                     </div>
                 </form>
-                @endhasanyrole
+                @endif
             </div>
         </div>
     </div>
 </div>
 
 {{-- ── Modal: Solicitar Cambios ── --}}
-@hasanyrole('admin|Solcom|Solmat')
+@if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
 <div class="modal fade" id="modalRequestChangesSolmat" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -622,7 +622,7 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endif
 
 @endsection
 

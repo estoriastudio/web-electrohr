@@ -50,6 +50,7 @@
                     </p>
                 </div>
                 <div class="d-flex flex-wrap justify-content-end gap-2">
+                    @can('purchase_requests.create')
                     <button type="button"
                             id="btnClearSolmatSelection"
                             class="btn btn-outline-secondary btn-sm"
@@ -64,6 +65,7 @@
                         <i class="ri-stack-line me-1"></i>Crear SOLCOM consolidada
                         <span class="badge bg-light text-dark ms-1" id="selectedSolmatCount">{{ $persistedSelectedCount }}</span>
                     </button>
+                    @endcan
                     <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                         <i class="ri-arrow-left-line me-1"></i>Ver todas las SOLMAT
                     </a>
@@ -268,10 +270,12 @@
                                                     <i class="ri-file-forbid-line me-1"></i>Sin conceptos
                                                 </button>
                                             @else
+                                                @can('purchase_requests.create')
                                                 <a href="{{ route('purchase_requests.create_from_solmat', $mr) }}"
                                                    class="btn btn-warning btn-sm" title="Crear SOLCOM">
                                                     <i class="ri-shopping-cart-2-line me-1"></i>Crear SOLCOM
                                                 </a>
+                                                @endcan
                                             @endif
                                         </div>
                                     </td>

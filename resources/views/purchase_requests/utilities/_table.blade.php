@@ -90,7 +90,7 @@
 
                                         @if ($mode === 'index')
                                             @hasanyrole('admin|Solcom')
-                                            @can('update')
+                                            @can('purchase_requests.update')
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('purchase_requests.edit', $pr) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
@@ -132,7 +132,7 @@
                                         @endhasanyrole
 
                                         @hasanyrole('admin|Solcom')
-                                        @can('delete')
+                                        @can('purchase_requests.delete')
                                         <li>
                                             <form action="{{ route('purchase_requests.destroy', $pr) }}"
                                                 method="POST"

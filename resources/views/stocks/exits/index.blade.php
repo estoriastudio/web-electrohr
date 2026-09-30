@@ -25,7 +25,7 @@
 <div class="card">
 	<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
 		<div><h4 class="card-title mb-0"><i class="ri-arrow-right-circle-line text-primary me-1"></i>Salidas de inventario</h4><span class="text-muted fs-13">Entregas definitivas y préstamos de herramienta</span></div>
-		<div class="d-flex flex-wrap gap-2"><a href="{{ route('stocks.exits.calendar') }}" class="btn btn-sm btn-outline-info"><i class="ri-calendar-check-line me-1"></i>Vista Calendario de Retornos</a><a href="{{ route('stocks.entries.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-left-line me-1"></i>Ir a entradas</a><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#exitModal"><i class="ri-add-line me-1"></i>Nueva salida</button></div>
+		<div class="d-flex flex-wrap gap-2"><a href="{{ route('stocks.exits.calendar') }}" class="btn btn-sm btn-outline-info"><i class="ri-calendar-check-line me-1"></i>Vista Calendario de Retornos</a><a href="{{ route('stocks.entries.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-left-line me-1"></i>Ir a entradas</a>@can('stocks.create') <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#exitModal"><i class="ri-add-line me-1"></i>Nueva salida</button> @endcan</div>
 	</div>
 	<div class="card-body border-bottom py-3">
 		<form method="GET" action="{{ route('stocks.exits.index') }}" class="row g-2 align-items-end">
@@ -41,6 +41,7 @@
 @endif</td><td>{{ $exit->recipientWorker ? trim($exit->recipientWorker->first_name . ' ' . $exit->recipientWorker->last_name) : ($exit->recipient_name ?: '—') }}</td><td><span class="badge {{ $isLoan ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary' }} py-1 px-2 fs-12"><i class="{{ $isLoan ? 'ri-tools-line' : 'ri-arrow-right-line' }} me-1"></i>{{ $isLoan ? 'Préstamo' : 'Salida definitiva' }}</span></td><td><span class="badge {{ $status['class'] }} py-1 px-2 fs-12"><i class="{{ $status['icon'] }} me-1"></i>{{ $status['label'] }}</span>@if($isLoan && $exit->expected_return_at)<small class="d-block text-muted fs-11 mt-1">Retorno: {{ $exit->expected_return_at->format('d/m/Y') }}</small>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-arrow-right-circle-line fs-24 d-block mb-1 opacity-50"></i>No hay salidas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($exits->hasPages())<div class="card-footer d-flex justify-content-end">{{ $exits->links('pagination::bootstrap-5') }}</div>@endif
 </div>
+@can('stocks.create')
 <div class="modal fade" id="exitModal" tabindex="-1" aria-labelledby="exitModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-lg modal-dialog-centered">
 		<form class="modal-content" action="{{ route('stocks.exits.store') }}" method="POST">
@@ -83,12 +84,14 @@
 		</form>
 	</div>
 </div>
+@endcan
 @endsection
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 	var modal = document.getElementById('exitModal');
+	if (!modal) return;
 	var typePicker = document.getElementById('exitTypePicker');
 	var details = document.getElementById('exitDetails');
 	var typeInput = document.getElementById('exit_type');

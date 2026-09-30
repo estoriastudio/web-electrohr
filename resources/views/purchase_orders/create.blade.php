@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('purchase_orders.create')
+
 @section('page_title', 'Nueva Orden de Compra')
 
 @section('breadcrumbs')
@@ -909,3 +911,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
+
+@endcan

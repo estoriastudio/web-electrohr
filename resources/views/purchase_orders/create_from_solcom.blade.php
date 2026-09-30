@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('purchase_orders.create')
+
 @section('page_title', 'Crear OC desde SOLCOM #' . $purchaseRequest->folio)
 
 @section('breadcrumbs')
@@ -724,3 +726,5 @@
 }());
 </script>
 @endpush
+
+@endcan

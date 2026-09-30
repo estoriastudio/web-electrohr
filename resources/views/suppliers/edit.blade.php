@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('suppliers.update')
+
 @push('styles')
 @endpush
 
@@ -188,3 +190,5 @@
     });
 </script>
 @endpush
+
+@endcan

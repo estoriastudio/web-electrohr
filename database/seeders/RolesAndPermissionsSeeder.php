@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\ModulePermissionSetup;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -38,7 +39,11 @@ class RolesAndPermissionsSeeder extends Seeder
 
         foreach ($roles as $roleName) {
             $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
-            $role->syncPermissions($permissions);
+            if ($role->wasRecentlyCreated) {
+                $role->syncPermissions($permissions);
+            }
         }
+
+        app(ModulePermissionSetup::class)->initialize();
     }
 }

@@ -68,7 +68,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Orden de compra|Pagos')
-                @if(auth()->user()->hasRole('admin') || auth()->user()->can('read'))
+                @if(auth()->user()->can('suppliers.read'))
                     <li class="nav-item">
                         <a class="nav-link menu-arrow {{ request()->routeIs('suppliers.*') ? 'active' : '' }}"
                            href="#sidebarSuppliers" data-bs-toggle="collapse" role="button"
@@ -80,7 +80,7 @@
                         </a>
                         <div class="collapse {{ request()->routeIs('suppliers.*') ? 'show' : '' }}" id="sidebarSuppliers">
                             <ul class="nav sub-navbar-nav">
-                                @can('read')
+                                @can('suppliers.read')
                                 <li class="sub-nav-item">
                                     <a class="sub-nav-link {{ request()->routeIs('suppliers.*') && !request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
                                        href="{{ route('suppliers.index') }}">Listado</a>
@@ -99,7 +99,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Moviles')
-                @can('read')
+                @can('mobile_assets.read')
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('mobile_assets.index') }}">
                             <span class="nav-icon">
@@ -134,7 +134,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Proyectos|Engineer')
-            @can('read')
+            @can('projects.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
                     <span class="nav-icon">
@@ -257,10 +257,11 @@
             @endhasanyrole
 
             @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles|suministros')
-            @can('read')
+            @if(auth()->user()->can('material_requests.read') || auth()->user()->can('material_vouchers.read'))
             <li class="menu-title">Almacén</li>
 
             @hasanyrole('admin|Solmat')
+            @can('material_requests.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
                    href="{{ route('material_requests.index') }}">
@@ -270,9 +271,11 @@
                     <span class="nav-text">SOLMATs</span>
                 </a>
             </li>
+            @endcan
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Moviles')
+            @can('material_vouchers.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
                    href="{{ route('material_vouchers.index') }}">
@@ -282,12 +285,13 @@
                     <span class="nav-text">Vales de Material</span>
                 </a>
             </li>
-            @endhasanyrole
             @endcan
+            @endhasanyrole
+            @endif
             @endhasanyrole
 
             @hasanyrole('admin|Inventario')
-            @can('read')
+            @can('stocks.read')
             <li class="menu-title">Inventario</li>
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('stocks.index') ? 'active' : '' }}" href="{{ route('stocks.index') }}">
@@ -311,7 +315,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Solmat|suministros|Orden de compra')
-            @can('read')
+            @can('material_requests.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_request_changes.*') ? 'active' : '' }}"
                    href="{{ route('material_request_changes.index') }}">
@@ -340,13 +344,13 @@
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Orden de compra')
-            @can('read')
+            @can('purchase_requests.read')
             <li class="menu-title">Compras</li>
             @endcan
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Orden de compra')
-            @can('read')
+            @can('purchase_requests.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_requests.*') ? 'active' : '' }}"
                    href="{{ route('purchase_requests.index') }}">
@@ -360,7 +364,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Orden de compra')
-            @can('read')
+            @can('purchase_requests.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_request_changes.*') ? 'active' : '' }}"
                    href="{{ route('purchase_request_changes.index') }}">
@@ -377,7 +381,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Solcom|Orden de compra')
-            @can('read')
+            @can('purchase_requests.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.solcom_pile') ? 'active' : '' }}"
                    href="{{ route('purchasing.solcom_pile') }}">
@@ -391,7 +395,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Orden de compra')
-            @can('read')
+            @can('purchase_orders.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchasing.workload') ? 'active' : '' }}"
                    href="{{ route('purchasing.workload') }}">
@@ -405,7 +409,7 @@
             @endhasanyrole
 
             @hasanyrole('admin|Pagos|Orden de compra|Solmat')
-            @can('read')
+            @can('purchase_orders.read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
                    href="{{ route('purchase_orders.index') }}">
@@ -417,6 +421,7 @@
             </li>
             @endcan
 
+            @can('invoices.read')
             <li class="nav-item">
                 <a class="nav-link menu-arrow {{ request()->routeIs('invoices.*') ? 'active' : '' }}" href="#sidebarInvoices" data-bs-toggle="collapse" role="button" aria-expanded="{{ request()->routeIs('invoices.*') ? 'true' : 'false' }}" aria-controls="sidebarInvoices">
                     <span class="nav-icon">
@@ -438,10 +443,11 @@
                     </ul>
                 </div>
             </li>
+            @endcan
             @endhasanyrole
 
             @hasanyrole('admin|Pagos')
-            @can('read')
+            @can('payments.read')
             <li class="menu-title">Pagos</li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"

@@ -7,7 +7,7 @@
 <div class="card">
 	<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
 		<div><h4 class="card-title mb-0"><i class="ri-inbox-line text-primary me-1"></i>Entradas de inventario</h4><span class="text-muted fs-13">Recepciones por compra y retornos de herramienta</span></div>
-		<div class="d-flex gap-2"><a href="{{ route('stocks.exits.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-right-line me-1"></i>Ir a salidas</a><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#entryModal"><i class="ri-add-line me-1"></i>Nueva entrada</button></div>
+		<div class="d-flex gap-2"><a href="{{ route('stocks.exits.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-right-line me-1"></i>Ir a salidas</a>@can('stocks.create') <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#entryModal"><i class="ri-add-line me-1"></i>Nueva entrada</button> @endcan</div>
 	</div>
 	<div class="card-body border-bottom py-3">
 		<form method="GET" action="{{ route('stocks.entries.index') }}" class="row g-2 align-items-end">
@@ -22,6 +22,7 @@
 @else{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}@endif</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($entries->hasPages())<div class="card-footer d-flex justify-content-end">{{ $entries->links('pagination::bootstrap-5') }}</div>@endif
 </div>
+@can('stocks.create')
 <div class="modal fade" id="entryModal" tabindex="-1" aria-labelledby="entryModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-lg modal-dialog-centered">
 		<form class="modal-content" action="{{ route('stocks.entries.store') }}" method="POST" enctype="multipart/form-data">
@@ -72,12 +73,14 @@
 		</form>
 	</div>
 </div>
+@endcan
 @endsection
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 	var modal = document.getElementById('entryModal');
+	if (!modal) return;
 	var typePicker = document.getElementById('entryTypePicker');
 	var details = document.getElementById('entryDetails');
 	var typeInput = document.getElementById('entry_type');

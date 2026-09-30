@@ -99,6 +99,7 @@
 	</div>
 
 	<div class="col-lg-4">
+		@can('invoices.approve')
 		<div class="card">
 			<div class="card-header border-bottom">
 				<h6 class="mb-0">Validación de Compras</h6>
@@ -178,6 +179,7 @@
 				</form>
 			</div>
 		</div>
+	@endcan
 
 		<div class="card mt-3">
 			<div class="card-header border-bottom">

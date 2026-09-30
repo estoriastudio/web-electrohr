@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('mobile_assets.update')
+
 @push('styles')
 @endpush
 
@@ -303,3 +305,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
+
+@endcan

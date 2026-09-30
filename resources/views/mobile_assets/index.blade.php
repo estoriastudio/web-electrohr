@@ -51,7 +51,7 @@
         </ul>
 
         @hasanyrole('admin|Moviles')
-        @can('create')
+        @can('mobile_assets.create')
         <div class="d-flex gap-2 ms-auto">
             <button type="button" class="btn btn-sm btn-soft-success"
                     data-bs-toggle="modal" data-bs-target="#modalImportAssets">
@@ -274,13 +274,13 @@
                                 </a>
                                 @hasanyrole('admin|Moviles')
                                 <div class="d-flex gap-1">
-                                    @can('update')
+                                    @can('mobile_assets.update')
                                         <a href="{{ route('mobile_assets.edit', $asset) }}"
                                            class="btn btn-soft-primary btn-sm" title="Editar">
                                             <i class="ri-edit-line"></i>
                                         </a>
                                     @endcan
-                                    @can('delete')
+                                    @can('mobile_assets.delete')
                                         <form action="{{ route('mobile_assets.destroy', $asset) }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar {{ addslashes($asset->name) }}? Esta acción no se puede deshacer.')">
                                             @csrf @method('DELETE')
@@ -310,7 +310,7 @@
      MODAL — Crear nuevo bien móvil
 ══════════════════════════════════════════════════════════════ --}}
 @hasanyrole('admin|Moviles')
-@can('create')
+@can('mobile_assets.create')
 @include('mobile_assets.utilities._create_modal')
 @endcan
 @endhasanyrole
@@ -319,7 +319,7 @@
      MODAL — Importación masiva de bienes móviles
 ══════════════════════════════════════════════════════════════ --}}
 @hasanyrole('admin|Moviles')
-@can('create')
+@can('mobile_assets.create')
 <div class="modal fade" id="modalImportAssets" tabindex="-1" aria-labelledby="modalImportAssetsLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

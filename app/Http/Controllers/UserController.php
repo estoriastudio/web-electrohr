@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ModulePermissionSetup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -25,10 +25,10 @@ class UserController extends Controller
             ->role('supplier_portal_access')
             ->orderBy('name')
             ->get();
-        $roles       = Role::with('permissions')->orderBy('name')->get();
-        $permissions = Permission::orderBy('name')->pluck('name');
+        $roles       = Role::with('permissions')->withCount('users')->where('guard_name', 'web')->orderBy('name')->get();
+        $permissionGroups = app(ModulePermissionSetup::class)->catalog();
 
-        return view('users.index', compact('users', 'supplierUsers', 'roles', 'permissions'));
+        return view('users.index', compact('users', 'supplierUsers', 'roles', 'permissionGroups'));
     }
 
     public function show(User $user)
@@ -48,7 +48,7 @@ class UserController extends Controller
             'roles'       => ['nullable', 'array'],
             'roles.*'     => ['string', 'exists:roles,name'],
             'permissions' => ['nullable', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
+            'permissions.*' => ['string', 'exists:permissions,name,guard_name,web'],
         ]);
 
         $user = User::create([
@@ -72,13 +72,13 @@ class UserController extends Controller
             'roles'         => ['nullable', 'array'],
             'roles.*'       => ['string', 'exists:roles,name'],
             'permissions'   => ['nullable', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
+            'permissions.*' => ['string', 'exists:permissions,name,guard_name,web'],
         ]);
 
         $user->update([
             'name'  => $data['name'],
             'email' => $data['email'],
-            ...($data['password'] ? ['password' => Hash::make($data['password'])] : []),
+            ...(!empty($data['password']) ? ['password' => Hash::make($data['password'])] : []),
         ]);
 
         $user->syncRoles($data['roles'] ?? []);
@@ -118,7 +118,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name'          => ['required', 'string', 'max:100', 'unique:roles,name'],
             'permissions'   => ['nullable', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
+            'permissions.*' => ['string', 'exists:permissions,name,guard_name,web'],
         ]);
 
         $role = Role::create(['name' => $data['name'], 'guard_name' => 'web']);
@@ -133,5 +133,19 @@ class UserController extends Controller
         $role->delete();
 
         return redirect()->route('usuarios.index', ['tab' => 'roles'])->with('success', 'Rol eliminado correctamente.');
+    }
+
+    public function updateRole(Request $request, Role $role)
+    {
+        abort_if($role->name === 'admin' || $role->guard_name !== 'web', 403);
+        $data = $request->validate([
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'exists:permissions,name,guard_name,web'],
+        ]);
+        $catalog = collect(app(ModulePermissionSetup::class)->catalog())->flatMap(fn ($group) => array_keys($group))->all();
+        $legacy = $role->permissions->pluck('name')->diff($catalog)->all();
+        $role->syncPermissions(array_unique(array_merge($legacy, $data['permissions'] ?? [])));
+
+        return redirect()->route('usuarios.index', ['tab' => 'roles'])->with('success', 'Permisos del rol actualizados correctamente.');
     }
 }

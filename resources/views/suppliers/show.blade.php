@@ -40,7 +40,7 @@
 
 @section('content')
 @php
-    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra|Pagos');
+    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra|Pagos') && auth()->user()->can('suppliers.update');
 @endphp
 
 @if (session('success'))

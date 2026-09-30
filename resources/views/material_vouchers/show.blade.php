@@ -94,7 +94,7 @@
             <a href="{{ route('material_vouchers.pdf', $materialVoucher) }}" class="btn btn-sm btn-light">
                 <i class="ri-printer-line me-1"></i> Imprimir
             </a>
-            @can('update')
+            @can('material_vouchers.update')
             @if($canEditVoucher)
             <a href="{{ route('material_vouchers.edit', $materialVoucher) }}" class="btn btn-sm btn-soft-primary">
                 <i class="ri-edit-line me-1"></i> Editar
@@ -168,7 +168,7 @@
                                     <td>{{ $item->unit }}</td>
                                     <td>{{ $item->description }}</td>
                                     <td>
-                                        @can('delete')
+                                        @can('material_vouchers.delete')
                                         @if($canEditVoucher)
                                         <form action="{{ route('material_vouchers.items.destroy', [$materialVoucher, $item]) }}" method="POST" class="mv-delete-form">
                                             @csrf
@@ -190,7 +190,7 @@
                     </table>
                 </div>
             </div>
-            @can('create')
+            @can('material_vouchers.create')
             @if($canEditVoucher)
             <div class="card-body border-top">
                 <form id="voucherItemForm" action="{{ route('material_vouchers.items.store', $materialVoucher) }}" method="POST" class="row g-2">
@@ -295,7 +295,7 @@
                     <p class="text-muted mb-2">Sin observaciones.</p>
                 @endforelse
 
-                @can('create')
+                @can('material_vouchers.create')
                 @if($canEditVoucher)
                 <form action="{{ route('material_vouchers.notes.store', $materialVoucher) }}" method="POST">
                     @csrf

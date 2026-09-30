@@ -137,7 +137,7 @@
                     </a>
                     @endhasrole
                     @hasanyrole('admin|Orden de compra')
-                    @can('create')
+                    @can('purchase_orders.create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
                     </a>

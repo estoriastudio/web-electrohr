@@ -153,6 +153,7 @@
 
                             {{-- Marcar como pagado: admin|Pagos --}}
                             @hasanyrole('admin|Pagos')
+                            @can('payments.update')
                             @if ($payment->status === 'autorizado')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
@@ -177,6 +178,7 @@
                                 </form>
                             @endif
                             @endrole
+                            @endcan
                             @endhasanyrole
                         </div>
                     </td>

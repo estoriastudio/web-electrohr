@@ -9,6 +9,7 @@ use App\Models\NotificationRecipient;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\PurchaseRequestChangeNote;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,6 +28,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        foreach (config('module_permissions.modules') as $module => $label) {
+            foreach (array_keys(config('module_permissions.actions')) as $action) {
+                Gate::define("{$module}.{$action}", fn ($user) => $user->hasRole('admin')
+                    || $user->checkPermissionTo("{$module}.{$action}"));
+            }
+        }
+        foreach (config('module_permissions.extra') as $permission => $label) {
+            Gate::define($permission, fn ($user) => $user->hasRole('admin')
+                || $user->checkPermissionTo($permission));
+        }
+
         View::composer('layouts.partials._navbar', function ($view) {
             $supplier = auth()->user()?->supplier;
             $hasMaterialVouchers = $supplier !== null

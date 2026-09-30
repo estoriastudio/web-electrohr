@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('purchase_orders.update')
+
 @section('page_title', 'Editar Orden de Compra #' . $purchaseOrder->id)
 
 @section('breadcrumbs')
@@ -12,7 +14,7 @@
 @section('content')
 
 @php
-    $canManageOrder = auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canManageOrder = auth()->user()->can('purchase_orders.update') && (auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id()));
 @endphp
 
 @if ($errors->any())
@@ -406,3 +408,5 @@ $(function () {
 </script>
 @endif
 @endpush
+
+@endcan

@@ -68,10 +68,12 @@
                     <div class="text-muted fs-12">Valor</div>
                 </div>
                 <span class="badge {{ $ps['class'] }} py-1 px-3 fs-12">{{ $ps['label'] }}</span>
+                @can('projects.update')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateWork">
                     <i class="ri-add-line me-1"></i> Nueva Obra
                 </button>
+                @endcan
             </div>
         </div>
     </div>
@@ -97,9 +99,9 @@
                         <th>Documento</th>
                         <th>Fecha subida</th>
                         <th>Archivo</th>
-                        @role('admin|Proyectos')
+                        @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
                         <th>Acción</th>
-                        @endrole
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -114,11 +116,11 @@
                             data-bs-toggle="collapse"
                             data-bs-target=".doc-group-{{ $catKey }}"
                             aria-expanded="false">
-                            @role('admin|Proyectos')
+                            @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
                             <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                             @else
                             <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
-                            @endrole
+                            @endif
                                 <i class="ri-folder-2-line me-1"></i>{{ $category['label'] }}
                                 <span class="badge bg-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }}-subtle text-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }} ms-2 fw-normal">
                                     {{ $docsUploaded }}/{{ $docsTotal }}
@@ -153,7 +155,7 @@
                                         <span class="text-muted fs-12">Sin archivo</span>
                                     @endif
                                 </td>
-                                @role('admin|Proyectos')
+                                @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
                                 <td>
                                     <button type="button"
                                             class="btn btn-soft-primary btn-sm"
@@ -163,7 +165,7 @@
                                         {{ $hasFile ? 'Reemplazar' : 'Subir' }}
                                     </button>
                                 </td>
-                                @endrole
+                                @endif
                             </tr>
                         @endforeach
                     @endforeach
@@ -178,7 +180,7 @@
                     </h6>
                     <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
                 </div>
-                @role('admin|Proyectos')
+                @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
                     @if ($project->works->isNotEmpty())
                         <button type="button" class="btn btn-sm btn-primary"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateProjectAgreement">
@@ -189,7 +191,7 @@
                             <i class="ri-add-line me-1"></i> Agregar nuevo convenio
                         </button>
                     @endif
-                @endrole
+                @endif
             </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0 table-centered">
@@ -243,7 +245,7 @@
 </div>
 
 {{-- ── Modales de subida (uno por tipo de documento) ─────────────────── --}}
-@role('admin|Proyectos')
+@if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
 @foreach ($docCategories as $catKey => $category)
     @foreach ($category['docs'] as $dt => $dtLabel)
         @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
@@ -298,9 +300,9 @@
         </div>
     @endforeach
 @endforeach
-@endrole
+@endif
 
-@role('admin|Proyectos')
+@if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
 @php
     $defaultAgreementAmount = number_format((float) ($project->current_agreement_value ?? $project->project_value), 2, '.', '');
     $selectedAgreementWorkIds = old('work_ids', []);
@@ -432,7 +434,7 @@
         </div>
     </div>
 </div>
-@endrole
+@endif
 
 
 {{-- ══════════════════════════════════════════════════════════════
@@ -449,10 +451,12 @@
         <div class="card-body text-center text-muted py-5">
             <i class="ri-building-2-line fs-36 d-block mb-2 opacity-50"></i>
             <p class="mb-0">Este proyecto aún no tiene obras registradas.</p>
+            @can('projects.update')
             <button type="button" class="btn btn-sm btn-primary mt-3"
                     data-bs-toggle="modal" data-bs-target="#modalCreateWork">
                 <i class="ri-add-line me-1"></i> Nueva Obra
             </button>
+            @endcan
         </div>
     </div>
 @else
@@ -533,6 +537,7 @@
                                    class="btn btn-light btn-sm" title="Ver detalle">
                                     <i class="ri-eye-line"></i>
                                 </a>
+                                @can('projects.update')
                                 <form action="{{ route('project_works.destroy', $work) }}"
                                       method="POST"
                                       onsubmit="return confirm('¿Eliminar la obra «{{ addslashes($work->name) }}»?')">
@@ -542,6 +547,7 @@
                                         <i class="ri-delete-bin-line"></i>
                                     </button>
                                 </form>
+                                @endcan
                             </div>
                         </div>
                     </div>
@@ -555,6 +561,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Nueva Obra
 ══════════════════════════════════════════════════════════════════ --}}
+@can('projects.update')
 <div class="modal fade" id="modalCreateWork" tabindex="-1" aria-labelledby="modalCreateWorkLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -663,6 +670,7 @@
     </div>
 </div>
 
+@endcan
 @endsection
 
 @push('scripts')

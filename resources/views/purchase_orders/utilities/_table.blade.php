@@ -110,7 +110,7 @@
                                         </li>
                                         --}}
                                         @if ($mode === 'index')
-                                            @if ($canManageOrder)
+                                            @if ($canManageOrder && auth()->user()->can('purchase_orders.update'))
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('purchase_orders.edit', $order) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
@@ -125,6 +125,7 @@
                                         </li>
                                         @if ($canManageOrder)
                                         <li><hr class="dropdown-divider"></li>
+                                        @can('purchase_orders.update')
                                         @if ($mode === 'index')
                                             <li>
                                                 <form action="{{ route('purchase_orders.archive', $order) }}" method="POST">
@@ -146,7 +147,8 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @can('delete')
+                                        @endcan
+                                        @can('purchase_orders.delete')
                                         <li>
                                             <form action="{{ route('purchase_orders.destroy', $order) }}"
                                                 method="POST"

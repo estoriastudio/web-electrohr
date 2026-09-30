@@ -64,7 +64,7 @@
                     <h4 class="card-title mb-0">Listado de proveedores</h4>
                 </div>
                 @hasanyrole('admin|Orden de compra')
-                @can('create')
+                @can('suppliers.create')
                 <div class="d-flex gap-2">
                     {{-- Importar --}}
                     <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -219,7 +219,7 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @can('delete')
+                                            @can('suppliers.delete')
                                                 <form action="{{ route('suppliers.destroy', $supplier) }}"
                                                       method="POST"
                                                       onsubmit="return confirm('¿Eliminar este proveedor?')">
@@ -231,6 +231,7 @@
                                                 </form>
                                             @endcan
 
+                                            @can('suppliers.update')
                                             @if (!$supplier->portal_user_id)
                                                 <a href="{{ route('suppliers.show', $supplier) }}?setup_portal=1"
                                                    class="btn btn-soft-success btn-sm"
@@ -256,6 +257,7 @@
                                                     </button>
                                                 </form>
                                             @endif
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -285,7 +287,7 @@
      MODAL — Crear nuevo proveedor
 ══════════════════════════════════════════════════════════════════ --}}
 @hasanyrole('admin|Orden de compra')
-@can('create')
+@can('suppliers.create')
 <div class="modal fade" id="modalCreateSupplier" tabindex="-1" aria-labelledby="modalCreateSupplierLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -438,6 +440,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Importar proveedores desde Excel
 ══════════════════════════════════════════════════════════════════ --}}
+@can('suppliers.create')
 <div class="modal fade" id="modalImport" tabindex="-1" aria-labelledby="modalImportLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -475,6 +478,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @endsection
 

@@ -137,6 +137,7 @@
                                                     </div>
                                                     <form method="POST" action="{{ route('usuarios.update', $user) }}">
                                                         @csrf @method('PUT')
+                                                        <input type="hidden" name="form_context" value="edit_user_{{ $user->id }}">
                                                         <div class="modal-body row g-3">
                                                             <div class="col-md-6">
                                                                 <label class="form-label">Nombre</label>
@@ -164,23 +165,18 @@
                                                                                {{ $user->hasRole($role->name) ? 'checked' : '' }}>
                                                                         <label class="form-check-label" for="edit_role_{{ $user->id }}_{{ $role->id }}">
                                                                             {{ $role->name }}
+                                                                            <span class="text-muted fs-12">{{ array_key_exists($role->name, config('module_permissions.access_roles')) || in_array($role->name, ['admin', 'supplier_portal_access']) ? '(Acceso)' : '(Perfil)' }}</span>
                                                                         </label>
                                                                     </div>
                                                                 @endforeach
                                                             </div>
                                                             <div class="col-md-6">
                                                                 <label class="form-label fw-semibold">Permisos directos</label>
-                                                                @foreach ($permissions as $perm)
-                                                                    <div class="form-check">
-                                                                        <input class="form-check-input" type="checkbox"
-                                                                               name="permissions[]" value="{{ $perm }}"
-                                                                               id="edit_perm_{{ $user->id }}_{{ $perm }}"
-                                                                               {{ $user->permissions->contains('name', $perm) ? 'checked' : '' }}>
-                                                                        <label class="form-check-label" for="edit_perm_{{ $user->id }}_{{ $perm }}">
-                                                                            {{ $perm }}
-                                                                        </label>
-                                                                    </div>
-                                                                @endforeach
+                                                                @include('users._permission_fields', [
+                                                                    'prefix' => 'edit_perm_' . $user->id,
+                                                                    'selected' => old('form_context') === 'edit_user_' . $user->id
+                                                                        ? old('permissions', []) : $user->permissions->pluck('name')->all(),
+                                                                ])
                                                             </div>
                                                         </div>
                                                         <div class="modal-footer">
@@ -325,11 +321,15 @@
                                                     <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">{{ $perm->name }}</span>
                                                 @endforeach
                                             </td>
-                                            <td>{{ $role->users()->count() }}</td>
+                                            <td>{{ $role->users_count }}</td>
                                             <td>
                                                 @if ($role->name !== 'admin')
                                                     @role('admin')
                                                     <div class="d-flex gap-2">
+                                                        <button type="button" class="btn btn-soft-primary btn-sm" title="Editar permisos"
+                                                                data-bs-toggle="modal" data-bs-target="#modalEditRole{{ $role->id }}">
+                                                            <i class="ri-edit-line align-middle fs-18"></i>
+                                                        </button>
                                                         <form method="POST"
                                                               action="{{ route('roles.destroy', $role) }}"
                                                               class="d-inline"
@@ -361,6 +361,35 @@
     </div>{{-- /tab-roles --}}
 
 </div>{{-- /tab-content --}}
+
+@foreach ($roles->where('name', '!=', 'admin') as $role)
+    <div class="modal fade" id="modalEditRole{{ $role->id }}" tabindex="-1" aria-labelledby="modalEditRoleLabel{{ $role->id }}" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalEditRoleLabel{{ $role->id }}">Permisos - {{ $role->name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form method="POST" action="{{ route('roles.update', ['role' => $role, 'tab' => 'roles']) }}" class="d-flex flex-column overflow-hidden" style="min-height: 0;">
+                    @csrf @method('PUT')
+                    <input type="hidden" name="form_context" value="edit_role_{{ $role->id }}">
+                    <div class="modal-body">
+                        @include('users._permission_fields', [
+                            'prefix' => 'edit_role_perm_' . $role->id,
+                            'selected' => old('form_context') === 'edit_role_' . $role->id
+                                ? old('permissions', []) : $role->permissions->pluck('name')->all(),
+                        ])
+                        @error('permissions.*') <div class="text-danger mt-2">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i>Guardar permisos</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endforeach
 
 @foreach ($supplierUsers as $supplierUser)
     <div class="modal fade" id="modalEditSupplierPassword{{ $supplierUser->id }}" tabindex="-1"
@@ -412,6 +441,7 @@
             </div>
             <form method="POST" action="{{ route('usuarios.store') }}">
                 @csrf
+                <input type="hidden" name="form_context" value="create_user">
                 <div class="modal-body row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Nombre</label>
@@ -443,21 +473,15 @@
                                        name="roles[]" value="{{ $role->name }}"
                                        id="create_role_{{ $role->id }}"
                                        {{ in_array($role->name, old('roles', [])) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="create_role_{{ $role->id }}">{{ $role->name }}</label>
+                                <label class="form-check-label" for="create_role_{{ $role->id }}">{{ $role->name }}
+                                    <span class="text-muted fs-12">{{ array_key_exists($role->name, config('module_permissions.access_roles')) || in_array($role->name, ['admin', 'supplier_portal_access']) ? '(Acceso)' : '(Perfil)' }}</span>
+                                </label>
                             </div>
                         @endforeach
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Permisos directos</label>
-                        @foreach ($permissions as $perm)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox"
-                                       name="permissions[]" value="{{ $perm }}"
-                                       id="create_perm_{{ $perm }}"
-                                       {{ in_array($perm, old('permissions', [])) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="create_perm_{{ $perm }}">{{ $perm }}</label>
-                            </div>
-                        @endforeach
+                        @include('users._permission_fields', ['prefix' => 'create_perm', 'selected' => old('form_context') === 'create_user' ? old('permissions', []) : []])
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -473,14 +497,15 @@
      MODAL – Crear rol
 ══════════════════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalCreateRole" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Nuevo rol</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ route('roles.store') }}">
+            <form method="POST" action="{{ route('roles.store', ['tab' => 'roles']) }}" class="d-flex flex-column overflow-hidden" style="min-height: 0;">
                 @csrf
+                <input type="hidden" name="form_context" value="create_role">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Nombre del rol</label>
@@ -489,17 +514,7 @@
                         @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
                     <label class="form-label fw-semibold">Permisos iniciales</label>
-                    <div class="d-flex gap-3 flex-wrap">
-                        @foreach ($permissions as $perm)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox"
-                                       name="permissions[]" value="{{ $perm }}"
-                                       id="role_perm_{{ $perm }}"
-                                       {{ in_array($perm, old('permissions', ['create','read','update','delete'])) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="role_perm_{{ $perm }}">{{ $perm }}</label>
-                            </div>
-                        @endforeach
-                    </div>
+                    @include('users._permission_fields', ['prefix' => 'role_perm', 'selected' => old('form_context') === 'create_role' ? old('permissions', []) : []])
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
@@ -523,10 +538,12 @@
         });
     @elseif ($errors->any())
         document.addEventListener('DOMContentLoaded', function () {
-            var modal = new bootstrap.Modal(
-                document.getElementById('{{ request()->routeIs("roles.*") ? "modalCreateRole" : "modalCreateUser" }}')
-            );
-            modal.show();
+            var context = @json(old('form_context', 'create_user'));
+            var modalId = context.startsWith('edit_role_') ? 'modalEditRole' + context.slice(10)
+                : context.startsWith('edit_user_') ? 'modalEditUser' + context.slice(10)
+                : context === 'create_role' ? 'modalCreateRole' : 'modalCreateUser';
+            var modalElement = document.getElementById(modalId);
+            if (modalElement) bootstrap.Modal.getOrCreateInstance(modalElement).show();
         });
     @endif
 </script>

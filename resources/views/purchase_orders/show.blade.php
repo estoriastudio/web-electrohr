@@ -51,9 +51,9 @@
         : 0;
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
-    $canManageOrder = $isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canManageOrder = auth()->user()->can('purchase_orders.update') && ($isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id()));
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
-    $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
+    $canCreateMilestone = auth()->user()->can('payments.create') && ($canModifyPurchaseOrder || $purchaseOrder->is_destajo);
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
     $orderedMilestones->each(fn ($milestone) => $milestone->setRelation('purchaseOrder', $purchaseOrder));
     $milestoneAllocatedTotal = round($orderedMilestones->sum(fn ($milestone) => $milestone->effective_amount), 2);
@@ -964,9 +964,9 @@
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
-            $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-                || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
-            $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
+            $canManageAdditionalPayments = auth()->user()->can('payments.create') && (auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+                || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra')));
+            $canEditMilestone = auth()->user()->can('payments.update') && ($canModifyPurchaseOrder || $purchaseOrder->is_destajo);
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
 
@@ -1001,6 +1001,7 @@
                         @endif
                         @if ($canModifyPurchaseOrder)
                         @if ($canDeleteMilestone)
+                            @can('payments.delete')
                             <form action="{{ route('milestones.destroy', $milestone) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar este hito y todos sus pagos?')">
                                 @csrf @method('DELETE')
@@ -1008,6 +1009,7 @@
                                     <i class="ri-delete-bin-line fs-13"></i>
                                 </button>
                             </form>
+                            @endcan
                         @else
                             <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
                                     title="No se puede eliminar: el hito tiene pagos pagados registrados" disabled>
@@ -1179,6 +1181,7 @@
                                                     <ul class="dropdown-menu dropdown-menu-end">
                                                         {{-- Transiciones de estatus --}}
                                                         @hasanyrole('admin|Pagos')
+                                                        @can('payments.update')
                                                         @foreach ($transitions as $newStatus => $transition)
                                                             <li>
                                                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
@@ -1191,6 +1194,7 @@
                                                                 </form>
                                                             </li>
                                                         @endforeach
+                                                        @endcan
                                                         @endhasanyrole
 
                                                         @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
@@ -1207,6 +1211,7 @@
 
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
+                                                        @can('payments.update')
                                                         @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
                                                         <li>
                                                             <button type="button" class="dropdown-item"
@@ -1217,6 +1222,7 @@
                                                             </button>
                                                         </li>
                                                         @endif
+                                                        @endcan
                                                         @endhasanyrole
 
                                                         {{-- SPEI: ver --}}
@@ -1241,6 +1247,7 @@
 
                                                         {{-- Eliminar --}}
                                                         @hasanyrole('admin|Pagos')
+                                                        @can('payments.delete')
                                                         <li><hr class="dropdown-divider"></li>
                                                         <li>
                                                             <form action="{{ route('payments.destroy', $payment) }}" method="POST"
@@ -1251,6 +1258,7 @@
                                                                 </button>
                                                             </form>
                                                         </li>
+                                                        @endcan
                                                         @endhasanyrole
                                                     </ul>
                                                 </div>
@@ -1262,6 +1270,7 @@
                         </div>
 
                         @hasanyrole('admin|Pagos')
+                        @can('payments.update')
                         @foreach ($milestone->payments as $payment)
                         @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
                         <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
@@ -1303,6 +1312,7 @@
                         </div>
                         @endif
                         @endforeach
+                        @endcan
                         @endhasanyrole
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
@@ -1340,10 +1350,12 @@
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
                 @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Pagos"]))
+                @can('invoices.create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
                 </button>
+                @endcan
                 @endif
             </div>
 
@@ -1454,6 +1466,7 @@
                                                 <i class="ri-download-2-line"></i>
                                             </a>
                                             @endif
+                                            @can('invoices.delete')
                                             <form action="{{ route('invoices.destroy', $invoice) }}" method="POST"
                                                   onsubmit="return confirm('¿Eliminar la factura {{ $invoice->folio ?: ($invoice->file_name ?: '#' . $invoice->id) }}? Esta acción no se puede deshacer.')">
                                                 @csrf @method('DELETE')
@@ -1462,6 +1475,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -1704,12 +1718,13 @@
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
-        $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-            || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
+        $canManageAdditionalPayments = auth()->user()->can('payments.create') && (auth()->user()?->hasAnyRole(['admin', 'Pagos'])
+            || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra')));
         $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
     {{-- MODAL Editar Hito --}}
+    @can('payments.update')
     <div class="modal fade" id="modalEditMilestone{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1781,6 +1796,7 @@
             </div>
         </div>
     </div>
+    @endcan
 
     @if ($canManageAdditionalPayments && $canRegisterAdditionalPayment)
     <div class="modal fade" id="modalAddPayment{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
@@ -1875,6 +1891,7 @@
 @endforeach
 
 {{-- MODAL Subir Factura --}}
+@can('invoices.create')
 <div class="modal fade" id="modalCreateInvoice" tabindex="-1" aria-labelledby="modalCreateInvoiceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -1982,6 +1999,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
+@endcan
 @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
 @if ($canCreateMilestone)
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">

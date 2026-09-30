@@ -61,7 +61,7 @@
                     @endif
                     
                     @hasanyrole('admin|Solmat')
-                    @can('create')
+                    @can('material_requests.create')
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreateMR">
                         <i class="ri-add-line me-1"></i> Nueva SOLMAT
@@ -133,7 +133,7 @@
 
 {{-- MODAL — Nueva SOLMAT --}}
 @hasanyrole('admin|Solmat')
-@can('create')
+@can('material_requests.create')
 <div class="modal fade" id="modalCreateMR" tabindex="-1" aria-labelledby="modalCreateMRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">

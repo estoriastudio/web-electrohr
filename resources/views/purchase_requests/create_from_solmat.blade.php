@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@can('purchase_requests.create')
+
 @php
     $isMultiSource = $isMultiSource ?? false;
     $sourceMaterialRequests = $sourceMaterialRequests ?? collect([$materialRequest]);
@@ -532,3 +534,5 @@
 }());
 </script>
 @endpush
+
+@endcan

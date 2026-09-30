@@ -23,6 +23,23 @@ Cuando se agreguen o cambien roles, actualiza este archivo primero.
 
 ## Permisos Base (CRUD)
 
+### Permisos por modulo (2026-09-30)
+
+- Los permisos de interfaz usan `<modulo>.<accion>`; los CRUD globales son heredados y no conceden permisos por modulo.
+- Los roles actuales siguen permitiendo acceder a las rutas. Los perfiles compartidos conceden permisos de interfaz; un usuario necesita tanto el rol de acceso como el perfil correspondiente.
+- Spatie suma concesiones de perfiles y permisos directos. Un perfil de solo lectura no revoca permisos concedidos por otro perfil.
+- `admin` conserva acceso total a los controles. No se agregan restricciones de endpoints: ocultar controles no protege solicitudes directas.
+- El catalogo incluye Compras, Pagos, Facturas, SOLCOM, SOLMAT, Proveedores, Proyectos, Moviles, Vales e Inventario. Facturas incluye `invoices.approve`.
+- La migracion crea perfiles iniciales a partir de los CRUD de los roles existentes y los asigna a sus usuarios para conservar acceso. Los permisos directos heredados se traducen solo a modulos accesibles por sus roles.
+- Los perfiles predeterminados se crean una sola vez; repetir los seeders no sobrescribe ajustes. Administrador de pagos permite gestionar Pagos y Facturas; Ayudante de pagos solo permite consultarlos.
+- Usuarios permite crear y editar perfiles con cualquier permiso del catalogo. Un nuevo nombre fuera del catalogo no tiene comportamiento implementado.
+- Ejemplo: asignar `Orden de compra`, `Pagos`, `Comprador` y `Ayudante de pagos` permite gestionar Compras y consultar Pagos/Facturas. Retirar `Pagos - permisos iniciales`, otros perfiles y permisos directos que concedan gestion de Pagos si se requiere solo lectura.
+- Los roles de acceso se conservan separados; asignar solo un perfil no permite atravesar los middleware de rol existentes. Las restricciones previas de admin, comprador y estado del documento siguen vigentes.
+- `update` controla cambios de contenido, notas, documentos y registros dependientes dentro del detalle del modulo; `create`/`delete` controlan el alta/eliminacion del registro principal. Entradas y salidas de inventario usan `stocks.create`; ajustes manuales usan `stocks.update`.
+- Hitos y condiciones de pago dentro de una OC usan `payments.create`, `payments.update` y `payments.delete`; editar Compras no concede gestion de Pagos.
+- Esta primera integracion cubre los diez modulos del catalogo. Recursos Humanos, Herramientas, Suministros/Conceptos y Portal de proveedores mantienen su comportamiento previo y no forman parte del catalogo.
+- La migracion no borra perfiles ni concesiones al revertirla, para no eliminar configuraciones que un administrador haya ajustado despues.
+
 - create
 - read
 - update

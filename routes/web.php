@@ -452,6 +452,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('usuarios.supplier_password.update');
 
             Route::post('/roles', 'UserController@storeRole')->name('roles.store');
+            Route::put('/roles/{role}', [UserController::class, 'updateRole'])->name('roles.update');
             Route::delete('/roles/{role}', 'UserController@destroyRole')->name('roles.destroy');
         });
 

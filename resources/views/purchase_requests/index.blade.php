@@ -42,7 +42,7 @@
                 <div>
                     {{--  
                     @hasanyrole('admin|Solcom')
-                    @can('create')
+                    @can('purchase_requests.create')
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreatePR">
                         <i class="ri-add-line me-1"></i> Nueva SOLCOM
@@ -108,7 +108,7 @@
 
 {{-- MODAL — Nueva SOLCOM --}}
 @hasanyrole('admin|Solcom')
-@can('create')
+@can('purchase_requests.create')
 <div class="modal fade" id="modalCreatePR" tabindex="-1" aria-labelledby="modalCreatePRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
