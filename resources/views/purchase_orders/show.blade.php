@@ -52,6 +52,7 @@
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
     $canManageOrder = $isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canRequestPaymentReactivation = auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
@@ -1193,7 +1194,7 @@
                                                         @endforeach
                                                         @endhasanyrole
 
-                                                        @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
+                                                        @if ($canRequestPaymentReactivation)
                                                         @if ($payment->status === 'rechazado')
                                                         <li>
                                                             <button type="button" class="dropdown-item text-warning"
@@ -1840,7 +1841,7 @@
     </div>
     @endif
 
-    @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
+    @if ($canRequestPaymentReactivation)
     @foreach ($milestone->payments->where('status', 'rechazado') as $payment)
     <div class="modal fade" id="modalRequestPaymentReactivation{{ $payment->id }}" tabindex="-1" aria-labelledby="modalRequestPaymentReactivationLabel{{ $payment->id }}" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">

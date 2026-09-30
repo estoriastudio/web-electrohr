@@ -181,7 +181,7 @@ class SupplierAccountStatementTest extends TestCase
         $service->validateAndReplace($invoice, [$milestone->id], [$payment->id => '401.00'], null);
     }
 
-    public function test_admin_modal_is_available_but_other_roles_cannot_access_any_report_endpoint(): void
+    public function test_admin_payments_and_purchasing_can_access_the_report_but_other_roles_cannot(): void
     {
         [$order] = $this->movement();
         $user = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'password']);
@@ -190,12 +190,27 @@ class SupplierAccountStatementTest extends TestCase
         $this->actingAs($user)->get(route('suppliers.account_statement.order', $order))
             ->assertOk()->assertSee('Importe facturado sin pagar')->assertSee('200.00');
         $this->assertSame($before, $this->financialState());
-        foreach (['Pagos', 'Orden de compra', 'supplier_portal_access'] as $role) {
+
+        $controller = \Mockery::mock(SupplierAccountStatementController::class, [app(SupplierAccountStatementService::class)])->makePartial();
+        $controller->shouldReceive('index')->andReturn(view('suppliers.partials._account_statement_status', ['status' => 'pagado']));
+        $controller->shouldReceive('export')->andReturn(response('Exportacion permitida'));
+        $this->app->instance(SupplierAccountStatementController::class, $controller);
+
+        foreach (['admin', 'Pagos', 'Orden de compra'] as $role) {
             $user->syncRoles([$role]);
             foreach (['index', 'export', 'order'] as $endpoint) {
-                $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+                $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertOk();
             }
         }
+        $user->syncRoles(['supplier_portal_access']);
+        foreach (['index', 'export', 'order'] as $endpoint) {
+            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+        }
+        $user->syncRoles([]);
+        foreach (['index', 'export', 'order'] as $endpoint) {
+            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+        }
+        $this->assertSame($before, $this->financialState());
         foreach (app('router')->getRoutes() as $route) {
             if (str_starts_with($route->getName() ?? '', 'suppliers.account_statement.')) {
                 $this->assertSame(['GET', 'HEAD'], $route->methods());

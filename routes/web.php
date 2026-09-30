@@ -117,7 +117,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
-        Route::middleware('role:admin')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+        Route::middleware('role:admin|Pagos|Orden de compra')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
             Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
             Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
             Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
@@ -565,8 +565,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->middleware('role:admin|Pagos|Orden de compra')
             ->name('payments.store');
 
-        // Reactivación de pagos rechazados — solicitud de Compras para nueva autorización
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Reactivación de pagos rechazados — solicitud de Compras o Pagos para nueva autorización
+        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
                 ->name('payments.request_reactivation');
         });

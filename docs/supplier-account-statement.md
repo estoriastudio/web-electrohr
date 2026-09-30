@@ -2,7 +2,7 @@
 
 ## Alcance
 
-Consulta exclusiva para admin en `/proveedores/estado-cuenta`. Proveedores es un desplegable con Listado (permisos existentes) y Estado de Cuenta. Las rutas del reporte son solo GET: listado, Excel y resumen de OC. Consultar no registra aplicaciones, genera pagos, cambia documentos ni envia notificaciones.
+Consulta para los roles `admin`, `Pagos` y `Orden de compra` en `/proveedores/estado-cuenta`. Proveedores es un desplegable con Listado (permisos existentes) y Estado de Cuenta, visible para esos tres roles. Las rutas del reporte son solo GET: listado, Excel y resumen de OC, con la misma restriccion de roles en todos los endpoints. Consultar no registra aplicaciones, genera pagos, cambia documentos ni envia notificaciones.
 
 Proveedor carga factura por portal; Compras acepta/rechaza y vincula al hito; Pagos realiza transferencia y carga SPEI. Regularizar significa incorporar la factura faltante a un pago existente, no crear un nuevo hito, pago o solicitud. Estas operaciones siguen en sus modulos responsables.
 

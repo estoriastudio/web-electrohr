@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\PurchaseOrder;
+use App\Models\Payment;
 use App\Models\User;
 use App\Models\Supplier;
 use App\Models\PurchaseOrderInvoice;
 use App\Exports\PurchaseOrderInvoiceExport;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
+use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Illuminate\Database\Schema\Blueprint;
@@ -121,6 +123,10 @@ class PurchaseOrderBuyerTest extends TestCase
             $table->unsignedBigInteger('milestone_id');
             $table->decimal('amount', 14, 2);
             $table->string('status');
+            $table->string('folio')->nullable();
+            $table->date('payment_date')->nullable();
+            $table->date('invoice_date')->nullable();
+            $table->timestamps();
         });
         Schema::create('purchase_order_invoices', function (Blueprint $table) {
             $table->id();
@@ -173,6 +179,60 @@ class PurchaseOrderBuyerTest extends TestCase
             $table->string('unit');
             $table->decimal('purchase_quantity', 14, 4);
         });
+    }
+
+    public function test_payment_reactivation_is_visible_and_allowed_for_payments_and_purchasing_roles(): void
+    {
+        $buyer = User::create(['name' => 'Otro comprador', 'email' => 'other@example.com', 'password' => 'password']);
+        $order = PurchaseOrder::create(['buyer_id' => $buyer->id, 'folio' => '25001', 'status' => 'autorizada', 'currency' => 'MXN']);
+        $milestoneId = DB::table('purchase_order_milestones')->insertGetId([
+            'purchase_order_id' => $order->id, 'due_date' => '2026-10-15',
+        ]);
+        $payment = Payment::create([
+            'milestone_id' => $milestoneId, 'folio' => 'PAY-25001', 'amount' => 100,
+            'payment_date' => '2026-10-15', 'status' => 'rechazado',
+        ]);
+        foreach (['evidences', 'invoices', 'items', 'projectWorks'] as $relation) {
+            $order->setRelation($relation, collect());
+        }
+        $order->setRelation('annex', null);
+        $order->setRelation('supplier', null);
+        $order->setRelation('purchaseRequest', null);
+        \Illuminate\Support\Facades\View::share('errors', new \Illuminate\Support\ViewErrorBag());
+        $template = str_replace("@extends('layouts.app')", '', file_get_contents(resource_path('views/purchase_orders/show.blade.php')))
+            . "\n@yield('content')";
+        $route = app('router')->getRoutes()->getByName('payments.request_reactivation');
+        $roleMiddleware = collect($route->gatherMiddleware())->first(fn ($middleware) => str_starts_with($middleware, 'role:'));
+
+        foreach (['Pagos', 'Orden de compra', 'admin'] as $role) {
+            $user = User::create(['name' => $role, 'email' => 'role-' . $role . '@example.com', 'password' => 'password']);
+            $user->assignRole($role);
+            $this->actingAs($user);
+            $payment->update(['status' => 'rechazado']);
+            $order->load('milestones.payments', 'milestones.invoices');
+            $html = \Illuminate\Support\Facades\Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
+            $this->assertStringContainsString('data-bs-target="#modalRequestPaymentReactivation' . $payment->id . '"', $html);
+            $this->assertStringContainsString('id="modalRequestPaymentReactivation' . $payment->id . '"', $html);
+
+            $reason = 'Solicito revisar nuevamente este pago rechazado.';
+            $request = Request::create($route->uri(), 'PATCH', ['reason' => $reason]);
+            $response = app(\Spatie\Permission\Middleware\RoleMiddleware::class)->handle(
+                $request,
+                fn ($request) => app(PaymentController::class)->requestReactivation($request, $payment),
+                substr($roleMiddleware, strlen('role:')),
+            );
+            $this->assertSame(route('purchase_orders.show', $order), $response->getTargetUrl());
+            $this->assertSame('por_autorizar', $payment->fresh()->status);
+            $this->assertDatabaseHas('notifications', [
+                'action_by' => $user->id, 'model_id' => $payment->id, 'model_action' => 'request_reactivation',
+            ]);
+            $this->assertStringContainsString($reason, DB::table('notifications')->where('action_by', $user->id)->value('data'));
+
+            $order->load('milestones.payments');
+            $html = \Illuminate\Support\Facades\Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
+            $this->assertStringNotContainsString('data-bs-target="#modalRequestPaymentReactivation' . $payment->id . '"', $html);
+            $this->assertStringNotContainsString('id="modalRequestPaymentReactivation' . $payment->id . '"', $html);
+        }
     }
 
     public function test_buyer_relation_and_scope_use_user_id_not_the_signature_text(): void

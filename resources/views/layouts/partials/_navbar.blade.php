@@ -68,7 +68,6 @@
             @endhasanyrole
 
             @hasanyrole('admin|Orden de compra|Pagos')
-                @if(auth()->user()->hasRole('admin') || auth()->user()->can('read'))
                     <li class="nav-item">
                         <a class="nav-link menu-arrow {{ request()->routeIs('suppliers.*') ? 'active' : '' }}"
                            href="#sidebarSuppliers" data-bs-toggle="collapse" role="button"
@@ -86,16 +85,13 @@
                                        href="{{ route('suppliers.index') }}">Listado</a>
                                 </li>
                                 @endcan
-                                @role('admin')
                                 <li class="sub-nav-item">
                                     <a class="sub-nav-link {{ request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
                                        href="{{ route('suppliers.account_statement.index') }}">Estado de Cuenta</a>
                                 </li>
-                                @endrole
                             </ul>
                         </div>
                     </li>
-                @endif
             @endhasanyrole
 
             @hasanyrole('admin|Moviles')
