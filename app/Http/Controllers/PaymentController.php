@@ -1115,8 +1115,10 @@ class PaymentController extends Controller
     {
         $search = trim($request->input('search', ''));
         $poType = $request->input('po_type', '');
+        $buyerId = Auth::user()->invoiceBuyerFilter();
 
         $orders = PurchaseOrder::with(['supplier', 'milestones', 'invoices'])
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {

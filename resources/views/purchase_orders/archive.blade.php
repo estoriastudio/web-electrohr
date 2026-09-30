@@ -4,7 +4,7 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index') }}">Órdenes de Compra</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index', ['scope' => $scope]) }}">Órdenes de Compra</a></li>
     <li class="breadcrumb-item active">Archivadas</li>
 @endsection
 
@@ -30,11 +30,11 @@
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
                     <h4 class="card-title mb-0">
-                        <i class="ri-archive-line me-2 text-muted"></i>Órdenes de compra archivadas
+                        <i class="ri-archive-line me-2 text-muted"></i>{{ $scope === 'all' ? 'Órdenes de compra archivadas' : 'Mis órdenes de compra archivadas' }}
                     </h4>
                     <small class="text-muted">Estas órdenes no aparecen en el listado activo.</small>
                 </div>
-                <a href="{{ route('purchase_orders.index') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('purchase_orders.index', ['scope' => $scope]) }}" class="btn btn-sm btn-outline-secondary">
                     <i class="ri-arrow-left-line me-1"></i> Volver al listado activo
                 </a>
             </div>
@@ -42,6 +42,7 @@
             {{-- Barra de búsqueda --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('purchase_orders.archived') }}" class="row g-2 align-items-end">
+                    <input type="hidden" name="scope" value="{{ $scope }}">
                     <div class="col-md-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
@@ -54,7 +55,7 @@
                     <div class="col-md-3 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
                         @if ($search)
-                            <a href="{{ route('purchase_orders.archived') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
+                            <a href="{{ route('purchase_orders.archived', ['scope' => $scope]) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif

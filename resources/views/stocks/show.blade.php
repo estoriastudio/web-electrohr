@@ -25,8 +25,26 @@
     <div>
         <a href="{{ route('stocks.index') }}" class="text-muted text-decoration-none fs-13"><i class="ri-arrow-left-line me-1"></i>Volver a consulta</a>
         <h4 class="mb-1 mt-1"><span class="text-primary">{{ $concept->code }}</span> <span class="text-muted fw-normal">{{ $concept->description }}</span></h4>
-        <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $concept->unit }}</span>
-        <span class="text-muted fs-13 ms-2"><i class="ri-map-pin-line me-1"></i>{{ $concept->warehouse_location }}</span>
+        <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+            <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $concept->unit }}</span>
+            @if ($concept->status === 'active')
+                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Activo</span>
+            @else
+                <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Inactivo</span>
+            @endif
+            <span class="badge {{ $concept->priority === 'high' ? 'bg-danger-subtle text-danger' : ($concept->priority === 'low' ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning') }} py-1 px-2 fs-12" title="Prioridad del suministro">
+                <i class="ri-flag-line me-1"></i>Prioridad: {{ $concept->priority === 'high' ? 'Alta' : ($concept->priority === 'low' ? 'Baja' : 'Media') }}
+            </span>
+            <span class="badge bg-info-subtle text-info py-1 px-2 fs-12 text-wrap" title="Ubicación de almacén">
+                <i class="ri-map-pin-line me-1"></i>{{ $concept->warehouse_location ?: 'Sin ubicación' }}
+            </span>
+            <span class="badge {{ $concept->requires_origin_certificate ? 'bg-primary-subtle text-primary' : 'bg-light text-muted border' }} py-1 px-2 fs-12" title="Certificado de origen requerido">
+                <i class="ri-earth-line me-1"></i>Origen: {{ $concept->requires_origin_certificate ? 'Sí' : 'No' }}
+            </span>
+            <span class="badge {{ $concept->requires_safety_certificate ? 'bg-warning-subtle text-warning' : 'bg-light text-muted border' }} py-1 px-2 fs-12" title="Certificado de seguridad requerido">
+                <i class="ri-shield-check-line me-1"></i>Seguridad: {{ $concept->requires_safety_certificate ? 'Sí' : 'No' }}
+            </span>
+        </div>
     </div>
     <div class="d-flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalStockAdjustment"><i class="ri-scales-3-line me-1"></i>Ajuste manual</button><a href="{{ route('stocks.entries.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-inbox-line me-1"></i>Ver entradas</a><a href="{{ route('stocks.exits.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-right-circle-line me-1"></i>Ver salidas</a></div>
 </div>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Órdenes de Compra')
+@section('page_title', $scope === 'all' ? 'Órdenes de Compra - Listado completo' : 'Mis órdenes de compra')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
@@ -100,7 +100,7 @@
                                                 @endif
                                             </td>
                                             <td>{{ $supplierName ?: '—' }}</td>
-                                            <td>{{ $purchaseOrder?->elaborated_by ?: '—' }}</td>
+                                            <td>{{ $purchaseOrder?->buyer?->name ?: ($purchaseOrder?->elaborated_by ?: '—') }}</td>
                                             <td>{{ optional($invoice->attached_at)->format('d/m/Y H:i') ?: '—' }}</td>
                                             <td>
                                                 <a href="{{ route('invoices.index', ['section' => 'en_proceso', 'search' => $invoice->folio ?: ('FACT-' . $invoice->id)]) }}"
@@ -128,9 +128,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <div>
-                    <h4 class="card-title mb-0">Listado de órdenes de compra</h4>
+                    <h4 class="card-title mb-0">{{ $scope === 'all' ? 'Listado completo de órdenes de compra' : 'Mis órdenes de compra' }}</h4>
                 </div>
                 <div>
+                    @hasrole('admin')
+                    <a href="{{ route('purchase_orders.index', ['scope' => $scope === 'all' ? 'mine' : 'all']) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="{{ $scope === 'all' ? 'ri-user-line' : 'ri-list-unordered' }} me-1"></i>{{ $scope === 'all' ? 'Mis OC' : 'Listado completo' }}
+                    </a>
+                    @endhasrole
                     @hasanyrole('admin|Orden de compra')
                     @can('create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
@@ -142,7 +147,7 @@
                         <i class="ri-price-tag-3-line me-1"></i> Precios adjudicados
                     </a>
                     @hasanyrole('admin|Pagos|Orden de compra')
-                    <a href="{{ route('purchase_orders.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
+                    <a href="{{ route('purchase_orders.archived', ['scope' => $scope]) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
                     @endhasanyrole
@@ -157,6 +162,8 @@
             @hasrole('admin')
             @php
                 $trayQuery = array_filter([
+                    'scope' => $scope,
+                    'buyer_status' => $buyerStatus,
                     'search' => $search,
                     'search_mode' => $searchMode !== 'default' ? $searchMode : null,
                     'tipo' => $tipo,
@@ -190,6 +197,15 @@
             {{-- Barra de filtros --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('purchase_orders.index') }}" class="row g-2 align-items-end">
+                    <input type="hidden" name="scope" value="{{ $scope }}">
+                    @if ($scope === 'all')
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="buyer_status" value="unassigned" id="buyer_status" {{ $buyerStatus === 'unassigned' ? 'checked' : '' }}>
+                                <label class="form-check-label" for="buyer_status">Sin comprador asignado</label>
+                            </div>
+                        </div>
+                    @endif
                     @if ($searchMode === 'traceability')
                         <input type="hidden" name="search_mode" value="traceability">
                     @endif
@@ -232,6 +248,8 @@
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
                         <span class="vr my-1"></span>
                         <a href="{{ route('purchase_orders.index', array_filter([
+                            'scope' => $scope,
+                            'buyer_status' => $buyerStatus,
                             'search_mode' => $searchMode === 'traceability' ? null : 'traceability',
                             'tray' => $tray !== 'all' ? $tray : null,
                             'tipo' => $tipo ?: null,
@@ -242,8 +260,9 @@
                             <i class="{{ $searchMode === 'traceability' ? 'ri-search-line' : 'ri-git-branch-line' }} me-1"></i>
                             {{ $searchMode === 'traceability' ? 'Búsqueda general' : 'Búsqueda avanzada' }}
                         </a>
-                        @if ($search || $tipo || $sortDue)
+                        @if ($search || $tipo || $sortDue || $buyerStatus)
                             <a href="{{ route('purchase_orders.index', array_filter([
+                                'scope' => $scope,
                                 'search_mode' => $searchMode === 'traceability' ? 'traceability' : null,
                                 'tray' => $tray !== 'all' ? $tray : null,
                             ])) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">

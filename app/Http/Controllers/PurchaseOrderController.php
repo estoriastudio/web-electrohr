@@ -17,6 +17,7 @@ use App\Models\ProjectWork;
 use App\Models\Supplier;
 use App\Models\Project;
 use App\Models\Payment;
+use App\Models\User;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -52,6 +53,8 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request): View
     {
+        $scope = $this->listingScope($request);
+        $buyerStatus = $scope === 'all' && $request->input('buyer_status') === 'unassigned' ? 'unassigned' : '';
         $search  = trim($request->input('search', ''));
         $tipo    = $request->input('tipo', '');
         $sortDue = match ($request->input('sort_due', '')) {
@@ -72,10 +75,15 @@ class PurchaseOrderController extends Controller
             $searchMode = 'default';
         }
 
-        $orders = PurchaseOrder::with(['supplier', 'items'])
+        $orderQuery = PurchaseOrder::with(['supplier', 'items', 'buyer'])
             ->withCount(['milestones', 'children'])
             ->whereNull('archived_at')
+            ->when($scope === 'mine', fn ($query) => $query->ownedBy(Auth::id()))
+            ->when($buyerStatus === 'unassigned', fn ($query) => $query->whereNull('buyer_id'));
+
+        $orders = (clone $orderQuery)
             ->when($sortDue, function ($query) {
+                $query->where(function ($query) {
                 $query->whereNull('delivery_status')
                     ->orWhere('delivery_status', '!=', 'entregado')
                     ->orWhereRaw(
@@ -87,6 +95,7 @@ class PurchaseOrderController extends Controller
                                 AND payments.status = ?), 0) < purchase_orders.amount",
                         ['pagado']
                     );
+                });
             })
             ->when($search && $searchMode === 'default', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -97,7 +106,8 @@ class PurchaseOrderController extends Controller
                                                 $project->where('name', 'like', '%' . $search . '%');
                                         })->orWhere('project', 'like', '%' . $search . '%')
                                             ->orWhere('folio', 'like', '%' . $search . '%')
-                                            ->orWhere('elaborated_by', 'like', '%' . $search . '%');
+                                            ->orWhere('elaborated_by', 'like', '%' . $search . '%')
+                                            ->orWhereHas('buyer', fn ($buyer) => $buyer->where('name', 'like', '%' . $search . '%'));
                 });
             })
             ->when($search && $searchMode === 'traceability', function ($q) use ($search) {
@@ -145,9 +155,15 @@ class PurchaseOrderController extends Controller
         $authorizedSignatories = config('purchase_orders.authorized_signatories', []);
         $recentPendingInvoices = PurchaseOrderInvoice::query()
             ->with([
-                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by',
+                'purchaseOrder.buyer:id,name',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
             ])
+            ->whereHas('purchaseOrder', function ($query) use ($scope, $buyerStatus) {
+                $query->active()
+                    ->when($scope === 'mine', fn ($query) => $query->ownedBy(Auth::id()))
+                    ->when($buyerStatus === 'unassigned', fn ($query) => $query->whereNull('buyer_id'));
+            })
             ->where('status', PurchaseOrderInvoice::STATUS_EN_PROCESO)
             ->orderByDesc('attached_at')
             ->orderByDesc('id')
@@ -156,22 +172,28 @@ class PurchaseOrderController extends Controller
 
         $trayCounts = Auth::user()->hasRole('admin')
             ? [
-                'all' => PurchaseOrder::whereNull('archived_at')->count(),
-                'issued' => PurchaseOrder::whereNull('archived_at')->where('status', 'emitida')->where('delivery_status', '!=', 'entregado')->count(),
-                'authorized' => PurchaseOrder::whereNull('archived_at')->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado')->count(),
-                'delivered' => PurchaseOrder::whereNull('archived_at')->where('delivery_status', 'entregado')->count(),
+                'all' => (clone $orderQuery)->count(),
+                'issued' => (clone $orderQuery)->where('status', 'emitida')->where('delivery_status', '!=', 'entregado')->count(),
+                'authorized' => (clone $orderQuery)->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado')->count(),
+                'delivered' => (clone $orderQuery)->where('delivery_status', 'entregado')->count(),
             ]
             : [];
 
         return view('purchase_orders.index', compact(
             'orders', 'suppliers', 'search', 'searchMode', 'tipo', 'sortDue', 'tray', 'trayCounts',
-            'projects', 'nextFolio', 'authorizedSignatories', 'recentPendingInvoices'
+            'projects', 'nextFolio', 'authorizedSignatories', 'recentPendingInvoices', 'scope', 'buyerStatus'
         ));
+    }
+
+    private function listingScope(Request $request): string
+    {
+        return Auth::user()->hasRole('admin') && $request->input('scope', 'all') !== 'mine' ? 'all' : 'mine';
     }
 
     public function overdueDeliveries(): View
     {
         $orders = PurchaseOrder::query()
+            ->when(!Auth::user()->hasRole('admin'), fn ($query) => $query->ownedBy(Auth::id()))
             ->select('purchase_orders.*')
             ->selectSub(
                 PurchaseOrderItem::query()
@@ -246,7 +268,6 @@ class PurchaseOrderController extends Controller
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
                 'cedular_rate'         => 'nullable|numeric|min:0|max:100',
             'purchase_request_id'  => 'nullable|exists:purchase_requests,id',
-            'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
@@ -359,9 +380,8 @@ class PurchaseOrderController extends Controller
         $validated['retention_isr_rate'] = $this->normalizeOptionalRate($validated['retention_isr_rate'] ?? null);
             $validated['cedular_rate'] = $this->normalizeOptionalRate($validated['cedular_rate'] ?? null);
 
-        if (empty($validated['elaborated_by'])) {
-            $validated['elaborated_by'] = Auth::user()->name;
-        }
+        $validated['buyer_id'] = Auth::id();
+        $validated['elaborated_by'] = Auth::user()->name;
 
         // amount siempre parte en 0; se recalculará cuando se agreguen conceptos
         $validated['amount'] = 0;
@@ -445,6 +465,7 @@ class PurchaseOrderController extends Controller
     public function show(PurchaseOrder $purchaseOrder): View
     {
         $purchaseOrder->load([
+            'buyer',
             'supplier.contacts',
             'supplier.locations',
             'mobileAsset',
@@ -459,12 +480,16 @@ class PurchaseOrderController extends Controller
             'annex',
         ]);
 
-        $pendingQueue = PurchaseOrder::query()
+        $pendingQueue = Auth::user()->hasRole('admin') ? PurchaseOrder::query()
             ->whereNull('archived_at')
             ->where('status', 'emitida')
             ->orderBy('created_at')
             ->orderBy('id')
-            ->get(['id', 'folio']);
+            ->get(['id', 'folio']) : collect();
+
+        $buyers = Auth::user()->hasRole('admin')
+            ? User::role(['admin', 'Orden de compra'])->orderBy('name')->get(['id', 'name', 'email'])
+            : collect();
 
         $pendingAuthCount = $pendingQueue->count();
         $currentPendingIndex = $pendingQueue->search(fn ($row) => (int) $row->id === (int) $purchaseOrder->id);
@@ -482,8 +507,28 @@ class PurchaseOrderController extends Controller
         return view('purchase_orders.show', compact(
             'purchaseOrder',
             'pendingAuthCount',
-            'nextPendingPurchaseOrder'
+            'nextPendingPurchaseOrder',
+            'buyers'
         ));
+    }
+
+    public function assignBuyer(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate(['buyer_id' => ['required', 'integer', 'exists:users,id']]);
+        $buyer = User::findOrFail($validated['buyer_id']);
+        $previousBuyer = $purchaseOrder->buyer?->name ?? 'Sin comprador asignado';
+        $purchaseOrder->update(['buyer_id' => $buyer->id]);
+
+        $this->notification->send([
+            'type' => 'PurchaseOrder',
+            'action_by' => Auth::id(),
+            'model_action' => 'update',
+            'model_id' => $purchaseOrder->id,
+            'data' => 'reasignó el comprador de la OC #' . $purchaseOrder->folio . ': ' . $previousBuyer . ' → ' . $buyer->name . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Comprador actualizado correctamente.');
     }
 
     public function edit(PurchaseOrder $purchaseOrder): View|RedirectResponse
@@ -517,7 +562,6 @@ class PurchaseOrderController extends Controller
             'retention_iva_rate'   => 'nullable|numeric|min:0|max:100',
             'retention_isr_rate'   => 'nullable|numeric|min:0|max:100',
               'cedular_rate'         => 'nullable|numeric|min:0|max:100',
-            'elaborated_by'        => 'nullable|string|max:255',
             'attorney_name'        => 'nullable|string|max:255',
             'supplier_signatory'   => 'nullable|string|max:255',
             'authorized_signatory' => 'nullable|string|max:255',
@@ -890,9 +934,11 @@ class PurchaseOrderController extends Controller
 
     public function archived(Request $request): View
     {
+        $scope = $this->listingScope($request);
         $search = trim($request->input('search', ''));
 
-        $orders = PurchaseOrder::with(['supplier', 'items'])
+        $orders = PurchaseOrder::with(['supplier', 'items', 'buyer'])
+            ->when($scope === 'mine', fn ($query) => $query->ownedBy(Auth::id()))
             ->whereNotNull('archived_at')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -906,7 +952,7 @@ class PurchaseOrderController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('purchase_orders.archive', compact('orders', 'search'));
+        return view('purchase_orders.archive', compact('orders', 'search', 'scope'));
     }
 
     public function softDeleted(Request $request): View
@@ -914,7 +960,7 @@ class PurchaseOrderController extends Controller
         $search = trim($request->input('search', ''));
 
         $orders = PurchaseOrder::onlyTrashed()
-            ->with(['supplier'])
+            ->with(['supplier', 'buyer'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {

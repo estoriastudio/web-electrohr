@@ -65,7 +65,7 @@
 					</div>
 					<div class="col-md-6">
 						<label class="form-label text-muted mb-1">Comprador</label>
-						<div class="fw-medium">{{ $po?->elaborated_by ?: '—' }}</div>
+						<div class="fw-medium">{{ $po?->buyer?->name ?: ($po?->elaborated_by ?: '—') }}</div>
 					</div>
 					<div class="col-md-6">
 						<label class="form-label text-muted mb-1">Fecha de carga</label>

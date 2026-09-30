@@ -51,6 +51,7 @@
         : 0;
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
+    $canManageOrder = $isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
@@ -112,14 +113,14 @@
             @endif
         </div>
         @if ($purchaseOrder->status === 'pendiente')
-        @hasanyrole('admin|Orden de compra')
+        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
         <form action="{{ route('purchase_orders.emit', $purchaseOrder) }}" method="POST" class="align-self-center">
             @csrf @method('PATCH')
             <button type="submit" class="btn btn-primary btn-sm">
                 <i class="ri-send-plane-line me-1"></i> Emitir OC
             </button>
         </form>
-        @endhasanyrole
+        @endif
         @elseif ($purchaseOrder->status === 'emitida')
         @role('admin')
         <button type="button" class="btn btn-success btn-sm align-self-center"
@@ -250,12 +251,27 @@
                                 <i class="ri-external-link-line ms-1 text-primary"></i>
                             </button>
                         @endif
-                        @if ($purchaseOrder->elaborated_by)
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
                                 <i class="ri-user-line me-1"></i>Elabora Orden:
-                                <span class="fw-medium text-dark">{{ $purchaseOrder->elaborated_by }}</span>
+                                <span class="fw-medium text-dark">{{ $purchaseOrder->buyer?->name ?: ($purchaseOrder->elaborated_by ?: 'Sin comprador asignado') }}</span>
                             </p>
-                        @endif
+                            @if (!$purchaseOrder->buyer_id)
+                                <small class="text-warning">Sin comprador asignado</small>
+                            @endif
+                            @hasrole('admin')
+                            <form action="{{ route('purchase_orders.buyer.update', $purchaseOrder) }}" method="POST" class="d-flex flex-wrap gap-2 mt-2">
+                                @csrf
+                                @method('PATCH')
+                                <label class="visually-hidden" for="assigned_buyer_id">Comprador</label>
+                                <select name="buyer_id" id="assigned_buyer_id" class="form-select form-select-sm w-auto" required>
+                                    <option value="">Seleccionar comprador...</option>
+                                    @foreach ($buyers as $buyer)
+                                        <option value="{{ $buyer->id }}" {{ (string) old('buyer_id', $purchaseOrder->buyer_id) === (string) $buyer->id ? 'selected' : '' }}>{{ $buyer->name }} ({{ $buyer->email }})</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Guardar comprador"><i class="ri-save-line"></i></button>
+                            </form>
+                            @endhasrole
                         @if ($purchaseOrder->projectRelation || $purchaseOrder->project || $purchaseOrder->site)
                             <p class="card-text text-muted fs-13 mb-0 mt-1">
                                 @if ($purchaseOrder->projectRelation)
@@ -302,15 +318,15 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
                         </button>
                         @endif
-                        @hasanyrole('admin|Solmat|Orden de compra')
+                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat"]))
                         @if ($purchaseOrder->status === 'autorizada')
                         <button type="button" class="btn btn-sm btn-outline-success"
                                 data-bs-toggle="modal" data-bs-target="#modalDeliveryStatus">
                             <i class="ri-truck-line me-1"></i> Cambiar entrega
                         </button>
                         @endif
-                        @endhasanyrole
-                        @hasanyrole('admin|Orden de compra')
+                        @endif
+                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                         @if ($canModifyPurchaseOrder)
                         <a href="{{ route('purchase_orders.edit', $purchaseOrder) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ri-edit-line me-1"></i> Editar OC
@@ -327,7 +343,7 @@
                                 <i class="ri-add-line me-1"></i> Agregar condición de pago
                             </button>
                         @endif
-                        @endhasanyrole
+                        @endif
                     </div>
                 </div>
             </div>
@@ -440,7 +456,7 @@
 @endif
 
 {{-- MODAL Subir Evidencia --}}
-@hasanyrole('admin|Solmat|Pagos|Orden de compra')
+@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat","Pagos"]))
 <div class="modal fade" id="modalCreateEvidence" tabindex="-1" aria-labelledby="modalCreateEvidenceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -500,10 +516,10 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endif
 
 {{-- MODAL Cambiar Estatus de Entrega --}}
-@hasanyrole('admin|Solmat|Orden de compra')
+@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat"]))
 <div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -545,7 +561,7 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endif
 
 {{-- ── CONCEPTOS ── --}}
 <div class="row mb-3">
@@ -556,13 +572,13 @@
                     <i class="ri-list-check me-1 text-primary"></i> Conceptos
                     <span id="oc_items_badge" class="badge bg-primary-subtle text-primary ms-1 fs-12">{{ $purchaseOrder->items->count() }}</span>
                 </h5>
-                @hasanyrole('admin|Orden de compra')
+                @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                 @if ($canModifyPurchaseOrder)
                 <button type="button" class="btn btn-sm btn-primary" id="btn_toggle_add_concept">
                     <i class="ri-add-line me-1"></i> Agregar concepto
                 </button>
                 @endif
-                @endhasanyrole
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -594,7 +610,7 @@
                                     <td>{{ $item->description }}</td>
                                     <td class="fs-12">{{ $item->unit }}</td>
                                     <td class="text-end" style="min-width:120px;">
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                         @if (!$ocLocked)
                                         <input type="number" step="0.0001" min="0"
                                                class="form-control form-control-sm text-end oc-qty-input"
@@ -608,10 +624,10 @@
                                         @endif
                                         @else
                                         {{ $formattedQty }}
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                     <td class="text-end" style="min-width:140px;">
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                         @if (!$ocLocked)
                                         <div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;">
                                             <span class="input-group-text py-0 px-2">$</span>
@@ -627,13 +643,13 @@
                                         @endif
                                         @else
                                         ${{ $item->unit_price }}
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                     <td class="text-end fw-semibold oc-importe">
                                         ${{ number_format($item->total, 2) }}
                                     </td>
                                     <td style="min-width:150px;">
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                         @if (!$ocLocked)
                                              <input type="date"
                                                class="form-control form-control-sm oc-delivery-input"
@@ -662,16 +678,16 @@
                                         @else
                                             —
                                         @endif
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                     @if (!$ocLocked)
                                     <td>
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                         <button type="button" class="btn btn-soft-danger btn-sm oc-item-delete"
                                                 data-item-id="{{ $item->id }}" title="Eliminar">
                                             <i class="ri-delete-bin-line"></i>
                                         </button>
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                     @endif
                                 </tr>
@@ -738,7 +754,7 @@
                 </div>
 
                 {{-- Panel agregar concepto --}}
-                @hasanyrole('admin|Orden de compra')
+                @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                 @if ($canModifyPurchaseOrder)
                 <div id="oc_add_panel" class="border-top px-3 py-3" style="display:none;">
                     <p class="text-muted fs-12 fw-medium mb-2">
@@ -844,7 +860,7 @@
                     </div>
                 </div>
                 @endif
-                @endhasanyrole
+                @endif
             </div>
         </div>
     </div>
@@ -949,7 +965,7 @@
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
             $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-                || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
+                || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
             $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
@@ -974,7 +990,7 @@
                         </span>
                     </div>
                     <div class="d-flex gap-1">
-                        @hasanyrole('admin|Orden de compra')
+                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                         @if ($canEditMilestone)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -1004,7 +1020,7 @@
                                 <i class="ri-lock-line fs-13"></i>
                             </button>
                         @endif
-                        @endhasanyrole
+                        @endif
                     </div>
                 </div>
 
@@ -1177,7 +1193,7 @@
                                                         @endforeach
                                                         @endhasanyrole
 
-                                                        @hasrole('Orden de compra')
+                                                        @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
                                                         @if ($payment->status === 'rechazado')
                                                         <li>
                                                             <button type="button" class="dropdown-item text-warning"
@@ -1187,7 +1203,7 @@
                                                             </button>
                                                         </li>
                                                         @endif
-                                                        @endhasrole
+                                                        @endif
 
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @hasanyrole('admin|Pagos')
@@ -1205,7 +1221,7 @@
 
                                                         {{-- SPEI: ver --}}
                                                         @if ($payment->spei_receipt_path)
-                                                        @hasanyrole('admin|Pagos|Orden de compra')
+                                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Pagos"]))
                                                         @php
                                                             $speiExt = strtolower(pathinfo($payment->spei_receipt_name ?: $payment->spei_receipt_path, PATHINFO_EXTENSION));
                                                             $speiIsImage = in_array($speiExt, ['jpg', 'jpeg', 'png', 'webp'], true);
@@ -1220,7 +1236,7 @@
                                                                 <i class="ri-eye-line me-1"></i>Ver SPEI
                                                             </button>
                                                         </li>
-                                                        @endhasanyrole
+                                                        @endif
                                                         @endif
 
                                                         {{-- Eliminar --}}
@@ -1323,12 +1339,12 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
-                @hasanyrole('admin|Pagos|Orden de compra')
+                @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Pagos"]))
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
                     <i class="ri-upload-2-line me-1"></i> Subir factura
                 </button>
-                @endhasanyrole
+                @endif
             </div>
 
             @if ($purchaseOrder->invoices->count() > 0)
@@ -1364,7 +1380,7 @@
                                         <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
 
                                         {{--  
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                             <form action="{{ route('invoices.status.update', $invoice) }}" method="POST" class="mt-1">
                                                 @csrf
                                                 @method('PATCH')
@@ -1385,7 +1401,7 @@
                                                     Guardar
                                                 </button>
                                             </form>
-                                        @endhasanyrole
+                                        @endif
                                         --}}
                                     </td>
                                     <td class="fw-medium fs-12">
@@ -1473,7 +1489,7 @@
 </div>
 
 {{-- ── EVIDENCIAS ── --}}
-@hasanyrole('admin|Solmat|Pagos|Orden de compra')
+@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat","Pagos"]))
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -1581,7 +1597,7 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endif
 
 {{-- ── OBSERVACIONES ── --}}
 <div class="row mb-4">
@@ -1603,7 +1619,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @hasanyrole('admin|Orden de compra')
+                                    @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                                     @if ($canModifyPurchaseOrder)
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
@@ -1624,12 +1640,12 @@
                                         </button>
                                     </form>
                                     @endif
-                                    @endhasanyrole
+                                    @endif
                                 </div>
                             </div>
                             <p class="mb-0 text-body-secondary fs-13">{{ $note['text'] }}</p>
 
-                            @hasanyrole('admin|Orden de compra')
+                            @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
                             @if ($canModifyPurchaseOrder)
                             <div class="collapse mt-2" id="oc_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('purchase_orders.notes.update', [$purchaseOrder, $noteIndex]) }}" method="POST">
@@ -1642,7 +1658,7 @@
                                 </form>
                             </div>
                             @endif
-                            @endhasanyrole
+                            @endif
                         </div>
                     </div>
                     <hr class="my-2">
@@ -1650,7 +1666,7 @@
                     <p class="text-muted fs-13 mb-3" id="oc_obs_empty">Sin observaciones registradas.</p>
                 @endforelse
             </div>
-            @hasanyrole('admin|Orden de compra')
+            @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
             @if ($canModifyPurchaseOrder)
             <div class="card-footer bg-transparent">
                 <form action="{{ route('purchase_orders.notes.store', $purchaseOrder) }}" method="POST">
@@ -1669,7 +1685,7 @@
                 </form>
             </div>
             @endif
-            @endhasanyrole
+            @endif
         </div>
     </div>
 </div>
@@ -1689,7 +1705,7 @@
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
         $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-            || ($purchaseOrder->is_destajo && auth()->user()?->hasRole('Orden de compra'));
+            || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
         $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
@@ -1824,7 +1840,7 @@
     </div>
     @endif
 
-    @hasrole('Orden de compra')
+    @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
     @foreach ($milestone->payments->where('status', 'rechazado') as $payment)
     <div class="modal fade" id="modalRequestPaymentReactivation{{ $payment->id }}" tabindex="-1" aria-labelledby="modalRequestPaymentReactivationLabel{{ $payment->id }}" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1855,7 +1871,7 @@
         </div>
     </div>
     @endforeach
-    @endhasrole
+    @endif
 @endforeach
 
 {{-- MODAL Subir Factura --}}
@@ -1966,7 +1982,7 @@
 </div>
 
 {{-- MODAL Crear Hito --}}
-@hasanyrole('admin|Orden de compra')
+@if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
 @if ($canCreateMilestone)
 <div class="modal fade" id="modalCreateMilestone" tabindex="-1" aria-labelledby="modalCreateMilestoneLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -2037,7 +2053,7 @@
     </div>
 </div>
 @endif
-@endhasanyrole
+@endif
 
 {{-- Modal único para visualizar comprobante SPEI --}}
 <div class="modal fade" id="modalViewSpeiReceipt" tabindex="-1" aria-hidden="true">

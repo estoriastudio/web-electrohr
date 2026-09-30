@@ -34,7 +34,9 @@ class PurchaseOrderInvoiceController extends Controller
             $paymentCondition = 'todas';
         }
 
-        $countsQuery = PurchaseOrderInvoice::query();
+        $buyerId = Auth::user()->invoiceBuyerFilter();
+        $countsQuery = PurchaseOrderInvoice::query()
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId));
         if ($paymentCondition !== 'todas') {
             $countsQuery->whereHas('purchaseOrder.milestones', function ($milestones) use ($paymentCondition) {
                 $milestones->where('payment_condition', $paymentCondition);
@@ -52,8 +54,10 @@ class PurchaseOrderInvoiceController extends Controller
             ->count();
 
         $invoicesQuery = PurchaseOrderInvoice::query()
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId))
             ->with([
-                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by',
+                'purchaseOrder.buyer:id,name',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
                 'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
@@ -65,6 +69,7 @@ class PurchaseOrderInvoiceController extends Controller
                         ->orWhereHas('purchaseOrder', function ($po) use ($search) {
                             $po->where('folio', 'like', '%' . $search . '%')
                                 ->orWhere('elaborated_by', 'like', '%' . $search . '%')
+                                ->orWhereHas('buyer', fn ($buyer) => $buyer->where('name', 'like', '%' . $search . '%'))
                                 ->orWhereHas('supplier', function ($sup) use ($search) {
                                     $sup->where('rfc_name', 'like', '%' . $search . '%')
                                         ->orWhere('commercial_name', 'like', '%' . $search . '%');
@@ -114,7 +119,8 @@ class PurchaseOrderInvoiceController extends Controller
     public function show(PurchaseOrderInvoice $invoice): View
     {
         $invoice->load([
-            'purchaseOrder:id,folio,supplier_id,elaborated_by,currency,amount',
+            'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by,currency,amount',
+            'purchaseOrder.buyer:id,name',
             'purchaseOrder.supplier:id,rfc_name,commercial_name',
             'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
             'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
@@ -142,7 +148,8 @@ class PurchaseOrderInvoiceController extends Controller
             new PurchaseOrderInvoiceExport(
                 $validated['start_date'],
                 $validated['end_date'],
-                $paymentCondition
+                $paymentCondition,
+                Auth::user()->invoiceBuyerFilter()
             ),
             'facturas-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
         );

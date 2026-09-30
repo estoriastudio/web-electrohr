@@ -38,4 +38,16 @@ class User extends Authenticatable
     {
         return $this->hasOne(Supplier::class, 'portal_user_id');
     }
+
+    public function purchaseOrders(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'buyer_id');
+    }
+
+    public function invoiceBuyerFilter(): ?int
+    {
+        return $this->hasRole('Orden de compra') && !$this->hasAnyRole(['admin', 'Pagos', 'Solmat', 'Recepción'])
+            ? (int) $this->id
+            : null;
+    }
 }

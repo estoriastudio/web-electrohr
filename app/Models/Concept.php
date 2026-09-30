@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Concept extends Model
 {
@@ -16,12 +17,17 @@ class Concept extends Model
         'unit_price',
         'minimum_stock',
         'maximum_stock',
+        'priority',
         'requires_origin_certificate',
         'requires_safety_certificate',
         'status',
         'type',
         'concept_category_id',
         'concept_subcategory_id',
+    ];
+
+    protected $attributes = [
+        'priority' => 'medium',
     ];
 
     protected $casts = [

@@ -44,7 +44,8 @@
                     ];
                     $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
                     $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—';
-                        $buyerName = trim((string) $order->elaborated_by) ?: 'Sin comprador asignado';
+                        $buyerName = $order->buyer?->name ?: (trim((string) $order->elaborated_by) ?: 'Sin comprador asignado');
+                        $canManageOrder = auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $order->buyer_id === (int) auth()->id());
                         $buyerGravatarHash = md5(strtolower($buyerName));
                         $buyerGravatarUrl = "https://www.gravatar.com/avatar/{$buyerGravatarHash}?s=64&d=identicon";
                     $solcom = $order->purchaseRequest ?? null;
@@ -109,20 +110,20 @@
                                         </li>
                                         --}}
                                         @if ($mode === 'index')
-                                            @hasanyrole('admin|Orden de compra')
+                                            @if ($canManageOrder)
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('purchase_orders.edit', $order) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
                                                 </a>
                                             </li>
-                                            @endhasanyrole
+                                            @endif
                                         @endif
                                         <li>
                                             <a class="dropdown-item" href="{{ route('purchase_orders.pdf', $order) }}" target="_blank">
                                                 <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
                                             </a>
                                         </li>
-                                        @hasanyrole('admin|Orden de compra')
+                                        @if ($canManageOrder)
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')
                                             <li>
@@ -159,7 +160,7 @@
                                             </form>
                                         </li>
                                         @endcan
-                                        @endhasanyrole
+                                        @endif
                                     @endif
 
                                 </ul>
@@ -226,6 +227,9 @@
                                  alt="{{ $buyerName }}">
                             <span class="text-truncate fw-medium">{{ $buyerName }}</span>
                         </div>
+                        @if (!$order->buyer_id)
+                            <small class="text-warning d-block">Sin comprador asignado</small>
+                        @endif
                     </td>
                     <td style="max-width:160px">
                         @php

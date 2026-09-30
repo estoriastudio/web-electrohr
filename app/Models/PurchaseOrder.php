@@ -41,6 +41,7 @@ class PurchaseOrder extends Model
         'recurrence_start_date',
         'recurrence_end_date',
         'observations',
+        'buyer_id',
         'elaborated_by',
         'attorney_name',
         'supplier_signatory',
@@ -72,6 +73,16 @@ class PurchaseOrder extends Model
     public function scopeArchived($query)
     {
         return $query->whereNotNull('archived_at');
+    }
+
+    public function scopeOwnedBy($query, int $userId)
+    {
+        return $query->where('purchase_orders.buyer_id', $userId);
+    }
+
+    public function buyer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'buyer_id');
     }
 
     public function supplier(): BelongsTo

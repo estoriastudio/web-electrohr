@@ -10,6 +10,7 @@ use App\Models\StockExitItem;
 use App\Models\Tool;
 use App\Models\Worker;
 use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,6 +42,56 @@ class StockExitController extends Controller
             ->orderBy('economic_number')
             ->get(['id', 'economic_number', 'name', 'description']);
         return view('stocks.exits.index', compact('exits', 'search', 'dateFrom', 'dateTo', 'workers', 'tools'));
+    }
+
+    public function calendar(): View
+    {
+        return view('stocks.exits.calendar');
+    }
+
+    public function calendarEvents(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'start' => ['required', 'date'],
+            'end' => ['required', 'date', 'after:start'],
+        ]);
+        $start = \Carbon\Carbon::parse($validated['start'])->toDateString();
+        $end = \Carbon\Carbon::parse($validated['end'])->toDateString();
+
+        $events = StockExit::with(['tool', 'recipientWorker', 'project', 'projectWork', 'returnStockEntry'])
+            ->where('exit_type', 'tool_loan')
+            ->where('expected_return_at', '>=', $start)
+            ->where('expected_return_at', '<', $end)
+            ->orderBy('expected_return_at')->orderBy('id')
+            ->get()->map(function (StockExit $exit) {
+                $returned = $exit->status === 'returned';
+                $overdue = ! $returned && $exit->expected_return_at->lt(today());
+                $worker = $exit->recipientWorker;
+
+                return [
+                    'id' => (string) $exit->id,
+                    'title' => $exit->voucher_number . ' - ' . ($exit->tool?->economic_number ?: 'Herramienta'),
+                    'start' => $exit->expected_return_at->toDateString(),
+                    'allDay' => true,
+                    'classNames' => [$returned ? 'bg-success' : ($overdue ? 'bg-danger' : 'bg-primary')],
+                    'extendedProps' => [
+                        'voucher' => $exit->voucher_number,
+                        'tool' => trim(($exit->tool?->economic_number ?? '') . ' - ' . ($exit->tool?->name ?: $exit->tool?->description ?: 'Sin herramienta')),
+                        'worker' => $worker ? trim($worker->first_name . ' ' . $worker->last_name) : ($exit->recipient_name ?: 'Sin responsable'),
+                        'project' => $exit->project?->name ?: 'Sin proyecto',
+                        'work' => $exit->projectWork?->name ?: 'Sin obra',
+                        'quantity' => $exit->quantity,
+                        'exitedAt' => $exit->exited_at->format('d/m/Y'),
+                        'expectedReturnAt' => $exit->expected_return_at->format('d/m/Y'),
+                        'returnedAt' => $exit->returnStockEntry?->received_at?->format('d/m/Y'),
+                        'status' => $returned ? 'Devuelta' : ($overdue ? 'Retorno vencido' : 'Pendiente de retorno'),
+                        'statusClass' => $returned ? 'bg-success-subtle text-success' : ($overdue ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'),
+                        'observations' => $exit->observations ?: 'Sin observaciones',
+                    ],
+                ];
+            });
+
+        return response()->json($events);
     }
 
     public function create(): RedirectResponse

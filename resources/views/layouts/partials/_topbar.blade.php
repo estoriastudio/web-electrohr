@@ -2,7 +2,7 @@
     <div class="topbar">
     <div class="container-fluid">
         <div class="navbar-header">
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 topbar-search-group">
                     <!-- Menu Toggle Button -->
                     <div class="topbar-item">
                         <button type="button" class="button-toggle-menu topbar-button">
@@ -10,15 +10,27 @@
                         </button>
                     </div>
 
-                    <!-- App Search-->
-                    {{--  
-                    <form class="app-search d-none d-md-block me-auto">
-                        <div class="position-relative">
-                            <input type="search" class="form-control border-0" placeholder="Search..." autocomplete="off" value="">
-                            <i class="ri-search-line search-widget-icon"></i>
+                    <form method="GET" action="{{ route('global_search') }}" class="app-search general-search" role="search" aria-label="Buscar por folio">
+                        <div class="d-flex align-items-center general-search-controls">
+                            <div class="general-search-field">
+                                <input type="search" name="search_folio" class="form-control border-0 {{ $errors->generalSearch->any() ? 'is-invalid' : '' }}"
+                                       placeholder="Folio" aria-label="Folio" required maxlength="255" autocomplete="off"
+                                       value="{{ old('search_folio', request('search_folio')) }}"
+                                       @if ($errors->generalSearch->any()) aria-invalid="true" aria-describedby="general-search-error" @endif>
+                                <button type="submit" class="search-widget-icon border-0 bg-transparent p-0" title="Buscar" aria-label="Buscar">
+                                    <i class="ri-search-line" aria-hidden="true"></i>
+                                </button>
+                                @if ($errors->generalSearch->any())
+                                    <div id="general-search-error" class="invalid-tooltip" role="alert">{{ $errors->generalSearch->first() }}</div>
+                                @endif
+                            </div>
+                            <select name="search_resource" class="form-select border-0 general-search-resource" aria-label="Tipo de recurso">
+                                <option value="solmat" @selected(old('search_resource', request('search_resource', 'purchase_order')) === 'solmat')>SOLMAT</option>
+                                <option value="solcom" @selected(old('search_resource', request('search_resource')) === 'solcom')>SOLCOM</option>
+                                <option value="purchase_order" @selected(old('search_resource', request('search_resource', 'purchase_order')) === 'purchase_order')>Órdenes de Compra</option>
+                            </select>
                         </div>
                     </form>
-                    --}}
                 </div>
 
                 <div class="d-flex align-items-center gap-1">
@@ -217,8 +229,111 @@
     </div></div>
 </header>
 
+<style>
+.topbar-search-group {
+    flex: 1;
+    min-width: 0;
+}
+
+.general-search {
+    width: 420px;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 8px;
+}
+
+.general-search .general-search-resource {
+    flex: 0 0 155px;
+    width: 155px;
+    height: 38px;
+    background-color: var(--bs-topbar-search-bg);
+    color: var(--bs-topbar-item-color);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    font-size: 14px;
+}
+
+.general-search-controls {
+    background-color: var(--bs-topbar-search-bg);
+    border-radius: var(--bs-border-radius);
+}
+
+.general-search-field {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+.general-search .form-control {
+    min-width: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+@media (max-width: 767.98px) {
+    .topbar {
+        height: auto;
+        position: relative;
+    }
+
+    .topbar .topbar-item {
+        height: 40px;
+    }
+
+    .topbar .navbar-header {
+        flex-wrap: wrap;
+        height: auto;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        gap: 8px;
+    }
+
+    .topbar-search-group {
+        flex-basis: 100%;
+        order: 2;
+    }
+
+    .topbar-search-group > .topbar-item {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+    }
+
+    .topbar-search-group + div {
+        margin-left: auto;
+    }
+
+    .general-search {
+        flex: 1;
+        width: auto;
+        padding-right: 0;
+    }
+
+    .general-search .general-search-resource {
+        flex-basis: 135px;
+        width: 135px;
+        font-size: 12px;
+    }
+}
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const searchResource = document.querySelector('.general-search-resource');
+    if (searchResource) {
+        const cookieName = 'general_search_resource';
+        const savedResource = document.cookie.split('; ').find(cookie => cookie.startsWith(`${cookieName}=`))?.split('=')[1];
+
+        if (Array.from(searchResource.options).some(option => option.value === savedResource)) {
+            searchResource.value = savedResource;
+        }
+
+        searchResource.addEventListener('change', function () {
+            const secure = location.protocol === 'https:' ? '; Secure' : '';
+            document.cookie = `${cookieName}=${searchResource.value}; Path=/; SameSite=Lax${secure}`;
+        });
+    }
+
     const btn = document.getElementById('btn-mark-recipient-read');
     if (!btn) return;
 

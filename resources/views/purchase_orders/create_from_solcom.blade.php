@@ -318,14 +318,7 @@
                             <p class="text-muted fs-12 mb-2"><i class="ri-pen-nib-line me-1"></i>Campos de firma para el PDF</p>
                         </div>
 
-                        <div class="col-md-4">
-                            <label for="elaborated_by" class="form-label fw-medium">Elabora Orden</label>
-                            <input type="text" maxlength="255"
-                                   class="form-control @error('elaborated_by') is-invalid @enderror"
-                                   id="elaborated_by" name="elaborated_by"
-                                   value="{{ old('elaborated_by', auth()->user()->name) }}">
-                            @error('elaborated_by')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
+                        @include('purchase_orders.partials.buyer-field')
 
                         <div class="col-md-4">
                             <label for="attorney_name" class="form-label fw-medium">Apoderado</label>

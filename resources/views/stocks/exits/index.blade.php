@@ -25,7 +25,7 @@
 <div class="card">
 	<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
 		<div><h4 class="card-title mb-0"><i class="ri-arrow-right-circle-line text-primary me-1"></i>Salidas de inventario</h4><span class="text-muted fs-13">Entregas definitivas y préstamos de herramienta</span></div>
-		<div class="d-flex gap-2"><a href="{{ route('stocks.entries.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-left-line me-1"></i>Ir a entradas</a><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#exitModal"><i class="ri-add-line me-1"></i>Nueva salida</button></div>
+		<div class="d-flex flex-wrap gap-2"><a href="{{ route('stocks.exits.calendar') }}" class="btn btn-sm btn-outline-info"><i class="ri-calendar-check-line me-1"></i>Vista Calendario de Retornos</a><a href="{{ route('stocks.entries.index') }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-left-line me-1"></i>Ir a entradas</a><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#exitModal"><i class="ri-add-line me-1"></i>Nueva salida</button></div>
 	</div>
 	<div class="card-body border-bottom py-3">
 		<form method="GET" action="{{ route('stocks.exits.index') }}" class="row g-2 align-items-end">
