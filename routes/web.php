@@ -28,6 +28,7 @@ use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierContactController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierAccountStatementController;
 use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\SupplierPortalController;
 use App\Http\Controllers\SupplierPortalInvoiceController;
@@ -116,6 +117,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
+        Route::middleware('role:admin')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+            Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
+            Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
+            Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
+                ->whereNumber('purchaseOrder')->name('order');
+        });
+
         Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
             Route::get('/proveedores/{supplier}', [SupplierController::class, 'show'])
                 ->whereNumber('supplier')

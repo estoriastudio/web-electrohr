@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\NotificationService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ class StockReturnCalendarTest extends TestCase
 
         Schema::create('stock_exits', function (Blueprint $table) {
             $table->id();
-            foreach (['tool_id', 'recipient_worker_id', 'project_id', 'project_work_id', 'return_stock_entry_id'] as $column) {
+            foreach (['concept_id', 'tool_id', 'recipient_worker_id', 'project_id', 'project_work_id', 'return_stock_entry_id', 'created_by'] as $column) {
                 $table->unsignedBigInteger($column)->nullable();
             }
             $table->string('exit_type');
@@ -29,7 +30,82 @@ class StockReturnCalendarTest extends TestCase
             $table->date('exited_at');
             $table->date('expected_return_at')->nullable();
             $table->text('observations')->nullable();
+            $table->timestamps();
         });
+        Schema::create('concepts', function (Blueprint $table) {
+            $table->id();
+            $table->string('code')->unique();
+            $table->string('description');
+        });
+        Schema::create('workers', function (Blueprint $table) {
+            $table->id();
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->softDeletes();
+        });
+        foreach (['projects', 'project_works'] as $name) {
+            Schema::create($name, function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+            });
+        }
+        Schema::create('stock_entries', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('concept_id')->nullable();
+            $table->unsignedBigInteger('tool_id')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->string('entry_type');
+            $table->decimal('quantity', 14, 3);
+            $table->date('received_at');
+            $table->text('observations')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function test_supply_loan_stores_the_concept_and_preserves_it_in_calendar_and_return(): void
+    {
+        DB::table('concepts')->insert(['id' => 1, 'code' => 'SUM-001', 'description' => 'Taladro']);
+        DB::table('workers')->insert(['id' => 1, 'first_name' => 'Juan', 'last_name' => 'Perez']);
+        DB::table('projects')->insert(['id' => 1, 'name' => 'Proyecto']);
+        DB::table('project_works')->insert(['id' => 1, 'name' => 'Obra']);
+        $this->mock(NotificationService::class)->shouldReceive('send')->twice();
+
+        $this->post(route('stocks.exits.store'), [
+            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001',
+            'voucher_number' => 'LOAN-SUPPLY', 'recipient_worker_id' => 1,
+            'project_id' => 1, 'project_work_id' => 1,
+            'exited_at' => '2026-09-29', 'expected_return_at' => '2026-09-30',
+        ])->assertRedirect(route('stocks.exits.index'))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('stock_exits', [
+            'id' => 1, 'concept_id' => 1, 'tool_id' => null,
+            'voucher_number' => 'LOAN-SUPPLY', 'status' => 'open', 'quantity' => 1,
+        ]);
+        $this->getJson(route('stocks.exits.calendar.events', [
+            'start' => '2026-09-01', 'end' => '2026-10-01',
+        ]))->assertOk()->assertJsonPath('0.title', 'LOAN-SUPPLY - SUM-001')
+            ->assertJsonPath('0.extendedProps.tool', 'SUM-001 - Taladro');
+
+        $response = app(\App\Http\Controllers\StockExitController::class)->returnTool(
+            Request::create(route('stocks.exits.return', ['stockExit' => 1]), 'POST', ['received_at' => '2026-09-30']),
+            \App\Models\StockExit::findOrFail(1)
+        );
+        $this->assertSame(route('stocks.exits.index'), $response->getTargetUrl());
+        $this->assertDatabaseHas('stock_entries', [
+            'concept_id' => 1, 'tool_id' => null, 'entry_type' => 'tool_return', 'quantity' => 1,
+        ]);
+        $this->assertDatabaseHas('stock_exits', ['id' => 1, 'status' => 'returned', 'return_stock_entry_id' => 1]);
+    }
+
+    public function test_supply_loan_requires_an_existing_supply_code_instead_of_a_tool_id(): void
+    {
+        foreach ([null, 'UNKNOWN'] as $code) {
+            $this->postJson(route('stocks.exits.store'), [
+                'exit_type' => 'tool_loan', 'concept_code' => $code, 'tool_id' => 1,
+                'voucher_number' => 'INVALID', 'exited_at' => '2026-09-29',
+            ])->assertUnprocessable()->assertJsonValidationErrors('concept_code');
+        }
+        $this->assertDatabaseCount('stock_exits', 0);
     }
 
     public function test_feed_only_returns_tool_loans_in_the_visible_date_range(): void
