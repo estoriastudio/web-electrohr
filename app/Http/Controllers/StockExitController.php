@@ -7,9 +7,9 @@ use App\Models\StockEntry;
 use App\Models\StockEntryItem;
 use App\Models\StockExit;
 use App\Models\StockExitItem;
-use App\Models\Tool;
 use App\Models\Worker;
 use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,17 +30,71 @@ class StockExitController extends Controller
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
         $exits = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork', 'items.concept'])
-            ->when($search, fn ($query) => $query->whereHas('items.concept', fn ($conceptQuery) => $conceptQuery
-                ->where('code', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%")))
+            ->when($search, fn ($query) => $query->where(function ($query) use ($search) {
+                $query->whereHas('items.concept', fn ($conceptQuery) => $conceptQuery
+                    ->where('code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%"))
+                    ->orWhereHas('concept', fn ($conceptQuery) => $conceptQuery
+                        ->where('code', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%"));
+            }))
             ->when($dateFrom, fn ($query) => $query->whereDate('exited_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('exited_at', '<=', $dateTo))
             ->latest('exited_at')->paginate(25)->withQueryString();
         $workers = Worker::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
-        $tools = Tool::whereIn('status', ['active', 'in_service'])
-            ->orderBy('economic_number')
-            ->get(['id', 'economic_number', 'name', 'description']);
-        return view('stocks.exits.index', compact('exits', 'search', 'dateFrom', 'dateTo', 'workers', 'tools'));
+        return view('stocks.exits.index', compact('exits', 'search', 'dateFrom', 'dateTo', 'workers'));
+    }
+
+    public function calendar(): View
+    {
+        return view('stocks.exits.calendar');
+    }
+
+    public function calendarEvents(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'start' => ['required', 'date'],
+            'end' => ['required', 'date', 'after:start'],
+        ]);
+        $start = \Carbon\Carbon::parse($validated['start'])->toDateString();
+        $end = \Carbon\Carbon::parse($validated['end'])->toDateString();
+
+        $events = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork', 'returnStockEntry'])
+            ->where('exit_type', 'tool_loan')
+            ->where('expected_return_at', '>=', $start)
+            ->where('expected_return_at', '<', $end)
+            ->orderBy('expected_return_at')->orderBy('id')
+            ->get()->map(function (StockExit $exit) {
+                $returned = $exit->status === 'returned';
+                $overdue = ! $returned && $exit->expected_return_at->lt(today());
+                $worker = $exit->recipientWorker;
+
+                return [
+                    'id' => (string) $exit->id,
+                    'title' => $exit->voucher_number . ' - ' . ($exit->concept?->code ?: $exit->tool?->economic_number ?: 'Suministro'),
+                    'start' => $exit->expected_return_at->toDateString(),
+                    'allDay' => true,
+                    'classNames' => [$returned ? 'bg-success' : ($overdue ? 'bg-danger' : 'bg-primary')],
+                    'extendedProps' => [
+                        'voucher' => $exit->voucher_number,
+                        'tool' => $exit->concept
+                            ? $exit->concept->code . ' - ' . $exit->concept->description
+                            : trim(($exit->tool?->economic_number ?? '') . ' - ' . ($exit->tool?->name ?: $exit->tool?->description ?: 'Sin suministro')),
+                        'worker' => $worker ? trim($worker->first_name . ' ' . $worker->last_name) : ($exit->recipient_name ?: 'Sin responsable'),
+                        'project' => $exit->project?->name ?: 'Sin proyecto',
+                        'work' => $exit->projectWork?->name ?: 'Sin obra',
+                        'quantity' => $exit->quantity,
+                        'exitedAt' => $exit->exited_at->format('d/m/Y'),
+                        'expectedReturnAt' => $exit->expected_return_at->format('d/m/Y'),
+                        'returnedAt' => $exit->returnStockEntry?->received_at?->format('d/m/Y'),
+                        'status' => $returned ? 'Devuelta' : ($overdue ? 'Retorno vencido' : 'Pendiente de retorno'),
+                        'statusClass' => $returned ? 'bg-success-subtle text-success' : ($overdue ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary'),
+                        'observations' => $exit->observations ?: 'Sin observaciones',
+                    ],
+                ];
+            });
+
+        return response()->json($events);
     }
 
     public function create(): RedirectResponse
@@ -52,7 +106,7 @@ class StockExitController extends Controller
     {
         $validated = $request->validate([
             'exit_type' => ['required', Rule::in(['definitive', 'tool_loan'])],
-            'tool_id' => ['nullable', 'exists:tools,id'],
+            'concept_code' => ['required_if:exit_type,tool_loan', 'nullable', 'string', 'max:100', 'exists:concepts,code'],
             'voucher_number' => ['required', 'string', 'max:100'], 'recipient_name' => ['nullable', 'string', 'max:150'],
             'recipient_worker_id' => ['nullable', 'exists:workers,id'], 'project_id' => ['nullable', 'exists:projects,id'],
             'project_work_id' => ['nullable', 'exists:project_works,id'], 'quantity' => ['nullable', 'numeric', 'gt:0'],
@@ -62,8 +116,8 @@ class StockExitController extends Controller
         if ($validated['exit_type'] === 'definitive' && empty($validated['recipient_name'])) {
             throw ValidationException::withMessages(['recipient_name' => 'Indique a quién se entrega el material.']);
         }
-        if ($validated['exit_type'] === 'tool_loan' && (empty($validated['tool_id']) || empty($validated['recipient_worker_id']) || empty($validated['project_id']) || empty($validated['project_work_id']) || empty($validated['expected_return_at']))) {
-            throw ValidationException::withMessages(['tool_id' => 'El préstamo requiere herramienta, trabajador, proyecto, obra y fecha de retorno.']);
+        if ($validated['exit_type'] === 'tool_loan' && (empty($validated['recipient_worker_id']) || empty($validated['project_id']) || empty($validated['project_work_id']) || empty($validated['expected_return_at']))) {
+            throw ValidationException::withMessages(['concept_code' => 'El préstamo requiere suministro, trabajador, proyecto, obra y fecha de retorno.']);
         }
         if ($validated['exit_type'] === 'definitive') {
             $definitive = $request->validate([
@@ -94,7 +148,8 @@ class StockExitController extends Controller
             }
 
             $exit = StockExit::create([
-                'concept_id' => null, 'tool_id' => $validated['tool_id'] ?? null, 'exit_type' => $validated['exit_type'],
+                'concept_id' => $validated['exit_type'] === 'tool_loan' ? Concept::where('code', $validated['concept_code'])->firstOrFail()->id : null,
+                'tool_id' => null, 'exit_type' => $validated['exit_type'],
                 'voucher_number' => $validated['voucher_number'], 'recipient_worker_id' => $validated['recipient_worker_id'] ?? null,
                 'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,
                 'project_work_id' => $validated['project_work_id'] ?? null, 'quantity' => $items->isNotEmpty() ? $items->sum('quantity') : 1,
@@ -129,6 +184,7 @@ class StockExitController extends Controller
 
         $entry = DB::transaction(function () use ($stockExit, $validated) {
             $entry = StockEntry::create([
+                'concept_id' => $stockExit->concept_id,
                 'tool_id' => $stockExit->tool_id,
                 'entry_type' => 'tool_return',
                 'quantity' => $stockExit->quantity,

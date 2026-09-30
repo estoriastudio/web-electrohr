@@ -905,6 +905,11 @@ class PaymentController extends Controller
         $milestone = $payment->milestone;
         $orderId   = $milestone->purchase_order_id;
 
+        if (\Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations') && $payment->invoiceAllocations()->exists()) {
+            return redirect()->route('purchase_orders.show', $orderId)
+                ->withErrors(['payment' => 'El pago tiene importes vinculados a facturas. Corrige la asignacion en Compras antes de eliminarlo.']);
+        }
+
         $hasSharedSpeiReceipt = $payment->spei_receipt_path
             && Payment::whereKeyNot($payment->id)
                 ->where('spei_receipt_path', $payment->spei_receipt_path)
@@ -1115,8 +1120,10 @@ class PaymentController extends Controller
     {
         $search = trim($request->input('search', ''));
         $poType = $request->input('po_type', '');
+        $buyerId = Auth::user()->invoiceBuyerFilter();
 
         $orders = PurchaseOrder::with(['supplier', 'milestones', 'invoices'])
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->whereHas('supplier', function ($s) use ($search) {

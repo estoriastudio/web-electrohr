@@ -65,7 +65,7 @@
 					</div>
 					<div class="col-md-6">
 						<label class="form-label text-muted mb-1">Comprador</label>
-						<div class="fw-medium">{{ $po?->elaborated_by ?: '—' }}</div>
+						<div class="fw-medium">{{ $po?->buyer?->name ?: ($po?->elaborated_by ?: '—') }}</div>
 					</div>
 					<div class="col-md-6">
 						<label class="form-label text-muted mb-1">Fecha de carga</label>
@@ -160,6 +160,17 @@
 								<span class="fw-semibold" id="invoiceMilestoneDifference">—</span>
 							</div>
 							<div class="fs-12 mt-2" id="invoiceMilestoneMatchStatus"></div>
+						</div>
+						<div class="mt-3">
+							<label class="form-label fw-medium">Importe de esta factura por pago</label>
+							@foreach(($po?->milestones ?? collect()) as $milestone)
+								@foreach($milestone->payments as $payment)
+									<div class="mb-2">
+										<label class="form-label fs-12" for="invoice_payment_{{ $payment->id }}">Hito #{{ $milestone->id }} / Pago #{{ $payment->id }} ({{ $payment->status }}) / {{ $invoice->currency }} {{ number_format((float) $payment->amount, 2) }}</label>
+										<input type="number" min="0" step="0.01" max="{{ $payment->amount }}" class="form-control form-control-sm" id="invoice_payment_{{ $payment->id }}" name="payment_amounts[{{ $payment->id }}]" value="{{ old('payment_amounts.' . $payment->id, $paymentAmounts[$payment->id] ?? '') }}" placeholder="Sin asignacion explicita">
+									</div>
+								@endforeach
+							@endforeach
 						</div>
 					</div>
 

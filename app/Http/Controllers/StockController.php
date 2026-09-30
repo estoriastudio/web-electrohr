@@ -8,6 +8,7 @@ use App\Models\StockEntryItem;
 use App\Models\StockExit;
 use App\Models\StockExitItem;
 use App\Services\NotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,7 +27,7 @@ class StockController extends Controller
     {
         $this->notifyOverdueLoans();
         $search = trim((string) $request->input('search', ''));
-        $concepts = Concept::query()
+        $concepts = $this->inventoryQuery()
             ->when($search, fn ($query) => $query->where(fn ($conceptQuery) => $conceptQuery
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")
@@ -34,10 +35,6 @@ class StockController extends Controller
             ->orderBy('code')->paginate(25)->withQueryString();
 
         $concepts->getCollection()->each(function (Concept $concept) {
-            $entries = (float) $concept->stockEntryItems()->sum('quantity');
-            $exits = (float) $concept->stockExitItems()->sum('quantity');
-            $concept->setAttribute('current_stock', $entries - $exits);
-
             $lastEntry = StockEntry::whereHas('items', fn ($query) => $query->where('concept_id', $concept->id))
                 ->latest('received_at')->first(['id', 'received_at']);
             $lastExit = StockExit::whereHas('items', fn ($query) => $query->where('concept_id', $concept->id))
@@ -52,6 +49,34 @@ class StockController extends Controller
         $overdueLoans = StockExit::with(['tool', 'recipientWorker'])->where('exit_type', 'tool_loan')->where('status', 'open')->whereDate('expected_return_at', '<', today())->orderBy('expected_return_at')->get();
 
         return view('stocks.index', compact('concepts', 'overdueLoans', 'search'));
+    }
+
+    public function lowStock(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+        $concepts = $this->inventoryQuery()
+            ->whereNotNull('concepts.minimum_stock')
+            ->whereRaw('COALESCE(stock_entries_totals.quantity, 0) - COALESCE(stock_exits_totals.quantity, 0) < concepts.minimum_stock')
+            ->when($search, fn ($query) => $query->where(fn ($conceptQuery) => $conceptQuery
+                ->where('concepts.code', 'like', "%{$search}%")
+                ->orWhere('concepts.description', 'like', "%{$search}%")
+                ->orWhere('concepts.warehouse_location', 'like', "%{$search}%")))
+            ->orderByRaw("CASE concepts.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END")
+            ->orderBy('concepts.code')->paginate(25)->withQueryString();
+
+        return view('stocks.low_stock', compact('concepts', 'search'));
+    }
+
+    private function inventoryQuery(): Builder
+    {
+        $entryTotals = StockEntryItem::select('concept_id')->selectRaw('SUM(quantity) AS quantity')->groupBy('concept_id');
+        $exitTotals = StockExitItem::select('concept_id')->selectRaw('SUM(quantity) AS quantity')->groupBy('concept_id');
+
+        return Concept::query()
+            ->leftJoinSub($entryTotals, 'stock_entries_totals', 'stock_entries_totals.concept_id', '=', 'concepts.id')
+            ->leftJoinSub($exitTotals, 'stock_exits_totals', 'stock_exits_totals.concept_id', '=', 'concepts.id')
+            ->select('concepts.*')
+            ->selectRaw('COALESCE(stock_entries_totals.quantity, 0) - COALESCE(stock_exits_totals.quantity, 0) AS current_stock');
     }
 
     public function show(Concept $concept): View

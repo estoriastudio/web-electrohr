@@ -253,7 +253,7 @@
 								@endif
 							</td>
 							<td>{{ $supplierName ?: '—' }}</td>
-							<td>{{ $po?->elaborated_by ?: '—' }}</td>
+							<td>{{ $po?->buyer?->name ?: ($po?->elaborated_by ?: '—') }}</td>
 							<td class="text-end fw-semibold">{{ $invoice->currency }} {{ number_format($netScope, 2) }}</td>
 							<td class="text-center">
 								@if ($po)

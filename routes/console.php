@@ -2,12 +2,61 @@
 
 use App\Models\Payment;
 use App\Models\PurchaseOrderMilestone;
+use App\Models\PurchaseOrder;
+use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('purchase-orders:backfill-buyers {--dry-run : Simula sin guardar cambios} {--chunk=200 : Tamaño de lote}', function () {
+    $dryRun = (bool) $this->option('dry-run');
+    $chunkSize = max(1, (int) $this->option('chunk'));
+    $usersByName = User::with('roles')->get(['id', 'name'])->groupBy(fn ($user) => trim($user->name));
+    $assigned = 0;
+    $skipped = 0;
+    $processed = 0;
+
+    if ($dryRun) {
+        $this->warn('MODO DRY-RUN: no se guardarán cambios.');
+    }
+
+    PurchaseOrder::withTrashed()->whereNull('buyer_id')->chunkById($chunkSize, function ($orders) use ($usersByName, $dryRun, &$assigned, &$skipped, &$processed) {
+        foreach ($orders as $order) {
+            $processed++;
+            $name = trim((string) $order->elaborated_by);
+            $matches = $name !== '' ? $usersByName->get($name, collect()) : collect();
+            $reason = match (true) {
+                $name === '' => 'nombre vacío',
+                $matches->isEmpty() => 'sin coincidencia exacta',
+                $matches->count() !== 1 => 'nombre ambiguo',
+                !$matches->first()->hasAnyRole(['admin', 'Orden de compra']) => 'usuario sin rol de comprador',
+                default => null,
+            };
+
+            if ($reason !== null) {
+                $skipped++;
+                $this->warn('OC #' . ($order->folio ?? $order->id) . ' omitida: ' . $reason . '.');
+                continue;
+            }
+
+            $buyer = $matches->first();
+            $updated = $dryRun ? 1 : DB::table('purchase_orders')
+                ->where('id', $order->id)
+                ->whereNull('buyer_id')
+                ->update(['buyer_id' => $buyer->id]);
+            $assigned += $updated;
+        }
+    });
+
+    $this->info('Vinculación de compradores finalizada.');
+    $this->line('Procesadas: ' . $processed);
+    $this->line(($dryRun ? 'Por vincular: ' : 'Vinculadas: ') . $assigned);
+    $this->line('Omitidas: ' . $skipped);
+})->purpose('Vincula compradores de OCs históricas por nombres exactos y únicos');
 
 Artisan::command('payments:backfill-from-milestones {--dry-run : Simula sin guardar cambios} {--chunk=200 : Tamaño de lote}', function () {
     $dryRun = (bool) $this->option('dry-run');

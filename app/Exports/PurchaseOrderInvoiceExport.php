@@ -16,14 +16,17 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
         private readonly string $startDate,
         private readonly string $endDate,
         private readonly string $paymentCondition,
+        private readonly ?int $buyerId = null,
     ) {
     }
 
     public function query(): Builder
     {
         return PurchaseOrderInvoice::query()
+            ->when($this->buyerId !== null, fn (Builder $query) => $query->ownedBy($this->buyerId))
             ->with([
-                    'purchaseOrder:id,folio,supplier_id,elaborated_by,tax_rate,isr_rate,retention_iva_rate,retention_isr_rate,cedular_rate',
+                'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by,tax_rate,isr_rate,retention_iva_rate,retention_isr_rate,cedular_rate',
+            'purchaseOrder.buyer:id,name',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,payment_condition',
                 'purchaseOrder.items:id,purchase_order_id,quantity,unit_price',
@@ -98,7 +101,7 @@ class PurchaseOrderInvoiceExport implements FromQuery, ShouldAutoSize, WithHeadi
             $purchaseOrder?->folio ?? $purchaseOrder?->id ?? '',
             $paymentConditions,
             $supplierName ?? '',
-            $purchaseOrder?->elaborated_by ?? '',
+            $purchaseOrder?->buyer?->name ?? $purchaseOrder?->elaborated_by ?? '',
             $netScope,
             $purchaseOrder?->subtotal ?? 0,
             $purchaseOrder?->iva ?? 0,

@@ -56,6 +56,11 @@ class PurchaseOrderInvoice extends Model
         return $this->belongsTo(PurchaseOrder::class);
     }
 
+    public function scopeOwnedBy($query, int $userId)
+    {
+        return $query->whereHas('purchaseOrder', fn ($order) => $order->ownedBy($userId));
+    }
+
     public function milestones(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -69,5 +74,10 @@ class PurchaseOrderInvoice extends Model
     public function evidences(): HasMany
     {
         return $this->hasMany(PurchaseOrderEvidence::class, 'purchase_order_invoice_id');
+    }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(InvoicePaymentAllocation::class, 'purchase_order_invoice_id');
     }
 }

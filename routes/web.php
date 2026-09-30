@@ -3,6 +3,7 @@
 /* Controladores */
 use App\Http\Controllers\ConceptCategoryController;
 use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\MaintenanceLogController;
 use App\Http\Controllers\MaterialRequestController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierContactController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierAccountStatementController;
 use App\Http\Controllers\SupplierLocationController;
 use App\Http\Controllers\SupplierPortalController;
 use App\Http\Controllers\SupplierPortalInvoiceController;
@@ -53,6 +55,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
     Route::group(['middleware' => ['auth']], function () {
         Route::get('/', 'AdminController@dashboard')->name('dashboard');
         Route::get('/configuracion', 'AdminController@settings')->name('settings');
+        Route::get('/buscar', GlobalSearchController::class)->name('global_search');
 
         // Perfil propio — accesible para todos los roles autenticados
         Route::get('/usuarios/{user}', [UserController::class, 'show'])->name('usuarios.show');
@@ -114,6 +117,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
+        Route::middleware('role:admin')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+            Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
+            Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
+            Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
+                ->whereNumber('purchaseOrder')->name('order');
+        });
+
         Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
             Route::get('/proveedores/{supplier}', [SupplierController::class, 'show'])
                 ->whereNumber('supplier')
@@ -492,6 +502,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase_orders.destroy');
             Route::patch('/ordenes-de-compra/{purchase_order}/archivar', [PurchaseOrderController::class, 'archive'])->name('purchase_orders.archive');
             Route::patch('/ordenes-de-compra/{purchase_order}/desarchivar', [PurchaseOrderController::class, 'unarchive'])->name('purchase_orders.unarchive');
+            Route::patch('/ordenes-de-compra/{purchase_order}/comprador', [PurchaseOrderController::class, 'assignBuyer'])->name('purchase_orders.buyer.update');
             // Ítems (conceptos)
             Route::post('/ordenes-de-compra/{purchase_order}/items', [PurchaseOrderController::class, 'storeItem'])->name('purchase_orders.items.store');
             Route::patch('/ordenes-de-compra/{purchase_order}/items/{item}', [PurchaseOrderController::class, 'updateItem'])->name('purchase_orders.items.update');
@@ -709,9 +720,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Vales de Material ───────────────────────────────────────────────
         Route::middleware('role:admin|Inventario')->group(function () {
             Route::get('/inventario', [StockController::class, 'index'])->name('stocks.index');
+            Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');
             Route::resource('/inventario/entradas', StockEntryController::class, [
                 'names' => 'stocks.entries', 'parameters' => ['entradas' => 'stockEntry'],
             ])->except(['show', 'edit', 'update']);
+            Route::get('/inventario/salidas/calendario', [StockExitController::class, 'calendar'])->name('stocks.exits.calendar');
+            Route::get('/inventario/salidas/calendario/eventos', [StockExitController::class, 'calendarEvents'])->name('stocks.exits.calendar.events');
             Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])->name('stocks.exits.return');
             Route::resource('/inventario/salidas', StockExitController::class, [
                 'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],

@@ -175,6 +175,9 @@
                                             @else
                                                 <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Inactivo</span>
                                             @endif
+                                            <span class="badge {{ $concept->priority === 'high' ? 'bg-danger-subtle text-danger' : ($concept->priority === 'low' ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning') }} py-1 px-2 fs-12" title="Prioridad del suministro">
+                                                <i class="ri-flag-line me-1"></i>Prioridad: {{ $concept->priority === 'high' ? 'Alta' : ($concept->priority === 'low' ? 'Baja' : 'Media') }}
+                                            </span>
                                             <span class="badge bg-info-subtle text-info py-1 px-2 fs-12" title="Ubicación de almacén">
                                                 <i class="ri-map-pin-line me-1"></i>{{ $concept->warehouse_location ?: 'Sin ubicación' }}
                                             </span>
@@ -199,6 +202,7 @@
                                                     data-warehouse-location="{{ $concept->warehouse_location }}"
                                                     data-minimum-stock="{{ $concept->minimum_stock }}"
                                                     data-maximum-stock="{{ $concept->maximum_stock }}"
+                                                    data-priority="{{ $concept->priority }}"
                                                     data-requires-origin-certificate="{{ $concept->requires_origin_certificate ? '1' : '0' }}"
                                                     data-requires-safety-certificate="{{ $concept->requires_safety_certificate ? '1' : '0' }}"
                                                     data-status="{{ $concept->status }}"
@@ -344,6 +348,15 @@
                             </div>
                         </div>
                         <div class="col-md-6"><label class="form-label fw-medium">Ubicación</label><input name="warehouse_location" value="{{ old('warehouse_location', 'Almacén principal') }}" class="form-control" required></div>
+                        <div class="col-md-6">
+                            <label for="create_priority" class="form-label fw-medium">Prioridad <span class="text-danger">*</span></label>
+                            <select id="create_priority" name="priority" class="form-select @error('priority') is-invalid @enderror" required>
+                                <option value="high" @selected(old('priority', 'medium') === 'high')>Alta</option>
+                                <option value="medium" @selected(old('priority', 'medium') === 'medium')>Media</option>
+                                <option value="low" @selected(old('priority', 'medium') === 'low')>Baja</option>
+                            </select>
+                            @error('priority')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                         <div class="col-md-3"><label class="form-label fw-medium">Mínimo</label><input name="minimum_stock" type="number" step="0.001" min="0" class="form-control"></div>
                         <div class="col-md-3"><label class="form-label fw-medium">Máximo</label><input name="maximum_stock" type="number" step="0.001" min="0" class="form-control"></div>
                         <div class="col-md-6"><div class="form-check"><input name="requires_origin_certificate" value="1" type="checkbox" class="form-check-input" id="create_origin"><label class="form-check-label" for="create_origin">Requiere certificado de origen</label></div></div>
@@ -453,6 +466,15 @@
                         <div class="col-md-3">
                             <label for="edit_maximum_stock" class="form-label fw-medium">Máximo</label>
                             <input type="number" class="form-control" id="edit_maximum_stock" name="maximum_stock" step="0.001" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_priority" class="form-label fw-medium">Prioridad <span class="text-danger">*</span></label>
+                            <select id="edit_priority" name="priority" class="form-select @error('priority') is-invalid @enderror" required>
+                                <option value="high">Alta</option>
+                                <option value="medium">Media</option>
+                                <option value="low">Baja</option>
+                            </select>
+                            @error('priority')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <div class="form-check">
@@ -724,6 +746,7 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
         document.getElementById('edit_warehouse_location').value = warehouseLocation || '';
         document.getElementById('edit_minimum_stock').value = minimumStock || '';
         document.getElementById('edit_maximum_stock').value = maximumStock || '';
+        document.getElementById('edit_priority').value = this.dataset.priority || 'medium';
         document.getElementById('edit_origin').checked = requiresOriginCertificate;
         document.getElementById('edit_safety').checked = requiresSafetyCertificate;
         document.getElementById('edit_status').value      = status;

@@ -6,10 +6,12 @@ use App\Exports\PurchaseOrderInvoiceExport;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Services\NotificationService;
+use App\Services\InvoicePaymentAllocationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -34,7 +36,9 @@ class PurchaseOrderInvoiceController extends Controller
             $paymentCondition = 'todas';
         }
 
-        $countsQuery = PurchaseOrderInvoice::query();
+        $buyerId = Auth::user()->invoiceBuyerFilter();
+        $countsQuery = PurchaseOrderInvoice::query()
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId));
         if ($paymentCondition !== 'todas') {
             $countsQuery->whereHas('purchaseOrder.milestones', function ($milestones) use ($paymentCondition) {
                 $milestones->where('payment_condition', $paymentCondition);
@@ -52,8 +56,10 @@ class PurchaseOrderInvoiceController extends Controller
             ->count();
 
         $invoicesQuery = PurchaseOrderInvoice::query()
+            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId))
             ->with([
-                'purchaseOrder:id,folio,supplier_id,elaborated_by',
+                'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by',
+                'purchaseOrder.buyer:id,name',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
                 'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
@@ -65,6 +71,7 @@ class PurchaseOrderInvoiceController extends Controller
                         ->orWhereHas('purchaseOrder', function ($po) use ($search) {
                             $po->where('folio', 'like', '%' . $search . '%')
                                 ->orWhere('elaborated_by', 'like', '%' . $search . '%')
+                                ->orWhereHas('buyer', fn ($buyer) => $buyer->where('name', 'like', '%' . $search . '%'))
                                 ->orWhereHas('supplier', function ($sup) use ($search) {
                                     $sup->where('rfc_name', 'like', '%' . $search . '%')
                                         ->orWhere('commercial_name', 'like', '%' . $search . '%');
@@ -114,14 +121,19 @@ class PurchaseOrderInvoiceController extends Controller
     public function show(PurchaseOrderInvoice $invoice): View
     {
         $invoice->load([
-            'purchaseOrder:id,folio,supplier_id,elaborated_by,currency,amount',
+            'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by,currency,amount',
+            'purchaseOrder.buyer:id,name',
             'purchaseOrder.supplier:id,rfc_name,commercial_name',
             'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
             'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
             'milestones:id,concept,payment_condition',
         ]);
 
-        return view('invoices.show', compact('invoice'));
+        $paymentAmounts = \Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations')
+            ? $invoice->paymentAllocations()->pluck('amount', 'payment_id')->all()
+            : [];
+
+        return view('invoices.show', compact('invoice', 'paymentAmounts'));
     }
 
     public function export(Request $request)
@@ -142,7 +154,8 @@ class PurchaseOrderInvoiceController extends Controller
             new PurchaseOrderInvoiceExport(
                 $validated['start_date'],
                 $validated['end_date'],
-                $paymentCondition
+                $paymentCondition,
+                Auth::user()->invoiceBuyerFilter()
             ),
             'facturas-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
         );
@@ -314,6 +327,11 @@ class PurchaseOrderInvoiceController extends Controller
         $purchaseOrderId = $invoice->purchase_order_id;
         $fileName        = $invoice->file_name;
 
+        if (\Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations') && $invoice->paymentAllocations()->exists()) {
+            return redirect()->route('purchase_orders.show', $purchaseOrderId)
+                ->withErrors(['invoice' => 'La factura tiene importes vinculados a pagos. Corrige su asignacion en Compras antes de eliminarla.']);
+        }
+
         if ($invoice->file_path && Storage::exists($invoice->file_path)) {
             Storage::delete($invoice->file_path);
         }
@@ -343,6 +361,8 @@ class PurchaseOrderInvoiceController extends Controller
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
             'milestone_ids' => 'nullable|array',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
+            'payment_amounts' => 'nullable|array',
+            'payment_amounts.*' => 'nullable|numeric|min:0|decimal:0,2',
         ]);
 
         if ($validated['status'] === PurchaseOrderInvoice::STATUS_ACEPTADA) {
@@ -376,12 +396,21 @@ class PurchaseOrderInvoiceController extends Controller
                 ]);
             }
 
-            $invoice->milestones()->sync($validIds->all());
+            DB::transaction(function () use ($invoice, $validIds, $validated) {
+                PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id);
+                if (\Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations')) {
+                    app(InvoicePaymentAllocationService::class)->validateAndReplace(
+                        $invoice, $validIds->all(), $validated['payment_amounts'] ?? null, Auth::id(),
+                    );
+                }
+                $invoice->milestones()->sync($validIds->all());
+                $invoice->update(['status' => PurchaseOrderInvoice::STATUS_ACEPTADA]);
+            });
         }
 
-        $invoice->update([
-            'status' => $validated['status'],
-        ]);
+        if ($validated['status'] !== PurchaseOrderInvoice::STATUS_ACEPTADA) {
+            $invoice->update(['status' => $validated['status']]);
+        }
 
         $statusLabel = match ($validated['status']) {
             PurchaseOrderInvoice::STATUS_ACEPTADA => 'Aceptada',
@@ -394,7 +423,8 @@ class PurchaseOrderInvoiceController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $invoice->id,
-            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.',
+            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.'
+                . (array_key_exists('payment_amounts', $validated) ? ' Asignacion por pago: ' . json_encode($validated['payment_amounts']) : ''),
         ]);
 
         return redirect()

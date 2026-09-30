@@ -68,16 +68,34 @@
             @endhasanyrole
 
             @hasanyrole('admin|Orden de compra|Pagos')
-                @can('read')
+                @if(auth()->user()->hasRole('admin') || auth()->user()->can('read'))
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('suppliers.index') }}">
+                        <a class="nav-link menu-arrow {{ request()->routeIs('suppliers.*') ? 'active' : '' }}"
+                           href="#sidebarSuppliers" data-bs-toggle="collapse" role="button"
+                           aria-expanded="{{ request()->routeIs('suppliers.*') ? 'true' : 'false' }}" aria-controls="sidebarSuppliers">
                             <span class="nav-icon">
                                 <i class="ri-shapes-line"></i>
                             </span>
                             <span class="nav-text">Proveedores</span>
                         </a>
+                        <div class="collapse {{ request()->routeIs('suppliers.*') ? 'show' : '' }}" id="sidebarSuppliers">
+                            <ul class="nav sub-navbar-nav">
+                                @can('read')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('suppliers.*') && !request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
+                                       href="{{ route('suppliers.index') }}">Listado</a>
+                                </li>
+                                @endcan
+                                @role('admin')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
+                                       href="{{ route('suppliers.account_statement.index') }}">Estado de Cuenta</a>
+                                </li>
+                                @endrole
+                            </ul>
+                        </div>
                     </li>
-                @endcan
+                @endif
             @endhasanyrole
 
             @hasanyrole('admin|Moviles')
