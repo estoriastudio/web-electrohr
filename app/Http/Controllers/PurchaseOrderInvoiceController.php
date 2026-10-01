@@ -6,7 +6,6 @@ use App\Exports\PurchaseOrderInvoiceExport;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Services\NotificationService;
-use App\Services\InvoicePaymentAllocationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +18,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseOrderInvoiceController extends Controller
 {
+    private const PURCHASE_ORDER_AMOUNT_TOLERANCE = 0.50;
+
     public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
@@ -63,6 +64,8 @@ class PurchaseOrderInvoiceController extends Controller
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
                 'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
+                'purchaseOrder.invoices:id,purchase_order_id,folio,amount,status',
+                'purchaseOrder.invoices.milestones:id',
                 'milestones:id,concept,payment_condition',
             ])
             ->when($search !== '', function ($q) use ($search) {
@@ -129,11 +132,25 @@ class PurchaseOrderInvoiceController extends Controller
             'milestones:id,concept,payment_condition',
         ]);
 
-        $paymentAmounts = \Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations')
-            ? $invoice->paymentAllocations()->pluck('amount', 'payment_id')->all()
-            : [];
+        $milestoneInvoices = [];
+        if ($invoice->purchaseOrder) {
+            $invoice->purchaseOrder->invoices()
+                ->with('milestones:id')
+                ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+                ->whereKeyNot($invoice->id)
+                ->get(['id', 'folio', 'amount'])
+                ->each(function ($other) use (&$milestoneInvoices) {
+                    foreach ($other->milestones as $milestone) {
+                        $milestoneInvoices[$milestone->id][] = [
+                            'id' => $other->id,
+                            'folio' => $other->folio ?: ('FACT-' . $other->id),
+                            'amount' => (float) $other->amount,
+                        ];
+                    }
+                });
+        }
 
-        return view('invoices.show', compact('invoice', 'paymentAmounts'));
+        return view('invoices.show', compact('invoice', 'milestoneInvoices'));
     }
 
     public function export(Request $request)
@@ -172,15 +189,22 @@ class PurchaseOrderInvoiceController extends Controller
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
             'folio'             => 'nullable|string|max:100',
-            'amount'            => ['required', 'numeric', 'min:0.01', 'max:' . $purchaseOrder->amount],
+            'amount'            => ['required', 'numeric', 'min:0.01'],
             'currency'          => 'required|in:MXN,USD,EUR',
             'milestone_ids'     => 'nullable|array',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
             'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
-            'xml_file'          => 'nullable|file|mimes:xml,text/xml|max:10240',
-        ], [
-            'amount.max' => 'El importe no puede exceder el total de la orden de compra (' . number_format($purchaseOrder->amount, 2) . ' ' . $purchaseOrder->currency . ').',
+            'xml_file'          => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
+
+        $validated['amount'] = PurchaseOrder::normalizeTotalAmount((float) $validated['amount']);
+        $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $this->resolveInvoicedAmount($purchaseOrder));
+
+        if ($validated['amount'] > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
+            return redirect()->back()->withInput()->withErrors([
+                'amount' => 'El importe no puede exceder el saldo pendiente de la orden de compra (' . number_format($pendingAmount, 2) . ' ' . $purchaseOrder->currency . ').',
+            ]);
+        }
 
         $xmlFiscalFolio = null;
         $xmlIssueDate = null;
@@ -327,11 +351,6 @@ class PurchaseOrderInvoiceController extends Controller
         $purchaseOrderId = $invoice->purchase_order_id;
         $fileName        = $invoice->file_name;
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations') && $invoice->paymentAllocations()->exists()) {
-            return redirect()->route('purchase_orders.show', $purchaseOrderId)
-                ->withErrors(['invoice' => 'La factura tiene importes vinculados a pagos. Corrige su asignacion en Compras antes de eliminarla.']);
-        }
-
         if ($invoice->file_path && Storage::exists($invoice->file_path)) {
             Storage::delete($invoice->file_path);
         }
@@ -361,8 +380,6 @@ class PurchaseOrderInvoiceController extends Controller
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
             'milestone_ids' => 'nullable|array',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
-            'payment_amounts' => 'nullable|array',
-            'payment_amounts.*' => 'nullable|numeric|min:0|decimal:0,2',
         ]);
 
         if ($validated['status'] === PurchaseOrderInvoice::STATUS_ACEPTADA) {
@@ -396,13 +413,8 @@ class PurchaseOrderInvoiceController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($invoice, $validIds, $validated) {
+            DB::transaction(function () use ($invoice, $validIds) {
                 PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id);
-                if (\Illuminate\Support\Facades\Schema::hasTable('invoice_payment_allocations')) {
-                    app(InvoicePaymentAllocationService::class)->validateAndReplace(
-                        $invoice, $validIds->all(), $validated['payment_amounts'] ?? null, Auth::id(),
-                    );
-                }
                 $invoice->milestones()->sync($validIds->all());
                 $invoice->update(['status' => PurchaseOrderInvoice::STATUS_ACEPTADA]);
             });
@@ -423,13 +435,39 @@ class PurchaseOrderInvoiceController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $invoice->id,
-            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.'
-                . (array_key_exists('payment_amounts', $validated) ? ' Asignacion por pago: ' . json_encode($validated['payment_amounts']) : ''),
+            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.',
         ]);
 
         return redirect()
             ->back()
             ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.');
+    }
+
+    private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder): float
+    {
+        return round((float) $purchaseOrder->invoices()
+            ->whereIn('status', [
+                PurchaseOrderInvoice::STATUS_EN_PROCESO,
+                PurchaseOrderInvoice::STATUS_ACEPTADA,
+            ])
+            ->selectRaw('COALESCE(SUM(COALESCE(net_scope, amount)), 0) as total')
+            ->value('total'), 2);
+    }
+
+    private function resolvePendingAmount(PurchaseOrder $purchaseOrder, float $invoicedAmount): float
+    {
+        return max(0, round((float) $purchaseOrder->total_with_iva - $invoicedAmount, 2));
+    }
+
+    // `mimes` falla con CFDI sin declaración <?xml (se detectan como text/plain), por eso se valida la extensión.
+    private function xmlExtensionRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) {
+            if ($value instanceof \Illuminate\Http\UploadedFile
+                && strtolower($value->getClientOriginalExtension()) !== 'xml') {
+                $fail('El archivo debe ser de tipo XML.');
+            }
+        };
     }
 
     private function extractInvoiceMetadataFromXml(string $xmlPath): array

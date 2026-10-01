@@ -41,6 +41,7 @@ class SupplierAccountStatementTest extends TestCase
         foreach (['por_autorizar', 'pospuesto', 'autorizado', 'pagado'] as $status) {
             $order = $this->order([['id' => 1, 'amount' => 600000]], [
                 ['id' => 1, 'amount' => 400000, 'status' => $status, 'spei_receipt_path' => 'receipt.pdf'],
+                ['id' => 2, 'amount' => 200000, 'status' => 'por_autorizar'],
             ]);
             $result = $service->calculateOrder($order);
             $paid = $status === 'pagado' ? 40000000 : 0;
@@ -69,7 +70,19 @@ class SupplierAccountStatementTest extends TestCase
         $this->assertSame('pagado', $order->milestones[0]->payments[0]->status);
     }
 
-    public function test_multiple_invoices_are_not_assumed_paid_without_explicit_amounts(): void
+    public function test_several_invoices_matching_the_milestone_payment_are_all_paid(): void
+    {
+        $service = new SupplierAccountStatementService();
+        $order = $this->order([['id' => 1, 'amount' => 300], ['id' => 2, 'amount' => 300]], [
+            ['id' => 1, 'amount' => 600, 'status' => 'pagado'],
+        ]);
+        $result = $service->calculateOrder($order);
+        $this->assertSame(['pagado', 'pagado'], $result['rows']->pluck('status')->all());
+        $this->assertSame(0, $result['economic']['pending_invoices']);
+        $this->assertSame(60000, $result['rows']->sum('paid'));
+    }
+
+    public function test_invoices_exceeding_the_milestone_payments_need_review(): void
     {
         $service = new SupplierAccountStatementService();
         $order = $this->order([['id' => 1, 'amount' => 300], ['id' => 2, 'amount' => 300]], [
@@ -77,17 +90,29 @@ class SupplierAccountStatementTest extends TestCase
         ]);
         $result = $service->calculateOrder($order);
         $this->assertNull($result['economic']['pending_invoices']);
+        $this->assertSame(['conciliacion', 'conciliacion', 'conciliacion'], $result['rows']->pluck('status')->all());
         $this->assertSame(40000, $result['rows']->sum('paid'));
-        $this->assertNull($result['rows'][0]['balance']);
+        $this->assertStringContainsString('suman', $result['rows'][0]['review_reasons'][0]['message']);
+    }
 
-        $resolved = $service->calculateOrder($order, [
-            ['payment_id' => 1, 'purchase_order_invoice_id' => 1, 'amount' => 300],
-            ['payment_id' => 1, 'purchase_order_invoice_id' => 2, 'amount' => 100],
+    public function test_partial_payment_over_several_invoices_covers_the_earliest_first(): void
+    {
+        $service = new SupplierAccountStatementService();
+        $order = $this->order([['id' => 1, 'amount' => 300], ['id' => 2, 'amount' => 300]], [
+            ['id' => 1, 'amount' => 400, 'status' => 'pagado'],
+            ['id' => 2, 'amount' => 200, 'status' => 'por_autorizar'],
         ]);
-        $this->assertSame(20000, $resolved['economic']['pending_invoices']);
-        $this->assertSame('pagado', $resolved['rows'][0]['status']);
-        $this->assertSame(20000, $resolved['rows'][1]['balance']);
-        $this->assertSame(40000, $resolved['rows']->sum('paid'));
+        $result = $service->calculateOrder($order);
+        $this->assertSame('pagado', $result['rows'][0]['status']);
+        $this->assertSame(10000 * 2, $result['rows'][1]['balance']);
+        $this->assertSame(40000, $result['rows']->sum('paid'));
+    }
+
+    public function test_invoices_tolerate_a_difference_of_fifty_cents(): void
+    {
+        $service = new SupplierAccountStatementService();
+        $order = $this->order([['id' => 1, 'amount' => 100.40]], [['id' => 1, 'amount' => 100, 'status' => 'por_autorizar']]);
+        $this->assertSame('pendiente', $service->calculateOrder($order)['rows'][0]['status']);
     }
 
     public function test_due_today_is_pending_and_credit_notes_reduce_the_net_balance(): void
@@ -103,30 +128,16 @@ class SupplierAccountStatementTest extends TestCase
         $this->travelBack();
     }
 
-    public function test_explicit_partial_application_is_not_silently_increased(): void
-    {
-        $service = new SupplierAccountStatementService();
-        $order = $this->order([['id' => 1, 'amount' => 600]], [['id' => 1, 'amount' => 400, 'status' => 'pagado']]);
-        $result = $service->calculateOrder($order, [
-            ['payment_id' => 1, 'purchase_order_invoice_id' => 1, 'amount' => 200],
-        ]);
-        $this->assertSame(40000, $result['rows'][0]['balance']);
-        $this->assertSame(20000, $result['rows'][1]['unregularized']);
-        $this->assertSame(40000, $result['rows']->sum('paid'));
-    }
-
-    public function test_rejected_invoice_application_does_not_move_to_another_invoice(): void
+    public function test_rejected_invoices_do_not_count_against_the_milestone_payments(): void
     {
         $service = new SupplierAccountStatementService();
         $order = $this->order([['id' => 1, 'amount' => 600], ['id' => 2, 'amount' => 100, 'status' => 'rechazada']], [
             ['id' => 1, 'amount' => 400, 'status' => 'pagado'],
+            ['id' => 2, 'amount' => 200, 'status' => 'por_autorizar'],
         ]);
-        $result = $service->calculateOrder($order, [
-            ['payment_id' => 1, 'purchase_order_invoice_id' => 1, 'amount' => 300],
-            ['payment_id' => 1, 'purchase_order_invoice_id' => 2, 'amount' => 100],
-        ]);
-        $this->assertSame(30000, $result['rows'][0]['balance']);
-        $this->assertSame(10000, $result['rows'][1]['unregularized']);
+        $result = $service->calculateOrder($order);
+        $this->assertCount(1, $result['rows']);
+        $this->assertSame(20000, $result['rows'][0]['balance']);
         $this->assertSame(40000, $result['rows']->sum('paid'));
     }
 
@@ -155,11 +166,24 @@ class SupplierAccountStatementTest extends TestCase
         $this->assertSame(10000, $summary['MXN']['paid']);
     }
 
+    public function test_review_rows_explain_why_they_need_review(): void
+    {
+        $service = new SupplierAccountStatementService();
+        $order = $this->order([['id' => 1, 'amount' => 100], ['id' => 2, 'amount' => 100]], [
+            ['id' => 1, 'amount' => 150, 'status' => 'pagado'],
+        ]);
+        $rows = $service->calculateOrder($order)['rows'];
+        $this->assertSame('conciliacion', $rows[0]['status']);
+        $this->assertStringContainsString('suman', $rows[0]['review_reasons'][0]['message']);
+        $this->assertNotEmpty($rows[0]['review_reasons'][0]['action']);
+    }
+
     public function test_order_examples_distinguish_pending_contract_from_unpaid_invoices(): void
     {
         $service = new SupplierAccountStatementService();
         $order = $this->order([['id' => 1, 'amount' => 600000]], [
             ['id' => 1, 'amount' => 400000, 'status' => 'pagado'],
+            ['id' => 3, 'amount' => 200000, 'status' => 'por_autorizar'],
         ]);
         $exampleA = $service->calculateOrder($order)['economic'];
         $this->assertSame(40000000, $exampleA['pending_invoice']);
@@ -186,6 +210,6 @@ class SupplierAccountStatementTest extends TestCase
         $this->assertSame(55000000, $regularized['economic']['paid']);
         $this->assertSame(20000000, $regularized['economic']['pending_invoices']);
         $this->assertSame(0, $regularized['rows']->sum('unregularized'));
-        $this->assertSame(2, $order->milestones->sum(fn ($milestone) => $milestone->payments->count()));
+        $this->assertSame(3, $order->milestones->sum(fn ($milestone) => $milestone->payments->count()));
     }
 }

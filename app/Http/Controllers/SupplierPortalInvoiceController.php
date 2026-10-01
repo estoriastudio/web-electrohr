@@ -50,10 +50,10 @@ class SupplierPortalInvoiceController extends Controller
             'has_credit_note' => ['nullable', 'boolean'],
             'credit_note_amount' => ['nullable', 'numeric', 'min:0'],
             'pdf_file' => 'required|file|mimes:pdf|max:10240',
-            'xml_file' => 'required|file|mimes:xml,text/xml|max:10240',
+            'xml_file' => ['required', 'file', $this->xmlExtensionRule(), 'max:10240'],
             'evidence_file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
             'credit_note_pdf_file' => 'nullable|file|mimes:pdf|max:10240',
-            'credit_note_xml_file' => 'nullable|file|mimes:xml,text/xml|max:10240',
+            'credit_note_xml_file' => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ], [
             'folio.required' => 'El folio fiscal es obligatorio.',
             'xml_file.required' => 'El XML de la factura es obligatorio para validar el folio fiscal.',
@@ -229,7 +229,7 @@ class SupplierPortalInvoiceController extends Controller
         $validated = $request->validate([
             'credit_note_amount' => ['required', 'numeric', 'min:0.01'],
             'credit_note_pdf_file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
-            'credit_note_xml_file' => ['required', 'file', 'mimes:xml,text/xml', 'max:10240'],
+            'credit_note_xml_file' => ['required', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
 
         $creditNoteAmount = round((float) $validated['credit_note_amount'], 2);
@@ -279,6 +279,17 @@ class SupplierPortalInvoiceController extends Controller
 
         return redirect()->route('supplier_portal.purchase_orders.index')
             ->with('success', 'La nota de crédito se guardó y la factura quedó pendiente de validación.');
+    }
+
+    // `mimes` falla con CFDI sin declaración <?xml (se detectan como text/plain), por eso se valida la extensión.
+    private function xmlExtensionRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) {
+            if ($value instanceof \Illuminate\Http\UploadedFile
+                && strtolower($value->getClientOriginalExtension()) !== 'xml') {
+                $fail('El archivo debe ser de tipo XML.');
+            }
+        };
     }
 
     private function extractInvoiceMetadataFromXml(string $xmlPath): array

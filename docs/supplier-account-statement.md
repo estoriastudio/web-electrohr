@@ -11,22 +11,22 @@ Proveedor carga factura por portal; Compras acepta/rechaza y vincula al hito; Pa
 - Facturas aceptadas de OCs no eliminadas, incluidas las archivadas. Una factura por renglon.
 - Solo `payments.status = pagado` cuenta como desembolso. `por_autorizar`, `pospuesto` y `autorizado` no reducen saldo. El SPEI es evidencia consultable, no el criterio del calculo.
 - Facturacion liquida: `net_scope`; para legado sin ese dato, `amount - credit_note_amount`. Total fiscal y nota de credito permanecen identificables en detalle y Excel.
-- Saldo de factura: liquido menos importes efectivamente aplicados desde pagos realizados del hito vinculado por Compras.
-- Aplicaciones explicitas de `invoice_payment_allocations` prevalecen y no se aumentan ni se trasladan al consultar. Importes asignados a pagos no realizados no cuentan como cobertura.
-- Sin aplicacion explicita, solo una factura aceptada compatible en el hito permite inferir cobertura, limitada a su saldo. Cada pago se cuenta una sola vez. Con varias facturas no se prorratea ni se asigna por orden.
-- Pago sin factura aceptada/aplicada: renglon temporal con importe pagado no regularizado, sin importe ni saldo de factura. Remanente de aplicacion parcial se conserva, no se duplica.
+- Saldo de factura: liquido menos los pagos realizados de los hitos vinculados por Compras. No hay captura manual de importes por pago.
+- Varias facturas aceptadas pueden ligarse al mismo hito. Las facturas que comparten hitos se evaluan en conjunto: la suma de sus importes (`amount`) se coteja contra la suma de los pagos del hito que no estan `rechazado`, con tolerancia de 0.50. Si las facturas la exceden, todas quedan `Por revisar`. Si no hay pagos en el hito, no se coteja.
+- Los pagos realizados se aplican a las facturas del conjunto en orden de vencimiento (sin vencimiento al final) y luego por ID, cada pago una sola vez y limitado al liquido de cada factura.
+- Pago realizado que excede lo facturado: renglon `Pagado sin factura` con el remanente (falta facturar), sin importe ni saldo de factura.
 - Pendiente: saldo positivo y vencimiento no superado o ausente. Vencido: saldo positivo y fecha anterior a hoy. Pagado: saldo cero. La fecha actual usa zona horaria de Laravel.
 - Montos en centavos durante el calculo; totales separados por moneda, sin conversion ni suma de MXN/USD/EUR.
 
 ## Calidad del dato
 
-`Por conciliar` es una advertencia adicional de integridad, no un estatus operativo del pago. Se utiliza cuando varias facturas comparten un pago sin asignacion monetaria, existe una aplicacion invalida o hay discrepancia de monedas. No implica que la factura falte.
+`Por conciliar` es una advertencia adicional de integridad, no un estatus operativo del pago. Se utiliza cuando las facturas de un hito exceden el importe de sus pagos, hay discrepancia de monedas o la nota de credito supera a la factura. No implica que la factura falte. Cada renglon indica el motivo y la accion para corregirlo.
 
-Una factura ambigua muestra saldo no determinado, no una deuda ficticia. Los indicadores Pendiente confirmado y Vencido confirmado excluyen esos saldos y muestran advertencia; los pagos realizados siguen incluidos una sola vez. Completar el importe por pago en la validacion existente de Compras permite resolver la ambiguedad sin otro desembolso.
+Una factura en revision muestra saldo no determinado, no una deuda ficticia. Los indicadores Pendiente confirmado y Vencido confirmado excluyen esos saldos y muestran advertencia; los pagos realizados siguen incluidos una sola vez, como renglon de pago por revisar. El estatus no se guarda: se recalcula en cada consulta, asi que al corregir el importe o moneda de la factura, el hito ligado o los pagos del hito, la factura se reclasifica sola.
 
-Compras puede registrar importes por pago en su formulario existente de validacion. Se comprueba que el pago pertenezca a un hito seleccionado, a la OC/moneda correcta, que no se exceda importe del pago ni alcance liquido de la factura, y que el total global ya asignado a otras facturas respete el limite. Tambien admite asignacion previa a la transferencia, pero solo se vuelve efectiva cuando el pago queda `pagado`.
+En la validacion de Compras (detalle de factura y bandeja de Facturas) se muestra, para los hitos seleccionados, la suma de pagos, de otras facturas aceptadas, de esta factura y la diferencia.
 
-Rechazo o retorno a revision desactiva cobertura de esa factura sin borrar el pago ni redistribuir su importe. Reaceptacion valida limites. Facturas/pagos con asignaciones no se eliminan hasta corregir la asignacion en Compras; los documentos y `covered_amount` permanecen intactos al devolver ese error.
+Rechazo o retorno a revision excluye esa factura del cotejo y de la cobertura sin borrar el pago ni redistribuir su importe.
 
 `payment_date` historica puede representar fecha programada. El reporte muestra el valor registrado sin fabricar una fecha real de transferencia. Un pago historico `pagado` sin SPEI sigue computando por su estatus.
 
@@ -53,24 +53,15 @@ El folio abre un modal de solo lectura, sin panel lateral. Usa toda la OC selecc
 | Pendiente pagar sobre OC | Total OC menos pagado |
 | Facturado sin pagar | Suma de saldos determinados de facturas aceptadas |
 
-Incluye detalle por estatus/moneda. Si faltan asignaciones, Facturado sin pagar indica Por conciliar; si hay facturas con moneda discordante, no convierte ni suma su importe al total de la OC. Diferencias historicas negativas se muestran con advertencia, no se ocultan con truncamiento. No se agrega resumen al detalle existente de OC.
+Incluye detalle por estatus/moneda. Si hay facturas por revisar, Facturado sin pagar indica Por revisar; si hay facturas con moneda discordante, no convierte ni suma su importe al total de la OC. Diferencias historicas negativas se muestran con advertencia, no se ocultan con truncamiento. No se agrega resumen al detalle existente de OC.
 
-## Despliegue e historico
+## Despliegue
 
-Respaldar y ejecutar la migracion nueva antes de habilitar el reporte:
-
-```sh
-php artisan migrate --path=database/migrations/2026_09_30_210000_create_invoice_payment_allocations_table.php
-php artisan purchase-orders:backfill-invoice-payments --dry-run
-```
-
-La simulacion informa relaciones historicas inequivocas y OCs por conciliar sin guardar. Revisar los resultados con responsables; para conservar relaciones inequivocas:
+El reporte no requiere migraciones ni comandos de carga historica: se calcula en cada consulta con las facturas, hitos y pagos existentes. La migracion `2026_10_01_000000_drop_invoice_payment_allocations_table` elimina la tabla de asignaciones manuales por pago, que ya no se usa:
 
 ```sh
-php artisan purchase-orders:backfill-invoice-payments
+php artisan migrate
 ```
-
-El comando solo registra cobertura integra del pago contra una unica factura aceptada compatible y dentro del saldo disponible. Omite repartos ambiguos, relaciones ya explicitas y aplicaciones parciales inferidas. Es idempotente; nunca modifica importes, estados, hitos ni SPEI. El reporte puede inferir casos univocos sin este comando; persistirlos preserva el vinculo ante futuras facturas del mismo hito.
 
 ## Verificacion
 

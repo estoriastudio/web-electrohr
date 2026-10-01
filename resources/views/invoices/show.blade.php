@@ -148,29 +148,22 @@
 						</div>
 						<div class="border rounded p-3 bg-white mt-3" id="invoiceMilestoneSummary">
 							<div class="d-flex justify-content-between align-items-center gap-2">
-								<span class="text-muted fs-13">Total hitos seleccionados</span>
+								<span class="text-muted fs-13">Pagos de los hitos seleccionados</span>
 								<span class="fw-semibold" id="invoiceMilestoneSelectedTotal">—</span>
 							</div>
 							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
-								<span class="text-muted fs-13">Importe factura</span>
+								<span class="text-muted fs-13">Otras facturas aceptadas en esos hitos</span>
+								<span class="fw-semibold" id="invoiceMilestoneOtherTotal">—</span>
+							</div>
+							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+								<span class="text-muted fs-13">Importe de esta factura</span>
 								<span class="fw-semibold" id="invoiceMilestoneInvoiceAmount">{{ $invoice->currency }} {{ number_format((float) $invoice->amount, 2) }}</span>
 							</div>
 							<div class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
-								<span class="text-muted fs-13">Diferencia</span>
+								<span class="text-muted fs-13">Diferencia (facturado - pagos)</span>
 								<span class="fw-semibold" id="invoiceMilestoneDifference">—</span>
 							</div>
 							<div class="fs-12 mt-2" id="invoiceMilestoneMatchStatus"></div>
-						</div>
-						<div class="mt-3">
-							<label class="form-label fw-medium">Importe de esta factura por pago</label>
-							@foreach(($po?->milestones ?? collect()) as $milestone)
-								@foreach($milestone->payments as $payment)
-									<div class="mb-2">
-										<label class="form-label fs-12" for="invoice_payment_{{ $payment->id }}">Hito #{{ $milestone->id }} / Pago #{{ $payment->id }} ({{ $payment->status }}) / {{ $invoice->currency }} {{ number_format((float) $payment->amount, 2) }}</label>
-										<input type="number" min="0" step="0.01" max="{{ $payment->amount }}" class="form-control form-control-sm" id="invoice_payment_{{ $payment->id }}" name="payment_amounts[{{ $payment->id }}]" value="{{ old('payment_amounts.' . $payment->id, $paymentAmounts[$payment->id] ?? '') }}" placeholder="Sin asignacion explicita">
-									</div>
-								@endforeach
-							@endforeach
 						</div>
 					</div>
 
@@ -215,6 +208,25 @@
 				@endif
 			</div>
 		</div>
+
+		@if (auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']))
+		<div class="card mt-3 border-danger-subtle">
+			<div class="card-header border-bottom">
+				<h6 class="mb-0 text-danger">Eliminar factura</h6>
+			</div>
+			<div class="card-body">
+				<p class="text-muted fs-13">Se eliminan la factura y sus archivos. Esta acción no se puede deshacer.</p>
+				<form action="{{ route('invoices.destroy', $invoice) }}" method="POST"
+					onsubmit="return confirm('¿Eliminar la factura {{ $invoice->folio ?: ($invoice->file_name ?: '#' . $invoice->id) }}? Esta acción no se puede deshacer.')">
+					@csrf
+					@method('DELETE')
+					<button type="submit" class="btn btn-outline-danger btn-sm w-100">
+						<i class="ri-delete-bin-line me-1"></i> Eliminar factura
+					</button>
+				</form>
+			</div>
+		</div>
+		@endif
 	</div>
 </div>
 @endsection
@@ -227,10 +239,13 @@ document.addEventListener('DOMContentLoaded', function () {
 	const milestonesBlock = document.getElementById('invoiceMilestonesBlock');
 	const milestoneChecks = form ? form.querySelectorAll('input[name="milestone_ids[]"]') : [];
 	const milestoneSelectedTotalEl = document.getElementById('invoiceMilestoneSelectedTotal');
+	const milestoneOtherTotalEl = document.getElementById('invoiceMilestoneOtherTotal');
 	const milestoneDifferenceEl = document.getElementById('invoiceMilestoneDifference');
 	const milestoneMatchStatusEl = document.getElementById('invoiceMilestoneMatchStatus');
 	const invoiceAmount = {{ number_format((float) $invoice->amount, 2, '.', '') }};
 	const invoiceCurrency = @json($invoice->currency);
+	const milestoneInvoices = @json($milestoneInvoices);
+	const amountTolerance = 0.5;
 
 	function syncMilestonesBlock() {
 		if (!statusSelect || !milestonesBlock) return;
@@ -256,20 +271,30 @@ document.addEventListener('DOMContentLoaded', function () {
 	function syncMilestoneSummary() {
 		if (!form || !milestoneSelectedTotalEl || !milestoneDifferenceEl || !milestoneMatchStatusEl) return;
 
-		const selectedTotal = Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked'))
-			.reduce(function (total, checkbox) {
-				return total + (Number(checkbox.dataset.amount) || 0);
-			}, 0);
-		const difference = selectedTotal - invoiceAmount;
-		const matchesInvoice = Math.abs(difference) < 0.01;
+		const selectedChecks = Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked'));
+		const selectedTotal = selectedChecks.reduce(function (total, checkbox) {
+			return total + (Number(checkbox.dataset.amount) || 0);
+		}, 0);
+		const otherInvoices = {};
+		selectedChecks.forEach(function (checkbox) {
+			(milestoneInvoices[checkbox.value] || []).forEach(function (other) {
+				otherInvoices[other.id] = other.amount;
+			});
+		});
+		const otherTotal = Object.values(otherInvoices).reduce(function (total, amount) { return total + amount; }, 0);
+		const difference = otherTotal + invoiceAmount - selectedTotal;
+		const matchesInvoice = Math.abs(difference) <= amountTolerance;
 
 		milestoneSelectedTotalEl.textContent = formatMilestoneAmount(selectedTotal);
+		if (milestoneOtherTotalEl) milestoneOtherTotalEl.textContent = formatMilestoneAmount(otherTotal);
 		milestoneDifferenceEl.textContent = `${difference > 0 ? '+' : difference < 0 ? '-' : ''}${formatMilestoneAmount(Math.abs(difference))}`;
 		milestoneDifferenceEl.classList.toggle('text-success', matchesInvoice);
 		milestoneDifferenceEl.classList.toggle('text-warning', !matchesInvoice);
 		milestoneMatchStatusEl.textContent = matchesInvoice
-			? 'El importe de los hitos coincide con la factura.'
-			: 'El importe de los hitos no coincide con la factura.';
+			? 'Las facturas del hito coinciden con el importe de sus pagos.'
+			: (difference > 0
+				? 'Las facturas exceden el importe de los pagos del hito; el estado de cuenta lo marcara Por revisar.'
+				: 'Aun falta facturar parte del importe de los pagos del hito.');
 		milestoneMatchStatusEl.className = `fs-12 mt-2 ${matchesInvoice ? 'text-success' : 'text-warning'}`;
 	}
 

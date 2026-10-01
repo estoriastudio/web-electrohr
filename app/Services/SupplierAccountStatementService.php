@@ -11,6 +11,8 @@ use Illuminate\Support\Collection;
 
 class SupplierAccountStatementService
 {
+    private const TOLERANCE_CENTS = 50;
+
     public const STATUSES = [
         'pendiente' => 'Pendiente',
         'pagado' => 'Pagado',
@@ -27,16 +29,14 @@ class SupplierAccountStatementService
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['buyer_id'] ?? null, fn ($query, $value) => $query->where('buyer_id', $value))
             ->with([
-                'supplier', 'projectRelation', 'buyer', 'milestones.payments',
-                'invoices.milestones', 'invoices.paymentAllocations',
+                'supplier', 'projectRelation', 'buyer', 'milestones.payments', 'invoices.milestones',
             ]);
     }
 
     public function rows(array $filters = []): Generator
     {
         foreach ($this->orderQuery($filters)->lazyById(100) as $order) {
-            $applications = $order->invoices->flatMap(fn ($invoice) => $invoice->paymentAllocations)->toArray();
-            foreach ($this->calculateOrder($order, $applications)['rows'] as $row) {
+            foreach ($this->calculateOrder($order)['rows'] as $row) {
                 if (!empty($filters['currency']) && $row['currency'] !== $filters['currency']) {
                     continue;
                 }
@@ -72,94 +72,82 @@ class SupplierAccountStatementService
 
     public function purchaseOrderSummary(PurchaseOrder $order): array
     {
-        $order->loadMissing(['supplier', 'projectRelation', 'buyer', 'milestones.payments', 'invoices.milestones', 'invoices.paymentAllocations']);
-        $result = $this->calculateOrder($order, $order->invoices->flatMap(fn ($invoice) => $invoice->paymentAllocations)->toArray());
+        $order->loadMissing(['supplier', 'projectRelation', 'buyer', 'milestones.payments', 'invoices.milestones']);
+        $result = $this->calculateOrder($order);
         return array_merge($result, ['summary' => $this->summarize($result['rows'])]);
     }
 
-    public function calculateOrder(PurchaseOrder $order, array $applications = []): array
+    public function calculateOrder(PurchaseOrder $order): array
     {
         $invoices = $order->invoices
             ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
             ->keyBy('id');
-        $payments = $order->milestones->flatMap(fn ($milestone) => $milestone->payments)
-            ->where('status', 'pagado')->keyBy('id')->sortKeys();
+        $allPayments = $order->milestones->flatMap(fn ($milestone) => $milestone->payments);
+        $payments = $allPayments->where('status', 'pagado')->keyBy('id')->sortKeys();
+        $scheduled = [];
+        foreach ($allPayments->where('status', '!=', 'rechazado') as $payment) {
+            $scheduled[$payment->milestone_id] = ($scheduled[$payment->milestone_id] ?? 0) + $this->cents($payment->amount);
+        }
+        $positions = $order->milestones->sortBy('id')->values()->pluck('id')->flip()->map(fn ($index) => $index + 1);
         $capacities = $invoices->mapWithKeys(fn ($invoice) => [$invoice->id => $this->cents(
             $invoice->net_scope ?? ((float) $invoice->amount - (float) ($invoice->credit_note_amount ?? 0))
         )])->all();
         $applied = array_fill_keys($invoices->keys()->all(), 0);
+        $appliedPayments = [];
         $used = array_fill_keys($payments->keys()->all(), 0);
-        $uncertain = [];
-        $candidates = [];
-        $explicitPayments = [];
-        $uncertainPayments = [];
-        $effectiveApplications = [];
+        $flaggedInvoices = [];
+        $flaggedPayments = [];
+        $invoiceReasons = [];
+        $paymentReasons = [];
+        $invoiceRef = fn ($id) => $invoices[$id]->folio ?: ('FACT-' . $id);
+        $usable = $invoices->filter(fn ($invoice) => $capacities[$invoice->id] >= 0
+            && ($invoice->currency ?: $order->currency) === $order->currency);
 
         foreach ($payments as $payment) {
-            $candidates[$payment->id] = $invoices->filter(fn ($invoice) =>
-                $invoice->milestones->contains('id', $payment->milestone_id)
-                && ($invoice->currency ?: $order->currency) === $order->currency
-            )->keys()->all();
-            if (!$candidates[$payment->id] && $invoices->contains(fn ($invoice) => $invoice->milestones->contains('id', $payment->milestone_id))) {
-                $uncertainPayments[$payment->id] = true;
+            $linked = $invoices->filter(fn ($invoice) => $invoice->milestones->contains('id', $payment->milestone_id));
+            if ($linked->isNotEmpty() && $linked->intersectByKeys($usable)->isEmpty()) {
+                $flaggedPayments[$payment->id] = true;
+                $paymentReasons[$payment->id][] = $this->reason('payment_unusable_invoices', ['payment' => '#' . $payment->id]);
             }
         }
 
-        $invoiceTotals = [];
-        $paymentTotals = [];
-        foreach ($applications as $application) {
-            $invoiceId = (int) $application['purchase_order_invoice_id'];
-            $paymentId = (int) $application['payment_id'];
-            $explicitPayments[$paymentId] = true;
-            if (!$invoices->has($invoiceId) || !$payments->has($paymentId)) {
-                continue;
-            }
-            $amount = $this->cents($application['amount']);
-            $invoiceTotals[$invoiceId] = ($invoiceTotals[$invoiceId] ?? 0) + $amount;
-            $paymentTotals[$paymentId] = ($paymentTotals[$paymentId] ?? 0) + $amount;
-        }
+        // Facturas que comparten hitos se evaluan en conjunto: sus importes deben cotejar con los pagos del hito.
+        foreach ($this->components($usable) as $group) {
+            $groupInvoices = collect($group['invoices'])->map(fn ($id) => $invoices[$id])
+                ->sortBy(fn ($invoice) => [$invoice->due_date?->toDateString() ?? '9999-12-31', $invoice->id])->values();
+            $groupPayments = $payments->filter(fn ($payment) => in_array($payment->milestone_id, $group['milestones'], true));
+            $scheduledTotal = array_sum(array_map(fn ($id) => $scheduled[$id] ?? 0, $group['milestones']));
+            $invoicedTotal = $groupInvoices->sum(fn ($invoice) => $this->cents($invoice->amount));
 
-        foreach ($applications as $application) {
-            $invoiceId = (int) $application['purchase_order_invoice_id'];
-            $paymentId = (int) $application['payment_id'];
-            if (!$invoices->has($invoiceId) || !$payments->has($paymentId)) {
-                continue;
-            }
-            $amount = $this->cents($application['amount']);
-            if ($amount <= 0 || !in_array($invoiceId, $candidates[$paymentId], true)
-                || $invoiceTotals[$invoiceId] > $capacities[$invoiceId]
-                || $paymentTotals[$paymentId] > $this->cents($payments[$paymentId]->amount)) {
-                $uncertain[$invoiceId] = true;
-                $uncertainPayments[$paymentId] = true;
-                continue;
-            }
-            $applied[$invoiceId] += $amount;
-            $used[$paymentId] += $amount;
-            $effectiveApplications[] = ['payment_id' => $paymentId, 'purchase_order_invoice_id' => $invoiceId, 'amount' => $amount / 100];
-        }
-
-        foreach ($payments as $payment) {
-            $remaining = $this->cents($payment->amount) - $used[$payment->id];
-            if ($remaining <= 0) {
-                continue;
-            }
-            if (isset($explicitPayments[$payment->id])) {
-                continue;
-            }
-            if (count($candidates[$payment->id]) > 1) {
-                $uncertainPayments[$payment->id] = true;
-                foreach ($candidates[$payment->id] as $invoiceId) {
-                    $uncertain[$invoiceId] = true;
+            if ($scheduledTotal > 0 && $invoicedTotal > $scheduledTotal + self::TOLERANCE_CENTS) {
+                $reason = $this->reason('invoices_exceed_payments', [
+                    'milestones' => implode(', ', array_map(fn ($id) => 'Hito #' . ($positions[$id] ?? $id), $group['milestones'])),
+                    'invoices' => $groupInvoices->map(fn ($invoice) => $invoiceRef($invoice->id))->implode(', '),
+                    'invoiced' => $this->money($invoicedTotal, $order->currency),
+                    'scheduled' => $this->money($scheduledTotal, $order->currency),
+                ]);
+                foreach ($groupInvoices as $invoice) {
+                    $flaggedInvoices[$invoice->id] = true;
+                    $invoiceReasons[$invoice->id][] = $reason;
                 }
-            } elseif (count($candidates[$payment->id]) === 1) {
-                $invoiceId = $candidates[$payment->id][0];
-                if (!isset($uncertain[$invoiceId])) {
-                    $amount = min($remaining, max(0, $capacities[$invoiceId] - $applied[$invoiceId]));
-                    $applied[$invoiceId] += $amount;
-                    $used[$payment->id] += $amount;
-                    if ($amount > 0) {
-                        $effectiveApplications[] = ['payment_id' => $payment->id, 'purchase_order_invoice_id' => $invoiceId, 'amount' => $amount / 100];
+                foreach ($groupPayments as $payment) {
+                    $flaggedPayments[$payment->id] = true;
+                    $paymentReasons[$payment->id][] = $reason;
+                }
+                continue;
+            }
+
+            foreach ($groupPayments as $payment) {
+                $remaining = $this->cents($payment->amount);
+                foreach ($groupInvoices as $invoice) {
+                    $take = min($remaining, max(0, $capacities[$invoice->id] - $applied[$invoice->id]));
+                    if ($take <= 0) {
+                        continue;
                     }
+                    $applied[$invoice->id] += $take;
+                    $used[$payment->id] += $take;
+                    $remaining -= $take;
+                    $appliedPayments[$invoice->id][] = $payment->id;
                 }
             }
         }
@@ -167,14 +155,20 @@ class SupplierAccountStatementService
         $rows = collect();
         foreach ($invoices as $invoice) {
             $currency = $invoice->currency ?: $order->currency;
-            $needsReconciliation = isset($uncertain[$invoice->id]) || $capacities[$invoice->id] < 0
+            if ($capacities[$invoice->id] < 0) {
+                $invoiceReasons[$invoice->id][] = $this->reason('negative_net', ['invoice' => $invoiceRef($invoice->id)]);
+            }
+            if ($currency !== $order->currency) {
+                $invoiceReasons[$invoice->id][] = $this->reason('invoice_currency', ['invoice' => $invoiceRef($invoice->id), 'currency' => $currency, 'order' => $order->currency]);
+            }
+            $needsReconciliation = isset($flaggedInvoices[$invoice->id]) || $capacities[$invoice->id] < 0
                 || $currency !== $order->currency;
             $balance = $needsReconciliation ? null : $capacities[$invoice->id] - $applied[$invoice->id];
             $status = $needsReconciliation ? 'conciliacion' : ($balance === 0 ? 'pagado' : (
                 $invoice->due_date && $invoice->due_date->toDateString() < today()->toDateString()
                     ? 'vencido' : 'pendiente'
             ));
-                    $appliedPaymentIds = collect($effectiveApplications)->where('purchase_order_invoice_id', $invoice->id)->pluck('payment_id')->all();
+            $appliedPaymentIds = $appliedPayments[$invoice->id] ?? [];
             $rows->push(array_merge($this->orderFields($order), [
                 'key' => 'invoice-' . $invoice->id,
                 'type' => 'invoice',
@@ -193,6 +187,7 @@ class SupplierAccountStatementService
                 'unregularized' => 0,
                 'unreconciled' => 0,
                 'status' => $status,
+                'review_reasons' => $needsReconciliation ? $this->uniqueReasons($invoiceReasons[$invoice->id] ?? []) : [],
                 'receipt_payment_ids' => $payments->filter(fn ($payment) =>
                     in_array($payment->id, $appliedPaymentIds, true)
                     && $payment->spei_receipt_path
@@ -205,7 +200,7 @@ class SupplierAccountStatementService
             if ($remaining <= 0) {
                 continue;
             }
-            $hasInvoice = isset($uncertainPayments[$payment->id]);
+            $hasInvoice = isset($flaggedPayments[$payment->id]);
             $rows->push(array_merge($this->orderFields($order), [
                 'key' => 'payment-' . $payment->id,
                 'type' => 'payment',
@@ -224,13 +219,13 @@ class SupplierAccountStatementService
                 'unregularized' => $hasInvoice ? 0 : $remaining,
                 'unreconciled' => $hasInvoice ? $remaining : 0,
                 'status' => $hasInvoice ? 'conciliacion' : 'sin_factura',
+                'review_reasons' => $hasInvoice ? $this->uniqueReasons($paymentReasons[$payment->id] ?? []) : [],
                 'receipt_payment_ids' => $payment->spei_receipt_path ? [$payment->id] : [],
             ]));
         }
 
         return [
             'rows' => $rows,
-            'applications' => $effectiveApplications,
             'economic' => [
                 'total' => $this->cents($order->amount),
                 'invoiced' => $invoices->contains(fn ($invoice) => ($invoice->currency ?: $order->currency) !== $order->currency)
@@ -239,7 +234,7 @@ class SupplierAccountStatementService
                     ? null : $this->cents($order->amount) - array_sum($capacities),
                 'paid' => $payments->sum(fn ($payment) => $this->cents($payment->amount)),
                 'pending_order' => $this->cents($order->amount) - $payments->sum(fn ($payment) => $this->cents($payment->amount)),
-                'pending_invoices' => $uncertain || $rows->contains('status', 'conciliacion')
+                'pending_invoices' => $rows->contains('status', 'conciliacion')
                     ? null : $rows->where('type', 'invoice')->sum('balance'),
             ],
         ];
@@ -281,6 +276,56 @@ class SupplierAccountStatementService
             'pagado' => $row['invoiced'],
             default => $row['paid'],
         };
+    }
+
+    private function reason(string $code, array $p): array
+    {
+        return match ($code) {
+            'invoices_exceed_payments' => [
+                'message' => "Las facturas {$p['invoices']} ({$p['milestones']}) suman {$p['invoiced']}, mas que los pagos del hito ({$p['scheduled']}).",
+                'action' => 'Revisa los importes: corrige o rechaza la factura que no corresponda, o registra el pago faltante en el hito.',
+            ],
+            'payment_unusable_invoices' => [
+                'message' => "El pago {$p['payment']} pertenece a un hito cuyas facturas tienen moneda distinta a la de la OC o un importe invalido.",
+                'action' => 'Corrige la moneda o el importe de la factura ligada al hito.',
+            ],
+            'negative_net' => [
+                'message' => "La nota de credito de la factura {$p['invoice']} es mayor que su importe.",
+                'action' => 'Corrige el importe de la factura o de su nota de credito.',
+            ],
+            'invoice_currency' => [
+                'message' => "La factura {$p['invoice']} esta en {$p['currency']} y la OC en {$p['order']}; no se convierten monedas.",
+                'action' => 'Corrige la moneda de la factura o de la OC.',
+            ],
+        };
+    }
+
+    // Une facturas que comparten hitos para cotejar sus importes contra los pagos del conjunto.
+    private function components(Collection $invoices): array
+    {
+        $groups = [];
+        foreach ($invoices as $invoice) {
+            $merged = ['invoices' => [$invoice->id], 'milestones' => $invoice->milestones->pluck('id')->all()];
+            foreach ($groups as $key => $group) {
+                if (array_intersect($group['milestones'], $merged['milestones'])) {
+                    $merged['invoices'] = array_merge($merged['invoices'], $group['invoices']);
+                    $merged['milestones'] = array_values(array_unique(array_merge($merged['milestones'], $group['milestones'])));
+                    unset($groups[$key]);
+                }
+            }
+            $groups[] = $merged;
+        }
+        return array_values($groups);
+    }
+
+    private function money(int $cents, string $currency): string
+    {
+        return $currency . ' $' . number_format($cents / 100, 2);
+    }
+
+    private function uniqueReasons(array $reasons): array
+    {
+        return array_values(array_unique($reasons, SORT_REGULAR));
     }
 
     private function cents($amount): int

@@ -75,9 +75,4 @@ class PurchaseOrderInvoice extends Model
     {
         return $this->hasMany(PurchaseOrderEvidence::class, 'purchase_order_invoice_id');
     }
-
-    public function paymentAllocations(): HasMany
-    {
-        return $this->hasMany(InvoicePaymentAllocation::class, 'purchase_order_invoice_id');
-    }
 }
