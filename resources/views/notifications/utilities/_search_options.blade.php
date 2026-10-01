@@ -1,12 +1,25 @@
-<div class="d-flex justify-content-end gap-2 mb-3">
-    @if ($hasFilters)
-        <a href="{{ route('notifications.index') }}" class="btn btn-sm btn-outline-secondary" title="Limpiar filtros">
-            <i class="ri-close-line"></i>
-        </a>
-    @endif
-    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#auditFiltersModal">
-        <i class="ri-filter-3-line me-1"></i> Filtrar
-    </button>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <form method="GET" action="{{ route('notifications.index') }}" class="flex-grow-1" style="max-width: 420px;">
+        @foreach (['type', 'action', 'user_id', 'start_date', 'end_date'] as $keep)
+            @if (request()->filled($keep))
+                <input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">
+            @endif
+        @endforeach
+        <div class="input-group input-group-sm">
+            <input type="search" name="search" value="{{ request('search') }}" maxlength="100" class="form-control" placeholder="Buscar en la descripción..." aria-label="Buscar en la descripción">
+            <button type="submit" class="btn btn-primary"><i class="ri-search-line"></i></button>
+        </div>
+    </form>
+    <div class="d-flex gap-2">
+        @if ($hasFilters)
+            <a href="{{ route('notifications.index') }}" class="btn btn-sm btn-outline-secondary" title="Limpiar filtros">
+                <i class="ri-close-line"></i>
+            </a>
+        @endif
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#auditFiltersModal">
+            <i class="ri-filter-3-line me-1"></i> Filtrar
+        </button>
+    </div>
 </div>
 
 <div class="modal fade" id="auditFiltersModal" tabindex="-1" aria-labelledby="auditFiltersModalLabel" aria-hidden="true">
@@ -19,21 +32,26 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
+                        <div class="col-12">
+                            <label for="auditSearch" class="form-label">Buscar en descripción</label>
+                            <input id="auditSearch" type="search" name="search" value="{{ request('search') }}" maxlength="100" class="form-control form-control-sm" placeholder="Término a buscar">
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Módulo</label>
                             <select name="type" class="form-select form-select-sm">
                                 <option value="">Todos</option>
-                                <option value="Supplier" @selected(request('type') === 'Supplier')>Proveedores</option>
-                                <option value="PurchaseOrder" @selected(request('type') === 'PurchaseOrder')>Órdenes de compra</option>
+                                @foreach ($moduleOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(request('type') === (string) $value)>{{ $label }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Acción</label>
                             <select name="action" class="form-select form-select-sm">
                                 <option value="">Todas</option>
-                                <option value="create" @selected(request('action') === 'create')>Creación</option>
-                                <option value="update" @selected(request('action') === 'update')>Actualización</option>
-                                <option value="delete" @selected(request('action') === 'delete')>Eliminación</option>
+                                @foreach ($actionOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(request('action') === (string) $value)>{{ $label }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="col-12">

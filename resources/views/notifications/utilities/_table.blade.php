@@ -15,11 +15,7 @@
                     {{-- Módulo --}}
                     <td>
                         @php
-                            $moduleLabels = [
-                                'Supplier'      => ['label' => 'Proveedor',         'color' => 'primary'],
-                                'PurchaseOrder' => ['label' => 'Orden de compra',   'color' => 'info'],
-                            ];
-                            $module = $moduleLabels[$log->type] ?? ['label' => $log->type, 'color' => 'secondary'];
+                            $module = \App\Models\Notification::MODULE_LABELS[$log->type] ?? ['label' => $log->type, 'color' => 'secondary'];
                         @endphp
                         <span class="badge bg-{{ $module['color'] }}-subtle text-{{ $module['color'] }} py-1 px-2 fs-12">
                             {{ $module['label'] }} #{{ $log->model_id }}
@@ -29,12 +25,7 @@
                     {{-- Acción --}}
                     <td>
                         @php
-                            $actionMap = [
-                                'create' => ['icon' => 'ri-add-circle-line',    'color' => 'success', 'label' => 'Creación'],
-                                'update' => ['icon' => 'ri-edit-line',          'color' => 'warning', 'label' => 'Actualización'],
-                                'delete' => ['icon' => 'ri-delete-bin-line',    'color' => 'danger',  'label' => 'Eliminación'],
-                            ];
-                            $action = $actionMap[$log->model_action] ?? ['icon' => 'ri-information-line', 'color' => 'secondary', 'label' => $log->model_action];
+                            $action = \App\Models\Notification::ACTION_LABELS[$log->model_action] ?? ['icon' => 'ri-information-line', 'color' => 'secondary', 'label' => $log->model_action];
                         @endphp
                         <span class="text-{{ $action['color'] }} fw-medium fs-13">
                             <i class="{{ $action['icon'] }} me-1"></i>{{ $action['label'] }}
