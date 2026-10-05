@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,7 +37,24 @@ class Concept extends Model
         'maximum_stock' => 'decimal:3',
         'requires_origin_certificate' => 'boolean',
         'requires_safety_certificate' => 'boolean',
+        'archived_at' => 'datetime',
     ];
+
+    public function scopeNotArchived(Builder $query): Builder
+    {
+        return $query->whereNull($query->getModel()->qualifyColumn('archived_at'));
+    }
+
+    // Conceptos que pueden usarse en SOLMAT, SOLCOM, OC y movimientos de inventario.
+    public function scopeAvailable(Builder $query): Builder
+    {
+        return $query->notArchived()->where($query->getModel()->qualifyColumn('status'), 'active');
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
 
     public function category(): BelongsTo
     {

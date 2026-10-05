@@ -36,6 +36,8 @@ class StockReturnCalendarTest extends TestCase
             $table->id();
             $table->string('code')->unique();
             $table->string('description');
+            $table->string('status')->default('active');
+            $table->timestamp('archived_at')->nullable();
         });
         Schema::create('workers', function (Blueprint $table) {
             $table->id();

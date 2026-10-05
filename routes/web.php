@@ -373,15 +373,17 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Conceptos (catálogo) — CRUD solo admin
         Route::middleware('role:admin|Solmat')->group(function () {
             Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
+            Route::get('/conceptos/archivados', [ConceptController::class, 'archived'])->name('concepts.archived');
+            Route::patch('/conceptos/{concept}/archivar', [ConceptController::class, 'archive'])->name('concepts.archive');
+            Route::patch('/conceptos/{concept}/desarchivar', [ConceptController::class, 'unarchive'])->name('concepts.unarchive');
             Route::resource('/conceptos', ConceptController::class, [
                 'names' => [
                     'index' => 'concepts.index',
                     'store' => 'concepts.store',
                     'update' => 'concepts.update',
-                    'destroy' => 'concepts.destroy',
                 ],
                 'parameters' => ['conceptos' => 'concept'],
-            ])->only(['index', 'store', 'update', 'destroy']);
+            ])->only(['index', 'store', 'update']);
 
             // Categorías de Conceptos
             Route::get('/categorias-conceptos', [ConceptCategoryController::class, 'index'])->name('concept_categories.index');
@@ -423,16 +425,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('tool_calibrations.destroy');
 
             // Tools
+            Route::get('/herramientas/archivadas', [ToolController::class, 'archived'])->name('tools.archived');
+            Route::patch('/herramientas/{tool}/archivar', [ToolController::class, 'archive'])->name('tools.archive');
+            Route::patch('/herramientas/{tool}/desarchivar', [ToolController::class, 'unarchive'])->name('tools.unarchive');
+            Route::delete('/herramientas/{tool}/eliminar-permanente', [ToolController::class, 'forceDestroy'])
+                ->middleware('role:admin')
+                ->name('tools.force_destroy');
+
             Route::resource('/herramientas', ToolController::class, [
                 'names' => [
                     'index' => 'tools.index',
                     'show' => 'tools.show',
                     'store' => 'tools.store',
                     'update' => 'tools.update',
-                    'destroy' => 'tools.destroy',
                 ],
                 'parameters' => ['herramientas' => 'tool'],
-            ])->only(['index', 'show', 'store', 'update', 'destroy']);
+            ])->only(['index', 'show', 'store', 'update']);
         });
 
         // Usuarios (gestión) y Roles

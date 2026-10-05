@@ -31,6 +31,7 @@ class ConceptController extends Controller
                 $q->where('code', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
             }))
+            ->notArchived()
             ->when($status,   fn ($q) => $q->where('status', $status))
             ->when($type,     fn ($q) => $q->where('type', $type))
             ->when($category, fn ($q) => $q->where('concept_category_id', $category))
@@ -174,18 +175,37 @@ class ConceptController extends Controller
         return view('concepts.awarded_prices', compact('items', 'search'));
     }
 
-    public function destroy(Request $request, Concept $concept): JsonResponse|RedirectResponse
+    public function archive(Concept $concept): RedirectResponse
     {
-        $concept->delete();
+        $concept->forceFill(['archived_at' => now()])->save();
 
-        if ($request->wantsJson()) {
-            return response()->json([
-                'message' => 'Concepto eliminado correctamente.',
-            ]);
-        }
+        return redirect()->route('concepts.index')
+            ->with('success', "Concepto {$concept->code} archivado correctamente.");
+    }
 
-        return redirect()->back()
-            ->with('success', 'Concepto eliminado correctamente.');
+    public function unarchive(Concept $concept): RedirectResponse
+    {
+        $concept->forceFill(['archived_at' => null])->save();
+
+        return redirect()->route('concepts.archived')
+            ->with('success', "Concepto {$concept->code} restaurado al catálogo activo.");
+    }
+
+    public function archived(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+
+        $concepts = Concept::with(['category', 'subcategory'])
+            ->whereNotNull('archived_at')
+            ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            }))
+            ->orderByDesc('archived_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('concepts.archive', compact('concepts', 'search'));
     }
 
     public function search(Request $request): JsonResponse
@@ -202,7 +222,7 @@ class ConceptController extends Controller
             ->values();
 
         $query = Concept::query()
-            ->where('status', 'active')
+            ->available()
             ->when($type,     fn ($q2) => $q2->where('type', $type))
             ->when($category, fn ($q2) => $q2->where('concept_category_id', $category))
             ->when($q !== '', function ($query) use ($q, $tokens) {

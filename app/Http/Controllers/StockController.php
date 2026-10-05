@@ -73,6 +73,7 @@ class StockController extends Controller
         $exitTotals = StockExitItem::select('concept_id')->selectRaw('SUM(quantity) AS quantity')->groupBy('concept_id');
 
         return Concept::query()
+            ->notArchived()
             ->leftJoinSub($entryTotals, 'stock_entries_totals', 'stock_entries_totals.concept_id', '=', 'concepts.id')
             ->leftJoinSub($exitTotals, 'stock_exits_totals', 'stock_exits_totals.concept_id', '=', 'concepts.id')
             ->select('concepts.*')
@@ -115,6 +116,8 @@ class StockController extends Controller
 
     public function adjust(Request $request, Concept $concept): RedirectResponse
     {
+        abort_if($concept->isArchived(), 403, 'El concepto está archivado.');
+
         $validated = $request->validate([
             'direction' => ['required', 'in:increase,decrease'],
             'quantity' => ['required', 'numeric', 'gt:0'],

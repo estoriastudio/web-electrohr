@@ -22,11 +22,28 @@ class Tool extends Model
         'photo1',
         'photo2',
         'photo3',
+        'archived_at',
     ];
 
     protected $casts = [
         'requires_calibration' => 'boolean',
+        'archived_at' => 'datetime',
     ];
+
+    public function scopeNotArchived($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
 
     public function category(): BelongsTo
     {

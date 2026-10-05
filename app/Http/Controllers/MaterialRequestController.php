@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -459,7 +460,7 @@ class MaterialRequestController extends Controller
         }
 
         $data = $request->validate([
-            'concept_id' => 'nullable|exists:concepts,id',
+            'concept_id' => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
             'code' => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit' => 'required|string|max:50',

@@ -33,7 +33,7 @@ class StockEntryController extends Controller
             ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->latest('received_at')->paginate(25)->withQueryString();
-        $tools = Tool::whereIn('status', ['active', 'in_service'])
+        $tools = Tool::notArchived()->whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
             ->get(['id', 'economic_number', 'name', 'description']);
         return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo', 'tools'));
@@ -48,7 +48,7 @@ class StockEntryController extends Controller
     {
         $validated = $request->validate([
             'entry_type' => ['required', Rule::in(['purchase', 'tool_return'])],
-            'tool_id' => ['nullable', 'exists:tools,id'],
+            'tool_id' => ['nullable', Rule::exists('tools', 'id')->whereNull('archived_at')],
             'purchase_reference' => ['nullable', 'string', 'max:255'],
             'quantity' => ['nullable', 'numeric', 'gt:0'],
             'received_at' => ['required', 'date'],
@@ -70,9 +70,9 @@ class StockEntryController extends Controller
                 'invoice' => ['required', 'file', 'mimes:pdf', 'max:20480'],
             ]);
             $items = collect($purchase['items'])->values()->map(function (array $item, int $index) {
-                $concept = Concept::where('code', $item['concept_code'])->first();
+                $concept = Concept::available()->where('code', $item['concept_code'])->first();
                 if (! $concept) {
-                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe.']);
+                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
                 }
                 if ($concept->requires_origin_certificate && ! request()->hasFile("items.{$index}.origin_certificate")) {
                     throw ValidationException::withMessages(["items.{$index}.origin_certificate" => 'El certificado de origen es obligatorio para este suministro.']);

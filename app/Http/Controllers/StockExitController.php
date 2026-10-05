@@ -106,7 +106,7 @@ class StockExitController extends Controller
     {
         $validated = $request->validate([
             'exit_type' => ['required', Rule::in(['definitive', 'tool_loan'])],
-            'concept_code' => ['required_if:exit_type,tool_loan', 'nullable', 'string', 'max:100', 'exists:concepts,code'],
+            'concept_code' => ['required_if:exit_type,tool_loan', 'nullable', 'string', 'max:100', Rule::exists('concepts', 'code')->whereNull('archived_at')->where('status', 'active')],
             'voucher_number' => ['required', 'string', 'max:100'], 'recipient_name' => ['nullable', 'string', 'max:150'],
             'recipient_worker_id' => ['nullable', 'exists:workers,id'], 'project_id' => ['nullable', 'exists:projects,id'],
             'project_work_id' => ['nullable', 'exists:project_works,id'], 'quantity' => ['nullable', 'numeric', 'gt:0'],
@@ -126,9 +126,9 @@ class StockExitController extends Controller
                 'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             ]);
             $items = collect($definitive['items'])->values()->map(function (array $item, int $index) {
-                $concept = Concept::where('code', $item['concept_code'])->first();
+                $concept = Concept::available()->where('code', $item['concept_code'])->first();
                 if (! $concept) {
-                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe.']);
+                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
                 }
                 return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
             });
@@ -148,7 +148,7 @@ class StockExitController extends Controller
             }
 
             $exit = StockExit::create([
-                'concept_id' => $validated['exit_type'] === 'tool_loan' ? Concept::where('code', $validated['concept_code'])->firstOrFail()->id : null,
+                'concept_id' => $validated['exit_type'] === 'tool_loan' ? Concept::available()->where('code', $validated['concept_code'])->firstOrFail()->id : null,
                 'tool_id' => null, 'exit_type' => $validated['exit_type'],
                 'voucher_number' => $validated['voucher_number'], 'recipient_worker_id' => $validated['recipient_worker_id'] ?? null,
                 'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,

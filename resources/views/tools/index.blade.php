@@ -40,6 +40,9 @@
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Registro de Herramientas</h4>
                 <div class="d-flex gap-2">
+                    <a href="{{ route('tools.archived') }}" class="btn btn-sm btn-outline-secondary" title="Archivadas">
+                        <i class="ri-archive-line me-1"></i> Archivadas
+                    </a>
                     <a href="{{ route('tool_controls.index') }}" class="btn btn-sm btn-soft-success">
                         <i class="ri-calendar-check-line me-1"></i> Control de uso
                     </a>
@@ -169,15 +172,14 @@
                                                     data-subcategory-id="{{ $subcategoryForTool?->id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
-                                            <form action="{{ route('tools.destroy', $tool) }}"
-                                                  method="POST"
-                                                                                                    onsubmit="return confirm('¿Eliminar la herramienta {{ $tool->economic_number }}?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
+                                            <button type="button"
+                                                    class="btn btn-soft-warning btn-sm btn-archive-tool"
+                                                    title="Archivar"
+                                                    data-action="{{ route('tools.archive', $tool) }}"
+                                                    data-code="{{ $tool->economic_number }}"
+                                                    data-description="{{ $tool->description }}">
+                                                <i class="ri-archive-line"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -359,6 +361,44 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalArchiveTool" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formArchiveTool" action="" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="ri-archive-line me-1"></i> Archivar herramienta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        Vas a archivar <strong id="archive_tool_code"></strong>
+                        <span class="text-muted">— <span id="archive_tool_description"></span></span>
+                    </p>
+                    <div class="alert alert-warning mb-3">
+                        <div class="fw-semibold mb-1"><i class="ri-error-warning-line me-1"></i> Consideraciones</div>
+                        <ul class="mb-0 ps-3">
+                            <li>Dejará de estar disponible para Inventario (retornos de herramienta) y Control de uso.</li>
+                            <li>No podrá seleccionarse en nuevos registros.</li>
+                            <li>No se puede archivar si tiene un control de uso activo.</li>
+                            <li>El historial de controles, calibraciones y fotografías se conserva.</li>
+                            <li>Dejará de mostrarse en este registro y pasará a la vista de Archivadas.</li>
+                        </ul>
+                    </div>
+                    <p class="text-muted fs-13 mb-0">
+                        La acción es reversible: puedes restaurarla desde <strong>Archivadas</strong>.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning"><i class="ri-archive-line me-1"></i> Archivar herramienta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -485,5 +525,13 @@ function loadToolSubcategories(rootCategoryId, selectEl, preselectId) {
     }
 }());
 
+document.querySelectorAll('.btn-archive-tool').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.getElementById('formArchiveTool').action = this.dataset.action;
+        document.getElementById('archive_tool_code').textContent = this.dataset.code;
+        document.getElementById('archive_tool_description').textContent = this.dataset.description;
+        new bootstrap.Modal(document.getElementById('modalArchiveTool')).show();
+    });
+});
 </script>
 @endpush

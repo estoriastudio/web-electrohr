@@ -1029,7 +1029,8 @@ class PurchaseOrderController extends Controller
                 'nullable',
                 Rule::exists('concepts', 'id')->where(function ($q) use ($allowedConceptType) {
                     $q->where('type', $allowedConceptType)
-                      ->where('status', 'active');
+                      ->where('status', 'active')
+                      ->whereNull('archived_at');
                 }),
             ],
             'description'   => 'required|string|max:500',
@@ -1042,8 +1043,8 @@ class PurchaseOrderController extends Controller
         // Si viene del catálogo, normalizar con la definición oficial del concepto.
         if (! empty($data['concept_id'])) {
             $concept = Concept::select('description', 'unit')
+                ->available()
                 ->where('type', $allowedConceptType)
-                ->where('status', 'active')
                 ->find($data['concept_id']);
 
             if ($concept) {
