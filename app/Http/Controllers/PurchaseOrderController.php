@@ -992,18 +992,20 @@ class PurchaseOrderController extends Controller
     public function restore(int $id): RedirectResponse
     {
         $purchaseOrder = PurchaseOrder::onlyTrashed()->findOrFail($id);
-        $purchaseOrder->restore();
-
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
-        $this->notification->send([
-            'type'         => 'PurchaseOrder',
-            'action_by'    => Auth::id(),
-            'model_action' => 'restore',
-            'model_id'     => $purchaseOrder->id,
-            'data'         => 'restauró de la papelera la orden de compra #' . $folio . ' de ' . $supplierName . '.',
-        ]);
+        DB::transaction(function () use ($purchaseOrder, $folio, $supplierName) {
+            $purchaseOrder->restore();
+
+            $this->notification->send([
+                'type'         => 'PurchaseOrder',
+                'action_by'    => Auth::id(),
+                'model_action' => 'restore',
+                'model_id'     => $purchaseOrder->id,
+                'data'         => 'restauró de la papelera la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+            ]);
+        });
 
         return redirect()->route('purchase_orders.soft_deleted')
             ->with('success', 'Orden de compra #' . $folio . ' restaurada.');
