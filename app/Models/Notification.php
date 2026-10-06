@@ -54,6 +54,7 @@ class Notification extends Model
         'destroy' => ['icon' => 'ri-delete-bin-line', 'color' => 'danger', 'label' => 'Eliminación'],
         'force_destroy' => ['icon' => 'ri-delete-bin-2-line', 'color' => 'danger', 'label' => 'Eliminación definitiva'],
         'archive' => ['icon' => 'ri-archive-line', 'color' => 'secondary', 'label' => 'Archivado'],
+        'unarchive' => ['icon' => 'ri-inbox-unarchive-line', 'color' => 'info', 'label' => 'Desarchivado'],
         'restore' => ['icon' => 'ri-arrow-go-back-line', 'color' => 'info', 'label' => 'Restauración'],
         'request_reactivation' => ['icon' => 'ri-refresh-line', 'color' => 'info', 'label' => 'Solicitud de reactivación'],
     ];

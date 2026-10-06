@@ -461,19 +461,52 @@ class SupplierController extends Controller
      */
     public function destroy(Supplier $supplier)
     {
-        $supplier->delete();
+        $name = $supplier->commercial_name ?? $supplier->rfc_name;
 
-        // Notificación
-        $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
-            'model_action' => 'destroy',
-            'model_id'     => $supplier->id,
-            'data'         => 'eliminó al proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
-        ]);
+        DB::transaction(function () use ($supplier, $name) {
+            $orders = $supplier->purchaseOrders()->whereNull('archived_at')->get();
+
+            foreach ($orders as $order) {
+                $order->update(['archived_at' => now()]);
+
+                $this->notification->send([
+                    'type'         => 'PurchaseOrder',
+                    'action_by'    => Auth::id(),
+                    'model_action' => 'archive',
+                    'model_id'     => $order->id,
+                    'data'         => 'archivó la orden de compra #' . ($order->folio ?? $order->id)
+                        . ' por eliminación del proveedor ' . $name . '.',
+                ]);
+            }
+
+            if ($supplier->portal_user_id) {
+                $supplier->update([
+                    'portal_access_enabled'        => false,
+                    'portal_access_deactivated_at' => now(),
+                    'portal_access_managed_by'     => Auth::id(),
+                ]);
+
+                DB::table('sessions')->where('user_id', $supplier->portal_user_id)->delete();
+            }
+
+            $supplier->delete();
+
+            $archivedSummary = $orders->isEmpty()
+                ? ''
+                : ' y archivó ' . $orders->count() . ' orden(es) de compra: '
+                    . $orders->map(fn ($order) => '#' . ($order->folio ?? $order->id))->implode(', ');
+
+            $this->notification->send([
+                'type'         => 'Supplier',
+                'action_by'    => Auth::id(),
+                'model_action' => 'destroy',
+                'model_id'     => $supplier->id,
+                'data'         => 'eliminó al proveedor ' . $name . $archivedSummary . '.',
+            ]);
+        });
 
         return redirect()->route('suppliers.index')
-            ->with('success', 'Proveedor eliminado correctamente.');
+            ->with('success', 'Proveedor eliminado correctamente. Sus órdenes de compra fueron enviadas al archivo.');
     }
 
     /**
