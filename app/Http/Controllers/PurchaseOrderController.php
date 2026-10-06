@@ -881,19 +881,21 @@ class PurchaseOrderController extends Controller
         $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
-        $purchaseOrder->update([
-            'deletion_comment' => $validated['deletion_comment'],
-        ]);
+        DB::transaction(function () use ($purchaseOrder, $validated, $folio, $supplierName) {
+            $purchaseOrder->update([
+                'deletion_comment' => $validated['deletion_comment'],
+            ]);
 
-        $purchaseOrder->delete();
+            $purchaseOrder->delete();
 
-        $this->notification->send([
-            'type'         => 'PurchaseOrder',
-            'action_by'    => Auth::id(),
-            'model_action' => 'destroy',
-            'model_id'     => 0,
-            'data'         => 'eliminó la orden de compra #' . $folio . ' de ' . $supplierName . '. Motivo: ' . $validated['deletion_comment'],
-        ]);
+            $this->notification->send([
+                'type'         => 'PurchaseOrder',
+                'action_by'    => Auth::id(),
+                'model_action' => 'destroy',
+                'model_id'     => $purchaseOrder->id,
+                'data'         => 'eliminó la orden de compra #' . $folio . ' de ' . $supplierName . '. Motivo: ' . $validated['deletion_comment'],
+            ]);
+        });
 
         return redirect()->route('purchase_orders.index')
             ->with('success', 'Orden de compra eliminada.');
@@ -927,6 +929,15 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->update(['archived_at' => null]);
 
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'unarchive',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'desarchivó la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
 
         return redirect()->route('purchase_orders.archived')
             ->with('success', 'Orden de compra #' . $folio . ' restaurada al listado activo.');
@@ -982,6 +993,15 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->restore();
 
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'restore',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'restauró de la papelera la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
 
         return redirect()->route('purchase_orders.soft_deleted')
             ->with('success', 'Orden de compra #' . $folio . ' restaurada.');
@@ -994,15 +1014,28 @@ class PurchaseOrderController extends Controller
         $folio        = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
-        $purchaseOrder->forceDelete();
+        $purchaseOrder->loadCount(['items', 'milestones', 'invoices', 'evidences']);
 
-        $this->notification->send([
-            'type'         => 'PurchaseOrder',
-            'action_by'    => Auth::id(),
-            'model_action' => 'force_destroy',
-            'model_id'     => 0,
-            'data'         => 'eliminó permanentemente la orden de compra #' . $folio . ' de ' . $supplierName . '.',
-        ]);
+        $summary = sprintf(
+            '%d partida(s), %d hito(s), %d factura(s) y %d evidencia(s) asociadas',
+            $purchaseOrder->items_count,
+            $purchaseOrder->milestones_count,
+            $purchaseOrder->invoices_count,
+            $purchaseOrder->evidences_count,
+        );
+        $reason = $purchaseOrder->deletion_comment ? ' Motivo de la eliminación previa: ' . $purchaseOrder->deletion_comment : '';
+
+        DB::transaction(function () use ($purchaseOrder, $folio, $supplierName, $summary, $reason) {
+            $purchaseOrder->forceDelete();
+
+            $this->notification->send([
+                'type'         => 'PurchaseOrder',
+                'action_by'    => Auth::id(),
+                'model_action' => 'force_destroy',
+                'model_id'     => $purchaseOrder->id,
+                'data'         => 'eliminó permanentemente la orden de compra #' . $folio . ' de ' . $supplierName . ' (' . $summary . ').' . $reason,
+            ]);
+        });
 
         return redirect()->route('purchase_orders.soft_deleted')
             ->with('success', 'Orden de compra #' . $folio . ' eliminada permanentemente.');

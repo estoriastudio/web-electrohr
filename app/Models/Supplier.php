@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Supplier extends Model
 {
+    use SoftDeletes;
+
     public const PROFILE_REQUIREMENTS = [
         'rfc_name' => ['label' => 'Razón social', 'source' => 'supplier', 'column' => 'rfc_name', 'icon' => 'ri-building-line'],
         'commercial_name' => ['label' => 'Nombre comercial', 'source' => 'supplier', 'column' => 'commercial_name', 'icon' => 'ri-store-2-line'],

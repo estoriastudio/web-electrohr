@@ -140,10 +140,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     'store' => 'suppliers.store',
                     'edit' => 'suppliers.edit',
                     'update' => 'suppliers.update',
-                    'destroy' => 'suppliers.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier'],
-            ])->except(['show']);
+            ])->except(['show', 'destroy']);
+            Route::delete('/proveedores/{supplier}', [SupplierController::class, 'destroy'])
+                ->middleware('permission:delete')
+                ->name('suppliers.destroy');
             Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
 
             Route::resource('proveedores.contactos', SupplierContactController::class, [
