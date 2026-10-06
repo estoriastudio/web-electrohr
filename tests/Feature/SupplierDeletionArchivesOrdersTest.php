@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SupplierController;
 use App\Models\Notification;
 use App\Models\PurchaseOrder;
@@ -10,6 +11,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class SupplierDeletionArchivesOrdersTest extends TestCase
@@ -94,5 +96,42 @@ class SupplierDeletionArchivesOrdersTest extends TestCase
         $this->expectException(QueryException::class);
 
         $supplier->forceDelete();
+    }
+
+    public function test_unarchiving_an_order_for_a_deleted_supplier_is_rejected(): void
+    {
+        $supplier = Supplier::create(['rfc_name' => 'Proveedor SA']);
+        $order = PurchaseOrder::create([
+            'folio' => '100',
+            'supplier_id' => $supplier->id,
+            'archived_at' => now(),
+        ]);
+        $supplier->delete();
+
+        try {
+            app(PurchaseOrderController::class)->unarchive($order);
+            $this->fail('Expected the unarchive operation to be rejected.');
+        } catch (HttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+        }
+
+        $this->assertNotNull($order->fresh()->archived_at);
+    }
+
+    public function test_restoring_an_order_for_a_deleted_supplier_is_rejected(): void
+    {
+        $supplier = Supplier::create(['rfc_name' => 'Proveedor SA']);
+        $order = PurchaseOrder::create(['folio' => '100', 'supplier_id' => $supplier->id]);
+        $order->delete();
+        $supplier->delete();
+
+        try {
+            app(PurchaseOrderController::class)->restore($order->id);
+            $this->fail('Expected the restore operation to be rejected.');
+        } catch (HttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+        }
+
+        $this->assertSoftDeleted('purchase_orders', ['id' => $order->id]);
     }
 }

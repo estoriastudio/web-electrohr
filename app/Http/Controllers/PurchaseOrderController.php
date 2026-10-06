@@ -926,6 +926,8 @@ class PurchaseOrderController extends Controller
 
     public function unarchive(PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        abort_if($purchaseOrder->supplier->trashed(), 409, 'Cannot unarchive an order for a deleted supplier.');
+
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -992,6 +994,8 @@ class PurchaseOrderController extends Controller
     public function restore(int $id): RedirectResponse
     {
         $purchaseOrder = PurchaseOrder::onlyTrashed()->findOrFail($id);
+        abort_if($purchaseOrder->supplier->trashed(), 409, 'Cannot restore an order for a deleted supplier.');
+
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
