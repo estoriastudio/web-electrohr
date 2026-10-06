@@ -926,18 +926,20 @@ class PurchaseOrderController extends Controller
 
     public function unarchive(PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        $purchaseOrder->update(['archived_at' => null]);
-
         $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
-        $this->notification->send([
-            'type'         => 'PurchaseOrder',
-            'action_by'    => Auth::id(),
-            'model_action' => 'unarchive',
-            'model_id'     => $purchaseOrder->id,
-            'data'         => 'desarchivó la orden de compra #' . $folio . ' de ' . $supplierName . '.',
-        ]);
+        DB::transaction(function () use ($purchaseOrder, $folio, $supplierName) {
+            $purchaseOrder->update(['archived_at' => null]);
+
+            $this->notification->send([
+                'type'         => 'PurchaseOrder',
+                'action_by'    => Auth::id(),
+                'model_action' => 'unarchive',
+                'model_id'     => $purchaseOrder->id,
+                'data'         => 'desarchivó la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+            ]);
+        });
 
         return redirect()->route('purchase_orders.archived')
             ->with('success', 'Orden de compra #' . $folio . ' restaurada al listado activo.');
