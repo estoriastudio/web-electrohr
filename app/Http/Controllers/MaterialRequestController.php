@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -271,6 +272,24 @@ class MaterialRequestController extends Controller
 
         $data['location_type'] = $data['location_type'] ?? 'sitio';
 
+        // Un desglose por obra huérfano deja la SOLMAT sin saldo disponible para SOLCOM.
+        $orphanWorkNames = MaterialRequestItemProjectWork::query()
+            ->whereIn('material_request_item_id', $materialRequest->items()->select('id'))
+            ->whereNotIn('project_work_id', $workIds)
+            ->with('projectWork:id,name')
+            ->get()
+            ->map(fn ($row) => $row->projectWork?->name ?? "#{$row->project_work_id}")
+            ->unique()
+            ->values();
+
+        if ($orphanWorkNames->isNotEmpty()) {
+            return back()->withInput()->withErrors([
+                'project_work_ids' => 'Hay conceptos con cantidades en obras que quitaste ('
+                    .$orphanWorkNames->implode(', ')
+                    .'). Elimina o reasigna esos conceptos antes de cambiar las obras.',
+            ]);
+        }
+
         $materialRequest->update($data);
         $materialRequest->projectWorks()->sync($workIds);
 
@@ -459,7 +478,7 @@ class MaterialRequestController extends Controller
         }
 
         $data = $request->validate([
-            'concept_id' => 'nullable|exists:concepts,id',
+            'concept_id' => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
             'code' => 'required|string|max:100',
             'description' => 'required|string|max:500',
             'unit' => 'required|string|max:50',

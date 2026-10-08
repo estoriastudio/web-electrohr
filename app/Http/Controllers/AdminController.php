@@ -65,13 +65,18 @@ class AdminController extends Controller
         // ── Bloque pagos (admin + Pagos) ──────────────────────────────
         if ($user->hasAnyRole(['admin', 'Pagos'])) {
             $totalPendientePago = (float) Payment::where('status', 'autorizado')->sum('amount');
-            $totalPorAutorizar  = (float) Payment::where('status', 'por_autorizar')->sum('amount');
+            $totalPorAutorizar  = (float) Payment::where('payments.status', 'por_autorizar')
+                ->whereHas('milestone.purchaseOrder', fn ($q) => $q->where('status', 'autorizada'))
+                ->sum('payments.amount');
             $totalPagado        = (float) Payment::where('status', 'pagado')->sum('amount');
 
             Payment::query()
                 ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
                 ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
                 ->whereIn('payments.status', array_keys($paymentTotalsByCurrency))
+                // Los pagos por autorizar solo cuentan si su OC ya está autorizada
+                ->where(fn ($q) => $q->where('payments.status', '!=', 'por_autorizar')
+                    ->orWhere('purchase_orders.status', 'autorizada'))
                 ->selectRaw('payments.status, purchase_orders.currency, purchase_order_milestones.payment_condition, SUM(payments.amount) AS total')
                 ->groupBy('payments.status', 'purchase_orders.currency', 'purchase_order_milestones.payment_condition')
                 ->get()
@@ -91,6 +96,7 @@ class AdminController extends Controller
                 ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
                 ->where('payments.status', 'por_autorizar')
+                ->where('purchase_orders.status', 'autorizada')
                 ->selectRaw('suppliers.rfc_name AS supplier_name, SUM(payments.amount) AS total')
                 ->groupBy('suppliers.id', 'suppliers.rfc_name')
                 ->orderByDesc('total')
@@ -105,6 +111,7 @@ class AdminController extends Controller
                 ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
                 ->select('payments.*')
                 ->where('payments.status', 'por_autorizar')
+                ->whereHas('milestone.purchaseOrder', fn ($q) => $q->where('status', 'autorizada'))
                 ->orderByRaw('
                     CASE WHEN purchase_order_milestones.due_date IS NULL THEN 1 ELSE 0 END ASC,
                     purchase_order_milestones.due_date ASC
@@ -165,7 +172,7 @@ class AdminController extends Controller
                 ->get();
 
             // ── OCs pendientes de autorizar ────────────────────────────────
-            $ocsPendientesAutorizar = PurchaseOrder::whereIn('status', ['emitida', 'pendiente'])
+            $ocsPendientesAutorizar = PurchaseOrder::where('status', 'emitida')
                 ->whereNull('archived_at')
                 ->with('supplier')
                 ->orderBy('created_at', 'desc')

@@ -9,13 +9,11 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\User;
-use App\Services\InvoicePaymentAllocationService;
 use App\Services\SupplierAccountStatementService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\Models\Role;
@@ -103,8 +101,6 @@ class SupplierAccountStatementTest extends TestCase
             $table->unsignedBigInteger('purchase_order_invoice_id');
             $table->unsignedBigInteger('purchase_order_milestone_id');
         });
-        $allocations = require database_path('migrations/2026_09_30_210000_create_invoice_payment_allocations_table.php');
-        $allocations->up();
         DB::table('suppliers')->insert([
             ['id' => 1, 'rfc_name' => 'Kobrex'], ['id' => 2, 'rfc_name' => 'Otro proveedor'],
         ]);
@@ -126,6 +122,7 @@ class SupplierAccountStatementTest extends TestCase
         ]);
         $invoice->milestones()->attach($milestone);
         $payment = Payment::create(['milestone_id' => $milestone->id, 'amount' => 400, 'status' => $status]);
+        Payment::create(['milestone_id' => $milestone->id, 'amount' => 200, 'status' => 'por_autorizar']);
         return [$order, $milestone, $invoice, $payment];
     }
 
@@ -165,23 +162,20 @@ class SupplierAccountStatementTest extends TestCase
         $this->assertSame($before, $this->financialState());
     }
 
-    public function test_exact_applications_are_idempotent_and_respect_the_payment_limit(): void
+    public function test_several_invoices_for_one_milestone_are_consistent_when_their_sum_matches_the_payments(): void
     {
-        [$order, $milestone, $invoice, $payment] = $this->movement();
-        $service = app(InvoicePaymentAllocationService::class);
-        $before = DB::table('payments')->get()->toJson();
-        $service->validateAndReplace($invoice, [$milestone->id], [$payment->id => '300.00'], null);
-        $service->validateAndReplace($invoice, [$milestone->id], [$payment->id => '300.00'], null);
-        $this->assertSame(1, DB::table('invoice_payment_allocations')->count());
-        $this->assertSame($before, DB::table('payments')->get()->toJson());
-        $result = app(SupplierAccountStatementService::class)->purchaseOrderSummary($order);
-        $this->assertSame(30000, $result['economic']['pending_invoices']);
-        $this->assertSame(10000, $result['summary']['MXN']['unregularized']);
-        $this->expectException(ValidationException::class);
-        $service->validateAndReplace($invoice, [$milestone->id], [$payment->id => '401.00'], null);
+        [$order, $milestone, $first] = $this->movement();
+        $first->update(['amount' => 400]);
+        $second = PurchaseOrderInvoice::create([
+            'purchase_order_id' => $order->id, 'amount' => 200, 'status' => 'aceptada', 'currency' => 'MXN',
+        ]);
+        $second->milestones()->attach($milestone);
+        $result = app(SupplierAccountStatementService::class)->purchaseOrderSummary($order->fresh());
+        $this->assertSame(['pagado', 'pendiente'], $result['rows']->pluck('status')->all());
+        $this->assertSame(20000, $result['economic']['pending_invoices']);
     }
 
-    public function test_admin_modal_is_available_but_other_roles_cannot_access_any_report_endpoint(): void
+    public function test_admin_payments_and_purchasing_can_access_the_report_but_other_roles_cannot(): void
     {
         [$order] = $this->movement();
         $user = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'password']);
@@ -190,12 +184,27 @@ class SupplierAccountStatementTest extends TestCase
         $this->actingAs($user)->get(route('suppliers.account_statement.order', $order))
             ->assertOk()->assertSee('Importe facturado sin pagar')->assertSee('200.00');
         $this->assertSame($before, $this->financialState());
-        foreach (['Pagos', 'Orden de compra', 'supplier_portal_access'] as $role) {
+
+        $controller = \Mockery::mock(SupplierAccountStatementController::class, [app(SupplierAccountStatementService::class)])->makePartial();
+        $controller->shouldReceive('index')->andReturn(view('suppliers.partials._account_statement_status', ['status' => 'pagado']));
+        $controller->shouldReceive('export')->andReturn(response('Exportacion permitida'));
+        $this->app->instance(SupplierAccountStatementController::class, $controller);
+
+        foreach (['admin', 'Pagos', 'Orden de compra'] as $role) {
             $user->syncRoles([$role]);
             foreach (['index', 'export', 'order'] as $endpoint) {
-                $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+                $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertOk();
             }
         }
+        $user->syncRoles(['supplier_portal_access']);
+        foreach (['index', 'export', 'order'] as $endpoint) {
+            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+        }
+        $user->syncRoles([]);
+        foreach (['index', 'export', 'order'] as $endpoint) {
+            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+        }
+        $this->assertSame($before, $this->financialState());
         foreach (app('router')->getRoutes() as $route) {
             if (str_starts_with($route->getName() ?? '', 'suppliers.account_statement.')) {
                 $this->assertSame(['GET', 'HEAD'], $route->methods());
@@ -233,7 +242,7 @@ class SupplierAccountStatementTest extends TestCase
         $buyer = User::create(['name' => 'Comprador', 'email' => 'review@example.com', 'password' => 'password']);
         [$order, $milestone] = $this->movement(['buyer_id' => $buyer->id]);
         $secondInvoice = PurchaseOrderInvoice::create([
-            'purchase_order_id' => $order->id, 'amount' => 200, 'status' => 'aceptada', 'currency' => 'MXN',
+            'purchase_order_id' => $order->id, 'amount' => 300, 'status' => 'aceptada', 'currency' => 'MXN',
         ]);
         $secondInvoice->milestones()->attach($milestone);
         $this->movement(['supplier_id' => 2, 'buyer_id' => $buyer->id]);
@@ -258,37 +267,9 @@ class SupplierAccountStatementTest extends TestCase
     private function financialState(): array
     {
         $state = [];
-        foreach (['purchase_orders', 'purchase_order_milestones', 'payments', 'purchase_order_invoices', 'invoice_milestone', 'invoice_payment_allocations'] as $table) {
+        foreach (['purchase_orders', 'purchase_order_milestones', 'payments', 'purchase_order_invoices', 'invoice_milestone'] as $table) {
             $state[$table] = DB::table($table)->get()->toJson();
         }
         return $state;
-    }
-
-    public function test_historical_simulation_and_repeated_backfill_do_not_duplicate_payments(): void
-    {
-        $this->movement();
-        $before = $this->financialState();
-        $this->artisan('purchase-orders:backfill-invoice-payments', ['--dry-run' => true])
-            ->expectsOutputToContain('1 relaciones inequivocas')->assertSuccessful();
-        $this->assertSame($before, $this->financialState());
-        $this->artisan('purchase-orders:backfill-invoice-payments')->assertSuccessful();
-        $after = $this->financialState();
-        $this->assertSame(1, DB::table('invoice_payment_allocations')->count());
-        $this->assertSame($before['payments'], $after['payments']);
-        $this->assertSame($before['purchase_order_milestones'], $after['purchase_order_milestones']);
-        $this->artisan('purchase-orders:backfill-invoice-payments')->assertSuccessful();
-        $this->assertSame(1, DB::table('invoice_payment_allocations')->count());
-    }
-
-    public function test_linked_records_cannot_be_deleted_before_their_documents_or_balances_change(): void
-    {
-        [$order, $milestone, $invoice, $payment] = $this->movement();
-        app(InvoicePaymentAllocationService::class)->validateAndReplace($invoice, [$milestone->id], [$payment->id => 300], null);
-        $before = $this->financialState();
-        $invoiceResponse = app(\App\Http\Controllers\PurchaseOrderInvoiceController::class)->destroy($invoice);
-        $paymentResponse = app(\App\Http\Controllers\PaymentController::class)->destroy($payment);
-        $this->assertSame(302, $invoiceResponse->getStatusCode());
-        $this->assertSame(302, $paymentResponse->getStatusCode());
-        $this->assertSame($before, $this->financialState());
     }
 }

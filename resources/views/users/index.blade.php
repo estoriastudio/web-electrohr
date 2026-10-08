@@ -155,29 +155,13 @@
                                                                 <label class="form-label">Confirmar contraseña</label>
                                                                 <input type="password" name="password_confirmation" class="form-control">
                                                             </div>
-                                                            <div class="col-md-6">
-                                                                <label class="form-label fw-semibold">Roles</label>
-                                                                @foreach ($roles as $role)
-                                                                    <div class="form-check">
-                                                                        <input class="form-check-input" type="checkbox"
-                                                                               name="roles[]" value="{{ $role->name }}"
-                                                                               id="edit_role_{{ $user->id }}_{{ $role->id }}"
-                                                                               {{ $user->hasRole($role->name) ? 'checked' : '' }}>
-                                                                        <label class="form-check-label" for="edit_role_{{ $user->id }}_{{ $role->id }}">
-                                                                            {{ $role->name }}
-                                                                            <span class="text-muted fs-12">{{ array_key_exists($role->name, config('module_permissions.access_roles')) || in_array($role->name, ['admin', 'supplier_portal_access']) ? '(Acceso)' : '(Perfil)' }}</span>
-                                                                        </label>
-                                                                    </div>
-                                                                @endforeach
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <label class="form-label fw-semibold">Permisos directos</label>
-                                                                @include('users._permission_fields', [
-                                                                    'prefix' => 'edit_perm_' . $user->id,
-                                                                    'selected' => old('form_context') === 'edit_user_' . $user->id
-                                                                        ? old('permissions', []) : $user->permissions->pluck('name')->all(),
-                                                                ])
-                                                            </div>
+                                                            @include('users._access_fields', [
+                                                                'prefix' => 'edit_' . $user->id,
+                                                                'selectedRoles' => old('form_context') === 'edit_user_' . $user->id
+                                                                    ? old('roles', []) : $user->roles->pluck('name')->all(),
+                                                                'selectedPermissions' => old('form_context') === 'edit_user_' . $user->id
+                                                                    ? old('permissions', []) : $user->permissions->pluck('name')->all(),
+                                                            ])
                                                         </div>
                                                         <div class="modal-footer">
                                                             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
@@ -465,24 +449,11 @@
                         <label class="form-label">Confirmar contraseña</label>
                         <input type="password" name="password_confirmation" class="form-control" required>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Roles</label>
-                        @foreach ($roles as $role)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox"
-                                       name="roles[]" value="{{ $role->name }}"
-                                       id="create_role_{{ $role->id }}"
-                                       {{ in_array($role->name, old('roles', [])) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="create_role_{{ $role->id }}">{{ $role->name }}
-                                    <span class="text-muted fs-12">{{ array_key_exists($role->name, config('module_permissions.access_roles')) || in_array($role->name, ['admin', 'supplier_portal_access']) ? '(Acceso)' : '(Perfil)' }}</span>
-                                </label>
-                            </div>
-                        @endforeach
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Permisos directos</label>
-                        @include('users._permission_fields', ['prefix' => 'create_perm', 'selected' => old('form_context') === 'create_user' ? old('permissions', []) : []])
-                    </div>
+                    @include('users._access_fields', [
+                        'prefix' => 'create',
+                        'selectedRoles' => old('form_context') === 'create_user' ? old('roles', []) : [],
+                        'selectedPermissions' => old('form_context') === 'create_user' ? old('permissions', []) : [],
+                    ])
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
@@ -529,6 +500,87 @@
 
 @push('scripts')
 <script>
+    (function () {
+        var rolePermissions = @json($roles->mapWithKeys(fn ($role) => [$role->name => $role->permissions->pluck('name')->values()])->all());
+        var catalog = @json($permissionGroups);
+        var permissionInfo = {};
+        Object.keys(catalog).forEach(function (module) {
+            Object.keys(catalog[module]).forEach(function (name) {
+                permissionInfo[name] = { module: module, label: catalog[module][name] };
+            });
+        });
+
+        function buildAlert(roleName) {
+            var alert = document.createElement('div');
+            alert.className = 'alert alert-info mb-0 py-2';
+            alert.setAttribute('role', 'alert');
+
+            var title = document.createElement('div');
+            title.className = 'fw-semibold mb-1';
+            title.textContent = 'Permisos disponibles del rol "' + roleName + '"';
+            alert.appendChild(title);
+
+            var body = document.createElement('div');
+            body.className = 'fs-13';
+            var names = rolePermissions[roleName] || [];
+
+            if (roleName === 'admin') {
+                body.textContent = 'Acceso total a todos los módulos y acciones.';
+            } else if (!names.length) {
+                body.textContent = 'Este rol no incluye permisos.';
+            } else {
+                var grouped = {};
+                names.forEach(function (name) {
+                    var info = permissionInfo[name] || { module: 'Otros', label: name };
+                    (grouped[info.module] = grouped[info.module] || []).push(info.label);
+                });
+                var list = document.createElement('ul');
+                list.className = 'mb-0 ps-3';
+                Object.keys(grouped).forEach(function (module) {
+                    var item = document.createElement('li');
+                    var strong = document.createElement('strong');
+                    strong.textContent = module + ': ';
+                    item.appendChild(strong);
+                    item.appendChild(document.createTextNode(grouped[module].join(', ')));
+                    list.appendChild(item);
+                });
+                body.appendChild(list);
+            }
+            alert.appendChild(body);
+            return alert;
+        }
+
+        function initAccessFields(root) {
+            var select = root.querySelector('[data-access-roles]');
+            var alerts = root.querySelector('[data-access-role-alerts]');
+            var toggle = root.querySelector('[data-access-direct-toggle]');
+            var panel = root.querySelector('[data-access-direct-panel]');
+
+            function renderAlerts() {
+                alerts.replaceChildren.apply(alerts, Array.from(select.selectedOptions).map(function (option) {
+                    return buildAlert(option.value);
+                }));
+            }
+
+            // Los permisos directos desactivados no se envían, por lo que se retiran al guardar.
+            function syncPanel() {
+                panel.classList.toggle('d-none', !toggle.checked);
+                panel.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                    input.disabled = !toggle.checked;
+                });
+            }
+
+            select.addEventListener('change', renderAlerts);
+            toggle.addEventListener('change', syncPanel);
+            renderAlerts();
+            syncPanel();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-user-access]').forEach(initAccessFields);
+        });
+    })();
+
     @if ($errors->has('supplier_password'))
         document.addEventListener('DOMContentLoaded', function () {
             var modal = new bootstrap.Modal(

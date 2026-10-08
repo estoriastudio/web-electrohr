@@ -45,7 +45,7 @@ class ToolControlController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $tools = Tool::whereIn('status', ['active', 'in_service'])
+        $tools = Tool::notArchived()->whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
             ->orderBy('description')
             ->get(['id', 'economic_number', 'name', 'description']);
@@ -61,7 +61,7 @@ class ToolControlController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'tool_id' => ['required', 'exists:tools,id'],
+            'tool_id' => ['required', Rule::exists('tools', 'id')->whereNull('archived_at')],
             'project_work_id' => ['required', 'exists:project_works,id'],
             'responsible' => ['required', 'string', 'max:150'],
             'loan_type' => ['required', Rule::in(['fixed', 'provisional'])],

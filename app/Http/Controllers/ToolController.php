@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProjectWork;
+use App\Models\StockExit;
 use App\Models\Tool;
 use App\Models\ToolCategory;
-use App\Models\ProjectWork;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -27,7 +29,7 @@ class ToolController extends Controller
         $status = $request->input('status', '');
         $rootCategoryId = $request->input('root_category_id', '');
 
-        $tools = Tool::with(['category.parent'])
+        $tools = Tool::notArchived()->with(['category.parent'])
             ->when($search, fn ($query) => $query->where(function ($query) use ($search) {
                 $query->where('economic_number', 'like', "%{$search}%")
                     ->orWhere('name', 'like', "%{$search}%")
@@ -165,35 +167,100 @@ class ToolController extends Controller
             ->with('success', 'Herramienta actualizada correctamente.');
     }
 
-    public function destroy(Tool $tool): RedirectResponse
+    public function archive(Tool $tool): RedirectResponse
     {
+        if ($tool->controls()->where('status', 'active')->exists()) {
+            return redirect()->route('tools.index')
+                ->with('error', 'La herramienta ' . $tool->economic_number . ' tiene un control de uso activo. Ciérralo antes de archivarla.');
+        }
+
+        $tool->update(['archived_at' => now()]);
+
+        $this->notification->send([
+            'type' => 'Tool',
+            'action_by' => Auth::id(),
+            'model_action' => 'archive',
+            'model_id' => $tool->id,
+            'data' => 'archived tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+        ]);
+
+        return redirect()->route('tools.index')
+            ->with('success', 'Herramienta ' . $tool->economic_number . ' archivada.');
+    }
+
+    public function unarchive(Tool $tool): RedirectResponse
+    {
+        $tool->update(['archived_at' => null]);
+
+        $this->notification->send([
+            'type' => 'Tool',
+            'action_by' => Auth::id(),
+            'model_action' => 'unarchive',
+            'model_id' => $tool->id,
+            'data' => 'restored tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+        ]);
+
+        return redirect()->route('tools.archived')
+            ->with('success', 'Herramienta ' . $tool->economic_number . ' restaurada al listado activo.');
+    }
+
+    public function archived(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+
+        $tools = Tool::archived()->with(['category.parent'])
+            ->when($search, fn ($query) => $query->where(function ($query) use ($search) {
+                $query->where('economic_number', 'like', "%{$search}%")
+                    ->orWhere('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('brand', 'like', "%{$search}%")
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('serial_number', 'like', "%{$search}%");
+            }))
+            ->orderByDesc('archived_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('tools.archive', compact('tools', 'search'));
+    }
+
+    public function forceDestroy(Tool $tool): RedirectResponse
+    {
+        if (! $tool->isArchived()) {
+            return redirect()->route('tools.index')
+                ->with('error', 'Solo se pueden eliminar permanentemente herramientas archivadas.');
+        }
+
+        if (StockExit::where('tool_id', $tool->id)->exists()) {
+            return redirect()->route('tools.archived')
+                ->with('error', 'La herramienta ' . $tool->economic_number . ' tiene salidas de inventario vinculadas y no puede eliminarse permanentemente. Mantenla archivada.');
+        }
+
         $label = $tool->economic_number . ' - ' . $tool->name;
+        $toolId = $tool->id;
 
-        foreach ([1, 2, 3] as $slot) {
-            $field = 'photo' . $slot;
-            if ($tool->$field) {
-                Storage::disk('s3')->delete($tool->$field);
-            }
+        $paths = collect([1, 2, 3])
+            ->map(fn ($slot) => $tool->{'photo' . $slot})
+            ->merge($tool->calibrations->pluck('file_path'))
+            ->filter()
+            ->all();
+
+        DB::transaction(fn () => $tool->delete());
+
+        foreach ($paths as $path) {
+            Storage::disk('s3')->delete($path);
         }
-
-        foreach ($tool->calibrations as $calibration) {
-            if ($calibration->file_path) {
-                Storage::disk('s3')->delete($calibration->file_path);
-            }
-        }
-
-        $tool->delete();
 
         $this->notification->send([
             'type' => 'Tool',
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id' => $tool->id,
-            'data' => 'deleted tool "' . $label . '".',
+            'model_id' => $toolId,
+            'data' => 'permanently deleted tool "' . $label . '".',
         ]);
 
-        return redirect()->route('tools.index')
-            ->with('success', 'Herramienta eliminada correctamente.');
+        return redirect()->route('tools.archived')
+            ->with('success', 'Herramienta eliminada permanentemente.');
     }
 
     public function create(): RedirectResponse

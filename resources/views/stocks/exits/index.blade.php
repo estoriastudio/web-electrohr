@@ -15,7 +15,7 @@
 @endif
 @if($errors->any())
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-	<strong>No fue posible registrar la salida.</strong>
+	<strong>No fue posible guardar la salida.</strong>
 	<ul class="mb-0 mt-1">
 		@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
 	</ul>
@@ -35,10 +35,10 @@
 			<div class="col-md-3 d-flex gap-1"><button class="btn btn-primary btn-sm flex-fill"><i class="ri-filter-3-line me-1"></i>Filtrar</button>@if($search || $dateFrom || $dateTo)<a href="{{ route('stocks.exits.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros"><i class="ri-close-line"></i></a>@endif</div>
 		</form>
 	</div>
-	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Vale</th><th>Concepto / Herramienta</th><th>Receptor</th><th>Tipo</th><th>Estado</th></tr></thead><tbody>@forelse($exits as $exit)@php($isLoan = $exit->exit_type === 'tool_loan')@php($statusMap = ['completed' => ['label' => 'Completada', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line'], 'open' => ['label' => 'Pendiente de retorno', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-time-line'], 'returned' => ['label' => 'Devuelta', 'class' => 'bg-info-subtle text-info', 'icon' => 'ri-arrow-go-back-line']])@php($status = $statusMap[$exit->status] ?? ['label' => $exit->status, 'class' => 'bg-secondary-subtle text-secondary', 'icon' => 'ri-question-line'])<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $exit->exited_at->format('d/m/Y') }}</td><td class="fw-semibold">{{ $exit->voucher_number }}</td><td>@if($isLoan)<span class="fw-semibold d-block">{{ $exit->concept?->code ?: $exit->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $exit->concept?->description ?: $exit->tool?->name ?: $exit->tool?->description }}</span>
+	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Vale</th><th>Concepto / Herramienta</th><th>Receptor</th><th>Tipo</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($exits as $exit)@php($isLoan = $exit->exit_type === 'tool_loan')@php($statusMap = ['completed' => ['label' => 'Completada', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line'], 'open' => ['label' => 'Pendiente de retorno', 'class' => 'bg-warning-subtle text-warning', 'icon' => 'ri-time-line'], 'returned' => ['label' => 'Devuelta', 'class' => 'bg-info-subtle text-info', 'icon' => 'ri-arrow-go-back-line']])@php($status = $statusMap[$exit->status] ?? ['label' => $exit->status, 'class' => 'bg-secondary-subtle text-secondary', 'icon' => 'ri-question-line'])<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $exit->exited_at->format('d/m/Y') }}</td><td class="fw-semibold">{{ $exit->voucher_number ?: '—' }}</td><td>@if($isLoan)<span class="fw-semibold d-block">{{ $exit->concept?->code ?: $exit->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $exit->concept?->description ?: $exit->tool?->name ?: $exit->tool?->description }}</span>
 @else
 @forelse($exit->items as $item)<span class="fw-semibold d-block">{{ $item->concept->code }}</span><span class="text-muted fs-12 d-block">{{ $item->concept->description }}</span>@empty<span class="text-muted">—</span>@endforelse
-@endif</td><td>{{ $exit->recipientWorker ? trim($exit->recipientWorker->first_name . ' ' . $exit->recipientWorker->last_name) : ($exit->recipient_name ?: '—') }}</td><td><span class="badge {{ $isLoan ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary' }} py-1 px-2 fs-12"><i class="{{ $isLoan ? 'ri-tools-line' : 'ri-arrow-right-line' }} me-1"></i>{{ $isLoan ? 'Préstamo' : 'Salida definitiva' }}</span></td><td><span class="badge {{ $status['class'] }} py-1 px-2 fs-12"><i class="{{ $status['icon'] }} me-1"></i>{{ $status['label'] }}</span>@if($isLoan && $exit->expected_return_at)<small class="d-block text-muted fs-11 mt-1">Retorno: {{ $exit->expected_return_at->format('d/m/Y') }}</small>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-arrow-right-circle-line fs-24 d-block mb-1 opacity-50"></i>No hay salidas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
+@endif</td><td>{{ $exit->recipient_name ?: ($exit->recipientWorker ? trim($exit->recipientWorker->first_name . ' ' . $exit->recipientWorker->last_name) : '—') }}</td><td><span class="badge {{ $isLoan ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary' }} py-1 px-2 fs-12"><i class="{{ $isLoan ? 'ri-tools-line' : 'ri-arrow-right-line' }} me-1"></i>{{ $isLoan ? 'Préstamo' : 'Salida definitiva' }}</span></td><td><span class="badge {{ $status['class'] }} py-1 px-2 fs-12"><i class="{{ $status['icon'] }} me-1"></i>{{ $status['label'] }}</span>@if($isLoan && $exit->expected_return_at)<small class="d-block text-muted fs-11 mt-1">Retorno: {{ $exit->expected_return_at->format('d/m/Y') }}</small>@endif</td><td class="text-end text-nowrap">@php($editData = ['id' => $exit->id, 'type' => $exit->exit_type, 'status' => $exit->status, 'voucher' => $exit->voucher_number, 'recipient_name' => $exit->recipient_name ?: ($exit->recipientWorker ? trim($exit->recipientWorker->first_name . ' ' . $exit->recipientWorker->last_name) : ''), 'exited_at' => $exit->exited_at->toDateString(), 'expected_return_at' => $exit->expected_return_at?->toDateString(), 'observations' => $exit->observations, 'supply' => $exit->concept ? $exit->concept->code . ' - ' . $exit->concept->description : null, 'items' => $exit->items->map(fn ($item) => ['id' => $item->id, 'code' => $item->concept->code, 'description' => $item->concept->description, 'unit' => $item->concept->unit, 'quantity' => rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.')])->values()])@if($exit->is_adjustment)<span class="text-muted fs-12 me-1" title="Los ajustes manuales no se editan">Ajuste</span>@else<button type="button" class="btn btn-soft-primary btn-sm" data-edit-exit='{{ json_encode($editData, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) }}' title="Editar salida"><i class="ri-edit-line"></i></button>@endif<form action="{{ route('stocks.exits.destroy', $exit) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar la salida #{{ $exit->id }}?{{ $isLoan ? ' Si el préstamo ya fue devuelto, también se eliminará su entrada de retorno.' : ' El material regresará al inventario.' }} Se registrará en la auditoría.')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" title="Eliminar salida"><i class="ri-delete-bin-line"></i></button></form></td></tr>@empty<tr><td colspan="7" class="text-center text-muted py-4"><i class="ri-arrow-right-circle-line fs-24 d-block mb-1 opacity-50"></i>No hay salidas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($exits->hasPages())<div class="card-footer d-flex justify-content-end">{{ $exits->links('pagination::bootstrap-5') }}</div>@endif
 </div>
 @can('stocks.create')
@@ -61,7 +61,7 @@
 					<div class="alert alert-light border py-2 fs-13">Los campos marcados con <span class="text-danger">*</span> son obligatorios.</div>
 					<div id="definitiveFields" class="d-none">
 						<h6 class="text-uppercase fs-12 text-muted mb-3">Datos de la salida</h6>
-						<div class="row g-3"><div class="col-md-4"><label for="definitive_exited_at" class="form-label">Fecha de salida <span class="text-danger">*</span></label><input id="definitive_exited_at" name="exited_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div><div class="col-md-4"><label for="definitive_voucher_number" class="form-label">Número de vale <span class="text-danger">*</span></label><input id="definitive_voucher_number" name="voucher_number" class="form-control"></div><div class="col-md-4"><label for="recipient_name" class="form-label">Entregado a <span class="text-danger">*</span></label><input id="recipient_name" name="recipient_name" class="form-control"></div></div>
+						<div class="row g-3"><div class="col-md-4"><label for="definitive_exited_at" class="form-label">Fecha de salida <span class="text-danger">*</span></label><input id="definitive_exited_at" name="exited_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div><div class="col-md-4"><label for="definitive_voucher_number" class="form-label">Número de vale</label><input id="definitive_voucher_number" name="voucher_number" class="form-control"></div><div class="col-md-4"><label for="recipient_name" class="form-label">Entregado a <span class="text-danger">*</span></label><input id="recipient_name" name="recipient_name" class="form-control"></div></div>
 						<div class="mt-4" data-stock-exit-items><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="text-uppercase fs-12 text-muted mb-0">Material entregado <span class="text-danger">*</span></h6><span class="badge bg-primary-subtle text-primary" data-items-count>0 conceptos</span></div><div class="table-responsive border"><table class="table table-sm align-middle mb-0"><thead class="bg-light-subtle"><tr><th>Código</th><th>Descripción</th><th>Unidad</th><th class="text-end">Cantidad</th><th></th></tr></thead><tbody data-items-body><tr data-empty-row><td colspan="5" class="text-center text-muted py-3">Agregue al menos un suministro.</td></tr></tbody></table></div><div class="border border-top-0 p-3"><div data-search-state><label class="form-label fs-12 mb-1">Agregar suministro</label><div class="position-relative"><div class="input-group"><span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span><input type="search" class="form-control" data-concept-search placeholder="Buscar por código o descripción" autocomplete="off"></div><ul class="list-group position-absolute w-100 shadow d-none" data-concept-results style="z-index:1060;max-height:220px;overflow-y:auto"></ul></div></div><div class="d-none" data-selected-state><div class="row g-2 align-items-end"><div class="col-md-7"><span class="fw-semibold d-block" data-selected-code></span><span class="text-muted fs-12" data-selected-description></span></div><div class="col-md-3"><label class="form-label fs-12 mb-1">Cantidad</label><input type="number" min="0.001" step="0.001" class="form-control" data-selected-quantity></div><div class="col-md-2 d-flex gap-1"><button type="button" class="btn btn-light" data-change-concept title="Cambiar"><i class="ri-arrow-left-line"></i></button><button type="button" class="btn btn-primary flex-fill" data-add-item>Agregar</button></div></div></div><div class="text-danger fs-12 mt-2 d-none" data-items-error></div></div></div>
 					</div>
 					<div id="loanFields" class="d-none">
@@ -69,8 +69,8 @@
 						<input type="hidden" name="quantity" value="1">
 						<div class="row g-3">
 							<div class="col-md-6"><label for="concept_code" class="form-label">Suministro <span class="text-danger">*</span></label><select id="concept_code" name="concept_code" class="form-select"><option value="">Escriba al menos 3 caracteres</option></select></div>
-							<div class="col-md-6"><label for="recipient_worker_id" class="form-label">Trabajador responsable <span class="text-danger">*</span></label><select id="recipient_worker_id" name="recipient_worker_id" class="form-select"><option value="">Seleccione un trabajador</option>@foreach($workers as $worker)<option value="{{ $worker->id }}">{{ $worker->first_name }} {{ $worker->last_name }}</option>@endforeach</select></div>
-							<div class="col-md-4"><label for="loan_voucher_number" class="form-label">Número de vale <span class="text-danger">*</span></label><input id="loan_voucher_number" name="voucher_number" class="form-control"></div>
+							<div class="col-md-6"><label for="loan_recipient_name" class="form-label">Persona responsable <span class="text-danger">*</span></label><input id="loan_recipient_name" name="recipient_name" class="form-control" maxlength="150" placeholder="Nombre de quien recibe el préstamo"></div>
+							<div class="col-md-4"><label for="loan_voucher_number" class="form-label">Número de vale</label><input id="loan_voucher_number" name="voucher_number" class="form-control" maxlength="100"></div>
 							<div class="col-md-4"><label for="project_id" class="form-label">Proyecto <span class="text-danger">*</span></label><select id="project_id" name="project_id" class="form-select"><option value="">Escriba al menos 3 caracteres</option></select></div>
 							<div class="col-md-4"><label for="project_work_id" class="form-label">Obra <span class="text-danger">*</span></label><select id="project_work_id" name="project_work_id" class="form-select"><option value="">Seleccione primero un proyecto</option></select></div>
 							<div class="col-md-6"><label for="loan_exited_at" class="form-label">Fecha de entrega <span class="text-danger">*</span></label><input id="loan_exited_at" name="exited_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div>
@@ -84,7 +84,31 @@
 		</form>
 	</div>
 </div>
-@endcan
+<div class="modal fade" id="exitEditModal" tabindex="-1" aria-labelledby="exitEditModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg modal-dialog-centered">
+		<form class="modal-content" id="exitEditForm" action="#" method="POST" data-action-template="{{ route('stocks.exits.update', '__ID__') }}">
+			@csrf @method('PUT')
+			<div class="modal-header"><h5 class="modal-title" id="exitEditModalLabel"><i class="ri-edit-line me-1"></i>Editar salida <span id="exitEditId"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+			<div class="modal-body">
+				<div class="row g-3">
+					<div class="col-md-4"><label for="edit_voucher_number" class="form-label">Número de vale</label><input id="edit_voucher_number" name="voucher_number" class="form-control" maxlength="100"></div>
+					<div class="col-md-4" data-edit-definitive><label for="edit_recipient_name" class="form-label">Entregado a <span class="text-danger">*</span></label><input id="edit_recipient_name" name="recipient_name" class="form-control" maxlength="150"></div>
+					<div class="col-md-4" data-edit-loan><label for="edit_loan_recipient_name" class="form-label">Persona responsable <span class="text-danger">*</span></label><input id="edit_loan_recipient_name" name="recipient_name" class="form-control" maxlength="150"></div>
+					<div class="col-md-4" data-edit-dates><label for="edit_exited_at" class="form-label">Fecha <span class="text-danger">*</span></label><input id="edit_exited_at" name="exited_at" type="date" class="form-control" required></div>
+					<div class="col-md-4" data-edit-loan><label for="edit_expected_return_at" class="form-label">Fecha tentativa de retorno <span class="text-danger">*</span></label><input id="edit_expected_return_at" name="expected_return_at" type="date" class="form-control"></div>
+					<div class="col-12" data-edit-loan><label class="form-label">Suministro</label><input id="edit_supply" class="form-control" disabled><small class="text-muted">Para cambiar el suministro, proyecto u obra, elimine el préstamo y regístrelo de nuevo.</small></div>
+				</div>
+				<div class="mt-4" data-edit-definitive>
+					<h6 class="text-uppercase fs-12 text-muted mb-2">Material entregado</h6>
+					<div class="table-responsive border"><table class="table table-sm align-middle mb-0"><thead class="bg-light-subtle"><tr><th>Código</th><th>Descripción</th><th>Unidad</th><th class="text-end">Cantidad</th></tr></thead><tbody id="exitEditItems"></tbody></table></div>
+					<small class="text-muted">Para cambiar los conceptos, elimine la salida y regístrela de nuevo.</small>
+				</div>
+				<div class="border-top pt-3 mt-4"><label for="edit_exit_observations" class="form-label">Observaciones</label><textarea id="edit_exit_observations" name="observations" class="form-control" rows="2" maxlength="2000"></textarea></div>
+			</div>
+			<div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i>Guardar cambios</button></div>
+		</form>
+	</div>
+</div>
 @endsection
 
 @push('scripts')
@@ -173,6 +197,51 @@ document.addEventListener('DOMContentLoaded', function () {
 	@if($errors->any())
 	new bootstrap.Modal(modal).show();
 	@endif
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	var form = document.getElementById('exitEditForm');
+	var modal = new bootstrap.Modal(document.getElementById('exitEditModal'));
+	var itemsBody = document.getElementById('exitEditItems');
+	function escHtml(value) { var element = document.createElement('div'); element.appendChild(document.createTextNode(value == null ? '' : String(value))); return element.innerHTML; }
+	function toggle(selector, visible) {
+		form.querySelectorAll(selector).forEach(function (element) {
+			element.classList.toggle('d-none', !visible);
+		});
+	}
+	document.querySelectorAll('[data-edit-exit]').forEach(function (button) {
+		button.addEventListener('click', function () {
+			var exit = JSON.parse(this.dataset.editExit);
+			var isLoan = exit.type === 'tool_loan';
+			var datesEditable = !isLoan || exit.status === 'open';
+			form.action = form.dataset.actionTemplate.replace('__ID__', exit.id);
+			document.getElementById('exitEditId').textContent = '#' + exit.id;
+			document.getElementById('edit_voucher_number').value = exit.voucher || '';
+			document.getElementById('edit_recipient_name').value = exit.recipient_name || '';
+			document.getElementById('edit_loan_recipient_name').value = exit.recipient_name || '';
+			document.getElementById('edit_exited_at').value = exit.exited_at || '';
+			document.getElementById('edit_expected_return_at').value = exit.expected_return_at || '';
+			document.getElementById('edit_supply').value = exit.supply || '';
+			document.getElementById('edit_exit_observations').value = exit.observations || '';
+			toggle('[data-edit-loan]', isLoan);
+			toggle('[data-edit-definitive]', !isLoan);
+			toggle('[data-edit-dates]', datesEditable);
+			document.getElementById('edit_expected_return_at').closest('div').classList.toggle('d-none', !(isLoan && datesEditable));
+			document.getElementById('edit_recipient_name').disabled = isLoan;
+			document.getElementById('edit_loan_recipient_name').disabled = !isLoan;
+			document.getElementById('edit_exited_at').disabled = !datesEditable;
+			document.getElementById('edit_expected_return_at').disabled = !(isLoan && datesEditable);
+			document.getElementById('edit_expected_return_at').required = isLoan && datesEditable;
+			itemsBody.innerHTML = '';
+			(isLoan ? [] : exit.items).forEach(function (item) {
+				var row = document.createElement('tr');
+				row.innerHTML = '<td class="fw-semibold">' + escHtml(item.code) + '</td><td>' + escHtml(item.description) + '</td><td>' + escHtml(item.unit) + '</td><td><input type="number" name="items[' + item.id + '][quantity]" value="' + escHtml(item.quantity) + '" min="0.001" step="0.001" class="form-control form-control-sm text-end" required></td>';
+				itemsBody.appendChild(row);
+			});
+			modal.show();
+		});
+	});
 });
 </script>
 <script>window.stockExitItemsConfig = { searchUrl: @json(route('concepts.search')) + '?type=materiales&limit=30' };</script>

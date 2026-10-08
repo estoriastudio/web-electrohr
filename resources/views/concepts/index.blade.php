@@ -42,6 +42,9 @@
                     <h4 class="card-title mb-0">Catálogo de Conceptos</h4>
                 </div>
                 <div class="d-flex gap-2">
+                    <a href="{{ route('concepts.archived') }}" class="btn btn-sm btn-outline-secondary" title="Archivados">
+                        <i class="ri-archive-line me-1"></i> Archivados
+                    </a>
                     <button type="button" class="btn btn-sm btn-soft-success"
                             data-bs-toggle="modal" data-bs-target="#modalImportConcepts">
                         <i class="ri-upload-2-line me-1"></i> Importar
@@ -211,16 +214,14 @@
                                                     data-subcategory-id="{{ $concept->concept_subcategory_id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
-                                              <form action="{{ route('concepts.destroy', $concept) }}"
-                                                  method="POST"
-                                                  class="form-delete-concept"
-                                                  data-code="{{ $concept->code }}">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
-                                                    <i class="ri-delete-bin-line"></i>
-                                                </button>
-                                            </form>
+                                            <button type="button"
+                                                    class="btn btn-soft-warning btn-sm btn-archive-concept"
+                                                    title="Archivar"
+                                                    data-action="{{ route('concepts.archive', $concept) }}"
+                                                    data-code="{{ $concept->code }}"
+                                                    data-description="{{ $concept->description }}">
+                                                <i class="ri-archive-line"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -535,10 +536,55 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════════════════
+     MODAL — Archivar concepto
+══════════════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalArchiveConcept" tabindex="-1" aria-labelledby="modalArchiveConceptLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formArchiveConcept" action="" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalArchiveConceptLabel">
+                        <i class="ri-archive-line me-1"></i> Archivar concepto
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        Vas a archivar <strong id="archive_concept_code"></strong>
+                        <span class="text-muted">— <span id="archive_concept_description"></span></span>
+                    </p>
+                    <div class="alert alert-warning mb-3">
+                        <div class="fw-semibold mb-1"><i class="ri-error-warning-line me-1"></i> Consideraciones</div>
+                        <ul class="mb-0 ps-3">
+                            <li>Dejará de estar disponible en Inventario, SOLMAT, SOLCOM y Órdenes de Compra.</li>
+                            <li>No podrá seleccionarse en nuevas solicitudes, entradas, salidas ni órdenes.</li>
+                            <li>No se pueden hacer ajustes de existencia mientras esté archivado.</li>
+                            <li>Los documentos y movimientos históricos conservan su información.</li>
+                            <li>Dejará de mostrarse en este catálogo y pasará a la vista de Archivados.</li>
+                        </ul>
+                    </div>
+                    <p class="text-muted fs-13 mb-0">
+                        La acción es reversible: puedes restaurarlo desde <strong>Archivados</strong>.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="ri-archive-line me-1"></i> Archivar concepto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
      MODAL — Importar Conceptos
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalImportConcepts" tabindex="-1" aria-labelledby="modalImportConceptsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <form action="{{ route('concepts.import') }}" method="POST" enctype="multipart/form-data">
                 @csrf
@@ -558,22 +604,31 @@
                                 <tr>
                                     <th>Columna</th>
                                     <th>Destino</th>
+                                    <th>Alias aceptados</th>
                                     <th>Requerido</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td><code>codigo</code></td><td>Código del concepto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
-                                <tr><td><code>descripcion</code></td><td>Descripción</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>unidad</code></td><td>Unidad de medida</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>codigo</code></td><td>Código del concepto</td><td><code>code</code></td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>descripcion</code></td><td>Descripción</td><td><code>description</code>, <code>descripción</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>unidad</code></td><td>Unidad de medida</td><td><code>unit</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td><code>ubicación</code>, <code>warehouse_location</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td><code>quantity</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>precio_unitario</code></td><td>Precio unitario</td><td><code>unit_price</code></td><td class="text-center text-muted">—</td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <p class="text-muted fs-12 mb-3">
-                        <i class="ri-information-line me-1"></i>
-                        Si el código ya existe, se actualizará su información. La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.
-                    </p>
+                    <div class="alert alert-warning d-flex align-items-start gap-2 fs-13 mb-3" role="alert">
+                        <i class="ri-alert-line fs-18 lh-1"></i>
+                        <div>
+                            <h6 class="alert-heading fs-12 text-uppercase fw-semibold mb-1">Antes de importar...</h6>
+                            <ul class="mb-0 ps-3">
+                                <li>Si el código ya existe, se actualizará su información.</li>
+                                <li>El precio unitario solo se actualiza si la columna viene en el archivo.</li>
+                                <li>La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.</li>
+                            </ul>
+                        </div>
+                    </div>
                     <div class="mb-0">
                         <label for="concept_import_file" class="form-label fw-medium">Archivo Excel <span class="text-danger">*</span></label>
                         <input type="file"
@@ -761,54 +816,14 @@ document.querySelectorAll('.btn-edit-concept').forEach(function (btn) {
     });
 });
 
-document.querySelectorAll('.form-delete-concept').forEach(function (form) {
-    form.addEventListener('submit', function (event) {
-        event.preventDefault();
-
-        if (!window.confirm('¿Eliminar el concepto «' + form.dataset.code + '»?')) return;
-
-        var submitButton = form.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-
-        fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: new FormData(form)
-        })
-        .then(function (response) {
-            if (!response.ok) throw new Error();
-            return response.json();
-        })
-        .then(function (data) {
-            var row = form.closest('tr');
-            var tableBody = row.parentElement;
-            row.remove();
-
-            if (!tableBody.querySelector('tr[data-concept-row]')) {
-                tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">'
-                    + '<i class="ri-pages-line fs-24 d-block mb-1 opacity-50"></i>'
-                    + 'No hay conceptos registrados.</td></tr>';
-            }
-
-            showConceptDeletionAlert(data.message);
-        })
-        .catch(function () {
-            submitButton.disabled = false;
-            showConceptDeletionAlert('No fue posible eliminar el concepto. Intente de nuevo.', 'danger');
-        });
+document.querySelectorAll('.btn-archive-concept').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.getElementById('formArchiveConcept').action = this.dataset.action;
+        document.getElementById('archive_concept_code').textContent = this.dataset.code;
+        document.getElementById('archive_concept_description').textContent = this.dataset.description;
+        new bootstrap.Modal(document.getElementById('modalArchiveConcept')).show();
     });
 });
-
-function showConceptDeletionAlert(message, type) {
-    var alert = document.createElement('div');
-    alert.className = 'alert alert-' + (type || 'success') + ' alert-dismissible fade show';
-    alert.setAttribute('role', 'alert');
-    alert.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-    document.getElementById('concepts-index-content').before(alert);
-}
 
 document.addEventListener('DOMContentLoaded', function () {
     if (createType && createCategory) {

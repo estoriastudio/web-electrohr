@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Concept;
 use App\Models\StockCertificate;
 use App\Models\StockEntry;
+use App\Models\StockEntryItem;
+use App\Models\StockExitItem;
 use App\Models\Tool;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -33,7 +36,7 @@ class StockEntryController extends Controller
             ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->latest('received_at')->paginate(25)->withQueryString();
-        $tools = Tool::whereIn('status', ['active', 'in_service'])
+        $tools = Tool::notArchived()->whereIn('status', ['active', 'in_service'])
             ->orderBy('economic_number')
             ->get(['id', 'economic_number', 'name', 'description']);
         return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo', 'tools'));
@@ -48,7 +51,7 @@ class StockEntryController extends Controller
     {
         $validated = $request->validate([
             'entry_type' => ['required', Rule::in(['purchase', 'tool_return'])],
-            'tool_id' => ['nullable', 'exists:tools,id'],
+            'tool_id' => ['nullable', Rule::exists('tools', 'id')->whereNull('archived_at')],
             'purchase_reference' => ['nullable', 'string', 'max:255'],
             'quantity' => ['nullable', 'numeric', 'gt:0'],
             'received_at' => ['required', 'date'],
@@ -70,9 +73,9 @@ class StockEntryController extends Controller
                 'invoice' => ['required', 'file', 'mimes:pdf', 'max:20480'],
             ]);
             $items = collect($purchase['items'])->values()->map(function (array $item, int $index) {
-                $concept = Concept::where('code', $item['concept_code'])->first();
+                $concept = Concept::available()->where('code', $item['concept_code'])->first();
                 if (! $concept) {
-                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe.']);
+                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
                 }
                 if ($concept->requires_origin_certificate && ! request()->hasFile("items.{$index}.origin_certificate")) {
                     throw ValidationException::withMessages(["items.{$index}.origin_certificate" => 'El certificado de origen es obligatorio para este suministro.']);
@@ -142,7 +145,7 @@ class StockEntryController extends Controller
             });
         } catch (\Throwable $exception) {
             foreach ($paths as $path) {
-                \Illuminate\Support\Facades\Storage::disk('s3')->delete($path);
+                Storage::disk('s3')->delete($path);
             }
             throw $exception;
         }
@@ -164,17 +167,168 @@ class StockEntryController extends Controller
 
     public function update(Request $request, StockEntry $stockEntry): RedirectResponse
     {
-        return redirect()->route('stocks.entries.index')->with('error', 'Las entradas no se editan para preservar el kardex.');
+        if ($stockEntry->is_adjustment) {
+            return redirect()->route('stocks.entries.index')->with('error', 'Los ajustes manuales no se editan. Elimínelo y registre un nuevo ajuste.');
+        }
+
+        $isPurchase = $stockEntry->entry_type === 'purchase';
+        $stockEntry->load(['items.concept', 'certificates']);
+
+        $rules = [
+            'received_at' => ['required', 'date'],
+            'observations' => ['nullable', 'string', 'max:2000'],
+        ];
+        if ($isPurchase) {
+            $rules += [
+                'purchase_reference' => ['nullable', 'string', 'max:255'],
+                'invoice' => [Rule::requiredIf(! $stockEntry->invoice_file_path), 'nullable', 'file', 'mimes:pdf', 'max:20480'],
+                'items' => ['required', 'array', 'min:1'],
+                'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+                'items.*.origin_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
+                'items.*.safety_certificate' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
+            ];
+        }
+        $validated = $request->validate($rules);
+
+        if ($isPurchase && collect(array_keys($validated['items']))->map(fn ($id) => (int) $id)->sort()->values()->all() !== $stockEntry->items->pluck('id')->sort()->values()->all()) {
+            throw ValidationException::withMessages(['items' => 'Los conceptos de la entrada no coinciden. Para cambiarlos, elimine la entrada y regístrela de nuevo.']);
+        }
+
+        $changes = [];
+        $track = function (string $label, mixed $old, mixed $new) use (&$changes) {
+            if ((string) $old !== (string) $new) {
+                $changes[] = "{$label}: " . ($old === null || $old === '' ? '—' : $old) . ' → ' . ($new === null || $new === '' ? '—' : $new);
+            }
+        };
+        $track('fecha', $stockEntry->received_at->format('d/m/Y'), \Carbon\Carbon::parse($validated['received_at'])->format('d/m/Y'));
+        $track('observaciones', $stockEntry->observations, $validated['observations'] ?? null);
+
+        $newPaths = [];
+        $oldPaths = [];
+        try {
+            DB::transaction(function () use ($request, $validated, $stockEntry, $isPurchase, $track, &$changes, &$newPaths, &$oldPaths) {
+                $attributes = [
+                    'received_at' => $validated['received_at'],
+                    'observations' => $validated['observations'] ?? null,
+                ];
+
+                if ($isPurchase) {
+                    $track('referencia', $stockEntry->purchase_reference, $validated['purchase_reference'] ?? null);
+                    $attributes['purchase_reference'] = $validated['purchase_reference'] ?? null;
+
+                    foreach ($stockEntry->items as $item) {
+                        $quantity = (float) $validated['items'][$item->id]['quantity'];
+                        $delta = $quantity - (float) $item->quantity;
+                        if ($delta < 0) {
+                            $available = $this->availableStock($item->concept_id);
+                            if ($available + $delta < 0) {
+                                throw ValidationException::withMessages(["items.{$item->id}.quantity" => 'No se puede reducir la cantidad de ' . $item->concept->code . ': el stock disponible (' . $this->formatQuantity($available) . ') quedaría negativo.']);
+                            }
+                        }
+                        if ($delta != 0) {
+                            $changes[] = $item->concept->code . ': ' . $this->formatQuantity((float) $item->quantity) . ' → ' . $this->formatQuantity($quantity);
+                            $item->update(['quantity' => $quantity]);
+                        }
+
+                        foreach (['origin' => 'origin_certificate', 'safety' => 'safety_certificate'] as $type => $input) {
+                            if (! $request->hasFile("items.{$item->id}.{$input}")) {
+                                continue;
+                            }
+                            $file = $request->file("items.{$item->id}.{$input}");
+                            $path = $file->store("stocks/entries/{$stockEntry->id}/certificates", 's3');
+                            if ($path === false) {
+                                throw ValidationException::withMessages(["items.{$item->id}.{$input}" => 'No fue posible guardar el certificado en S3.']);
+                            }
+                            $newPaths[] = $path;
+                            foreach ($stockEntry->certificates->where('concept_id', $item->concept_id)->where('certificate_type', $type) as $old) {
+                                $oldPaths[] = [$old->disk, $old->file_path];
+                                $old->delete();
+                            }
+                            StockCertificate::create([
+                                'stock_entry_id' => $stockEntry->id, 'concept_id' => $item->concept_id,
+                                'certificate_type' => $type, 'file_name' => $file->getClientOriginalName(),
+                                'file_path' => $path, 'disk' => 's3', 'mime_type' => $file->getMimeType(),
+                                'file_size' => $file->getSize(), 'uploaded_by' => Auth::id(),
+                            ]);
+                            $changes[] = $item->concept->code . ': certificado de ' . ($type === 'origin' ? 'origen' : 'seguridad') . ' reemplazado';
+                        }
+                    }
+                    $attributes['quantity'] = collect($validated['items'])->sum('quantity');
+
+                    if ($request->hasFile('invoice')) {
+                        $file = $request->file('invoice');
+                        $path = $file->store("stocks/entries/{$stockEntry->id}/invoices", 's3');
+                        if ($path === false) {
+                            throw ValidationException::withMessages(['invoice' => 'No fue posible guardar la factura en S3.']);
+                        }
+                        $newPaths[] = $path;
+                        if ($stockEntry->invoice_file_path) {
+                            $oldPaths[] = [$stockEntry->invoice_disk ?: 's3', $stockEntry->invoice_file_path];
+                        }
+                        $attributes += ['invoice_file_name' => $file->getClientOriginalName(), 'invoice_file_path' => $path, 'invoice_disk' => 's3'];
+                        $changes[] = 'factura reemplazada';
+                    }
+                }
+
+                $stockEntry->update($attributes);
+            });
+        } catch (\Throwable $exception) {
+            foreach ($newPaths as $path) {
+                Storage::disk('s3')->delete($path);
+            }
+            throw $exception;
+        }
+
+        foreach ($oldPaths as [$disk, $path]) {
+            Storage::disk($disk)->delete($path);
+        }
+
+        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockEntry->id, 'data' => 'editó la entrada de inventario #' . $stockEntry->id . ($changes ? ' (' . implode('; ', $changes) . ')' : ' (sin cambios)') . '.']);
+
+        return redirect()->route('stocks.entries.index')->with('success', 'Entrada actualizada correctamente.');
     }
 
     public function destroy(StockEntry $stockEntry): RedirectResponse
     {
-        if ($stockEntry->returnedExit()->exists()) {
-            return redirect()->route('stocks.entries.index')->with('error', 'No se puede eliminar una entrada que cerró un préstamo.');
+        $stockEntry->load(['items.concept', 'certificates', 'returnedExit']);
+
+        $paths = $stockEntry->certificates->map(fn ($certificate) => [$certificate->disk, $certificate->file_path])->all();
+        if ($stockEntry->invoice_file_path) {
+            $paths[] = [$stockEntry->invoice_disk ?: 's3', $stockEntry->invoice_file_path];
         }
-        $entryId = $stockEntry->id;
-        $stockEntry->delete();
-        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $entryId, 'data' => 'eliminó la entrada de inventario #' . $entryId . '.']);
-        return redirect()->route('stocks.entries.index')->with('success', 'Entrada eliminada correctamente.');
+        $summary = $stockEntry->items->map(fn ($item) => $item->concept->code . ' x ' . $this->formatQuantity((float) $item->quantity))->implode(', ');
+        $reopenedExitId = $stockEntry->returnedExit?->id;
+
+        DB::transaction(function () use ($stockEntry) {
+            foreach ($stockEntry->items as $item) {
+                $available = $this->availableStock($item->concept_id);
+                if ($available - (float) $item->quantity < 0) {
+                    throw ValidationException::withMessages(['stock' => 'No se puede eliminar la entrada: ' . $item->concept->code . ' ya tiene salidas que dependen de esta existencia (stock disponible ' . $this->formatQuantity($available) . ').']);
+                }
+            }
+            if ($stockEntry->returnedExit) {
+                $stockEntry->returnedExit->update(['status' => 'open', 'return_stock_entry_id' => null]);
+            }
+            $stockEntry->delete();
+        });
+
+        foreach ($paths as [$disk, $path]) {
+            Storage::disk($disk)->delete($path);
+        }
+
+        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $stockEntry->id, 'data' => 'eliminó la entrada de inventario #' . $stockEntry->id . ($summary ? " ({$summary})" : '') . ($reopenedExitId ? ' y reabrió el préstamo #' . $reopenedExitId : '') . '.']);
+
+        return redirect()->route('stocks.entries.index')->with('success', 'Entrada eliminada correctamente.' . ($reopenedExitId ? ' El préstamo asociado volvió a estar pendiente de retorno.' : ''));
+    }
+
+    private function availableStock(int $conceptId): float
+    {
+        return (float) StockEntryItem::where('concept_id', $conceptId)->lockForUpdate()->sum('quantity')
+            - (float) StockExitItem::where('concept_id', $conceptId)->lockForUpdate()->sum('quantity');
+    }
+
+    private function formatQuantity(float $quantity): string
+    {
+        return rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.');
     }
 }

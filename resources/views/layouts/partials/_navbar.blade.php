@@ -86,12 +86,10 @@
                                        href="{{ route('suppliers.index') }}">Listado</a>
                                 </li>
                                 @endcan
-                                @role('admin')
                                 <li class="sub-nav-item">
                                     <a class="sub-nav-link {{ request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
                                        href="{{ route('suppliers.account_statement.index') }}">Estado de Cuenta</a>
                                 </li>
-                                @endrole
                             </ul>
                         </div>
                     </li>

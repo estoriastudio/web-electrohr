@@ -3,7 +3,7 @@
 @section('content')
 @if(session('success'))<div class="alert alert-success alert-dismissible fade show" role="alert">{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>@endif
 @if(session('error'))<div class="alert alert-danger alert-dismissible fade show" role="alert">{{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>@endif
-@if($errors->any())<div class="alert alert-danger alert-dismissible fade show" role="alert"><strong>No fue posible registrar la entrada.</strong><ul class="mb-0 mt-1">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>@endif
+@if($errors->any())<div class="alert alert-danger alert-dismissible fade show" role="alert"><strong>No fue posible guardar la entrada.</strong><ul class="mb-0 mt-1">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>@endif
 <div class="card">
 	<div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
 		<div><h4 class="card-title mb-0"><i class="ri-inbox-line text-primary me-1"></i>Entradas de inventario</h4><span class="text-muted fs-13">Recepciones por compra y retornos de herramienta</span></div>
@@ -17,9 +17,9 @@
 			<div class="col-md-3 d-flex gap-1"><button class="btn btn-primary btn-sm flex-fill"><i class="ri-filter-3-line me-1"></i>Filtrar</button>@if($search || $dateFrom || $dateTo)<a href="{{ route('stocks.entries.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros"><i class="ri-close-line"></i></a>@endif</div>
 		</form>
 	</div>
-	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto / Herramienta</th><th>Tipo de entrada</th><th class="text-end">Cantidad</th><th>Referencia</th><th>Documentos</th></tr></thead><tbody>@forelse($entries as $entry)@php($isPurchase = $entry->entry_type === 'purchase')<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $entry->received_at->format('d/m/Y') }}</td><td>@if($isPurchase)@forelse($entry->items as $item)<span class="fw-semibold d-block">{{ $item->concept->code }}</span><span class="text-muted fs-12 d-block">{{ $item->concept->description }}</span>@empty<span class="text-muted">—</span>@endforelse
+	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto / Herramienta</th><th>Tipo de entrada</th><th class="text-end">Cantidad</th><th>Referencia</th><th>Documentos</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($entries as $entry)@php($isPurchase = $entry->entry_type === 'purchase')<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $entry->received_at->format('d/m/Y') }}</td><td>@if($isPurchase)@forelse($entry->items as $item)<span class="fw-semibold d-block">{{ $item->concept->code }}</span><span class="text-muted fs-12 d-block">{{ $item->concept->description }}</span>@empty<span class="text-muted">—</span>@endforelse
 @else<span class="fw-semibold d-block">{{ $entry->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $entry->tool?->name ?: $entry->tool?->description }}</span>@endif</td><td><span class="badge {{ $isPurchase ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info' }} py-1 px-2 fs-12"><i class="{{ $isPurchase ? 'ri-shopping-bag-3-line' : 'ri-tools-line' }} me-1"></i>{{ $isPurchase ? 'Compra' : 'Retorno de herramienta' }}</span></td><td class="text-end fw-semibold">@if($isPurchase)@foreach($entry->items as $item)<span class="d-block">{{ rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.') }}</span>@endforeach
-@else{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}@endif</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
+@else{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}@endif</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td><td class="text-end text-nowrap">@php($editData = ['id' => $entry->id, 'type' => $entry->entry_type, 'received_at' => $entry->received_at->toDateString(), 'reference' => $entry->purchase_reference, 'observations' => $entry->observations, 'has_invoice' => (bool) $entry->invoice_file_path, 'items' => $entry->items->map(fn ($item) => ['id' => $item->id, 'code' => $item->concept->code, 'description' => $item->concept->description, 'unit' => $item->concept->unit, 'quantity' => rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.')])->values()])@if($entry->is_adjustment)<span class="text-muted fs-12 me-1" title="Los ajustes manuales no se editan">Ajuste</span>@else<button type="button" class="btn btn-soft-primary btn-sm" data-edit-entry='{{ json_encode($editData, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) }}' title="Editar entrada"><i class="ri-edit-line"></i></button>@endif<form action="{{ route('stocks.entries.destroy', $entry) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar la entrada #{{ $entry->id }}? Se descontará del inventario y se registrará en la auditoría.')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" title="Eliminar entrada"><i class="ri-delete-bin-line"></i></button></form></td></tr>@empty<tr><td colspan="7" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($entries->hasPages())<div class="card-footer d-flex justify-content-end">{{ $entries->links('pagination::bootstrap-5') }}</div>@endif
 </div>
 @can('stocks.create')
@@ -73,7 +73,34 @@
 		</form>
 	</div>
 </div>
-@endcan
+<div class="modal fade" id="entryEditModal" tabindex="-1" aria-labelledby="entryEditModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg modal-dialog-centered">
+		<form class="modal-content" id="entryEditForm" action="#" method="POST" enctype="multipart/form-data" data-action-template="{{ route('stocks.entries.update', '__ID__') }}">
+			@csrf @method('PUT')
+			<div class="modal-header">
+				<h5 class="modal-title" id="entryEditModalLabel"><i class="ri-edit-line me-1"></i>Editar entrada <span id="entryEditId"></span></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			</div>
+			<div class="modal-body">
+				<div class="row g-3">
+					<div class="col-md-4"><label for="edit_received_at" class="form-label">Fecha <span class="text-danger">*</span></label><input id="edit_received_at" name="received_at" type="date" class="form-control" required></div>
+					<div class="col-md-4" data-edit-purchase><label for="edit_purchase_reference" class="form-label">Número SOLCOM u OC</label><input id="edit_purchase_reference" name="purchase_reference" class="form-control" maxlength="255"></div>
+					<div class="col-md-4" data-edit-purchase><label for="edit_invoice" class="form-label">Factura PDF <span class="text-muted fs-12" id="editInvoiceHint">(opcional: reemplaza la actual)</span></label><input id="edit_invoice" name="invoice" type="file" accept="application/pdf" class="form-control"></div>
+				</div>
+				<div class="mt-4" data-edit-purchase>
+					<h6 class="text-uppercase fs-12 text-muted mb-2">Suministros</h6>
+					<div class="table-responsive border"><table class="table table-sm align-middle mb-0"><thead class="bg-light-subtle"><tr><th>Código</th><th>Descripción</th><th>Unidad</th><th class="text-end">Cantidad</th><th>Reemplazar certificados</th></tr></thead><tbody id="entryEditItems"></tbody></table></div>
+					<small class="text-muted">Para cambiar los conceptos, elimine la entrada y regístrela de nuevo.</small>
+				</div>
+				<div class="border-top pt-3 mt-4"><label for="edit_observations" class="form-label">Observaciones</label><textarea id="edit_observations" name="observations" class="form-control" rows="2" maxlength="2000"></textarea></div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+				<button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i>Guardar cambios</button>
+			</div>
+		</form>
+	</div>
+</div>
 @endsection
 
 @push('scripts')
@@ -136,6 +163,41 @@ document.addEventListener('DOMContentLoaded', function () {
 		saveButton.classList.add('d-none');
 		setRequired(purchaseInputs, false);
 		setRequired(returnInputs, false);
+	});
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	var form = document.getElementById('entryEditForm');
+	var modal = new bootstrap.Modal(document.getElementById('entryEditModal'));
+	var itemsBody = document.getElementById('entryEditItems');
+	function escHtml(value) { var element = document.createElement('div'); element.appendChild(document.createTextNode(value == null ? '' : String(value))); return element.innerHTML; }
+	document.querySelectorAll('[data-edit-entry]').forEach(function (button) {
+		button.addEventListener('click', function () {
+			var entry = JSON.parse(this.dataset.editEntry);
+			var isPurchase = entry.type === 'purchase';
+			form.action = form.dataset.actionTemplate.replace('__ID__', entry.id);
+			document.getElementById('entryEditId').textContent = '#' + entry.id;
+			document.getElementById('edit_received_at').value = entry.received_at;
+			document.getElementById('edit_purchase_reference').value = entry.reference || '';
+			document.getElementById('edit_observations').value = entry.observations || '';
+			document.getElementById('edit_invoice').value = '';
+			document.getElementById('edit_invoice').required = isPurchase && !entry.has_invoice;
+			document.getElementById('editInvoiceHint').classList.toggle('d-none', !entry.has_invoice);
+			form.querySelectorAll('[data-edit-purchase]').forEach(function (element) {
+				element.classList.toggle('d-none', !isPurchase);
+				element.querySelectorAll('input').forEach(function (input) { input.disabled = !isPurchase; });
+			});
+			itemsBody.innerHTML = '';
+			(isPurchase ? entry.items : []).forEach(function (item) {
+				var row = document.createElement('tr');
+				row.innerHTML = '<td class="fw-semibold">' + escHtml(item.code) + '</td><td>' + escHtml(item.description) + '</td><td>' + escHtml(item.unit) + '</td>'
+					+ '<td><input type="number" name="items[' + item.id + '][quantity]" value="' + escHtml(item.quantity) + '" min="0.001" step="0.001" class="form-control form-control-sm text-end" required></td>'
+					+ '<td><input type="file" name="items[' + item.id + '][origin_certificate]" accept="application/pdf" class="form-control form-control-sm mb-1" title="Certificado de origen"><input type="file" name="items[' + item.id + '][safety_certificate]" accept="application/pdf" class="form-control form-control-sm" title="Certificado de seguridad"></td>';
+				itemsBody.appendChild(row);
+			});
+			modal.show();
+		});
 	});
 });
 </script>

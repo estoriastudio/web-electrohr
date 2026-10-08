@@ -39,14 +39,25 @@ class ConceptImport implements ToCollection, WithHeadingRow, WithChunkReading, S
         $location    = trim($row['ubicacion'] ?? $row['ubicación'] ?? $row['warehouse_location'] ?? '');
         $quantity    = $this->normalizeQuantity($row['cantidad'] ?? $row['quantity'] ?? null);
 
-        DB::transaction(function () use ($code, $description, $unit, $location, $quantity) {
-            $concept = Concept::updateOrCreate(['code' => $code], [
+        $rawUnitPrice = $row['precio_unitario'] ?? $row['unit_price'] ?? null;
+        $unitPrice    = $this->normalizeQuantity($rawUnitPrice);
+        $hasUnitPrice = trim((string) $rawUnitPrice) !== '';
+
+        DB::transaction(function () use ($code, $description, $unit, $location, $quantity, $unitPrice, $hasUnitPrice) {
+            $attributes = [
                 'code'        => $code,
                 'description' => $description ?: $code,
                 'unit'        => $unit ?: '—',
                 'warehouse_location' => $location,
                 'status'      => 'active',
-            ]);
+            ];
+
+            // Solo se actualiza el precio si el archivo lo trae, para no sobrescribirlo con 0.
+            if ($hasUnitPrice) {
+                $attributes['unit_price'] = $unitPrice;
+            }
+
+            $concept = Concept::updateOrCreate(['code' => $code], $attributes);
 
             if ($quantity > 0 && ! $concept->stockEntryItems()->exists() && ! $concept->stockExitItems()->exists()) {
                 $entry = StockEntry::create([

@@ -178,7 +178,7 @@
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Imp. NC</div><div class="fw-semibold text-danger">{{ $estimateCurrency }} {{ number_format($creditNoteAmount, 2) }}</div></div>
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Imp. estimado</div><div class="fw-semibold text-primary">{{ $estimateCurrency }} {{ number_format($estimatedWorkAmount, 2) }}</div></div>
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Por estimar</div><div class="fw-semibold {{ $remainingToEstimate < 0 ? 'text-danger' : 'text-success' }}">{{ $estimateCurrency }} {{ number_format($remainingToEstimate, 2) }}</div></div>
-            <div class="col-sm-6 col-xl text-xl-end"><div class="text-muted fs-12">Avance físico</div><div class="fw-semibold text-danger display-6">{{ number_format($physicalProgress, 2) }}%</div></div>
+            <div class="col-sm-6 col-xl text-xl-end"><div class="text-muted fs-12">Avance Financiero</div><div class="fw-semibold text-danger display-6">{{ number_format($physicalProgress, 2) }}%</div></div>
         </div>
     </div>
 </div>

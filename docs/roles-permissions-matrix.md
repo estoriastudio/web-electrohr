@@ -96,8 +96,8 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 ## Ordenes de Compra por Comprador
 
 - `buyer_id` vincula la OC a `users.id`. Al crear desde el listado o desde Pila SOLCOM se asigna el usuario autenticado; Elabora Orden muestra su nombre y no admite texto libre.
-- Admin conserva el listado completo por defecto y puede cambiar a Mis OC. Todos los demas perfiles con acceso al listado reciben Mis OC, incluso si solicitan `scope=all`; no se devuelve un error por rol.
-- Listados activos, archivados, vencimientos y facturas recientes de la pagina de OC respetan ese alcance. Admin puede filtrar OC sin comprador asignado con `buyer_status=unassigned`.
+- Admin y Pagos reciben el listado completo por defecto y pueden cambiar a Mis OC. Todos los demas perfiles con acceso al listado reciben Mis OC, incluso si solicitan `scope=all`; no se devuelve un error por rol.
+- Listados activos, archivados y facturas recientes de la pagina de OC respetan ese alcance. Admin y Pagos pueden filtrar OC sin comprador asignado con `buyer_status=unassigned`. Las bandejas administrativas, aprobaciones y reasignacion de comprador siguen exclusivas de admin.
 - Blade muestra controles de Compras solo para admin o el comprador vinculado. Solo admin ve el selector para asignar o cambiar comprador. La reasignacion registra una notificacion y conserva la firma historica `elaborated_by`.
 - Pagos conserva sus flujos de pagos/facturas. SOLMAT y Recepcion conservan los accesos colaborativos existentes. Facturas, contadores, exportacion y seleccion de OC para alta se filtran por comprador cuando el usuario tiene Compras sin ninguno de esos roles operativos ni admin.
 - No se agregan bloqueos de rol en controladores ni nuevas policies o middleware de rol. Se mantienen los middleware y restricciones de estado existentes. **Los controles Blade son visibilidad, no autorizacion de solicitudes directas:** este cambio no impide invocar endpoints de gestion manualmente cuando los middleware existentes lo permiten.
@@ -113,3 +113,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-14: Se agrega el rol Inventario para consulta y gestión de existencias, entradas y salidas.
 - 2026-09-15: Engineer accede a Proyectos solo cuando está asignado como supervisor o residente de una obra; admin conserva el listado completo.
 - 2026-09-29: OC vinculadas a comprador usuario; Mis OC y listado completo admin, precarga de Elabora Orden, reasignacion visual admin y vinculacion historica por nombres exactos.
+- 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.

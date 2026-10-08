@@ -52,6 +52,7 @@
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
     $canManageOrder = auth()->user()->can('purchase_orders.update') && ($isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id()));
+    $canRequestPaymentReactivation = auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = auth()->user()->can('payments.create') && ($canModifyPurchaseOrder || $purchaseOrder->is_destajo);
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
@@ -1197,7 +1198,7 @@
                                                         @endcan
                                                         @endhasanyrole
 
-                                                        @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
+                                                        @if ($canRequestPaymentReactivation)
                                                         @if ($payment->status === 'rechazado')
                                                         <li>
                                                             <button type="button" class="dropdown-item text-warning"
@@ -1458,15 +1459,21 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
+                                            @if (auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra', 'Solmat']))
+                                            <a href="{{ route('invoices.show', $invoice) }}"
+                                               class="btn btn-xs btn-soft-info" style="padding: 2px 8px;"
+                                               title="Ver detalle de la factura" aria-label="Ver detalle de la factura">
+                                                <i class="ri-eye-line"></i>
+                                            </a>
+                                            @endif
                                             @if ($invoice->file_path)
                                             <a href="{{ route('invoices.download', $invoice) }}"
-                                               target="_blank"
+                                               download="{{ $invoice->file_name }}"
                                                class="btn btn-xs btn-soft-primary" style="padding: 2px 8px;"
-                                               title="Ver / Descargar PDF">
+                                               title="Descargar PDF" aria-label="Descargar PDF">
                                                 <i class="ri-download-2-line"></i>
                                             </a>
                                             @endif
-                                            @can('invoices.delete')
                                             <form action="{{ route('invoices.destroy', $invoice) }}" method="POST"
                                                   onsubmit="return confirm('¿Eliminar la factura {{ $invoice->folio ?: ($invoice->file_name ?: '#' . $invoice->id) }}? Esta acción no se puede deshacer.')">
                                                 @csrf @method('DELETE')
@@ -1475,7 +1482,6 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
-                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -1856,7 +1862,7 @@
     </div>
     @endif
 
-    @if ($canManageOrder && auth()->user()->hasRole('Orden de compra'))
+    @if ($canRequestPaymentReactivation)
     @foreach ($milestone->payments->where('status', 'rechazado') as $payment)
     <div class="modal fade" id="modalRequestPaymentReactivation{{ $payment->id }}" tabindex="-1" aria-labelledby="modalRequestPaymentReactivationLabel{{ $payment->id }}" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1926,7 +1932,7 @@
                             </label>
                             <input id="adminInvoiceXmlFile" type="file" class="form-control @error('xml_file') is-invalid @enderror"
                                    name="xml_file" accept=".xml,text/xml">
-                            <div class="form-text">Al cargar el XML se autocompletará el folio fiscal (UUID).</div>
+                            <div class="form-text">Al cargar el XML se autocompletarán el folio fiscal (UUID) y el importe.</div>
                             @error('xml_file')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
 
@@ -1943,10 +1949,17 @@
                         {{-- Importe y Moneda --}}
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Importe <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" max="{{ $purchaseOrder->amount }}"
+                            @php
+                                $adminInvoicedAmount = (float) $purchaseOrder->invoices
+                                    ->whereIn('status', ['en_proceso', 'aceptada'])
+                                    ->sum(fn ($inv) => (float) ($inv->net_scope ?? $inv->amount ?? 0));
+                                $adminPendingAmount = max(0, round((float) $importeTotal - $adminInvoicedAmount, 2));
+                            @endphp
+                            <input id="adminInvoiceAmount" type="number" step="0.01" min="0.01"
                                    class="form-control @error('amount') is-invalid @enderror"
                                    name="amount" placeholder="0.00" required>
-                            <div class="form-text">Máximo: {{ $purchaseOrder->currency }} {{ number_format($purchaseOrder->amount, 2) }}</div>
+                            <div class="form-text">Saldo pendiente: {{ $purchaseOrder->currency }} {{ number_format($adminPendingAmount, 2) }} (tolerancia de 0.50)</div>
+                            <span id="adminInvoiceAmountStatus" class="badge bg-warning-subtle text-warning mt-1">Captura manual</span>
                             @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
@@ -3044,7 +3057,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var xmlInput = document.getElementById('adminInvoiceXmlFile');
     var folioInput = document.getElementById('adminInvoiceFolio');
-    if (!xmlInput || !folioInput) return;
+    var amountInput = document.getElementById('adminInvoiceAmount');
+    var amountStatus = document.getElementById('adminInvoiceAmountStatus');
+    if (!xmlInput || !folioInput || !amountInput) return;
+
+    function setAmountFromXml(amount) {
+        var fromXml = amount !== null;
+        if (fromXml) {
+            // Misma normalizaci\u00f3n que el portal de proveedores (centavos 01-09 se truncan).
+            var cents = Math.round(amount * 100);
+            var remainder = Math.abs(cents % 100);
+            amount = remainder >= 1 && remainder <= 9 ? Math.trunc(cents / 100) : cents / 100;
+            amountInput.value = amount.toFixed(2);
+        } else {
+            amountInput.value = '';
+        }
+        amountInput.readOnly = fromXml;
+        amountInput.classList.toggle('bg-light', fromXml);
+        if (amountStatus) {
+            amountStatus.textContent = fromXml ? 'Detectado desde XML' : 'Captura manual';
+            amountStatus.className = 'badge mt-1 ' + (fromXml ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning');
+        }
+    }
+
+    function readCfdiTotalFromXmlText(xmlText) {
+        try {
+            var xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
+            if (xmlDoc.querySelector('parsererror')) return null;
+
+            var nodes = xmlDoc.getElementsByTagName('*');
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].localName !== 'Comprobante') continue;
+                var total = parseFloat(String(nodes[i].getAttribute('Total') || '').replace(/,/g, ''));
+                return isFinite(total) ? total : null;
+            }
+        } catch (err) {
+            return null;
+        }
+
+        return null;
+    }
 
     function readFiscalFolioFromXmlText(xmlText) {
         try {
@@ -3073,7 +3125,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     xmlInput.addEventListener('change', function () {
         var file = this.files && this.files.length ? this.files[0] : null;
-        if (!file) return;
+        if (!file) {
+            folioInput.value = '';
+            xmlInput.classList.remove('is-invalid');
+            setAmountFromXml(null);
+            return;
+        }
 
         var fileName = String(file.name || '').toLowerCase();
         if (!fileName.endsWith('.xml')) return;
@@ -3085,14 +3142,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!uuid) {
                 xmlInput.classList.add('is-invalid');
+                setAmountFromXml(null);
                 return;
             }
 
             xmlInput.classList.remove('is-invalid');
             folioInput.value = uuid;
+            setAmountFromXml(readCfdiTotalFromXmlText(xmlText));
         };
         reader.onerror = function () {
             xmlInput.classList.add('is-invalid');
+            setAmountFromXml(null);
         };
         reader.readAsText(file);
     });

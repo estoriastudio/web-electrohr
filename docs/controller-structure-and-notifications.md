@@ -80,7 +80,7 @@ public function store(Request $request): RedirectResponse { ... }
 - La validación en `store` es **condicional** según `type` y `recurrence_type`.
 - Carga relaciones anidadas en `show`: `supplier`, `milestones.payments`, `invoices.milestones`.
 - `store` asigna `buyer_id` desde el usuario autenticado en alta manual y desde SOLCOM. Ignora identidades enviadas por el formulario; `elaborated_by` conserva el nombre como firma, no como criterio de pertenencia.
-- `index` y `archived` normalizan `scope`: admin puede consultar `all` o `mine`; los demas usuarios reciben `mine` sin bloqueos por rol. Las condiciones OR de vencimiento se agrupan para respetar comprador y archivo.
+- `index` y `archived` normalizan `scope`: admin y Pagos pueden consultar `all` o `mine`; los demas usuarios reciben `mine` sin bloqueos por rol. Las condiciones OR de vencimiento se agrupan para respetar comprador y archivo.
 - `assignBuyer` valida el ID existente, cambia unicamente el comprador y registra comprador anterior/nuevo mediante `NotificationService`. La vista muestra esta accion solo a admin; no introduce autorizaciones bloqueantes por rol en el controlador.
 - La cola de aprobacion global se calcula solo para admin. Se conserva la consulta colaborativa de detalle/PDF.
 
@@ -96,7 +96,7 @@ php artisan purchase-orders:backfill-buyers --chunk=200
 
 El comando procesa OC activas, archivadas y eliminadas sin comprador. Compara nombres exactos despues de quitar espacios externos, sensible a mayusculas y acentos. Solo vincula una coincidencia unica con usuario admin o Orden de compra. Reporta nombres vacios, desconocidos, duplicados o usuarios no elegibles, para asignacion manual desde el detalle admin. No modifica firmas, estados ni fechas; no sobrescribe compradores ya asignados y admite ejecuciones repetidas.
 
-Coordinar migracion y vinculacion antes de habilitar Mis OC para evitar que las ordenes historicas queden ocultas al comprador. Las OC sin comprador permanecen en el listado completo admin. Los controles de rol en Blade no protegen solicitudes directas de gestion; se conservan los middleware existentes sin endurecerlos en este cambio.
+Coordinar migracion y vinculacion antes de habilitar Mis OC para evitar que las ordenes historicas queden ocultas al comprador. Las OC sin comprador permanecen en el listado completo de admin y Pagos; solo admin ve la accion de asignacion. Los controles de rol en Blade no protegen solicitudes directas de gestion; se conservan los middleware existentes sin endurecerlos en este cambio.
 
 Las pruebas focalizadas de comprador utilizan un esquema SQLite aislado y la migracion real del vinculo, sin ejecutar las migraciones historicas incompatibles con SQLite:
 

@@ -118,6 +118,10 @@
     </div>
 </div>
 
+@if(($filters['status'] ?? '') === 'conciliacion')
+    @include('suppliers.partials._account_statement_review_help')
+@endif
+
 @foreach($summary as $currency => $totals)
     <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
         <span class="fw-semibold">{{ $currency }}</span>
@@ -125,7 +129,7 @@
     </div>
     @if(!$totals['complete'])
         <div class="alert alert-warning py-2 fs-13" role="alert">
-            <i class="ri-alert-line me-1" aria-hidden="true"></i>Algunas facturas necesitan revision. Sus saldos no se incluyen en los totales de pendiente y vencido.
+            <i class="ri-alert-line me-1" aria-hidden="true"></i>Algunas facturas necesitan revision. Sus saldos no se incluyen en los totales de pendiente y vencido. <a href="{{ route('suppliers.account_statement.index', array_merge($filters, ['status' => 'conciliacion', 'currency' => $currency, 'per_page' => $rows->perPage()])) }}" class="alert-link">Ver por que y como resolverlo</a>
         </div>
     @endif
     <div class="row g-2 mb-3">

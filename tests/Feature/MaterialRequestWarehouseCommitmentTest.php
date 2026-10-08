@@ -166,6 +166,45 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
         ]);
     }
 
+    public function test_solmat_cannot_remove_a_work_that_has_linked_items(): void
+    {
+        [$materialRequest, , $work] = $this->materialRequest('pending');
+        $otherWork = ProjectWork::create([
+            'project_id' => $work->project_id,
+            'name' => 'Otra obra',
+            'status' => 'active',
+            'contract_end_date' => '2026-12-31',
+        ]);
+
+        $this->actingAs($this->userWithRole('Solmat'))
+            ->from(route('material_requests.edit', $materialRequest))
+            ->put(route('material_requests.update', $materialRequest), $this->updatePayload($materialRequest, [$otherWork->id]))
+            ->assertRedirect(route('material_requests.edit', $materialRequest))
+            ->assertSessionHasErrors('project_work_ids');
+
+        $this->assertSame([$work->id], $materialRequest->fresh()->projectWorks()->pluck('project_works.id')->all());
+    }
+
+    public function test_solmat_can_add_a_work_while_keeping_the_ones_with_linked_items(): void
+    {
+        [$materialRequest, , $work] = $this->materialRequest('pending');
+        $otherWork = ProjectWork::create([
+            'project_id' => $work->project_id,
+            'name' => 'Otra obra',
+            'status' => 'active',
+            'contract_end_date' => '2026-12-31',
+        ]);
+
+        $this->actingAs($this->userWithRole('Solmat'))
+            ->put(route('material_requests.update', $materialRequest), $this->updatePayload($materialRequest, [$work->id, $otherWork->id]))
+            ->assertRedirect(route('material_requests.show', $materialRequest));
+
+        $this->assertEqualsCanonicalizing(
+            [$work->id, $otherWork->id],
+            $materialRequest->fresh()->projectWorks()->pluck('project_works.id')->all()
+        );
+    }
+
     public function test_marking_notifications_read_only_affects_the_current_recipient(): void
     {
         $firstUser = $this->userWithRole('Solmat');
@@ -237,6 +276,20 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
         ]);
 
         return [$materialRequest, $item, $work];
+    }
+
+    private function updatePayload(MaterialRequest $materialRequest, array $workIds): array
+    {
+        return [
+            'project_id' => $materialRequest->project_id,
+            'project_work_ids' => $workIds,
+            'zone' => $materialRequest->zone,
+            'delivery_address' => $materialRequest->delivery_address,
+            'location_type' => 'sitio',
+            'request_date' => '2026-08-27',
+            'need_date' => '2026-09-01',
+            'supply_category' => 'Materiales',
+        ];
     }
 
     private function userWithRole(string $role): User

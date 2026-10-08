@@ -117,7 +117,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
-        Route::middleware('role:admin')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+        Route::middleware('role:admin|Pagos|Orden de compra')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
             Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
             Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
             Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
@@ -140,10 +140,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     'store' => 'suppliers.store',
                     'edit' => 'suppliers.edit',
                     'update' => 'suppliers.update',
-                    'destroy' => 'suppliers.destroy',
                 ],
                 'parameters' => ['proveedores' => 'supplier'],
-            ])->except(['show']);
+            ])->except(['show', 'destroy']);
+            Route::delete('/proveedores/{supplier}', [SupplierController::class, 'destroy'])
+                ->middleware('permission:delete')
+                ->name('suppliers.destroy');
             Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
 
             Route::resource('proveedores.contactos', SupplierContactController::class, [
@@ -373,15 +375,17 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Conceptos (catálogo) — CRUD solo admin
         Route::middleware('role:admin|Solmat')->group(function () {
             Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
+            Route::get('/conceptos/archivados', [ConceptController::class, 'archived'])->name('concepts.archived');
+            Route::patch('/conceptos/{concept}/archivar', [ConceptController::class, 'archive'])->name('concepts.archive');
+            Route::patch('/conceptos/{concept}/desarchivar', [ConceptController::class, 'unarchive'])->name('concepts.unarchive');
             Route::resource('/conceptos', ConceptController::class, [
                 'names' => [
                     'index' => 'concepts.index',
                     'store' => 'concepts.store',
                     'update' => 'concepts.update',
-                    'destroy' => 'concepts.destroy',
                 ],
                 'parameters' => ['conceptos' => 'concept'],
-            ])->only(['index', 'store', 'update', 'destroy']);
+            ])->only(['index', 'store', 'update']);
 
             // Categorías de Conceptos
             Route::get('/categorias-conceptos', [ConceptCategoryController::class, 'index'])->name('concept_categories.index');
@@ -423,16 +427,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('tool_calibrations.destroy');
 
             // Tools
+            Route::get('/herramientas/archivadas', [ToolController::class, 'archived'])->name('tools.archived');
+            Route::patch('/herramientas/{tool}/archivar', [ToolController::class, 'archive'])->name('tools.archive');
+            Route::patch('/herramientas/{tool}/desarchivar', [ToolController::class, 'unarchive'])->name('tools.unarchive');
+            Route::delete('/herramientas/{tool}/eliminar-permanente', [ToolController::class, 'forceDestroy'])
+                ->middleware('role:admin')
+                ->name('tools.force_destroy');
+
             Route::resource('/herramientas', ToolController::class, [
                 'names' => [
                     'index' => 'tools.index',
                     'show' => 'tools.show',
                     'store' => 'tools.store',
                     'update' => 'tools.update',
-                    'destroy' => 'tools.destroy',
                 ],
                 'parameters' => ['herramientas' => 'tool'],
-            ])->only(['index', 'show', 'store', 'update', 'destroy']);
+            ])->only(['index', 'show', 'store', 'update']);
         });
 
         // Usuarios (gestión) y Roles
@@ -566,8 +576,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->middleware('role:admin|Pagos|Orden de compra')
             ->name('payments.store');
 
-        // Reactivación de pagos rechazados — solicitud de Compras para nueva autorización
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Reactivación de pagos rechazados — solicitud de Compras o Pagos para nueva autorización
+        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
             Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
                 ->name('payments.request_reactivation');
         });
@@ -724,13 +734,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');
             Route::resource('/inventario/entradas', StockEntryController::class, [
                 'names' => 'stocks.entries', 'parameters' => ['entradas' => 'stockEntry'],
-            ])->except(['show', 'edit', 'update']);
+            ])->except(['show', 'edit']);
             Route::get('/inventario/salidas/calendario', [StockExitController::class, 'calendar'])->name('stocks.exits.calendar');
             Route::get('/inventario/salidas/calendario/eventos', [StockExitController::class, 'calendarEvents'])->name('stocks.exits.calendar.events');
             Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])->name('stocks.exits.return');
             Route::resource('/inventario/salidas', StockExitController::class, [
                 'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],
-            ])->except(['show', 'edit', 'update']);
+            ])->except(['show', 'edit']);
             Route::get('/inventario/entradas/{stockEntry}/factura', [StockController::class, 'downloadInvoice'])->name('stocks.entries.invoice.download');
             Route::get('/inventario/certificados/{stockCertificate}/descargar', [StockController::class, 'downloadCertificate'])->name('stocks.certificates.download');
             Route::post('/inventario/{concept}/ajuste', [StockController::class, 'adjust'])->name('stocks.adjust');

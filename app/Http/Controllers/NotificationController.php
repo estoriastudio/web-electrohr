@@ -15,6 +15,7 @@ class NotificationController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', 'string'],
             'action' => ['nullable', 'string'],
             'user_id' => ['nullable', 'integer'],
@@ -46,12 +47,17 @@ class NotificationController extends Controller
         $query = Notification::with('user')
             ->latest();
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+        if (! empty($filters['search'])) {
+            $term = addcslashes(trim($filters['search']), '\\%_');
+            $query->where('data', 'like', "%{$term}%");
         }
 
-        if ($request->filled('action')) {
-            $query->where('model_action', $request->action);
+        if (! empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (! empty($filters['action'])) {
+            $query->whereIn('model_action', $filters['action'] === 'destroy' ? ['destroy', 'delete'] : [$filters['action']]);
         }
 
         if (! empty($filters['user_id'])) {
@@ -70,7 +76,14 @@ class NotificationController extends Controller
             ->whereIn('id', Notification::query()->whereNotNull('action_by')->select('action_by')->distinct())
             ->orderBy('name')
             ->get(['id', 'name']);
-        $hasFilters = $request->hasAny(['type', 'action', 'user_id', 'start_date', 'end_date']);
+        $moduleOptions = Notification::query()->whereNotNull('type')->distinct()->pluck('type')
+            ->mapWithKeys(fn ($type) => [$type => Notification::MODULE_LABELS[$type]['label'] ?? $type])
+            ->sort();
+        $actionOptions = Notification::query()->whereNotNull('model_action')->distinct()->pluck('model_action')
+            ->mapWithKeys(fn ($action) => [$action === 'delete' ? 'destroy' : $action => Notification::ACTION_LABELS[$action]['label'] ?? $action])
+            ->sort();
+        $hasFilters = collect(['search', 'type', 'action', 'user_id', 'start_date', 'end_date'])
+            ->contains(fn ($key) => $request->filled($key));
         $selectedUser = ! empty($filters['user_id'])
             ? $users->firstWhere('id', (int) $filters['user_id'])
             : null;
@@ -82,8 +95,10 @@ class NotificationController extends Controller
         $notifications = $query->paginate(25)->withQueryString();
 
         return view('notifications.index', compact(
+            'actionOptions',
             'activityStats',
             'hasFilters',
+            'moduleOptions',
             'notifications',
             'selectedUser',
             'userStats',

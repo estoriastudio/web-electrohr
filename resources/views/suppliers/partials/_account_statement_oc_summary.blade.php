@@ -1,12 +1,32 @@
 <dl class="row g-2 mb-3">
-    <dt class="col-sm-4 text-muted">Orden de Compra</dt><dd class="col-sm-8">{{ $order->folio ?: 'OC-' . $order->id }}</dd>
+    <dt class="col-sm-4 text-muted">Orden de Compra</dt>
+    <dd class="col-sm-8">
+        {{ $order->folio ?: 'OC-' . $order->id }}
+        <a href="{{ route('purchase_orders.show', $order) }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm ms-2" aria-label="Abrir la orden de compra {{ $order->folio ?: 'OC-' . $order->id }} en una pestana nueva"><i class="ri-external-link-line me-1" aria-hidden="true"></i>Ver orden de compra</a>
+    </dd>
     <dt class="col-sm-4 text-muted">Proveedor</dt><dd class="col-sm-8">{{ $order->supplier?->rfc_name ?: $order->supplier?->commercial_name ?: '-' }}</dd>
     <dt class="col-sm-4 text-muted">Proyecto</dt><dd class="col-sm-8">{{ $order->projectRelation?->name ?: $order->project ?: '-' }}</dd>
     <dt class="col-sm-4 text-muted">Usuario responsable</dt><dd class="col-sm-8">{{ $order->buyer?->name ?: $order->elaborated_by ?: 'No asignado' }}</dd>
     <dt class="col-sm-4 text-muted">Moneda</dt><dd class="col-sm-8">{{ $order->currency }}</dd>
 </dl>
-@if($economic['pending_invoices'] === null)
-    <div class="alert alert-warning py-2">Algunas facturas necesitan revision antes de calcular su saldo.</div>
+@php($reviewRows = $rows->where('status', 'conciliacion'))
+@if($reviewRows->isNotEmpty())
+    <div class="alert alert-warning" role="alert">
+        <div class="fw-semibold mb-2"><i class="ri-search-eye-line me-1" aria-hidden="true"></i>Por que esta OC tiene registros por revisar</div>
+        @foreach($reviewRows as $reviewRow)
+            <div class="mb-2">
+                <div class="fw-semibold fs-13">{{ $reviewRow['type'] === 'invoice' ? 'Factura ' . $reviewRow['folio'] : 'Pago #' . $reviewRow['payment_id'] . ' sin aplicar' }}</div>
+                <ul class="mb-0 ps-3 fs-13">
+                    @foreach($reviewRow['review_reasons'] as $reason)
+                        <li>{{ $reason['message'] }} <span class="text-muted">{{ $reason['action'] }}</span></li>
+                    @endforeach
+                </ul>
+            </div>
+        @endforeach
+        <div class="fs-13 border-top pt-2">
+            Se resuelve cuando Compras corrige el dato y guarda; la OC se reclasifica sola al volver a abrir esta pantalla. No requiere nuevos pagos ni facturas.
+        </div>
+    </div>
 @endif
 @if($economic['pending_invoice'] < 0 || $economic['pending_order'] < 0)
     <div class="alert alert-warning py-2">El importe facturado o pagado supera el total de esta OC.</div>
