@@ -733,13 +733,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');
             Route::resource('/inventario/entradas', StockEntryController::class, [
                 'names' => 'stocks.entries', 'parameters' => ['entradas' => 'stockEntry'],
-            ])->except(['show', 'edit', 'update']);
+            ])->except(['show', 'edit']);
             Route::get('/inventario/salidas/calendario', [StockExitController::class, 'calendar'])->name('stocks.exits.calendar');
             Route::get('/inventario/salidas/calendario/eventos', [StockExitController::class, 'calendarEvents'])->name('stocks.exits.calendar.events');
             Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])->name('stocks.exits.return');
             Route::resource('/inventario/salidas', StockExitController::class, [
                 'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],
-            ])->except(['show', 'edit', 'update']);
+            ])->except(['show', 'edit']);
             Route::get('/inventario/entradas/{stockEntry}/factura', [StockController::class, 'downloadInvoice'])->name('stocks.entries.invoice.download');
             Route::get('/inventario/certificados/{stockCertificate}/descargar', [StockController::class, 'downloadCertificate'])->name('stocks.certificates.download');
             Route::post('/inventario/{concept}/ajuste', [StockController::class, 'adjust'])->name('stocks.adjust');

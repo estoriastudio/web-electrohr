@@ -584,7 +584,7 @@
      MODAL — Importar Conceptos
 ══════════════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalImportConcepts" tabindex="-1" aria-labelledby="modalImportConceptsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <form action="{{ route('concepts.import') }}" method="POST" enctype="multipart/form-data">
                 @csrf
@@ -604,22 +604,31 @@
                                 <tr>
                                     <th>Columna</th>
                                     <th>Destino</th>
+                                    <th>Alias aceptados</th>
                                     <th>Requerido</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td><code>codigo</code></td><td>Código del concepto</td><td class="text-center"><span class="text-danger">✓</span></td></tr>
-                                <tr><td><code>descripcion</code></td><td>Descripción</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>unidad</code></td><td>Unidad de medida</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td class="text-center text-muted">—</td></tr>
-                                <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>codigo</code></td><td>Código del concepto</td><td><code>code</code></td><td class="text-center"><span class="text-danger">✓</span></td></tr>
+                                <tr><td><code>descripcion</code></td><td>Descripción</td><td><code>description</code>, <code>descripción</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>unidad</code></td><td>Unidad de medida</td><td><code>unit</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td><code>ubicación</code>, <code>warehouse_location</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td><code>quantity</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>precio_unitario</code></td><td>Precio unitario</td><td><code>unit_price</code></td><td class="text-center text-muted">—</td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <p class="text-muted fs-12 mb-3">
-                        <i class="ri-information-line me-1"></i>
-                        Si el código ya existe, se actualizará su información. La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.
-                    </p>
+                    <div class="alert alert-warning d-flex align-items-start gap-2 fs-13 mb-3" role="alert">
+                        <i class="ri-alert-line fs-18 lh-1"></i>
+                        <div>
+                            <h6 class="alert-heading fs-12 text-uppercase fw-semibold mb-1">Antes de importar...</h6>
+                            <ul class="mb-0 ps-3">
+                                <li>Si el código ya existe, se actualizará su información.</li>
+                                <li>El precio unitario solo se actualiza si la columna viene en el archivo.</li>
+                                <li>La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.</li>
+                            </ul>
+                        </div>
+                    </div>
                     <div class="mb-0">
                         <label for="concept_import_file" class="form-label fw-medium">Archivo Excel <span class="text-danger">*</span></label>
                         <input type="file"
