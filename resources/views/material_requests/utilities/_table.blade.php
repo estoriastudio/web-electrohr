@@ -109,7 +109,6 @@
                                             </a>
                                         </li>
                                         @if ($mode === 'index')
-                                            @hasanyrole('admin|Solmat')
                                             @can('material_requests.update')
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('material_requests.edit', $mr) }}">
@@ -117,15 +116,15 @@
                                                 </a>
                                             </li>
                                             @endcan
-                                            @endhasanyrole
                                         @endif
                                         <li>
                                             <a class="dropdown-item" href="{{ route('material_requests.pdf', $mr) }}" target="_blank">
                                                 <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
                                             </a>
                                         </li>
-                                        @hasanyrole('admin|Solmat')
+                                        @canany(['material_requests.update', 'material_requests.delete'])
                                         <li><hr class="dropdown-divider"></li>
+                                        @can('material_requests.update')
                                         @if ($mode === 'index')
                                             <li>
                                                 <form action="{{ route('material_requests.archive', $mr) }}" method="POST">
@@ -147,6 +146,7 @@
                                                 </form>
                                             </li>
                                         @endif
+                                        @endcan
                                         @can('material_requests.delete')
                                         @if ($mode === 'index')
                                         <li>
@@ -163,7 +163,7 @@
                                         </li>
                                         @endif
                                         @endcan
-                                        @endhasanyrole
+                                        @endcanany
                                     @endif
 
                                 </ul>

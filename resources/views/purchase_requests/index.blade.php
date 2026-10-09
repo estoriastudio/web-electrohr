@@ -41,14 +41,12 @@
                 <h4 class="card-title mb-0">Solicitudes de Compra</h4>
                 <div>
                     {{--  
-                    @hasanyrole('admin|Solcom')
                     @can('purchase_requests.create')
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreatePR">
                         <i class="ri-add-line me-1"></i> Nueva SOLCOM
                     </button>
                     @endcan
-                    @endhasanyrole
                     --}}
                     <a href="{{ route('purchase_requests.archived') }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
@@ -107,7 +105,6 @@
 </div>
 
 {{-- MODAL — Nueva SOLCOM --}}
-@hasanyrole('admin|Solcom')
 @can('purchase_requests.create')
 <div class="modal fade" id="modalCreatePR" tabindex="-1" aria-labelledby="modalCreatePRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -278,7 +275,6 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 @endsection
 

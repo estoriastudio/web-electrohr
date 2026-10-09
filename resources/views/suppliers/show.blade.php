@@ -29,7 +29,7 @@
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
     <li class="breadcrumb-item">
-        @if (auth()->user()?->hasAnyRole('admin|Orden de compra'))
+        @if (auth()->user()?->can('suppliers.read'))
             <a href="{{ route('suppliers.index') }}">Proveedores</a>
         @else
             Proveedores
@@ -40,7 +40,7 @@
 
 @section('content')
 @php
-    $canManageSupplier = auth()->user()?->hasAnyRole('admin|Orden de compra|Pagos') && auth()->user()->can('suppliers.update');
+    $canManageSupplier = auth()->user()?->can('suppliers.update');
 @endphp
 
 @if (session('success'))

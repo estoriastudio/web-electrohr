@@ -1,106 +1,142 @@
 # Matriz de Roles y Permisos
 
-Este archivo es la fuente de referencia para la matriz de acceso por rol.
+Este archivo es la fuente de referencia para la matriz de acceso.
 
-Cuando se agreguen o cambien roles, actualiza este archivo primero.
+Cuando se agreguen o cambien roles, permisos o rutas, actualiza este archivo primero.
 
-## Roles Vigentes
+## Modelo de acceso (desde 2026-10-08)
 
-- admin
-- Moviles
-- Orden de compra
-- Pagos
-- Proveedor
-- Proyectos
-- Recepción
-- Inventario
-- Solcom
-- Solmat
-- supplier_portal_access
+El acceso a los modulos del catalogo se decide **solo por permisos** (`<modulo>.<accion>`), no por el nombre del rol.
 
-> **Nota:** Los roles anteriores `orders` y `payments` (en inglés) quedaron obsoletos el 2026-06-16.
-> Reasigna los usuarios con esos roles vía el panel Admin antes de borrarlos.
+- **Rol = perfil de permisos.** Un rol es un paquete de permisos reutilizable. Un usuario puede tener varios roles y ademas permisos directos (casilla "Asignar permisos directos" en Usuarios). Spatie suma las concesiones; un perfil de solo lectura no revoca lo concedido por otro.
+- **`admin`** conserva acceso total (bypass en `Gate::before`/gates de `AppServiceProvider`) y es el unico que accede a Usuarios, Auditoria, papeleras y aprobaciones.
+- **Menu, dashboard, rutas y vistas** usan los mismos permisos: `@can('<modulo>.<accion>')` en Blade, `permission:` / `module:` en rutas.
+- **Acciones:** `read` (ver), `create` (alta del registro principal), `update` (editar contenido, notas, documentos y registros dependientes), `delete` (eliminar/archivar). Entradas y salidas de inventario usan `stocks.create`; ajustes manuales `stocks.update`. Hitos y condiciones de pago dentro de una OC usan `payments.*`.
+- **Permisos extra** (alcance de datos o acciones especiales, sin patron CRUD):
 
-## Permisos Base (CRUD)
+| Permiso | Efecto |
+|---------|--------|
+| `invoices.approve` | Aprobar facturas |
+| `invoices.view_all` | Ver facturas de todos los compradores (sin el, un comprador solo ve las de sus OC) |
+| `purchase_orders.view_all` | Listado completo de OC por defecto (sin el, "Mis OC") |
+| `payments.register_any` | Registrar pagos en cualquier OC (sin el, solo OC de destajo) |
+| `material_requests.commit` | Comprometer existencias en la pila SOLMAT |
 
-### Permisos por modulo (2026-09-30)
+## Catalogo de modulos
 
-- Los permisos de interfaz usan `<modulo>.<accion>`; los CRUD globales son heredados y no conceden permisos por modulo.
-- Los roles actuales siguen permitiendo acceder a las rutas. Los perfiles compartidos conceden permisos de interfaz; un usuario necesita tanto el rol de acceso como el perfil correspondiente.
-- Spatie suma concesiones de perfiles y permisos directos. Un perfil de solo lectura no revoca permisos concedidos por otro perfil.
-- `admin` conserva acceso total a los controles. No se agregan restricciones de endpoints: ocultar controles no protege solicitudes directas.
-- El catalogo incluye Compras, Pagos, Facturas, SOLCOM, SOLMAT, Proveedores, Proyectos, Moviles, Vales e Inventario. Facturas incluye `invoices.approve`.
-- La migracion crea perfiles iniciales a partir de los CRUD de los roles existentes y los asigna a sus usuarios para conservar acceso. Los permisos directos heredados se traducen solo a modulos accesibles por sus roles.
-- Los perfiles predeterminados se crean una sola vez; repetir los seeders no sobrescribe ajustes. Administrador de pagos permite gestionar Pagos y Facturas; Ayudante de pagos solo permite consultarlos.
-- Usuarios permite crear y editar perfiles con cualquier permiso del catalogo. Un nuevo nombre fuera del catalogo no tiene comportamiento implementado.
-- Ejemplo: asignar `Orden de compra`, `Pagos`, `Comprador` y `Ayudante de pagos` permite gestionar Compras y consultar Pagos/Facturas. Retirar `Pagos - permisos iniciales`, otros perfiles y permisos directos que concedan gestion de Pagos si se requiere solo lectura.
-- Los roles de acceso se conservan separados; asignar solo un perfil no permite atravesar los middleware de rol existentes. Las restricciones previas de admin, comprador y estado del documento siguen vigentes.
-- `update` controla cambios de contenido, notas, documentos y registros dependientes dentro del detalle del modulo; `create`/`delete` controlan el alta/eliminacion del registro principal. Entradas y salidas de inventario usan `stocks.create`; ajustes manuales usan `stocks.update`.
-- Hitos y condiciones de pago dentro de una OC usan `payments.create`, `payments.update` y `payments.delete`; editar Compras no concede gestion de Pagos.
-- Esta primera integracion cubre los diez modulos del catalogo. Recursos Humanos, Herramientas, Suministros/Conceptos y Portal de proveedores mantienen su comportamiento previo y no forman parte del catalogo.
-- La migracion no borra perfiles ni concesiones al revertirla, para no eliminar configuraciones que un administrador haya ajustado despues.
+`purchase_orders`, `payments`, `invoices`, `purchase_requests`, `material_requests`, `suppliers`, `projects`, `mobile_assets`, `material_vouchers`, `stocks`, `tools`, `concepts`, cada uno con `read`, `create`, `update`, `delete` (mas los extras anteriores). Se define en `config/module_permissions.php`.
 
-- create
-- read
-- update
-- delete
+## Middleware de rutas
 
-## Matriz Actual
+- `module:<modulo>[,<modulo2>]` — metodos seguros (GET/HEAD) exigen `<modulo>.read`; el resto exige alguno de `create`, `update` o `delete`.
+- `permission:a|b` — exige cualquiera de los permisos (admin pasa por el Gate).
+- `role:` solo se conserva en las areas fuera del catalogo (ver abajo).
 
-| Rol              | create | read | update | delete |
-|------------------|:------:|:----:|:------:|:------:|
-| admin            |   SI   |  SI  |   SI   |   SI   |
-| Moviles          |   SI   |  SI  |   SI   |   SI   |
-| Orden de compra  |   SI   |  SI  |   SI   |   SI   |
-| Pagos            |   SI   |  SI  |   SI   |   SI   |
-| Proveedor        |   SI   |  SI  |   SI   |   SI   |
-| Proyectos        |   SI   |  SI  |   SI   |   SI   |
-| Recepción        |   SI   |  SI  |   SI   |   SI   |
-| Inventario       |   SI   |  SI  |   SI   |   SI   |
-| Solcom           |   SI   |  SI  |   SI   |   SI   |
-| Solmat           |   SI   |  SI  |   SI   |   SI   |
-| supplier_portal_access | SI | SI | SI | SI |
+## Mapeo modulo -> permiso
 
-## Mapeo de Modulo por Rol
+| Modulo funcional | Permiso / middleware |
+|------------------|----------------------|
+| Dashboard: indicadores de Pagos, pendientes de autorizar, grafica | `payments.read` |
+| Dashboard: bloque de Compras (SOLCOM pendientes, OC, urgencias de entrega) | `purchase_orders.create` |
+| Proveedores y Estado de cuenta | `module:suppliers` (borrar: `suppliers.delete`; estado de cuenta/detalle: `suppliers.read`) |
+| Bienes Moviles | `module:mobile_assets` |
+| Proyectos y Obras | `module:projects` |
+| Vales de Material | `module:material_vouchers` |
+| Inventario (consulta, entradas, salidas) | `module:stocks` |
+| Herramientas: registro, fotos, calibraciones, Control de uso y Categorias de herramientas | `module:tools` (ver: `tools.read`; alta: `tools.create`; editar, fotos y calibraciones: `tools.update`; archivar/restaurar y eliminar calibraciones: `tools.delete`). Eliminacion definitiva: `role:admin` |
+| Conceptos (listado, importar, archivar), Familias de conceptos y subcategorias, asignacion de compradores | `module:concepts` (misma division read/create/update/delete) |
+| Precios adjudicados | `concepts.read\|purchase_orders.read` |
+| Busquedas JSON de conceptos y subcategorias (formularios de OC/SOLCOM/SOLMAT) | Cualquier usuario autenticado |
+| SOLMAT (listado, alta, edicion) | `module:material_requests` |
+| Cambios SOLMAT y solicitar/resolver cambios | `material_requests.read` |
+| Pila SOLMAT | `material_requests.read`; crear SOLCOM desde SOLMAT: `purchase_requests.create`; compromisos: `material_requests.commit` |
+| SOLCOM, Cambios SOLCOM, Pila SOLCOM | `module:purchase_requests` |
+| Carga de Trabajo | `purchase_orders.create` |
+| Ordenes de Compra (lectura, anexos, PDF) | `purchase_orders.read` |
+| Ordenes de Compra (alta, edicion, baja, emitir) | `purchase_orders.create\|update\|delete` |
+| Vencidas de entrega | `purchase_orders.create` |
+| Evidencias y estatus de entrega | `purchase_orders.read` |
+| Hitos de pago (lectura / escritura) | `payments.read` / `payments.create\|update\|delete` |
+| Pagos (autorizar, por pagar, pagados) | `module:payments` |
+| Registrar pago, solicitar reactivacion | `payments.create\|update` |
+| Contrarecibo, comprobante SPEI, hitos de una OC (AJAX) | `payments.read` |
+| Alta de Facturas, subir/descargar/borrar | `module:invoices` |
+| Listado, detalle y exportacion de Facturas | `invoices.read` |
+| Cambiar estatus de factura | `invoices.update\|invoices.approve` |
 
-Usa esta seccion para mantener clara la relacion entre modulo funcional y rol esperado.
+### Areas que siguen por rol (fuera del catalogo)
 
-| Modulo Funcional           | Rol Esperado                    |
-|----------------------------|---------------------------------|
-| Dashboard                  | Cualquier rol con read          |
-| Bienes Moviles             | Moviles                         |
-| Proveedores                | Orden de compra, admin          |
-| Portal de Proveedores      | supplier_portal_access          |
-| Facturacion portal proveedor | supplier_portal_access        |
-| Vales de Material          | Pagos, Proveedor, Moviles       |
-| Ordenes de Compra (lectura)| Orden de compra, Pagos          |
-| Ordenes de Compra (CUD)    | Orden de compra                 |
-| Hitos de Pago              | Pagos, Orden de compra          |
-| Alta de Facturas (interna) | Pagos, Recepción, Orden de compra |
-| Evidencias de Entrega OC   | admin, Solmat, Pagos, Orden de compra |
-| Autorización de Pagos      | Pagos                           |
-| Proyectos                  | Proyectos, Solmat, Engineer     |
-| Solicitudes de Compra      | Solcom, Orden de compra, admin  |
-| Pila SOLCOM                | Solcom, Orden de compra         |
-| Carga de Trabajo           | Orden de compra                 |
-| Solicitudes de Material    | Solmat                          |
-| Pila SOLMAT                | Solmat, Orden de compra         |
-| Inventario                 | Inventario                      |
+| Area | Rol |
+|------|-----|
+| Recursos Humanos | `admin`, `Recursos Humanos` (consulta propia para `Engineer`) |
+| Asignacion de obras a Engineer | `Engineer` |
+| Usuarios, Auditoria y Notificaciones (campanas del topbar, bandeja, marcar como leidas), papeleras, aprobaciones, autorizacion de OC, modo interactivo de pagos | `admin` |
+| Portal de proveedores y facturacion de portal | `supplier_portal_access` |
 
-## Convenciones
+> Las notificaciones son exclusivas de `admin`: las campanas del topbar y las rutas `notifications.index`, `notifications.inbox` y `notifications.markAllRead` usan `role:admin`. Los avisos dirigidos a otros usuarios se siguen registrando, pero ya no tienen bandeja visible para ellos.
 
-- Los roles controlan visibilidad de modulos en el menu.
-- Los permisos CRUD controlan acciones dentro de las vistas.
-- `admin` tiene acceso total.
+## Roles heredados (plantillas)
+
+Los roles historicos siguen existiendo como **perfiles** con los permisos de la plantilla de `config/module_permissions.php` (`access_roles` y `access_role_extras`). Las plantillas solo se aplican cuando el rol se crea; despues el administrador puede ajustarlos desde Usuarios y el nombre del rol ya no concede acceso por si mismo.
+
+| Rol | Permisos de plantilla |
+|-----|-----------------------|
+| Orden de compra | purchase_orders CRUD, purchase_requests CRUD, suppliers CRUD, payments CRUD, invoices CRUD + approve, material_requests read |
+| Pagos | payments CRUD, invoices CRUD + approve, suppliers CRUD, material_vouchers CRUD, purchase_orders read; extras `purchase_orders.view_all`, `invoices.view_all`, `payments.register_any` |
+| Solcom | purchase_requests CRUD, material_requests read |
+| suministros | material_requests read; extra `material_requests.commit` |
+| Solmat | material_requests CRUD, projects CRUD, purchase_orders read, invoices read/create, tools CRUD, concepts CRUD; extra `invoices.view_all` |
+| Proyectos | projects CRUD |
+| Engineer | projects read |
+| Moviles | mobile_assets CRUD, tools CRUD, material_vouchers CRUD |
+| Proveedor | material_vouchers CRUD |
+| Recepción | invoices CRUD + approve; extra `invoices.view_all` |
+| Inventario | stocks CRUD |
+| admin | Todo (bypass) |
+| supplier_portal_access | Portal de proveedores (por rol) |
+
+Perfiles adicionales: `Administrador de pagos` (payments + invoices CRUD/approve + extras de Pagos), `Ayudante de pagos` (`payments.read`, `invoices.read`), `Comprador` (purchase_orders y purchase_requests CRUD, `suppliers.read`) y `<Rol> - permisos iniciales` (creados por la migracion).
+
+> Los roles `orders` y `payments` (en ingles) quedaron obsoletos el 2026-06-16.
+
+## Migracion de usuarios existentes
+
+La migracion `2026_10_08_150000_migrate_access_roles_to_permissions` conserva el acceso de quienes solo tenian el rol heredado:
+
+- Si el usuario tiene el rol heredado y **ninguno** de los permisos `read` de sus modulos, recibe el perfil `<Rol> - permisos iniciales`.
+- Si ya tenia permisos de lectura (perfiles o directos), se respeta lo configurado y solo se le agregan los permisos extra de alcance que antes daba el rol (`view_all`, `register_any`, `commit`).
+- No se borran perfiles ni concesiones al revertirla.
+- `RolesAndPermissionsSeeder` crea `admin` y `supplier_portal_access`, inicializa el catalogo y crea los perfiles/plantillas faltantes sin sobrescribir los existentes.
+
+La migracion `2026_10_08_160000_migrate_tools_concepts_to_permissions` agrega los permisos de `tools` y `concepts` a los roles `Solmat` y `Moviles` (y a sus perfiles `<Rol> - permisos iniciales`) segun la plantilla, para que quienes ya usaban Herramientas y Conceptos conserven el acceso. Es idempotente.
+
+## Cambios de alcance respecto al modelo anterior
+
+Al decidir por permisos en lugar de rol, estos accesos cambian segun lo que cada plantilla concede:
+
+- Quien tenga `payments.*` (p. ej. Orden de compra) accede a las paginas de Pagos y las ve en el menu.
+- Quien tenga `material_requests.read` (Solcom, suministros, Orden de compra, Solmat) accede al listado SOLMAT, Cambios SOLMAT y Pila SOLMAT en modo lectura; crear SOLCOM desde la pila exige `purchase_requests.create`.
+- Quien tenga `purchase_orders.read` (incluye Pagos) puede cambiar el estatus de entrega y gestionar evidencias.
+- La tarjeta de urgencias de entrega del dashboard se muestra a quien tenga `purchase_orders.create` (antes solo admin, aunque los datos se calculaban para Compras).
+- Los selectores de comprador y las notificaciones a Solmat/Compras se calculan por permiso (`purchase_orders.create`, `material_requests.create`), no por rol.
+- Herramientas y Conceptos pasan de `admin|Solmat` a permisos `tools.*` y `concepts.*`: cualquier perfil con esos permisos accede, y los botones de alta/edicion/archivo se muestran segun la accion. Moviles gana acceso real a Herramientas (antes veia el menu pero las rutas lo rechazaban).
+- Notificaciones: Solmat deja de ver la bandeja y las campanas del topbar; quedan solo para `admin`.
 
 ## Ordenes de Compra por Comprador
 
 - `buyer_id` vincula la OC a `users.id`. Al crear desde el listado o desde Pila SOLCOM se asigna el usuario autenticado; Elabora Orden muestra su nombre y no admite texto libre.
-- Admin y Pagos reciben el listado completo por defecto y pueden cambiar a Mis OC. Todos los demas perfiles con acceso al listado reciben Mis OC, incluso si solicitan `scope=all`; no se devuelve un error por rol.
-- Listados activos, archivados y facturas recientes de la pagina de OC respetan ese alcance. Admin y Pagos pueden filtrar OC sin comprador asignado con `buyer_status=unassigned`. Las bandejas administrativas, aprobaciones y reasignacion de comprador siguen exclusivas de admin.
+- Quien tiene `purchase_orders.view_all` (admin y Pagos por plantilla) recibe el listado completo por defecto y puede cambiar a Mis OC. Los demas reciben Mis OC, incluso si solicitan `scope=all`; no se devuelve un error por rol.
+- Listados activos, archivados y facturas recientes respetan ese alcance. Con `view_all` se pueden filtrar OC sin comprador con `buyer_status=unassigned`. Las bandejas administrativas, aprobaciones y reasignacion de comprador siguen exclusivas de admin.
 - Blade muestra controles de Compras solo para admin o el comprador vinculado. Solo admin ve el selector para asignar o cambiar comprador. La reasignacion registra una notificacion y conserva la firma historica `elaborated_by`.
-- Pagos conserva sus flujos de pagos/facturas. SOLMAT y Recepcion conservan los accesos colaborativos existentes. Facturas, contadores, exportacion y seleccion de OC para alta se filtran por comprador cuando el usuario tiene Compras sin ninguno de esos roles operativos ni admin.
-- No se agregan bloqueos de rol en controladores ni nuevas policies o middleware de rol. Se mantienen los middleware y restricciones de estado existentes. **Los controles Blade son visibilidad, no autorizacion de solicitudes directas:** este cambio no impide invocar endpoints de gestion manualmente cuando los middleware existentes lo permiten.
+- Facturas, contadores, exportacion y seleccion de OC para alta se filtran por comprador cuando el usuario tiene `purchase_orders.create` sin `invoices.view_all` y no es admin.
+- Los controles Blade son visibilidad; la autorizacion real la dan los middleware `module:`/`permission:` de las rutas y las restricciones de estado y comprador existentes.
+
+## Convenciones
+
+- Menu, dashboard, vistas y rutas usan el mismo permiso para un mismo modulo.
+- Para dar acceso a un usuario: asigna uno o mas roles (perfiles) y, si hace falta, "Asignar permisos directos" para ajustes individuales.
+- `admin` tiene acceso total.
+- Un permiso nuevo del catalogo debe agregarse a `config/module_permissions.php`, a la ruta/vista correspondiente y a este documento.
 
 ## Historial de Cambios
 
@@ -114,3 +150,6 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-15: Engineer accede a Proyectos solo cuando está asignado como supervisor o residente de una obra; admin conserva el listado completo.
 - 2026-09-29: OC vinculadas a comprador usuario; Mis OC y listado completo admin, precarga de Elabora Orden, reasignacion visual admin y vinculacion historica por nombres exactos.
 - 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.
+- 2026-09-30: Permisos por modulo (`<modulo>.<accion>`) y perfiles compartidos para los diez modulos del catalogo.
+- 2026-10-08: Migracion completa a permisos. Menu, dashboard, rutas, vistas y controladores deciden por permiso; los roles heredados pasan a ser perfiles-plantilla. Nuevo middleware `module:`, permisos extra (`invoices.view_all`, `purchase_orders.view_all`, `payments.register_any`, `material_requests.commit`) y migracion de usuarios existentes. Matriz CRUD global obsoleta eliminada.
+- 2026-10-08: Herramientas y Conceptos migran a permisos (`tools.*`, `concepts.*`, 12 modulos en el catalogo) con `module:tools`/`module:concepts`, plantillas Solmat y Moviles actualizadas y migracion `2026_10_08_160000`. Notificaciones (campanas, bandeja y marcar leidas) quedan solo para admin.

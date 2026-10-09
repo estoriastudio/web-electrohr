@@ -146,7 +146,7 @@ class ModulePermissionsTest extends TestCase
     {
         $this->seed(RolesAndPermissionsSeeder::class);
         $user = User::create(['name' => 'Mixed', 'email' => 'mixed@example.com', 'password' => 'password']);
-        $user->syncRoles(['Orden de compra', 'Pagos', 'Comprador', 'Ayudante de pagos']);
+        $user->syncRoles(['Comprador', 'Ayudante de pagos']);
         $this->actingAs($user);
         $supplier = new Supplier(['rfc_name' => 'Proveedor']);
         $supplier->id = 1;

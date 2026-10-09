@@ -46,8 +46,16 @@ class User extends Authenticatable
 
     public function invoiceBuyerFilter(): ?int
     {
-        return $this->hasRole('Orden de compra') && !$this->hasAnyRole(['admin', 'Pagos', 'Solmat', 'Recepción'])
+        return $this->can('purchase_orders.create') && ! $this->can('invoices.view_all')
             ? (int) $this->id
             : null;
+    }
+
+    /** Usuarios con alguno de los permisos indicados (admin siempre incluido). */
+    public function scopeAbleTo($query, string ...$permissions)
+    {
+        return $query->where(function ($query) use ($permissions) {
+            $query->role('admin')->orWhere(fn ($query) => $query->permission($permissions));
+        });
     }
 }

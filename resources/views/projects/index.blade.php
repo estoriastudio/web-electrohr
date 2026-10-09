@@ -34,7 +34,6 @@
                 <div>
                     <h4 class="card-title mb-0">{{ $isAdmin ? 'Listado de proyectos' : 'Mis proyectos' }}</h4>
                 </div>
-                @hasanyrole('admin|Proyectos')
                 @can('projects.create')
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-soft-success"
@@ -47,7 +46,6 @@
                     </button>
                 </div>
                 @endcan
-                @endhasanyrole
             </div>
 
             {{-- Barra de búsqueda --}}
@@ -211,7 +209,6 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Nuevo Proyecto
 ══════════════════════════════════════════════════════════════════ --}}
-@hasanyrole('admin|Proyectos')
 @can('projects.create')
 <div class="modal fade" id="modalCreateProject" tabindex="-1" aria-labelledby="modalCreateProjectLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -272,7 +269,6 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 
 {{-- ══════════════════════════════════════════════════════════════

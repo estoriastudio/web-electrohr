@@ -15,7 +15,7 @@ class StockMovementEditCancelTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware([\Illuminate\Auth\Middleware\Authenticate::class, \Spatie\Permission\Middleware\RoleMiddleware::class, \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+        $this->withoutMiddleware([\Illuminate\Auth\Middleware\Authenticate::class, \Spatie\Permission\Middleware\RoleMiddleware::class, \App\Http\Middleware\EnsureModuleAccess::class, \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
         Schema::create('concepts', function (Blueprint $table) {
             $table->id();

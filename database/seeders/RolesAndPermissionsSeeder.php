@@ -22,18 +22,9 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
-        // Crear los roles y asignarles todos los permisos
+        // Crear los roles que no dependen del catalogo de modulos
         $roles = [
             'admin',
-            'Orden de compra',
-            'Solcom',
-            'Solmat',
-            'suministros',
-            'Pagos',
-            'Proyectos',
-            'Moviles',
-            'Recepción',
-            'Inventario',
             'supplier_portal_access',
         ];
 
@@ -44,6 +35,8 @@ class RolesAndPermissionsSeeder extends Seeder
             }
         }
 
-        app(ModulePermissionSetup::class)->initialize();
+        $setup = app(ModulePermissionSetup::class);
+        $setup->initialize();
+        $setup->ensureAccessRoleTemplates();
     }
 }

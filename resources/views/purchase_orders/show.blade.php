@@ -51,8 +51,8 @@
         : 0;
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
-    $canManageOrder = auth()->user()->can('purchase_orders.update') && ($isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id()));
-    $canRequestPaymentReactivation = auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
+    $canManageOrder = auth()->user()->can('purchase_orders.update') && ($isAdmin || (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canRequestPaymentReactivation = auth()->user()->canAny(['payments.create', 'payments.update']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = auth()->user()->can('payments.create') && ($canModifyPurchaseOrder || $purchaseOrder->is_destajo);
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
@@ -319,7 +319,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
                         </button>
                         @endif
-                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat"]))
+                        @if (auth()->user()->can('purchase_orders.read'))
                         @if ($purchaseOrder->status === 'autorizada')
                         <button type="button" class="btn btn-sm btn-outline-success"
                                 data-bs-toggle="modal" data-bs-target="#modalDeliveryStatus">
@@ -457,7 +457,7 @@
 @endif
 
 {{-- MODAL Subir Evidencia --}}
-@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat","Pagos"]))
+@if (auth()->user()->can('purchase_orders.read'))
 <div class="modal fade" id="modalCreateEvidence" tabindex="-1" aria-labelledby="modalCreateEvidenceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -520,7 +520,7 @@
 @endif
 
 {{-- MODAL Cambiar Estatus de Entrega --}}
-@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat"]))
+@if (auth()->user()->can('purchase_orders.read'))
 <div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -965,8 +965,8 @@
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
-            $canManageAdditionalPayments = auth()->user()->can('payments.create') && (auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-                || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra')));
+            $canManageAdditionalPayments = auth()->user()->can('payments.create')
+                && (auth()->user()->can('payments.register_any') || ($purchaseOrder->is_destajo && $canManageOrder));
             $canEditMilestone = auth()->user()->can('payments.update') && ($canModifyPurchaseOrder || $purchaseOrder->is_destajo);
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
@@ -1181,7 +1181,6 @@
                                                     </button>
                                                     <ul class="dropdown-menu dropdown-menu-end">
                                                         {{-- Transiciones de estatus --}}
-                                                        @hasanyrole('admin|Pagos')
                                                         @can('payments.update')
                                                         @foreach ($transitions as $newStatus => $transition)
                                                             <li>
@@ -1196,7 +1195,6 @@
                                                             </li>
                                                         @endforeach
                                                         @endcan
-                                                        @endhasanyrole
 
                                                         @if ($canRequestPaymentReactivation)
                                                         @if ($payment->status === 'rechazado')
@@ -1211,7 +1209,6 @@
                                                         @endif
 
                                                         {{-- SPEI: subir/reemplazar --}}
-                                                        @hasanyrole('admin|Pagos')
                                                         @can('payments.update')
                                                         @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
                                                         <li>
@@ -1224,11 +1221,10 @@
                                                         </li>
                                                         @endif
                                                         @endcan
-                                                        @endhasanyrole
 
                                                         {{-- SPEI: ver --}}
                                                         @if ($payment->spei_receipt_path)
-                                                        @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Pagos"]))
+                                                        @if ($canManageOrder || auth()->user()->can('payments.read'))
                                                         @php
                                                             $speiExt = strtolower(pathinfo($payment->spei_receipt_name ?: $payment->spei_receipt_path, PATHINFO_EXTENSION));
                                                             $speiIsImage = in_array($speiExt, ['jpg', 'jpeg', 'png', 'webp'], true);
@@ -1247,7 +1243,6 @@
                                                         @endif
 
                                                         {{-- Eliminar --}}
-                                                        @hasanyrole('admin|Pagos')
                                                         @can('payments.delete')
                                                         <li><hr class="dropdown-divider"></li>
                                                         <li>
@@ -1260,7 +1255,6 @@
                                                             </form>
                                                         </li>
                                                         @endcan
-                                                        @endhasanyrole
                                                     </ul>
                                                 </div>
                                             </td>
@@ -1270,7 +1264,6 @@
                             </table>
                         </div>
 
-                        @hasanyrole('admin|Pagos')
                         @can('payments.update')
                         @foreach ($milestone->payments as $payment)
                         @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
@@ -1314,7 +1307,6 @@
                         @endif
                         @endforeach
                         @endcan
-                        @endhasanyrole
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
@@ -1350,7 +1342,7 @@
                     <i class="ri-file-pdf-line me-1 text-danger"></i> Facturas
                     <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $purchaseOrder->invoices->count() }}</span>
                 </h5>
-                @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Pagos"]))
+                @if (auth()->user()->can('invoices.create'))
                 @can('invoices.create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateInvoice">
@@ -1459,7 +1451,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
-                                            @if (auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra', 'Solmat']))
+                                            @if (auth()->user()->can('invoices.read'))
                                             <a href="{{ route('invoices.show', $invoice) }}"
                                                class="btn btn-xs btn-soft-info" style="padding: 2px 8px;"
                                                title="Ver detalle de la factura" aria-label="Ver detalle de la factura">
@@ -1509,7 +1501,7 @@
 </div>
 
 {{-- ── EVIDENCIAS ── --}}
-@if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat","Pagos"]))
+@if (auth()->user()->can('purchase_orders.read'))
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -1724,8 +1716,8 @@
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
-        $canManageAdditionalPayments = auth()->user()->can('payments.create') && (auth()->user()?->hasAnyRole(['admin', 'Pagos'])
-            || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra')));
+        $canManageAdditionalPayments = auth()->user()->can('payments.create')
+            && (auth()->user()->can('payments.register_any') || ($purchaseOrder->is_destajo && $canManageOrder));
         $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 

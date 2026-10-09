@@ -75,7 +75,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
 
-                                @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                                @if(auth()->user()->can('purchase_requests.update'))
                         <a href="{{ route('purchase_requests.edit', $purchaseRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
@@ -92,7 +92,7 @@
                         @endif
 
                         {{-- SOLICITAR CAMBIOS: disponible para Solcom y Compras cuando está en compras --}}
-                        @if(auth()->user()->hasAnyRole('admin|Solcom|Orden de compra') && auth()->user()->can('purchase_requests.update'))
+                        @if(auth()->user()->can('purchase_requests.update'))
                         @if ($purchaseRequest->status === 'sent_to_purchasing')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChanges">
@@ -159,7 +159,7 @@
                             <span class="badge bg-primary-subtle text-primary py-1 px-2">
                                 <i class="ri-user-line me-1"></i>{{ $purchaseRequest->assignedTo->name }}
                             </span>
-                            @if(auth()->user()->hasAnyRole('admin|Solcom|Orden de compra') && auth()->user()->can('purchase_requests.update'))
+                            @if(auth()->user()->can('purchase_requests.update'))
                             @if ($purchaseRequest->status === 'sent_to_purchasing')
                             <button type="button"
                                     class="btn btn-sm btn-light border"
@@ -190,7 +190,7 @@
                     <span id="solcom_items_count" class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
                         {{ $purchaseRequest->items->count() }} ítem(s)
                     </span>
-                    @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                    @if(auth()->user()->can('purchase_requests.update'))
                     <button type="button" class="btn btn-sm btn-primary" id="solcom_btn_toggle_add_concept">
                         <i class="ri-add-line me-1"></i>Agregar concepto
                     </button>
@@ -270,7 +270,7 @@
                                         @endif
                                     </td>
                                     <td style="min-width:170px">
-                                        @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                                        @if(auth()->user()->can('purchase_requests.update'))
                                         <div class="input-group">
                                             <button type="button" class="btn btn-light border solcom-qty-minus px-3" title="Restar">
                                                 <i class="ri-subtract-line"></i>
@@ -292,7 +292,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                                        @if(auth()->user()->can('purchase_requests.update'))
                                         <form action="{{ route('purchase_requests.items.destroy', [$purchaseRequest, $item]) }}"
                                               method="POST"
                                               class="solcom-delete-form">
@@ -317,7 +317,7 @@
                 </div>
             </div>
 
-            @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+            @if(auth()->user()->can('purchase_requests.update'))
             <div id="solcom_add_panel" class="border-top px-3 py-3" style="display:none;">
                 <p class="text-muted fs-12 fw-medium mb-2">
                     <i class="ri-add-circle-line me-1 text-primary"></i>Nuevo concepto
@@ -424,7 +424,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                                @if(auth()->user()->can('purchase_requests.update'))
                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -518,7 +518,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                                    @if(auth()->user()->can('purchase_requests.update'))
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -542,7 +542,7 @@
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                            @if(auth()->user()->can('purchase_requests.update'))
                             <div class="collapse mt-2" id="solcom_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('purchase_requests.notes.update', [$purchaseRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -561,7 +561,7 @@
                     <p class="text-muted fs-13 mb-3">Sin observaciones registradas.</p>
                 @endforelse
 
-                @if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+                @if(auth()->user()->can('purchase_requests.update'))
                 <form action="{{ route('purchase_requests.notes.store', $purchaseRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -583,7 +583,7 @@
 </div>
 
 {{-- ── Modal: Enviar a Compras ── --}}
-@if(auth()->user()->hasAnyRole('admin|Solcom') && auth()->user()->can('purchase_requests.update'))
+@if(auth()->user()->can('purchase_requests.update'))
 <div class="modal fade" id="modalSendToPurchasing" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -624,7 +624,7 @@
 @endif
 
 {{-- ── Modal: Reasignar en Compras ── --}}
-@if(auth()->user()->hasAnyRole('admin|Solcom|Orden de compra') && auth()->user()->can('purchase_requests.update'))
+@if(auth()->user()->can('purchase_requests.update'))
 @if ($purchaseRequest->assignedTo && $purchaseRequest->status === 'sent_to_purchasing')
 <div class="modal fade" id="modalReassignPurchasing" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -668,7 +668,7 @@
 @endif
 
 {{-- ── Modal: Solicitar Cambios ── --}}
-@if(auth()->user()->hasAnyRole('admin|Solcom|Orden de compra') && auth()->user()->can('purchase_requests.update'))
+@if(auth()->user()->can('purchase_requests.update'))
 <div class="modal fade" id="modalRequestChanges" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

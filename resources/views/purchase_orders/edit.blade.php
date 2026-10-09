@@ -14,7 +14,7 @@
 @section('content')
 
 @php
-    $canManageOrder = auth()->user()->can('purchase_orders.update') && (auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id()));
+    $canManageOrder = auth()->user()->can('purchase_orders.update') && (auth()->user()->hasRole('admin') || (int) $purchaseOrder->buyer_id === (int) auth()->id());
 @endphp
 
 @if ($errors->any())

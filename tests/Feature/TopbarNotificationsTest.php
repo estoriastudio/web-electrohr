@@ -23,9 +23,9 @@ class TopbarNotificationsTest extends TestCase
     public function test_topbar_separates_global_and_recipient_notifications(): void
     {
         $recipient = User::factory()->create();
-        $recipient->assignRole('Solmat');
+        $recipient->assignRole('admin');
         $otherUser = User::factory()->create();
-        $otherUser->assignRole('Solmat');
+        $otherUser->assignRole('admin');
 
         $globalNotification = $this->notification($recipient, 'Notificacion global');
         $recipientNotification = $this->notification($recipient, 'Notificacion personal');

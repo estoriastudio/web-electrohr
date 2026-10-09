@@ -248,7 +248,7 @@
                                                 <i class="ri-eye-line"></i>
                                             </a>
                                             --}}
-                                            @hasanyrole('admin|suministros')
+                                            @can('material_requests.commit')
                                             @if ($mr->status === 'sent_to_warehouse')
                                                 <button type="button"
                                                         class="btn btn-soft-primary btn-sm"
@@ -258,7 +258,7 @@
                                                     <i class="ri-archive-stack-line me-1"></i>Revisar
                                                 </button>
                                             @endif
-                                            @endhasanyrole
+                                            @endcan
                                             @if ($isFullyCommitted)
                                                 <button type="button" class="btn btn-light btn-sm" disabled
                                                         title="Todos los conceptos de esta SOLMAT están comprometidos">
@@ -304,7 +304,7 @@
     </div>
 </div>
 
-@hasanyrole('admin|suministros')
+@can('material_requests.commit')
 @foreach ($materialRequests as $mr)
     @if ($mr->status === 'sent_to_warehouse')
     <div class="modal fade" id="modalReviewCommitments{{ $mr->id }}" tabindex="-1" aria-hidden="true">
@@ -449,7 +449,7 @@
     </div>
     @endif
 @endforeach
-@endhasanyrole
+@endcan
 
 @endsection
 

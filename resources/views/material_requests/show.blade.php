@@ -84,7 +84,7 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                        @if(auth()->user()->can('material_requests.update'))
                         @if ($canEditSolmatContent)
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
@@ -102,7 +102,7 @@
                         @endif
                         @endif
 
-                        @if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
+                        @if(auth()->user()->can('material_requests.update'))
                         @if ($materialRequest->status === 'sent_to_warehouse')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChangesSolmat">
@@ -259,7 +259,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                                        @if(auth()->user()->can('material_requests.update'))
                                         @if ($canEditSolmatContent)
                                         <div class="d-flex gap-1">
                                             @if ($item->workQuantities->isNotEmpty())
@@ -284,7 +284,7 @@
                                     </td>
                                 </tr>
                                 @if ($item->workQuantities->isNotEmpty())
-                                    @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                                    @if(auth()->user()->can('material_requests.update'))
                                     @if ($canEditSolmatContent)
                                         <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
                                             <td colspan="7" class="py-2">
@@ -342,7 +342,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+            @if(auth()->user()->can('material_requests.update'))
             @if ($canEditSolmatContent)
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
@@ -469,7 +469,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
+                                @if(auth()->user()->can('material_requests.update'))
                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -522,7 +522,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                                    @if(auth()->user()->can('material_requests.update'))
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -546,7 +546,7 @@
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                            @if(auth()->user()->can('material_requests.update'))
                             <div class="collapse mt-2" id="solmat_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('material_requests.notes.update', [$materialRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -566,7 +566,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @if(auth()->user()->hasAnyRole('admin|Solmat') && auth()->user()->can('material_requests.update'))
+                @if(auth()->user()->can('material_requests.update'))
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -588,7 +588,7 @@
 </div>
 
 {{-- ── Modal: Solicitar Cambios ── --}}
-@if(auth()->user()->hasAnyRole('admin|Solcom|Solmat') && auth()->user()->can('material_requests.update'))
+@if(auth()->user()->can('material_requests.update'))
 <div class="modal fade" id="modalRequestChangesSolmat" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

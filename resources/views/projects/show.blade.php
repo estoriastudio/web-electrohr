@@ -99,7 +99,7 @@
                         <th>Documento</th>
                         <th>Fecha subida</th>
                         <th>Archivo</th>
-                        @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+                        @if(auth()->user()->can('projects.update'))
                         <th>Acción</th>
                         @endif
                     </tr>
@@ -116,7 +116,7 @@
                             data-bs-toggle="collapse"
                             data-bs-target=".doc-group-{{ $catKey }}"
                             aria-expanded="false">
-                            @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+                            @if(auth()->user()->can('projects.update'))
                             <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                             @else
                             <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
@@ -155,7 +155,7 @@
                                         <span class="text-muted fs-12">Sin archivo</span>
                                     @endif
                                 </td>
-                                @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+                                @if(auth()->user()->can('projects.update'))
                                 <td>
                                     <button type="button"
                                             class="btn btn-soft-primary btn-sm"
@@ -180,7 +180,7 @@
                     </h6>
                     <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
                 </div>
-                @if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+                @if(auth()->user()->can('projects.update'))
                     @if ($project->works->isNotEmpty())
                         <button type="button" class="btn btn-sm btn-primary"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateProjectAgreement">
@@ -245,7 +245,7 @@
 </div>
 
 {{-- ── Modales de subida (uno por tipo de documento) ─────────────────── --}}
-@if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+@if(auth()->user()->can('projects.update'))
 @foreach ($docCategories as $catKey => $category)
     @foreach ($category['docs'] as $dt => $dtLabel)
         @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
@@ -302,7 +302,7 @@
 @endforeach
 @endif
 
-@if(auth()->user()->hasAnyRole('admin|Proyectos') && auth()->user()->can('projects.update'))
+@if(auth()->user()->can('projects.update'))
 @php
     $defaultAgreementAmount = number_format((float) ($project->current_agreement_value ?? $project->project_value), 2, '.', '');
     $selectedAgreementWorkIds = old('work_ids', []);

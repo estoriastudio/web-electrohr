@@ -62,9 +62,10 @@ class PurchaseOrderBuyerTest extends TestCase
         $migration->up();
         $permissions = require database_path('migrations/2026_04_23_225441_create_permission_tables.php');
         $permissions->up();
-        foreach (['admin', 'Orden de compra', 'Pagos', 'Solmat', 'Recepción'] as $role) {
-            Role::create(['name' => $role, 'guard_name' => 'web']);
-        }
+        Role::create(['name' => 'admin', 'guard_name' => 'web']);
+        $setup = app(\App\Services\ModulePermissionSetup::class);
+        $setup->initialize();
+        $setup->ensureAccessRoleTemplates();
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
             $table->string('rfc_name');
@@ -202,13 +203,13 @@ class PurchaseOrderBuyerTest extends TestCase
         $template = str_replace("@extends('layouts.app')", '', file_get_contents(resource_path('views/purchase_orders/show.blade.php')))
             . "\n@yield('content')";
         $route = app('router')->getRoutes()->getByName('payments.request_reactivation');
-        $roleMiddleware = collect($route->gatherMiddleware())->first(fn ($middleware) => str_starts_with($middleware, 'role:'));
+        $permissionMiddleware = collect($route->gatherMiddleware())->first(fn ($middleware) => str_starts_with($middleware, 'permission:'));
 
         foreach (['Pagos', 'Orden de compra', 'admin'] as $role) {
             $user = User::create(['name' => $role, 'email' => 'role-' . $role . '@example.com', 'password' => 'password']);
             $user->assignRole($role);
             $this->actingAs($user);
-            $payment->update(['status' => 'rechazado']);
+            DB::table('payments')->where('id', $payment->id)->update(['status' => 'rechazado']);
             $order->load('milestones.payments', 'milestones.invoices');
             $html = \Illuminate\Support\Facades\Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
             $this->assertStringContainsString('data-bs-target="#modalRequestPaymentReactivation' . $payment->id . '"', $html);
@@ -216,10 +217,10 @@ class PurchaseOrderBuyerTest extends TestCase
 
             $reason = 'Solicito revisar nuevamente este pago rechazado.';
             $request = Request::create($route->uri(), 'PATCH', ['reason' => $reason]);
-            $response = app(\Spatie\Permission\Middleware\RoleMiddleware::class)->handle(
+            $response = app(\Spatie\Permission\Middleware\PermissionMiddleware::class)->handle(
                 $request,
                 fn ($request) => app(PaymentController::class)->requestReactivation($request, $payment),
-                substr($roleMiddleware, strlen('role:')),
+                substr($permissionMiddleware, strlen('permission:')),
             );
             $this->assertSame(route('purchase_orders.show', $order), $response->getTargetUrl());
             $this->assertSame('por_autorizar', $payment->fresh()->status);

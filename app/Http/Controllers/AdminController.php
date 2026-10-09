@@ -62,8 +62,8 @@ class AdminController extends Controller
         $ocsPendientesEntregarElectrohr = collect();
         $ocsVencidasEntrega             = collect();
 
-        // ── Bloque pagos (admin + Pagos) ──────────────────────────────
-        if ($user->hasAnyRole(['admin', 'Pagos'])) {
+        // ── Bloque pagos (permiso payments.read) ──────────────────────
+        if ($user->can('payments.read')) {
             $totalPendientePago = (float) Payment::where('status', 'autorizado')->sum('amount');
             $totalPorAutorizar  = (float) Payment::where('payments.status', 'por_autorizar')
                 ->whereHas('milestone.purchaseOrder', fn ($q) => $q->where('status', 'autorizada'))
@@ -120,8 +120,8 @@ class AdminController extends Controller
                 ->get();
         }
 
-        // ── Bloque órdenes (admin + Orden de compra) ──────────────────
-        if ($user->hasAnyRole(['admin', 'Orden de compra'])) {
+        // ── Bloque Compras (permiso purchase_orders.create) ───────────
+        if ($user->can('purchase_orders.create')) {
             $urgencyData = [
                 'Vencido'      => 0,
                 'Esta semana'  => 0,

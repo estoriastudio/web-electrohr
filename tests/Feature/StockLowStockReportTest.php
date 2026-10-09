@@ -78,11 +78,11 @@ class StockLowStockReportTest extends TestCase
         $this->assertSame('BAJO-26', $filtered->first()->code);
     }
 
-    public function test_report_route_retains_inventory_role_protection(): void
+    public function test_report_route_retains_inventory_permission_protection(): void
     {
         $route = app('router')->getRoutes()->match(Request::create('/inventario/reportes/bajo-minimo'));
         $this->assertSame('stocks.low_stock', $route->getName());
-        $this->assertContains('role:admin|Inventario', $route->gatherMiddleware());
+        $this->assertContains('module:stocks', $route->gatherMiddleware());
     }
 
     public function test_report_orders_high_before_medium_and_low_before_paginating(): void

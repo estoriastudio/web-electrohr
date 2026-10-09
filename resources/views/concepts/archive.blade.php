@@ -100,6 +100,7 @@
                                     </td>
                                     <td>{{ $concept->archived_at->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        @can('concepts.delete')
                                         <form action="{{ route('concepts.unarchive', $concept) }}" method="POST"
                                               class="form-unarchive-concept" data-code="{{ $concept->code }}">
                                             @csrf
@@ -108,6 +109,7 @@
                                                 <i class="ri-inbox-unarchive-line me-1"></i> Restaurar
                                             </button>
                                         </form>
+                                        @endcan
                                     </td>
                                 </tr>
                             @empty

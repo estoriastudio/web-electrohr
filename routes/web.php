@@ -117,20 +117,20 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Solo admin ────────────────────────────────────────────────────────
 
         // Proveedores
-        Route::middleware('role:admin|Pagos|Orden de compra')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+        Route::middleware('permission:suppliers.read')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
             Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
             Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
             Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
                 ->whereNumber('purchaseOrder')->name('order');
         });
 
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+        Route::middleware('permission:suppliers.read')->group(function () {
             Route::get('/proveedores/{supplier}', [SupplierController::class, 'show'])
                 ->whereNumber('supplier')
                 ->name('suppliers.show');
         });
 
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+        Route::middleware('module:suppliers')->group(function () {
             Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
             Route::resource('/proveedores', SupplierController::class, [
@@ -144,7 +144,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'parameters' => ['proveedores' => 'supplier'],
             ])->except(['show', 'destroy']);
             Route::delete('/proveedores/{supplier}', [SupplierController::class, 'destroy'])
-                ->middleware('permission:delete')
+                ->middleware('permission:suppliers.delete')
                 ->name('suppliers.destroy');
             Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
 
@@ -181,7 +181,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Bienes Móviles
-        Route::middleware('role:admin|Moviles')->group(function () {
+        Route::middleware('module:mobile_assets')->group(function () {
             Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
             Route::post('bienes-mobiles/import', [MobileAssetController::class, 'import'])->name('mobile_assets.import');
             Route::resource('/bienes-mobiles', MobileAssetController::class, [
@@ -223,7 +223,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
         Route::get('/proyectos/{project}/obras/buscar', [ProjectController::class, 'searchWorks'])->name('projects.works.search');
 
-        Route::middleware('role:admin|Proyectos|Solmat|Engineer')->group(function () {
+        Route::middleware('module:projects')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
                 'names' => [
                     'index' => 'projects.index',
@@ -365,15 +365,17 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
             });
 
-        // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
+        // Conceptos (catálogo) — búsquedas JSON internas para formularios (cualquier usuario autenticado)
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
         Route::get('/conceptos/codigo-siguiente', [ConceptController::class, 'nextCode'])->name('concepts.next_code');
-        Route::get('/conceptos/precios-adjudicados', [ConceptController::class, 'awardedPrices'])->name('concepts.awarded_prices');
+        Route::get('/conceptos/precios-adjudicados', [ConceptController::class, 'awardedPrices'])
+            ->middleware('permission:concepts.read|purchase_orders.read')
+            ->name('concepts.awarded_prices');
         Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         Route::get('/categorias-herramientas/{toolCategory}/subcategorias-json', [ToolCategoryController::class, 'subcategoriesJson'])->name('tool_categories.subcategories_json');
 
-        // Conceptos (catálogo) — CRUD solo admin
-        Route::middleware('role:admin|Solmat')->group(function () {
+        // Conceptos (catálogo) y Familias — permisos del módulo concepts
+        Route::middleware('module:concepts')->group(function () {
             Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
             Route::get('/conceptos/archivados', [ConceptController::class, 'archived'])->name('concepts.archived');
             Route::patch('/conceptos/{concept}/archivar', [ConceptController::class, 'archive'])->name('concepts.archive');
@@ -396,7 +398,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/categorias-conceptos/{conceptCategory}/subcategorias', [ConceptCategoryController::class, 'storeSubcategory'])->name('concept_categories.subcategories.store');
             Route::put('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'updateSubcategory'])->name('concept_categories.subcategories.update');
             Route::delete('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'destroySubcategory'])->name('concept_categories.subcategories.destroy');
+        });
 
+        // Herramientas, control de uso, calibraciones y categorías — permisos del módulo tools
+        Route::middleware('module:tools')->group(function () {
             // Tool categories
             Route::resource('/categorias-herramientas', ToolCategoryController::class, [
                 'names' => [
@@ -466,25 +471,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/roles/{role}', 'UserController@destroyRole')->name('roles.destroy');
         });
 
-        // Auditoría / Notificaciones
+        // Auditoría y bandeja de notificaciones — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::get('/auditoria', [NotificationController::class, 'index'])->name('notifications.index');
-        });
-
-        Route::middleware('role:admin|Solmat')->group(function () {
             Route::get('/notificaciones', [NotificationController::class, 'inbox'])->name('notifications.inbox');
             Route::post('/notificaciones/marcar-leidas', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
         });
 
         // ── Admin + Payments + Orders ─────────────────────────────────────────
 
-        // Órdenes de Compra — lectura: admin, Pagos, Orden de compra, Solmat
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        // Órdenes de Compra — lectura: permiso purchase_orders.read
+        Route::middleware('permission:purchase_orders.read')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        Route::middleware('permission:purchase_orders.create')->group(function () {
             Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
                 ->name('purchase_orders.overdue_deliveries');
         });
@@ -496,14 +498,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{id}/eliminar-permanente', [PurchaseOrderController::class, 'forceDestroy'])->name('purchase_orders.force_destroy');
         });
 
-        // PDF de OC — incluye Solmat para descarga desde trazabilidad
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        // PDF de OC — cualquiera con lectura de OC (descarga desde trazabilidad)
+        Route::middleware('permission:purchase_orders.read')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/anexos', [PurchaseOrderController::class, 'saveAnnex'])->name('purchase_orders.annex.save');
             Route::post('/ordenes-de-compra/{purchase_order}/pdf-con-anexos', [PurchaseOrderController::class, 'downloadPdfWithAnnexes'])->name('purchase_orders.pdfWithAnnexes');
         });
 
-        // Órdenes de Compra — escritura: admin, Orden de compra
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Órdenes de Compra — escritura: permisos de alta/edición/baja de OC
+        Route::middleware('permission:purchase_orders.create|purchase_orders.update|purchase_orders.delete')->group(function () {
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/crear-desde/{purchaseRequest}', [PurchaseOrderController::class, 'createFromSolcom'])->name('purchase_orders.create_from_solcom');
             Route::post('/ordenes-de-compra', [PurchaseOrderController::class, 'store'])->name('purchase_orders.store');
@@ -524,14 +526,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}/notes/{noteIndex}', [PurchaseOrderController::class, 'destroyObservation'])->name('purchase_orders.notes.destroy');
         });
 
-        // Hitos — lectura: admin, Pagos
-        Route::middleware('role:admin|Pagos')->group(function () {
+        // Hitos — lectura: permiso payments.read
+        Route::middleware('permission:payments.read')->group(function () {
             Route::get('/hitos', [PurchaseOrderMilestoneController::class, 'index'])->name('milestones.index');
             Route::get('/hitos/{purchaseOrderMilestone}', [PurchaseOrderMilestoneController::class, 'show'])->name('milestones.show');
         });
 
-        // Hitos — escritura: admin, Pagos
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+        // Hitos — escritura: permisos de pagos
+        Route::middleware('permission:payments.create|payments.update|payments.delete')->group(function () {
             Route::get('/hitos/create', [PurchaseOrderMilestoneController::class, 'create'])->name('milestones.create');
             Route::post('/hitos', [PurchaseOrderMilestoneController::class, 'store'])->name('milestones.store');
             Route::get('/hitos/{purchaseOrderMilestone}/edit', [PurchaseOrderMilestoneController::class, 'edit'])->name('milestones.edit');
@@ -543,7 +545,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // ── Admin + Payments ──────────────────────────────────────────────────
 
         // Pagos
-        Route::middleware('role:admin|Pagos')->group(function () {
+        Route::middleware('module:payments')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
             Route::get('/pagos/por-pagar/exportar-excel', [PaymentController::class, 'exportPayable'])->name('payments.payable.export');
@@ -573,17 +575,17 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         Route::post('/pagos', [PaymentController::class, 'store'])
-            ->middleware('role:admin|Pagos|Orden de compra')
+            ->middleware('permission:payments.create|payments.update')
             ->name('payments.store');
 
         // Reactivación de pagos rechazados — solicitud de Compras o Pagos para nueva autorización
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        Route::middleware('permission:payments.create|payments.update')->group(function () {
             Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
                 ->name('payments.request_reactivation');
         });
 
-        // Emisión de Órdenes de Compra — Compras y admin
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Emisión de Órdenes de Compra — quien gestiona OC
+        Route::middleware('permission:purchase_orders.create|purchase_orders.update|purchase_orders.delete')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
         });
 
@@ -601,14 +603,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Facturas de Órdenes de Compra
-        Route::middleware('role:admin|Pagos|Recepción|Orden de compra')->group(function () {
+        Route::middleware('module:invoices')->group(function () {
             Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
         });
 
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        Route::middleware('permission:invoices.read')->group(function () {
             Route::get('/facturas', [PurchaseOrderInvoiceController::class, 'index'])->name('invoices.index');
             Route::get('/facturas/exportar-excel', [PurchaseOrderInvoiceController::class, 'export'])->name('invoices.export');
             Route::get('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'show'])->name('invoices.show');
@@ -617,31 +619,31 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('invoices.download_file');
         });
 
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        Route::middleware('permission:invoices.update|invoices.approve')->group(function () {
             Route::patch('/facturas/{invoice}/estatus', [PurchaseOrderInvoiceController::class, 'updateStatus'])->name('invoices.status.update');
         });
 
         // Evidencias de entrega en OC
-        Route::middleware('role:admin|Solmat|Pagos|Orden de compra')->group(function () {
+        Route::middleware('permission:purchase_orders.read')->group(function () {
             Route::post('/evidencias', [PurchaseOrderEvidenceController::class, 'store'])->name('evidences.store');
             Route::get('/evidencias/{evidence}/download', [PurchaseOrderEvidenceController::class, 'download'])->name('evidences.download');
             Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])->name('evidences.destroy');
         });
 
         // Estatus de entrega (manual)
-        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+        Route::middleware('permission:purchase_orders.read')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/estatus-entrega', [PurchaseOrderController::class, 'updateDeliveryStatus'])
                 ->name('purchase_orders.delivery_status.update');
         });
 
-        // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        // Contrarecibo PDF — lectura de pagos
+        Route::middleware('permission:payments.read')->group(function () {
             Route::get('/pagos/{payment}/contrarecibo', [PaymentController::class, 'contrarecibo'])->name('payments.contrarecibo');
             Route::get('/pagos/{payment}/comprobante-spei', [PaymentController::class, 'downloadSpeiReceipt'])->name('payments.spei_receipt.download');
         });
 
         // AJAX: hitos de una OC (para Alta de Facturas)
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        Route::middleware('permission:payments.read')->group(function () {
             Route::get('/ordenes-de-compra/{purchaseOrder}/hitos-json', [PurchaseOrderMilestoneController::class, 'forOrder'])->name('milestones.for_order');
         });
 
@@ -657,7 +659,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('material_requests.force_destroy');
         });
 
-        Route::middleware('role:admin|Solmat')->group(function () {
+        Route::middleware('module:material_requests')->group(function () {
             // Rutas estáticas antes del resource para evitar conflicto con {materialRequest}
             Route::get('/solicitudes-material/archivadas', [MaterialRequestController::class, 'archived'])
                 ->name('material_requests.archived');
@@ -712,13 +714,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('material_requests.send_to_warehouse');
         });
 
-        Route::middleware('role:admin|Solmat|Solcom|suministros')->group(function () {
+        Route::middleware('permission:material_requests.read')->group(function () {
             Route::get('/solicitudes-material/solicitudes-cambio',
                 [MaterialRequestController::class, 'changeRequestsPanel'])
                 ->name('material_request_changes.index');
         });
 
-        Route::middleware('role:admin|Solmat|Solcom')->group(function () {
+        Route::middleware('permission:material_requests.read')->group(function () {
             Route::post('/solicitudes-material/{materialRequest}/request-changes',
                 [MaterialRequestController::class, 'requestChanges'])
                 ->name('material_requests.request_changes');
@@ -729,7 +731,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Vales de Material ───────────────────────────────────────────────
-        Route::middleware('role:admin|Inventario')->group(function () {
+        Route::middleware('module:stocks')->group(function () {
             Route::get('/inventario', [StockController::class, 'index'])->name('stocks.index');
             Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');
             Route::resource('/inventario/entradas', StockEntryController::class, [
@@ -747,7 +749,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/inventario/{concept}', [StockController::class, 'show'])->name('stocks.show');
         });
 
-        Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
+        Route::middleware('module:material_vouchers')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
                 'names' => [
                     'index' => 'material_vouchers.index',
@@ -787,7 +789,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
-        Route::middleware('role:admin|Solcom|Orden de compra')->group(function () {
+        Route::middleware('module:purchase_requests')->group(function () {
             // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
             Route::get('/solicitudes-compra/buscar-por-folio',
                 [PurchaseRequestController::class, 'itemsJsonByFolio'])
@@ -888,8 +890,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('purchase_requests.force_destroy');
         });
 
-        // ── Carga de Trabajo SOLCOM (solo Orden de compra) ─────────────────
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // ── Carga de Trabajo SOLCOM (equipo de Compras) ─────────────────
+        Route::middleware('permission:purchase_orders.create')->group(function () {
             Route::get('/compras/carga-de-trabajo',
                 [PurchaseRequestController::class, 'workload'])
                 ->name('purchasing.workload');
@@ -897,7 +899,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
-        Route::middleware('role:admin|suministros|Orden de compra')->group(function () {
+        Route::middleware('permission:material_requests.read')->group(function () {
             Route::get('/almacen/pila-solmat',
                 [PurchaseRequestController::class, 'solmatPile'])
                 ->name('warehouse.solmat_pile');
@@ -910,7 +912,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 [PurchaseRequestController::class, 'clearSolmatPileSelection'])
                 ->name('warehouse.solmat_pile.selection.clear');
 
-            Route::middleware('role:admin|suministros')->group(function () {
+            Route::middleware('permission:material_requests.commit')->group(function () {
                 Route::post('/almacen/pila-solmat/{materialRequest}/compromisos',
                     [MaterialRequestController::class, 'updateCommitments'])
                     ->name('warehouse.solmat_pile.commitments.update');
@@ -918,10 +920,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
             Route::get('/almacen/pila-solmat/crear-solcom-consolidada',
                 [PurchaseRequestController::class, 'createFromSolmatMulti'])
+                ->middleware('permission:purchase_requests.create')
                 ->name('purchase_requests.create_from_solmat_multi');
 
             Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom',
                 [PurchaseRequestController::class, 'createFromSolmat'])
+                ->middleware('permission:purchase_requests.create')
                 ->name('purchase_requests.create_from_solmat');
         });
     });

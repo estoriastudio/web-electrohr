@@ -63,7 +63,6 @@
                 <div>
                     <h4 class="card-title mb-0">Listado de proveedores</h4>
                 </div>
-                @hasanyrole('admin|Orden de compra')
                 @can('suppliers.create')
                 <div class="d-flex gap-2">
                     {{-- Importar --}}
@@ -84,7 +83,6 @@
                     </button>
                 </div>
                 @endcan
-                @endhasanyrole
             </div>
 
             {{-- Cobertura de información del perfil --}}
@@ -286,7 +284,6 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Crear nuevo proveedor
 ══════════════════════════════════════════════════════════════════ --}}
-@hasanyrole('admin|Orden de compra')
 @can('suppliers.create')
 <div class="modal fade" id="modalCreateSupplier" tabindex="-1" aria-labelledby="modalCreateSupplierLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -434,7 +431,6 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 
 {{-- ══════════════════════════════════════════════════════════════

@@ -51,7 +51,7 @@
                     </div>
 
                     <!-- Recipient Notifications -->
-                    @if (!Auth::user()->hasRole('supplier_portal_access'))
+                    @role('admin')
                     <div class="dropdown topbar-item">
                         <button type="button" class="topbar-button position-relative" id="page-header-recipient-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Notificaciones personales">
                             <i class="ri-mail-line fs-24"></i>
@@ -180,7 +180,7 @@
                             </div>
                         </div>
                     </div>
-                    @endif
+                    @endrole
 
                     <!-- Theme Setting -->
                     <div class="topbar-item d-none d-md-flex">

@@ -114,7 +114,7 @@
             <span class="badge {{ $statusBadge['class'] }} fs-12">{{ $statusBadge['label'] }}</span>
         </div>
     </div>
-    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+    @if(auth()->user()->can('mobile_assets.update'))
     <a href="{{ route('mobile_assets.edit', $mobileAsset) }}" class="btn btn-primary btn-sm">
         <i class="ri-edit-line me-1"></i> Editar bien
     </a>
@@ -152,7 +152,7 @@
                                            class="btn btn-sm btn-light" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                        @if(auth()->user()->can('mobile_assets.update'))
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -170,7 +170,7 @@
                                         <a href="#" target="_blank" class="btn btn-sm btn-light photo-view-btn" title="Ver en tamaño completo">
                                             <i class="ri-eye-line"></i>
                                         </a>
-                                        @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                        @if(auth()->user()->can('mobile_assets.update'))
                                         <form action="{{ $deleteUrl }}" method="POST"
                                               onsubmit="return confirm('¿Eliminar esta fotografía?')">
                                             @csrf @method('DELETE')
@@ -184,7 +184,7 @@
                             @endif
 
                             {{-- Dropzone (visible si no hay foto; oculto si ya hay) --}}
-                            @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                            @if(auth()->user()->can('mobile_assets.update'))
                             <div class="photo-dz-zone {{ $photoUrl ? 'd-none' : '' }}"
                                  id="dropzone-slot-{{ $slot }}"
                                  data-slot="{{ $slot }}"
@@ -225,7 +225,7 @@
                                 <th>Documento</th>
                                 <th>Vencimiento</th>
                                 <th>Archivo</th>
-                                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                @if(auth()->user()->can('mobile_assets.update'))
                                 <th>Actualizar</th>
                                 @endif
                             </tr>
@@ -280,7 +280,7 @@
                                             <span class="text-muted fs-12">Sin archivo</span>
                                         @endif
                                     </td>
-                                    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                    @if(auth()->user()->can('mobile_assets.update'))
                                     <td>
                                         <button type="button" class="btn btn-soft-primary btn-sm"
                                                 data-bs-toggle="modal"
@@ -354,7 +354,7 @@
                 <h5 class="card-title mb-0">
                     <i class="ri-file-list-3-line me-1 text-muted"></i> Bitácora de Mantenimiento
                 </h5>
-                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                @if(auth()->user()->can('mobile_assets.update'))
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalAddLog">
                     <i class="ri-add-line me-1"></i> Registrar
@@ -372,7 +372,7 @@
                                 <th>Km a vencer</th>
                                 <th>Evidencia</th>
                                 <th>Notas</th>
-                                @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                @if(auth()->user()->can('mobile_assets.update'))
                                 <th></th>
                                 @endif
                             </tr>
@@ -420,7 +420,7 @@
                                     <td class="fs-12 text-muted" style="max-width: 200px; white-space: normal;">
                                         {{ $log->notes ? \Illuminate\Support\Str::limit($log->notes, 80) : '—' }}
                                     </td>
-                                    @if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+                                    @if(auth()->user()->can('mobile_assets.update'))
                                     <td>
                                         <form action="{{ route('maintenance_logs.destroy', [$mobileAsset, $log]) }}"
                                               method="POST"
@@ -557,7 +557,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODALES — Documentos (uno por tipo)
 ══════════════════════════════════════════════════════════════════ --}}
-@if(auth()->user()->hasAnyRole('admin|Moviles') && auth()->user()->can('mobile_assets.update'))
+@if(auth()->user()->can('mobile_assets.update'))
 @foreach ($applicableDocTypes as $dt)
     @php
         $docRecord = $mobileAsset->documents->firstWhere('document_type', $dt);

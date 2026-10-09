@@ -7,6 +7,21 @@ assignees: ''
 
 ---
 
+**Módulo afectado**
+¿En qué parte del sistema ocurre? Ej. "Pagos", "Usuarios", "Reportes".
+
+**¿A cuántos usuarios afecta?**
+Marca una opción:
+- [ ] Todos los usuarios
+- [ ] La mayoría de los usuarios
+- [ ] Algunos usuarios (30+)
+- [ ] Pocos usuarios (10+)
+- [ ] Solo un par de usuarios
+
+**¿Existe una forma alterna de completar la tarea mientras se corrige?**
+- [ ] Sí (descríbela en Contexto adicional)
+- [ ] No
+
 **Describe el error**
 Una descripción clara y concisa de cual es el error.
 

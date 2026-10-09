@@ -151,8 +151,7 @@
                                 @endrole
                             @endif
 
-                            {{-- Marcar como pagado: admin|Pagos --}}
-                            @hasanyrole('admin|Pagos')
+                            {{-- Marcar como pagado --}}
                             @can('payments.update')
                             @if ($payment->status === 'autorizado')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
@@ -179,7 +178,6 @@
                             @endif
                             @endrole
                             @endcan
-                            @endhasanyrole
                         </div>
                     </td>
                 </tr>

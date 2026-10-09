@@ -39,10 +39,12 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Categorías de Conceptos</h4>
+                @can('concepts.create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateCategory">
                     <i class="ri-add-line me-1"></i> Nueva Categoría
                 </button>
+                @endcan
             </div>
 
             {{-- Tabs de tipo --}}
@@ -78,6 +80,7 @@
                                 </span>
                             </div>
                             <div class="d-flex gap-2">
+                                @can('concepts.update')
                                 <button type="button" class="btn btn-light btn-sm"
                                         title="Asignar compradores"
                                         data-bs-toggle="modal"
@@ -93,12 +96,16 @@
                                         data-bs-target="#modalEditCategory{{ $category->id }}">
                                     <i class="ri-edit-line"></i>
                                 </button>
+                                @endcan
+                                @can('concepts.create')
                                 <button type="button" class="btn btn-soft-secondary btn-sm"
                                         title="Nueva subcategoría"
                                         data-bs-toggle="modal"
                                         data-bs-target="#modalCreateSubcategory{{ $category->id }}">
                                     <i class="ri-add-line"></i>
                                 </button>
+                                @endcan
+                                @can('concepts.delete')
                                 <form action="{{ route('concept_categories.destroy', $category) }}" method="POST"
                                       onsubmit="return confirm('¿Eliminar la categoría «{{ addslashes($category->name) }}»? Se quitará la categoría de todos sus conceptos.')">
                                     @csrf @method('DELETE')
@@ -106,6 +113,7 @@
                                         <i class="ri-delete-bin-line"></i>
                                     </button>
                                 </form>
+                                @endcan
                             </div>
                         </div>
 
@@ -137,12 +145,15 @@
                                                 <td class="text-muted fs-13">{{ $sub->description ?? '—' }}</td>
                                                 <td class="text-end pe-3">
                                                     <div class="d-flex gap-2 justify-content-end">
+                                                        @can('concepts.update')
                                                         <button type="button" class="btn btn-soft-primary btn-sm"
                                                                 title="Editar"
                                                                 data-bs-toggle="modal"
                                                                 data-bs-target="#modalEditSub{{ $sub->id }}">
                                                             <i class="ri-edit-line"></i>
                                                         </button>
+                                                        @endcan
+                                                        @can('concepts.delete')
                                                         <form action="{{ route('concept_categories.subcategories.destroy', [$category, $sub]) }}"
                                                               method="POST"
                                                               onsubmit="return confirm('¿Eliminar la subcategoría «{{ addslashes($sub->name) }}»?')">
@@ -151,6 +162,7 @@
                                                                 <i class="ri-delete-bin-line"></i>
                                                             </button>
                                                         </form>
+                                                        @endcan
                                                     </div>
                                                 </td>
                                             </tr>
@@ -169,10 +181,12 @@
                     <div class="text-center text-muted py-5">
                         <i class="ri-folder-3-line fs-36 d-block mb-2 opacity-50"></i>
                         <p class="mb-0">No hay categorías de tipo <strong>{{ $type === 'materiales' ? 'Materiales' : 'Mantenimiento' }}</strong>.</p>
+                        @can('concepts.create')
                         <button type="button" class="btn btn-primary mt-3"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateCategory">
                             <i class="ri-add-line me-1"></i> Crear primera categoría
                         </button>
+                        @endcan
                     </div>
                 @endforelse
             </div>
@@ -180,6 +194,7 @@
     </div>
 </div>
 
+@can('concepts.create')
 {{-- ══ MODAL Crear Categoría ══ --}}
 <div class="modal fade" id="modalCreateCategory" tabindex="-1" aria-labelledby="modalCreateCategoryLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -224,9 +239,12 @@
     </div>
 </div>
 
+@endcan
+
 {{-- ══ MODALES por Categoría ══ --}}
 @foreach($categories as $category)
 
+    @can('concepts.update')
     {{-- Modal Editar Categoría --}}
     <div class="modal fade" id="modalEditCategory{{ $category->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -266,7 +284,9 @@
             </div>
         </div>
     </div>
+    @endcan
 
+    @can('concepts.create')
     {{-- Modal Nueva Subcategoría --}}
     <div class="modal fade" id="modalCreateSubcategory{{ $category->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -301,7 +321,9 @@
             </div>
         </div>
     </div>
+    @endcan
 
+    @can('concepts.update')
     {{-- Modal Asignar Compradores --}}
     <div class="modal fade" id="modalSyncUsers{{ $category->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -347,7 +369,9 @@
             </div>
         </div>
     </div>
+    @endcan
 
+    @can('concepts.update')
     {{-- Modales Editar Subcategorías --}}
     @foreach($category->subcategories as $sub)
         <div class="modal fade" id="modalEditSub{{ $sub->id }}" tabindex="-1" aria-hidden="true">
@@ -382,6 +406,7 @@
             </div>
         </div>
     @endforeach
+    @endcan
 
 @endforeach
 

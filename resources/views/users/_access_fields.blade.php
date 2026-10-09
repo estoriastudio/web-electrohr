@@ -6,11 +6,11 @@
         @foreach ($roles as $role)
             <option value="{{ $role->name }}" @selected(in_array($role->name, $selectedRoles, true))>
                 {{ $role->name }}
-                {{ array_key_exists($role->name, config('module_permissions.access_roles')) || in_array($role->name, ['admin', 'supplier_portal_access']) ? '(Acceso)' : '(Perfil)' }}
+                {{ in_array($role->name, ['admin', 'supplier_portal_access', 'Recursos Humanos', 'Engineer'], true) ? '(Acceso)' : '(Perfil)' }}
             </option>
         @endforeach
     </select>
-    <div class="form-text">Mantén presionada la tecla Ctrl (⌘ en Mac) para seleccionar más de un rol.</div>
+    <div class="form-text">Mantén presionada la tecla Ctrl (⌘ en Mac) para seleccionar más de un rol. (Acceso) también habilita áreas por rol (RR. HH., portal); (Perfil) solo aporta permisos.</div>
 
     <div class="mt-3 d-grid gap-2" data-access-role-alerts aria-live="polite"></div>
 

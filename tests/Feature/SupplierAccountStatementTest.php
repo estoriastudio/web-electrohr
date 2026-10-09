@@ -33,8 +33,12 @@ class SupplierAccountStatementTest extends TestCase
         });
         $migration = require database_path('migrations/2026_04_23_225441_create_permission_tables.php');
         $migration->up();
+        $supplierRead = \Spatie\Permission\Models\Permission::create(['name' => 'suppliers.read', 'guard_name' => 'web']);
         foreach (['admin', 'Pagos', 'Orden de compra', 'supplier_portal_access'] as $role) {
-            Role::create(['name' => $role, 'guard_name' => 'web']);
+            $created = Role::create(['name' => $role, 'guard_name' => 'web']);
+            if (in_array($role, ['Pagos', 'Orden de compra'], true)) {
+                $created->givePermissionTo($supplierRead);
+            }
         }
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();

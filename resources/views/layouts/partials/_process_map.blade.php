@@ -1,6 +1,6 @@
 @php
     $user = auth()->user();
-    $canOpenOcShow = $user && $user->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
+    $canOpenOcShow = $user && $user->can('purchase_orders.read');
 
     $currentType = null;
     $currentId = null;

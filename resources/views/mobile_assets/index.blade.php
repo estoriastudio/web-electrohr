@@ -50,7 +50,6 @@
             @endforeach
         </ul>
 
-        @hasanyrole('admin|Moviles')
         @can('mobile_assets.create')
         <div class="d-flex gap-2 ms-auto">
             <button type="button" class="btn btn-sm btn-soft-success"
@@ -66,7 +65,6 @@
             </button>
         </div>
         @endcan
-        @endhasanyrole
     </div>
 
     {{-- Cobertura documental y galería --}}
@@ -272,7 +270,7 @@
                                 <a href="{{ route('mobile_assets.show', $asset) }}" class="link-primary fw-medium fs-13">
                                     Ver perfil <i class="ri-arrow-right-line align-middle"></i>
                                 </a>
-                                @hasanyrole('admin|Moviles')
+                                @canany(['mobile_assets.update', 'mobile_assets.delete'])
                                 <div class="d-flex gap-1">
                                     @can('mobile_assets.update')
                                         <a href="{{ route('mobile_assets.edit', $asset) }}"
@@ -290,7 +288,7 @@
                                         </form>
                                     @endcan
                                 </div>
-                                @endhasanyrole
+                                @endcanany
                             </div>
                         </div>
                     </div>
@@ -309,16 +307,13 @@
 {{-- ══════════════════════════════════════════════════════════
      MODAL — Crear nuevo bien móvil
 ══════════════════════════════════════════════════════════════ --}}
-@hasanyrole('admin|Moviles')
 @can('mobile_assets.create')
 @include('mobile_assets.utilities._create_modal')
 @endcan
-@endhasanyrole
 
 {{-- ══════════════════════════════════════════════════════════
      MODAL — Importación masiva de bienes móviles
 ══════════════════════════════════════════════════════════════ --}}
-@hasanyrole('admin|Moviles')
 @can('mobile_assets.create')
 <div class="modal fade" id="modalImportAssets" tabindex="-1" aria-labelledby="modalImportAssetsLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -365,7 +360,6 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 @endsection
 

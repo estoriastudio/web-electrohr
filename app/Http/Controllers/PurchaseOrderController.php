@@ -187,7 +187,7 @@ class PurchaseOrderController extends Controller
 
     private function listingScope(Request $request): string
     {
-        return Auth::user()->hasAnyRole(['admin', 'Pagos']) && $request->input('scope', 'all') !== 'mine' ? 'all' : 'mine';
+        return Auth::user()->can('purchase_orders.view_all') && $request->input('scope', 'all') !== 'mine' ? 'all' : 'mine';
     }
 
     public function overdueDeliveries(): View
@@ -488,7 +488,7 @@ class PurchaseOrderController extends Controller
             ->get(['id', 'folio']) : collect();
 
         $buyers = Auth::user()->hasRole('admin')
-            ? User::role(['admin', 'Orden de compra'])->orderBy('name')->get(['id', 'name', 'email'])
+            ? User::ableTo('purchase_orders.create')->orderBy('name')->get(['id', 'name', 'email'])
             : collect();
 
         $pendingAuthCount = $pendingQueue->count();

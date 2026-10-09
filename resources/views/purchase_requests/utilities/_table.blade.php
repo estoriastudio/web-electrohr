@@ -89,7 +89,6 @@
                                         --}}
 
                                         @if ($mode === 'index')
-                                            @hasanyrole('admin|Solcom')
                                             @can('purchase_requests.update')
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('purchase_requests.edit', $pr) }}">
@@ -97,7 +96,6 @@
                                                 </a>
                                             </li>
                                             @endcan
-                                            @endhasanyrole
                                         @endif
 
                                         <li>
@@ -106,7 +104,7 @@
                                             </a>
                                         </li>
 
-                                        @hasanyrole('admin|Solcom|Orden de compra')
+                                        @can('purchase_requests.delete')
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')
                                             <li>
@@ -129,9 +127,8 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @endhasanyrole
+                                        @endcan
 
-                                        @hasanyrole('admin|Solcom')
                                         @can('purchase_requests.delete')
                                         <li>
                                             <form action="{{ route('purchase_requests.destroy', $pr) }}"
@@ -146,7 +143,6 @@
                                             </form>
                                         </li>
                                         @endcan
-                                        @endhasanyrole
                                     @endif
                                 </ul>
                             </div>

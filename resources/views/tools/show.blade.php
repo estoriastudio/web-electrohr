@@ -93,9 +93,11 @@
 			<div class="card-header border-bottom d-flex justify-content-between align-items-center">
 				<h5 class="card-title mb-0"><i class="ri-hammer-line me-1 text-primary"></i> Ficha de Inventario</h5>
 				<div class="d-flex gap-2">
+					@can('tools.update')
 					<button type="button" class="btn btn-soft-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditTool">
 						<i class="ri-edit-line me-1"></i> Editar
 					</button>
+					@endcan
 					<a href="{{ route('tools.index') }}" class="btn btn-light btn-sm">
 						<i class="ri-arrow-left-line me-1"></i> Regresar
 					</a>
@@ -191,15 +193,18 @@
 										<a href="{{ $photoUrl }}" target="_blank" class="btn btn-sm btn-light" title="Ver en tamaño completo">
 											<i class="ri-eye-line"></i>
 										</a>
+										@can('tools.update')
 										<form action="{{ $deleteUrl }}" method="POST" onsubmit="return confirm('¿Eliminar esta fotografía?')">
 											@csrf @method('DELETE')
 											<button type="submit" class="btn btn-sm btn-danger" title="Eliminar">
 												<i class="ri-delete-bin-line"></i>
 											</button>
 										</form>
+										@endcan
 									</div>
 								</div>
 							@else
+								@can('tools.update')
 								<div class="photo-existing d-none" id="photo-preview-{{ $slot }}">
 									<img src="" alt="Foto {{ $slot }}">
 									<div class="photo-existing-overlay">
@@ -214,8 +219,10 @@
 										</form>
 									</div>
 								</div>
+								@endcan
 							@endif
 
+							@can('tools.update')
 							<div class="photo-dz-zone {{ $photoUrl ? 'd-none' : '' }}"
 								id="dropzone-slot-{{ $slot }}"
 								data-slot="{{ $slot }}"
@@ -233,6 +240,9 @@
 									<i class="ri-refresh-line me-1"></i> Reemplazar
 								</button>
 							@endif
+							@elseif (! $photoUrl)
+								<div class="text-muted fs-13">Sin fotografía</div>
+							@endcan
 						</div>
 					@endfor
 				</div>
@@ -243,9 +253,11 @@
 			<div class="card-header border-bottom d-flex justify-content-between align-items-center">
 				<h5 class="card-title mb-0"><i class="ri-history-line me-1 text-primary"></i> Historial de Control de Uso</h5>
 				<div class="d-flex gap-2">
+					@can('tools.create')
 					<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCreateControlFromDetail">
 						<i class="ri-add-line me-1"></i> Nuevo registro
 					</button>
+					@endcan
 					<a href="{{ route('tool_controls.index', ['search' => $tool->economic_number]) }}" class="btn btn-soft-primary btn-sm">
 						<i class="ri-external-link-line me-1"></i> Ir a Control de uso
 					</a>
@@ -307,9 +319,11 @@
 			<div class="card mt-3">
 				<div class="card-header d-flex justify-content-between align-items-center border-bottom">
 					<h5 class="card-title mb-0"><i class="ri-flask-line me-1 text-primary"></i> Bitácora de Calibración</h5>
+					@can('tools.update')
 					<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddCalibration">
 						<i class="ri-add-line me-1"></i> Registrar
 					</button>
+					@endcan
 				</div>
 				<div class="card-body p-0">
 					<div class="table-responsive">
@@ -341,12 +355,14 @@
 										</td>
 										<td class="fs-12 text-muted" style="max-width: 220px; white-space: normal;">{{ $calibration->observations ? \Illuminate\Support\Str::limit($calibration->observations, 90) : '—' }}</td>
 										<td class="text-end">
+											@can('tools.delete')
 											<form action="{{ route('tool_calibrations.destroy', [$tool, $calibration]) }}" method="POST" onsubmit="return confirm('¿Eliminar esta calibración?')">
 												@csrf @method('DELETE')
 												<button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar">
 													<i class="ri-delete-bin-line"></i>
 												</button>
 											</form>
+											@endcan
 										</td>
 									</tr>
 								@empty
@@ -366,6 +382,7 @@
 	</div>
 </div>
 
+@can('tools.create')
 <div class="modal fade" id="modalCreateControlFromDetail" tabindex="-1" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered">
 		<div class="modal-content">
@@ -438,8 +455,10 @@
 		</div>
 	</div>
 </div>
+@endcan
 
 @if($tool->requires_calibration)
+@can('tools.update')
 <div class="modal fade" id="modalAddCalibration" tabindex="-1" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered modal-lg">
 		<div class="modal-content">
@@ -480,6 +499,7 @@
 		</div>
 	</div>
 </div>
+@endcan
 @endif
 
 @php
@@ -488,6 +508,7 @@
 	$subcategoryForEdit = $selectedCategoryForEdit?->parent_id ? $selectedCategoryForEdit : null;
 @endphp
 
+@can('tools.update')
 <div class="modal fade" id="modalEditTool" tabindex="-1" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered modal-lg">
 		<div class="modal-content">
@@ -572,6 +593,7 @@
 		</div>
 	</div>
 </div>
+@endcan
 
 @endsection
 

@@ -286,7 +286,7 @@
                                                     <i class="ri-eye-line"></i>
                                                 </a>
                                                 @if ($note->isChangeRequest())
-                                                @hasanyrole('admin|Solcom|Solmat')
+                                                @can('material_requests.read')
                                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                                       method="POST">
                                                     @csrf
@@ -294,7 +294,7 @@
                                                         <i class="ri-check-line"></i>
                                                     </button>
                                                 </form>
-                                                @endhasanyrole
+                                                @endcan
                                                 @endif
                                             @endif
                                         </div>

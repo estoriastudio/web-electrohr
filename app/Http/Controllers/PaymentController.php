@@ -415,8 +415,7 @@ class PaymentController extends Controller
                     ]);
                 }
 
-                if (Auth::user()?->hasRole('Orden de compra')
-                    && !Auth::user()?->hasAnyRole(['admin', 'Pagos'])
+                if (!Auth::user()?->can('payments.register_any')
                     && !$milestone->purchaseOrder->is_destajo) {
                     throw ValidationException::withMessages([
                         'milestone_id' => 'Solo puedes registrar pagos en OCs de destajo.',

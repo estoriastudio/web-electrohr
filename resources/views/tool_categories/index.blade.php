@@ -39,9 +39,11 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Categorías de Herramientas</h4>
+                @can('tools.create')
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateToolCategory">
                     <i class="ri-add-line me-1"></i> Nueva Categoría
                 </button>
+                @endcan
             </div>
 
             <div class="card-body">
@@ -59,6 +61,7 @@
                                 @endif
                             </div>
                             <div class="d-flex gap-2">
+                                @can('tools.update')
                                 <button type="button"
                                         class="btn btn-soft-primary btn-sm"
                                         data-bs-toggle="modal"
@@ -66,6 +69,8 @@
                                                                                 title="Editar">
                                     <i class="ri-edit-line"></i>
                                 </button>
+                                @endcan
+                                @can('tools.delete')
                                 <form action="{{ route('tool_categories.destroy', $rootCategory) }}"
                                       method="POST"
                                                                             onsubmit="return confirm('¿Eliminar esta categoría?')">
@@ -75,6 +80,7 @@
                                         <i class="ri-delete-bin-line"></i>
                                     </button>
                                 </form>
+                                @endcan
                             </div>
                         </div>
 
@@ -111,6 +117,7 @@
                                                 <td class="text-end pe-3">{{ $childCategory->tools_count }}</td>
                                                 <td class="text-end pe-3">
                                                     <div class="d-flex gap-2 justify-content-end">
+                                                        @can('tools.update')
                                                         <button type="button"
                                                                 class="btn btn-soft-primary btn-sm"
                                                                 data-bs-toggle="modal"
@@ -118,6 +125,8 @@
                                                                                                                                 title="Editar">
                                                             <i class="ri-edit-line"></i>
                                                         </button>
+                                                        @endcan
+                                                        @can('tools.delete')
                                                         <form action="{{ route('tool_categories.destroy', $childCategory) }}"
                                                               method="POST"
                                                                                                                             onsubmit="return confirm('¿Eliminar esta subcategoría?')">
@@ -127,6 +136,7 @@
                                                                 <i class="ri-delete-bin-line"></i>
                                                             </button>
                                                         </form>
+                                                        @endcan
                                                     </div>
                                                 </td>
                                             </tr>
@@ -152,6 +162,7 @@
     </div>
 </div>
 
+@can('tools.create')
 <div class="modal fade" id="modalCreateToolCategory" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -211,7 +222,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('tools.update')
 @foreach ($allCategories as $category)
     <div class="modal fade" id="modalEditToolCategory{{ $category->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -263,5 +276,6 @@
         </div>
     </div>
 @endforeach
+@endcan
 
 @endsection

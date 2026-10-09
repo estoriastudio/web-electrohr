@@ -88,7 +88,7 @@ class PurchaseRequestController extends Controller
             })
             ->count();
 
-        $purchasingUsers = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
+        $purchasingUsers = User::ableTo('purchase_orders.create')->orderBy('name')->get();
         $requesterUsers = User::whereIn('id', PurchaseRequestChangeNote::query()
             ->whereNull('resolved_at')
             ->select('requested_by')
@@ -135,7 +135,7 @@ class PurchaseRequestController extends Controller
         $purchaseRequests = $query->paginate(15)->withQueryString();
         $nextFolio        = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
         $projects         = Project::where('status', 'active')->orderBy('name')->get();
-        $purchasingUsers  = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
+        $purchasingUsers  = User::ableTo('purchase_orders.create')->orderBy('name')->get();
 
         return view('purchase_requests.index', compact('purchaseRequests', 'nextFolio', 'projects', 'search', 'status', 'purchasingUsers'));
     }
@@ -436,7 +436,7 @@ class PurchaseRequestController extends Controller
                                        ->orderBy('created_at')
                                        ->get();
 
-        $purchasingUsers = User::role('Orden de compra')->orderBy('name')->get();
+        $purchasingUsers = User::permission('purchase_orders.create')->orderBy('name')->get();
 
         $solmatRequester = $purchaseRequest->materialRequest?->requestedBy?->name
             ?? $purchaseRequest->materialRequest?->requested_by
@@ -1125,8 +1125,8 @@ class PurchaseRequestController extends Controller
     // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
     public function workload(): \Illuminate\View\View
     {
-        // Solo usuarios con rol "Orden de compra"
-        $ordersUsers = User::role('Orden de compra')->orderBy('name')->get();
+        // Solo usuarios que gestionan Ordenes de compra
+        $ordersUsers = User::permission('purchase_orders.create')->orderBy('name')->get();
         $ordersUserIds = $ordersUsers->pluck('id');
 
         // SOLCOMs en Compras que aún no tienen una OC, agrupadas por responsable.

@@ -107,6 +107,7 @@
                                             <a href="{{ route('tools.show', $tool) }}" class="btn btn-soft-info btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            @can('tools.delete')
                                             <form action="{{ route('tools.unarchive', $tool) }}" method="POST"
                                                   class="form-unarchive-tool" data-code="{{ $tool->economic_number }}">
                                                 @csrf
@@ -115,6 +116,7 @@
                                                     <i class="ri-inbox-unarchive-line me-1"></i> Restaurar
                                                 </button>
                                             </form>
+                                            @endcan
                                             @role('admin')
                                                 <button type="button"
                                                         class="btn btn-soft-danger btn-sm btn-force-delete-tool"

@@ -281,7 +281,7 @@
                                                    title="Ver detalle">
                                                     <i class="ri-eye-line"></i>
                                                 </a>
-                                                @hasanyrole('admin|Solcom')
+                                                @can('purchase_requests.update')
                                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                                       method="POST">
                                                     @csrf
@@ -289,7 +289,7 @@
                                                         <i class="ri-check-line"></i>
                                                     </button>
                                                 </form>
-                                                @endhasanyrole
+                                                @endcan
                                             @endif
                                         </div>
                                     </td>

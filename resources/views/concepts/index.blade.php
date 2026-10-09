@@ -45,6 +45,7 @@
                     <a href="{{ route('concepts.archived') }}" class="btn btn-sm btn-outline-secondary" title="Archivados">
                         <i class="ri-archive-line me-1"></i> Archivados
                     </a>
+                    @can('concepts.create')
                     <button type="button" class="btn btn-sm btn-soft-success"
                             data-bs-toggle="modal" data-bs-target="#modalImportConcepts">
                         <i class="ri-upload-2-line me-1"></i> Importar
@@ -53,6 +54,7 @@
                             data-bs-toggle="modal" data-bs-target="#modalCreateConcept">
                         <i class="ri-add-line me-1"></i> Nuevo Concepto
                     </button>
+                    @endcan
                 </div>
             </div>
 
@@ -194,6 +196,7 @@
                                     </td>
                                     <td>
                                         <div class="d-flex gap-2">
+                                            @can('concepts.update')
                                             <button type="button"
                                                     class="btn btn-soft-primary btn-sm btn-edit-concept"
                                                     title="Editar"
@@ -214,6 +217,8 @@
                                                     data-subcategory-id="{{ $concept->concept_subcategory_id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
+                                            @endcan
+                                            @can('concepts.delete')
                                             <button type="button"
                                                     class="btn btn-soft-warning btn-sm btn-archive-concept"
                                                     title="Archivar"
@@ -222,6 +227,7 @@
                                                     data-description="{{ $concept->description }}">
                                                 <i class="ri-archive-line"></i>
                                             </button>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -248,6 +254,7 @@
 </div>
 
 
+@can('concepts.create')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Crear concepto
 ══════════════════════════════════════════════════════════════════ --}}
@@ -400,8 +407,9 @@
         </div>
     </div>
 </div>
+@endcan
 
-
+@can('concepts.update')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Editar concepto
 ══════════════════════════════════════════════════════════════════ --}}
@@ -534,7 +542,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('concepts.delete')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Archivar concepto
 ══════════════════════════════════════════════════════════════════ --}}
@@ -579,7 +589,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('concepts.create')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Importar Conceptos
 ══════════════════════════════════════════════════════════════════ --}}
@@ -650,6 +662,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @endsection
 

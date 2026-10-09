@@ -46,9 +46,11 @@
                     <a href="{{ route('tool_controls.index') }}" class="btn btn-sm btn-soft-success">
                         <i class="ri-calendar-check-line me-1"></i> Control de uso
                     </a>
+                    @can('tools.create')
                     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateTool">
                         <i class="ri-add-line me-1"></i> Nueva Herramienta
                     </button>
+                    @endcan
                 </div>
             </div>
 
@@ -157,6 +159,7 @@
                                                title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            @can('tools.update')
                                             <button type="button"
                                                     class="btn btn-soft-primary btn-sm btn-edit-tool"
                                                     title="Editar"
@@ -172,6 +175,8 @@
                                                     data-subcategory-id="{{ $subcategoryForTool?->id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
+                                            @endcan
+                                            @can('tools.delete')
                                             <button type="button"
                                                     class="btn btn-soft-warning btn-sm btn-archive-tool"
                                                     title="Archivar"
@@ -180,6 +185,7 @@
                                                     data-description="{{ $tool->description }}">
                                                 <i class="ri-archive-line"></i>
                                             </button>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -205,6 +211,7 @@
     </div>
 </div>
 
+@can('tools.create')
 <div class="modal fade" id="modalCreateTool" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -287,7 +294,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('tools.update')
 <div class="modal fade" id="modalEditTool" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -360,7 +369,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('tools.delete')
 <div class="modal fade" id="modalArchiveTool" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -398,6 +409,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @endsection
 

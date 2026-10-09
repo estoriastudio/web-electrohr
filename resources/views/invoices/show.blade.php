@@ -211,7 +211,7 @@
 			</div>
 		</div>
 
-		@if (auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']))
+		@can('invoices.delete')
 		<div class="card mt-3 border-danger-subtle">
 			<div class="card-header border-bottom">
 				<h6 class="mb-0 text-danger">Eliminar factura</h6>
@@ -228,7 +228,7 @@
 				</form>
 			</div>
 		</div>
-		@endif
+		@endcan
 	</div>
 </div>
 @endsection

@@ -47,7 +47,7 @@
                     @endif
                 </h4>
                 <div class="d-flex align-items-center gap-2">
-                    @hasanyrole('admin|Solmat')
+                    @can('material_requests.read')
                     @if ($scope === 'all')
                         <a href="{{ route('material_requests.index') }}"
                            class="btn btn-sm btn-outline-primary" title="Mis SOLMAT">
@@ -60,20 +60,18 @@
                         </a>
                     @endif
                     
-                    @hasanyrole('admin|Solmat')
                     @can('material_requests.create')
                     <button type="button" class="btn btn-sm btn-primary"
                             data-bs-toggle="modal" data-bs-target="#modalCreateMR">
                         <i class="ri-add-line me-1"></i> Nueva SOLMAT
                     </button>
                     @endcan
-                    @endhasanyrole
 
                     <a href="{{ route('material_requests.archived') }}"
                        class="btn btn-sm btn-outline-secondary" title="Archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
-                    @endhasanyrole
+                    @endcan
                     @hasanyrole('admin')
                     <a href="{{ route('material_requests.soft_deleted') }}"
                        class="btn btn-sm btn-outline-danger" title="Papelera">
@@ -132,7 +130,6 @@
 </div>
 
 {{-- MODAL — Nueva SOLMAT --}}
-@hasanyrole('admin|Solmat')
 @can('material_requests.create')
 <div class="modal fade" id="modalCreateMR" tabindex="-1" aria-labelledby="modalCreateMRLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -262,7 +259,6 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 @endsection
 

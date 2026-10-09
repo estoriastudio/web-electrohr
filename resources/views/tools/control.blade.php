@@ -36,6 +36,7 @@
 @endif
 
 <div class="row g-3">
+    @can('tools.create')
     <div class="col-xl-4">
         <div class="card">
             <div class="card-header border-bottom">
@@ -119,8 +120,9 @@
             </div>
         </div>
     </div>
+    @endcan
 
-    <div class="col-xl-8">
+    <div class="{{ auth()->user()->can('tools.create') ? 'col-xl-8' : 'col-xl-12' }}">
         <div class="card">
             <div class="card-header border-bottom">
                 <form method="GET" action="{{ route('tool_controls.index') }}" class="row g-2 align-items-end">
@@ -206,6 +208,7 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="d-flex gap-2 justify-content-end">
+                                            @can('tools.update')
                                             <button type="button"
                                                     class="btn btn-soft-primary btn-sm"
                                                     data-bs-toggle="modal"
@@ -213,6 +216,8 @@
                                                     title="Editar">
                                                 <i class="ri-edit-line"></i>
                                             </button>
+                                            @endcan
+                                            @can('tools.delete')
                                             <form action="{{ route('tool_controls.destroy', $control) }}" method="POST" onsubmit="return confirm('¿Eliminar este control?')">
                                                 @csrf
                                                 @method('DELETE')
@@ -220,6 +225,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -245,6 +251,7 @@
     </div>
 </div>
 
+@can('tools.update')
 @foreach($controls as $control)
     @php
         $obsText = is_array($control->observations) && count($control->observations)
@@ -318,6 +325,7 @@
         </div>
     </div>
 @endforeach
+@endcan
 
 @endsection
 

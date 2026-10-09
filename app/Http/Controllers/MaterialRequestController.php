@@ -801,7 +801,7 @@ class MaterialRequestController extends Controller
                 'model_id' => $lockedRequest->id,
                 'type' => 'material_request_commitment',
                 'data' => "SOLMAT #{$lockedRequest->folio}: {$summary}",
-            ], User::role('Solmat')->pluck('id')->all());
+            ], User::permission('material_requests.create')->pluck('id')->all());
 
             return count($changes);
         });

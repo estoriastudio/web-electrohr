@@ -207,8 +207,8 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
 
     public function test_marking_notifications_read_only_affects_the_current_recipient(): void
     {
-        $firstUser = $this->userWithRole('Solmat');
-        $secondUser = $this->userWithRole('Solmat');
+        $firstUser = $this->userWithRole('admin');
+        $secondUser = $this->userWithRole('admin');
         $notification = Notification::create([
             'action_by' => $firstUser->id,
             'model_action' => 'update',

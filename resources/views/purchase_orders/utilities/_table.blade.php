@@ -45,7 +45,7 @@
                     $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
                     $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—';
                         $buyerName = $order->buyer?->name ?: (trim((string) $order->elaborated_by) ?: 'Sin comprador asignado');
-                        $canManageOrder = auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $order->buyer_id === (int) auth()->id());
+                        $canManageOrder = auth()->user()->can('purchase_orders.update') && (auth()->user()->hasRole('admin') || (int) $order->buyer_id === (int) auth()->id());
                         $buyerGravatarHash = md5(strtolower($buyerName));
                         $buyerGravatarUrl = "https://www.gravatar.com/avatar/{$buyerGravatarHash}?s=64&d=identicon";
                     $solcom = $order->purchaseRequest ?? null;

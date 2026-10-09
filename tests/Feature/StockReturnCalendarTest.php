@@ -171,7 +171,7 @@ class StockReturnCalendarTest extends TestCase
         foreach (['stocks.exits.calendar', 'stocks.exits.calendar.events'] as $name) {
             $route = app('router')->getRoutes()->match(Request::create(route($name), 'GET'));
             $this->assertSame($name, $route->getName());
-            $this->assertContains('role:admin|Inventario', $route->gatherMiddleware());
+            $this->assertContains('module:stocks', $route->gatherMiddleware());
         }
     }
 }

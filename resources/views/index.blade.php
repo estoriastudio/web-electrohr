@@ -69,9 +69,9 @@
 </div>
 
 {{-- ============================================================ --}}
-{{-- Bloque 1: Indicadores de Pagos — admin + Pagos            --}}
+{{-- Bloque 1: Indicadores de Pagos — permiso payments.read       --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
+@if(auth()->user()->can('payments.read'))
 @php $paymentCurrencies = ['MXN', 'USD', 'EUR']; @endphp
 <div class="row mb-3">
 
@@ -235,9 +235,9 @@
 
 
 {{-- ============================================================ --}}
-{{-- Bloque 2: Urgencias de OC — admin + orders                   --}}
+{{-- Bloque 2: Urgencias de OC — permiso purchase_orders.create   --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin']) && array_sum($urgencyValues) > 0)
+@if(auth()->user()->can('purchase_orders.create') && array_sum($urgencyValues) > 0)
 <div class="row mb-3">
     {{-- Tarjeta 3: Gráfico de urgencias por vencimiento --}}
     <div class="col-xl-6">
@@ -339,9 +339,9 @@
 
 
 {{-- ============================================================ --}}
-{{-- Bloque 3: Pendientes de Autorizar — admin + payments         --}}
+{{-- Bloque 3: Pendientes de Autorizar — permiso payments.read    --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
+@if(auth()->user()->can('payments.read'))
 <div class="row">
     {{-- Tarjeta 5: Gráfica de pendientes de autorizar --}}
     <div class="col-xl-12">
@@ -368,9 +368,9 @@
 @endif
 
 {{-- ============================================================ --}}
-{{-- Bloque 4: Vista Orden de Compra — admin + Orden de compra    --}}
+{{-- Bloque 4: Vista Compras — permiso purchase_orders.create     --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']))
+@if(auth()->user()->can('purchase_orders.create'))
 
 {{-- Fila A: Métricas rápidas --}}
 <div class="row">
@@ -788,7 +788,7 @@
 @push('scripts')
 
 {{-- Gráfico 3: Urgencias por vencimiento --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']) && array_sum($urgencyValues) > 0)
+@if(auth()->user()->can('purchase_orders.create') && array_sum($urgencyValues) > 0)
 <script>
 (function () {
     var opts = {
@@ -828,7 +828,7 @@
 @endif
 
 {{-- Gráfico 5: Pendientes de autorizar por proveedor --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']) && count($chartLabels) > 0)
+@if(auth()->user()->can('payments.read') && count($chartLabels) > 0)
 <script>
 (function () {
     var opts = {
