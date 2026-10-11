@@ -6,7 +6,11 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>
+    @if (auth()->user()->isRestrictedEngineer())
+        <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
+    @else
+        <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>
+    @endif
     <li class="breadcrumb-item active">SOLMAT #{{ $materialRequest->folio }}</li>
 @endsection
 
@@ -111,7 +115,7 @@
                         @endif
                         @endhasanyrole
 
-                        <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
+                        <a href="{{ auth()->user()->isRestrictedEngineer() ? route('my-projects.show', $materialRequest->project_id) : route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
                     </div>
@@ -436,10 +440,12 @@
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
                         {{ $materialRequest->changeNotes->filter(fn ($note) => $note->isChangeRequest() && ! $note->isResolved())->count() }} pendiente(s)
                     </span>
+                    @unless (auth()->user()->isRestrictedEngineer())
                     <a href="{{ route('material_request_changes.index', ['search' => $materialRequest->folio]) }}"
                        class="btn btn-sm btn-light">
                         <i class="ri-external-link-line me-1"></i>Ver panel
                     </a>
+                    @endunless
                 </div>
             </div>
             <div class="card-body">

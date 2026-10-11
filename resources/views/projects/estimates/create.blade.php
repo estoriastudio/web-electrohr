@@ -1,11 +1,16 @@
 @extends('layouts.app')
 
+@php
+    $engineerView = $engineerView ?? false;
+    $backUrl = $engineerView ? route('my-projects.show', [$project, 'tab' => 'estimates']) : route('projects.show', $project);
+@endphp
+
 @section('page_title', 'Registrar estimación')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('projects.index') }}">Proyectos</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('projects.show', $project) }}">{{ $project->name }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ $engineerView ? route('my-projects.index') : route('projects.index') }}">{{ $engineerView ? 'Mis Proyectos' : 'Proyectos' }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ $backUrl }}">{{ $project->name }}</a></li>
     <li class="breadcrumb-item active">Registrar estimación</li>
 @endsection
 
@@ -15,7 +20,7 @@
         <h5 class="fw-semibold mb-1"><i class="ri-funds-line me-1 text-muted"></i> Registrar estimación</h5>
         <div class="text-muted fs-13">{{ $project->name }}</div>
     </div>
-    <a href="{{ route('projects.show', $project) }}" class="btn btn-light btn-sm">
+    <a href="{{ $backUrl }}" class="btn btn-light btn-sm">
         <i class="ri-arrow-left-line me-1"></i> Volver al proyecto
     </a>
 </div>
@@ -33,13 +38,13 @@
 @endif
 
 <div class="card">
-    <form id="createEstimateForm" action="{{ route('projects.estimates.store', $project) }}" method="POST">
+    <form id="createEstimateForm" action="{{ $engineerView ? route('my-projects.estimates.store', $project) : route('projects.estimates.store', $project) }}" method="POST">
         @csrf
         <div class="card-body">
             @include('estimates._form', ['prefix' => 'create', 'estimate' => null])
         </div>
         <div class="card-footer d-flex justify-content-end gap-2">
-            <a href="{{ route('projects.show', $project) }}" class="btn btn-light">Cancelar</a>
+            <a href="{{ $backUrl }}" class="btn btn-light">Cancelar</a>
             <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Registrar estimación</button>
         </div>
     </form>

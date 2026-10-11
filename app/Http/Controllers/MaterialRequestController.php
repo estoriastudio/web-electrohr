@@ -140,6 +140,8 @@ class MaterialRequestController extends Controller
 
     public function show(MaterialRequest $materialRequest)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         $materialRequest->load([
             'project',
             'projectWorks',
@@ -1016,6 +1018,8 @@ class MaterialRequestController extends Controller
     // PDF
     public function downloadPdf(MaterialRequest $materialRequest): Response
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         $materialRequest->load(['project', 'projectWorks', 'requestedBy', 'items']);
 
         $pdf = Pdf::loadView('material_requests.pdf', compact('materialRequest'))

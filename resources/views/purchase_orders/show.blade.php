@@ -4,7 +4,11 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index') }}">Órdenes de Compra</a></li>
+    @if ($isRestrictedEngineer ?? false)
+        <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
+    @else
+        <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index') }}">Órdenes de Compra</a></li>
+    @endif
     <li class="breadcrumb-item active">OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}</li>
 @endsection
 
@@ -36,6 +40,7 @@
 @endif
 
 @php
+    $isRestrictedEngineer = $isRestrictedEngineer ?? false;
     $statusMap = [
         'emitida'    => ['label' => 'Emitida',    'class' => 'bg-info-subtle text-info'],
         'pendiente'  => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
@@ -243,7 +248,11 @@
                             </span>
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $purchaseOrder->currency }}</span>
                         </div>
-                        @if ($supplier)
+                        @if ($supplier && $isRestrictedEngineer)
+                            <div class="mt-2">
+                                <span class="fw-semibold text-dark">{{ $supplier->commercial_name ?: 'Sin nombre comercial' }}</span>
+                            </div>
+                        @elseif ($supplier)
                             <button type="button" class="btn btn-link p-0 mt-2 text-decoration-none text-start"
                                     data-bs-toggle="modal" data-bs-target="#modalSupplierProfileSummary">
                                 <span class="fw-semibold text-dark">{{ $supplier->commercial_name ?: 'Sin nombre comercial' }}</span>
@@ -302,6 +311,7 @@
                         <div id="oc_header_total" class="fs-22 fw-semibold text-primary" aria-label="Importe Total de la OC">
                             {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
+                        @unless ($isRestrictedEngineer)
                         <div class="text-muted fs-13">
                             Cubierto: <strong>{{ number_format($totalCubierto, 2) }}</strong>
                         </div>
@@ -311,9 +321,10 @@
                             </div>
                             <small class="text-muted">{{ $progressTotal }}% cubierto</small>
                         </div>
+                        @endunless
                     </div>
                     <div class="d-flex flex-column gap-2">
-                        @if ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada')
+                        @if (! $isRestrictedEngineer && ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada'))
                         <button type="button" class="btn btn-sm btn-outline-danger"
                                 data-bs-toggle="modal" data-bs-target="#modalPdfAnnexes">
                             <i class="ri-file-pdf-2-line me-1"></i> Generar PDF
@@ -384,7 +395,7 @@
 </div>
 @endif
 
-@if ($supplier)
+@if ($supplier && ! $isRestrictedEngineer)
 <div class="modal fade" id="modalSupplierProfileSummary" tabindex="-1" aria-labelledby="modalSupplierProfileSummaryLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -867,6 +878,7 @@
     </div>
 </div>
 
+@unless ($isRestrictedEngineer)
 {{-- ── HITOS (CONDICIONES DE PAGO) ── --}}
 <div class="row" id="hitos-container">
     @forelse ($orderedMilestones as $milestone)
@@ -1599,6 +1611,8 @@
 </div>
 @endif
 
+@endunless
+
 {{-- ── OBSERVACIONES ── --}}
 <div class="row mb-4">
     <div class="col-12">
@@ -1690,6 +1704,7 @@
     </div>
 </div>
 
+@unless ($isRestrictedEngineer)
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($orderedMilestones as $milestone)
     @php
@@ -2266,6 +2281,7 @@
 {{-- Contenido inicial para los editores Quill (sanitizado) --}}
 <template id="contrato-init-html">{!! $contratoInitHtml !!}</template>
 <template id="dossier-init-html">{!! $dossierInitHtml !!}</template>
+@endunless
 
 @push('styles')
 <link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
@@ -2323,6 +2339,7 @@
 
 @endsection
 
+@unless ($isRestrictedEngineer)
 @push('scripts')
 <script>
 (function () {
@@ -3206,3 +3223,4 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 </script>
 @endpush
+@endunless

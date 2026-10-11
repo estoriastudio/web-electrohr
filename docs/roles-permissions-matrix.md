@@ -62,7 +62,8 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 | Alta de Facturas (interna) | Pagos, Recepción, Orden de compra |
 | Evidencias de Entrega OC   | admin, Solmat, Pagos, Orden de compra |
 | Autorización de Pagos      | Pagos                           |
-| Proyectos                  | Proyectos, Solmat, Engineer     |
+| Proyectos                  | Proyectos, Solmat               |
+| Mis Proyectos (solo lectura, estimaciones sin archivos) | Engineer   |
 | Solicitudes de Compra      | Solcom, Orden de compra, admin  |
 | Pila SOLCOM                | Solcom, Orden de compra         |
 | Carga de Trabajo           | Orden de compra                 |
@@ -85,6 +86,14 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 - Pagos conserva sus flujos de pagos/facturas. SOLMAT y Recepcion conservan los accesos colaborativos existentes. Facturas, contadores, exportacion y seleccion de OC para alta se filtran por comprador cuando el usuario tiene Compras sin ninguno de esos roles operativos ni admin.
 - No se agregan bloqueos de rol en controladores ni nuevas policies o middleware de rol. Se mantienen los middleware y restricciones de estado existentes. **Los controles Blade son visibilidad, no autorizacion de solicitudes directas:** este cambio no impide invocar endpoints de gestion manualmente cuando los middleware existentes lo permiten.
 
+## Mis Proyectos (Engineer)
+
+- Engineer restringido = rol `Engineer` sin `admin`, `Proyectos` ni `Solmat`. Accede unicamente a proyectos donde es Supervisor o Residente de alguna obra (`project_works.supervisor_user_id` / `resident_user_id`).
+- Rutas `my-projects.*` (`/mis-proyectos`): pestanas Estimaciones y Obras, SOLMAT, SOLCOM y Ordenes de Compra, todas de solo lectura y filtradas por `project_id`. Proyecto ajeno responde 403.
+- Estimaciones: puede ver, crear y actualizar en sus proyectos; no elimina ni sube/descarga archivos. Documentacion y convenios del proyecto solo para `admin` y `Proyectos`.
+- `show` y PDF de SOLMAT, SOLCOM y OC responden 403 si el registro no es de sus proyectos. El PDF de OC no esta disponible para Engineer y el detalle de OC oculta hitos, pagos, facturas y evidencias.
+- Ya no usa `projects.*` ni `obras.*`; `projects.search`, `works_json` y `works.search` se limitan a sus proyectos.
+
 ## Historial de Cambios
 
 Agrega una linea por cambio para trazabilidad.
@@ -97,3 +106,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-15: Engineer accede a Proyectos solo cuando está asignado como supervisor o residente de una obra; admin conserva el listado completo.
 - 2026-09-29: OC vinculadas a comprador usuario; Mis OC y listado completo admin, precarga de Elabora Orden, reasignacion visual admin y vinculacion historica por nombres exactos.
 - 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.
+- 2026-10-10: Engineer pasa a Mis Proyectos (`my-projects.*`) de solo lectura acotado a sus proyectos; se retira de `projects.*` y `obras.*`.

@@ -153,6 +153,8 @@ class ProjectController extends Controller
 
     public function worksJson(Project $project): JsonResponse
     {
+        $this->ensureProjectVisible($project->id);
+
         $works = $project->works()
             ->where('status', 'active')
             ->orderBy('name')
@@ -171,6 +173,7 @@ class ProjectController extends Controller
 
         return response()->json(
             Project::where('status', 'active')
+                ->accessibleBy(Auth::user())
                 ->where(fn ($builder) => $builder
                     ->where('name', 'like', "%{$query}%")
                     ->orWhere('client_name', 'like', "%{$query}%"))
@@ -182,6 +185,8 @@ class ProjectController extends Controller
 
     public function searchWorks(Request $request, Project $project): JsonResponse
     {
+        $this->ensureProjectVisible($project->id);
+
         $query = trim((string) $request->input('q', ''));
 
         if (mb_strlen($query) < 3) {

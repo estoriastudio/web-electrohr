@@ -533,6 +533,10 @@
                                    class="btn btn-light btn-sm" title="Ver detalle">
                                     <i class="ri-eye-line"></i>
                                 </a>
+                                <a href="{{ route('project_works.edit', $work) }}"
+                                   class="btn btn-soft-primary btn-sm" title="Editar">
+                                    <i class="ri-edit-line"></i>
+                                </a>
                                 <form action="{{ route('project_works.destroy', $work) }}"
                                       method="POST"
                                       onsubmit="return confirm('¿Eliminar la obra «{{ addslashes($work->name) }}»?')">

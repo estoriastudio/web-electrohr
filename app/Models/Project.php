@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -12,6 +13,23 @@ class Project extends Model
     public function works(): HasMany
     {
         return $this->hasMany(ProjectWork::class);
+    }
+
+    public function scopeAssignedTo(Builder $query, User $user): Builder
+    {
+        return $query->whereHas('works', fn (Builder $works) => $works
+            ->where('supervisor_user_id', $user->id)
+            ->orWhere('resident_user_id', $user->id));
+    }
+
+    public function scopeAccessibleBy(Builder $query, User $user): Builder
+    {
+        return $user->isRestrictedEngineer() ? $query->assignedTo($user) : $query;
+    }
+
+    public function userCanAccess(User $user): bool
+    {
+        return static::query()->whereKey($this->getKey())->accessibleBy($user)->exists();
     }
 
     public function documents(): HasMany

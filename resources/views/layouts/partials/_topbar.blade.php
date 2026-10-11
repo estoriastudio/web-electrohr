@@ -10,6 +10,7 @@
                         </button>
                     </div>
 
+                    @hasanyrole('admin|Pagos|Solmat|Solcom|Orden de compra|Proyectos') 
                     <form method="GET" action="{{ route('global_search') }}" class="app-search general-search" role="search" aria-label="Buscar por folio">
                         <div class="d-flex align-items-center general-search-controls">
                             <div class="general-search-field">
@@ -31,6 +32,7 @@
                             </select>
                         </div>
                     </form>
+                    @endhasanyrole
                 </div>
 
                 <div class="d-flex align-items-center gap-1">

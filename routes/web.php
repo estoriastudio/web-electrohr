@@ -18,6 +18,7 @@ use App\Http\Controllers\PayrollPeriodController;
 use App\Http\Controllers\PieceworkWeeklyEntryController;
 use App\Http\Controllers\PositionCategoryController;
 use App\Http\Controllers\ProjectAgreementController;
+use App\Http\Controllers\EngineerProjectController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectEstimateController;
 use App\Http\Controllers\ProjectWorkController;
@@ -223,7 +224,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
         Route::get('/proyectos/{project}/obras/buscar', [ProjectController::class, 'searchWorks'])->name('projects.works.search');
 
-        Route::middleware('role:admin|Proyectos|Solmat|Engineer')->group(function () {
+        // Mis proyectos (Engineer): acceso de lectura limitado a sus proyectos y estimaciones sin archivos
+        Route::middleware('role:Engineer')->prefix('mis-proyectos')->name('my-projects.')->group(function () {
+            Route::get('/', [EngineerProjectController::class, 'index'])->name('index');
+            Route::get('/{project}', [EngineerProjectController::class, 'show'])->whereNumber('project')->name('show');
+            Route::get('/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
+                ->whereNumber('project')->name('estimates.create');
+            Route::post('/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
+                ->whereNumber('project')->name('estimates.store');
+            Route::put('/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
+                ->whereNumber('estimate')->name('estimates.update');
+        });
+
+        Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
             Route::resource('/proyectos', ProjectController::class, [
                 'names' => [
                     'index' => 'projects.index',

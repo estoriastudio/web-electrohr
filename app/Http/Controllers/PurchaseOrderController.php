@@ -464,6 +464,31 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder): View
     {
+        $this->ensureProjectVisible($this->purchaseOrderProjectId($purchaseOrder));
+
+        $isRestrictedEngineer = (bool) Auth::user()?->isRestrictedEngineer();
+
+        if ($isRestrictedEngineer) {
+            $purchaseOrder->load([
+                'buyer',
+                'supplier',
+                'projectRelation',
+                'items.concept',
+                'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
+            ]);
+            $purchaseOrder->setRelation('milestones', collect());
+            $purchaseOrder->setRelation('invoices', collect());
+            $purchaseOrder->setRelation('evidences', collect());
+
+            return view('purchase_orders.show', [
+                'purchaseOrder' => $purchaseOrder,
+                'pendingAuthCount' => 0,
+                'nextPendingPurchaseOrder' => null,
+                'buyers' => collect(),
+                'isRestrictedEngineer' => true,
+            ]);
+        }
+
         $purchaseOrder->load([
             'buyer',
             'supplier.contacts',
@@ -508,8 +533,17 @@ class PurchaseOrderController extends Controller
             'purchaseOrder',
             'pendingAuthCount',
             'nextPendingPurchaseOrder',
-            'buyers'
+            'buyers',
+            'isRestrictedEngineer'
         ));
+    }
+
+    private function purchaseOrderProjectId(PurchaseOrder $purchaseOrder): ?int
+    {
+        $projectId = $purchaseOrder->project_id
+            ?? $purchaseOrder->workRelation()->value('project_id');
+
+        return $projectId ? (int) $projectId : null;
     }
 
     public function assignBuyer(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
@@ -1296,6 +1330,9 @@ class PurchaseOrderController extends Controller
 
     public function downloadPdf(PurchaseOrder $purchaseOrder): \Illuminate\Http\Response
     {
+        // El PDF incluye condiciones de pago (hitos); el Engineer no accede a él.
+        abort_if(Auth::user()?->isRestrictedEngineer(), 403);
+
         $purchaseOrder->load([
             'supplier.contacts',
             'supplier.locations',

@@ -44,6 +44,11 @@ class User extends Authenticatable
         return $this->hasMany(PurchaseOrder::class, 'buyer_id');
     }
 
+    public function isRestrictedEngineer(): bool
+    {
+        return $this->hasRole('Engineer') && ! $this->hasAnyRole(['admin', 'Proyectos', 'Solmat']);
+    }
+
     public function invoiceBuyerFilter(): ?int
     {
         return $this->hasRole('Orden de compra') && !$this->hasAnyRole(['admin', 'Pagos', 'Solmat', 'Recepción'])

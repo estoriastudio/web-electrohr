@@ -347,6 +347,8 @@ class PurchaseRequestController extends Controller
 
     public function show(PurchaseRequest $purchaseRequest)
     {
+        $this->ensureProjectVisible($purchaseRequest->project_id);
+
         $purchaseRequest->load([
             'project',
             'projectWork',
@@ -752,6 +754,8 @@ class PurchaseRequestController extends Controller
     // PDF
     public function downloadPdf(PurchaseRequest $purchaseRequest): \Illuminate\Http\Response
     {
+        $this->ensureProjectVisible($purchaseRequest->project_id);
+
         $purchaseRequest->load(['project', 'projectWork', 'requestedBy', 'items']);
 
         $pdf = Pdf::loadView('purchase_requests.pdf', compact('purchaseRequest'))

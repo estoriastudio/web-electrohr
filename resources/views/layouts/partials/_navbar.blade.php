@@ -129,7 +129,7 @@
                 @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Proyectos|Engineer')
+            @hasanyrole('admin|Proyectos')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
@@ -145,7 +145,21 @@
             @endcan
             @endhasanyrole
 
-            @if(auth()->user()->hasRole('Engineer') && ! auth()->user()->hasAnyRole(['admin', 'Recursos Humanos']))
+            @hasanyrole('Engineer')
+            @can('read')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('my-projects.*') ? 'active' : '' }}" href="{{ route('my-projects.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-building-2-line"></i>
+                    </span>
+                    <span class="nav-text">Mis Proyectos</span>
+                    @if($activeProjectsCount > 0)
+                        <span class="badge bg-success badge-pill">{{ $activeProjectsCount }}</span>
+                    @endif
+                </a>
+            </li>
+            @endcan
+
             <li class="menu-title">Recursos Humanos</li>
 
             <li class="nav-item">
@@ -165,7 +179,7 @@
                     <span class="nav-text">Asistencias</span>
                 </a>
             </li>
-            @endif
+            @endhasanyrole
 
             @hasanyrole('admin|Recursos Humanos')
             <li class="menu-title">Recursos Humanos</li>

@@ -28,11 +28,15 @@ class ProjectEstimateController extends Controller
 
     public function create(Project $project): View
     {
-        return view('projects.estimates.create', compact('project'));
+        $this->authorizeEngineerProject($project);
+        $engineerView = $this->isEngineerRoute();
+
+        return view('projects.estimates.create', compact('project', 'engineerView'));
     }
 
     public function store(Request $request, Project $project): RedirectResponse
     {
+        $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project);
 
         $estimate = DB::transaction(function () use ($project, $data) {
@@ -51,13 +55,14 @@ class ProjectEstimateController extends Controller
             'data' => 'registró la estimación ' . $estimate->estimate_number . ' en el proyecto "' . $project->name . '".',
         ]);
 
-        return redirect()->route('projects.show', $project)
+        return $this->redirectToProject($project)
             ->with('success', 'Estimación registrada correctamente.');
     }
 
     public function update(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
         $project = $estimate->project;
+        $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project, $estimate);
 
         DB::transaction(function () use ($estimate, $data) {
@@ -72,7 +77,7 @@ class ProjectEstimateController extends Controller
             'data' => 'actualizó la estimación ' . $estimate->estimate_number . ' del proyecto "' . $project->name . '".',
         ]);
 
-        return redirect()->route('projects.show', $project)
+        return $this->redirectToProject($project)
             ->with('success', 'Estimación actualizada correctamente.');
     }
 
@@ -166,6 +171,25 @@ class ProjectEstimateController extends Controller
 
         return redirect()->route('projects.show', $estimate->project)
             ->with('success', 'Archivo de la estimación eliminado correctamente.');
+    }
+
+    private function isEngineerRoute(): bool
+    {
+        return request()->routeIs('my-projects.*');
+    }
+
+    private function authorizeEngineerProject(Project $project): void
+    {
+        if ($this->isEngineerRoute()) {
+            abort_unless(Project::query()->whereKey($project->id)->assignedTo(Auth::user())->exists(), 403);
+        }
+    }
+
+    private function redirectToProject(Project $project): RedirectResponse
+    {
+        return $this->isEngineerRoute()
+            ? redirect()->route('my-projects.show', [$project, 'tab' => 'estimates'])
+            : redirect()->route('projects.show', $project);
     }
 
     private function validatedData(

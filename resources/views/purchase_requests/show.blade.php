@@ -6,7 +6,11 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('purchase_requests.index') }}">Solicitudes de Compra</a></li>
+    @if (auth()->user()->isRestrictedEngineer())
+        <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
+    @else
+        <li class="breadcrumb-item"><a href="{{ route('purchase_requests.index') }}">Solicitudes de Compra</a></li>
+    @endif
     <li class="breadcrumb-item active">SOLCOM #{{ $purchaseRequest->folio }}</li>
 @endsection
 
@@ -100,7 +104,7 @@
                         </button>
                         @endif
                         @endhasanyrole
-                        <a href="{{ route('purchase_requests.index') }}" class="btn btn-light btn-sm">
+                        <a href="{{ auth()->user()->isRestrictedEngineer() ? route('my-projects.show', $purchaseRequest->project_id) : route('purchase_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
                     </div>
@@ -398,10 +402,12 @@
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
                         {{ $purchaseRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
                     </span>
+                    @unless (auth()->user()->isRestrictedEngineer())
                     <a href="{{ route('purchase_request_changes.index', ['search' => $purchaseRequest->folio]) }}"
                        class="btn btn-sm btn-light">
                         <i class="ri-external-link-line me-1"></i>Ver panel
                     </a>
+                    @endunless
                 </div>
             </div>
             <div class="card-body">
