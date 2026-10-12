@@ -18,7 +18,7 @@
 		</form>
 	</div>
 	<div class="card-body p-0"><div class="table-responsive"><table class="table align-middle table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto / Herramienta</th><th>Tipo de entrada</th><th class="text-end">Cantidad</th><th>Referencia</th><th>Documentos</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($entries as $entry)@php($isPurchase = $entry->entry_type === 'purchase')<tr><td class="text-nowrap"><i class="ri-calendar-line text-muted me-1"></i>{{ $entry->received_at->format('d/m/Y') }}</td><td>@if($isPurchase)@forelse($entry->items as $item)<span class="fw-semibold d-block">{{ $item->concept->code }}</span><span class="text-muted fs-12 d-block">{{ $item->concept->description }}</span>@empty<span class="text-muted">—</span>@endforelse
-@else<span class="fw-semibold d-block">{{ $entry->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $entry->tool?->name ?: $entry->tool?->description }}</span>@endif</td><td><span class="badge {{ $isPurchase ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info' }} py-1 px-2 fs-12"><i class="{{ $isPurchase ? 'ri-shopping-bag-3-line' : 'ri-tools-line' }} me-1"></i>{{ $isPurchase ? 'Compra' : 'Retorno de herramienta' }}</span></td><td class="text-end fw-semibold">@if($isPurchase)@foreach($entry->items as $item)<span class="d-block">{{ rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.') }}</span>@endforeach
+@else<span class="fw-semibold d-block">{{ $entry->concept?->code ?? $entry->tool?->economic_number }}</span><span class="text-muted fs-12">{{ $entry->concept?->description ?? ($entry->tool?->name ?: $entry->tool?->description) }}</span>@endif</td><td><span class="badge {{ $isPurchase ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info' }} py-1 px-2 fs-12"><i class="{{ $isPurchase ? 'ri-shopping-bag-3-line' : 'ri-tools-line' }} me-1"></i>{{ $isPurchase ? 'Compra' : 'Retorno de herramienta' }}</span></td><td class="text-end fw-semibold">@if($isPurchase)@foreach($entry->items as $item)<span class="d-block">{{ rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.') }}</span>@endforeach
 @else{{ rtrim(rtrim(number_format((float) $entry->quantity, 3, '.', ''), '0'), '.') }}@endif</td><td class="fs-13">{{ $entry->purchase_reference ?: '—' }}</td><td>@if($entry->invoice_file_path || $entry->certificates->isNotEmpty())<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12"><i class="ri-file-check-line me-1"></i>{{ ($entry->invoice_file_path ? 1 : 0) + $entry->certificates->count() }}</span>@else<span class="text-muted">—</span>@endif</td><td class="text-end text-nowrap">@php($editData = ['id' => $entry->id, 'type' => $entry->entry_type, 'received_at' => $entry->received_at->toDateString(), 'reference' => $entry->purchase_reference, 'observations' => $entry->observations, 'has_invoice' => (bool) $entry->invoice_file_path, 'items' => $entry->items->map(fn ($item) => ['id' => $item->id, 'code' => $item->concept->code, 'description' => $item->concept->description, 'unit' => $item->concept->unit, 'quantity' => rtrim(rtrim(number_format((float) $item->quantity, 3, '.', ''), '0'), '.')])->values()])@if($entry->is_adjustment)<span class="text-muted fs-12 me-1" title="Los ajustes manuales no se editan">Ajuste</span>@else<button type="button" class="btn btn-soft-primary btn-sm" data-edit-entry='{{ json_encode($editData, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) }}' title="Editar entrada"><i class="ri-edit-line"></i></button>@endif<form action="{{ route('stocks.entries.destroy', $entry) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar la entrada #{{ $entry->id }}? Se descontará del inventario y se registrará en la auditoría.')">@csrf @method('DELETE')<button class="btn btn-soft-danger btn-sm" title="Eliminar entrada"><i class="ri-delete-bin-line"></i></button></form></td></tr>@empty<tr><td colspan="7" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1 opacity-50"></i>No hay entradas con los filtros seleccionados.</td></tr>@endforelse</tbody></table></div></div>
 	@if($entries->hasPages())<div class="card-footer d-flex justify-content-end">{{ $entries->links('pagination::bootstrap-5') }}</div>@endif
 </div>
@@ -56,7 +56,7 @@
 					<div id="returnFields" class="d-none">
 						<h6 class="text-uppercase fs-12 text-muted mb-3">Herramienta retornada</h6>
 						<div class="row g-3">
-							<div class="col-md-6"><label for="tool_id" class="form-label">Herramienta <span class="text-danger">*</span></label><select id="tool_id" name="tool_id" class="form-select"><option value="">Seleccione una herramienta</option>@foreach($tools as $tool)<option value="{{ $tool->id }}">{{ $tool->economic_number }} - {{ $tool->name ?: $tool->description }}</option>@endforeach</select></div>
+							<div class="col-md-6"><label for="concept_code" class="form-label">Suministro <span class="text-danger">*</span></label><select id="concept_code" name="concept_code" class="form-select"><option value="">Escriba al menos 3 caracteres</option></select></div>
 							<div class="col-md-3"><label for="return_quantity" class="form-label">Cantidad <span class="text-danger">*</span></label><input id="return_quantity" name="quantity" type="number" step="0.001" min="0.001" value="1" class="form-control"></div>
 							<div class="col-md-3"><label for="return_received_at" class="form-label">Fecha de retorno <span class="text-danger">*</span></label><input id="return_received_at" name="received_at" type="date" value="{{ now()->toDateString() }}" class="form-control"></div>
 						</div>
@@ -119,9 +119,45 @@ document.addEventListener('DOMContentLoaded', function () {
 		document.getElementById('invoice')
 	];
 	var returnInputs = returnFields.querySelectorAll('input, select');
+	var conceptSelect = document.getElementById('concept_code');
+	var conceptChoices = null;
+
+	function initializeConceptSearch() {
+		conceptChoices = new Choices(conceptSelect, {
+			searchEnabled: true, searchFloor: 3, searchPlaceholderValue: 'Buscar código o descripción...',
+			itemSelectText: '', noResultsText: 'Sin resultados', noChoicesText: 'Escriba para buscar', shouldSort: false
+		});
+		var searchInput = conceptChoices.containerOuter.element.querySelector('.choices__input--cloned');
+		var debounceTimer = null;
+		searchInput.addEventListener('input', function () {
+			var query = this.value.trim();
+			clearTimeout(debounceTimer);
+			if (query.length < 3) return;
+			debounceTimer = setTimeout(function () {
+				fetch(@json(route('concepts.search')) + '?q=' + encodeURIComponent(query) + '&limit=30', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+					.then(function (response) { return response.json(); })
+					.then(function (items) {
+						conceptChoices.clearChoices();
+						conceptChoices.setChoices(items.map(function (concept) {
+							return { value: concept.code, label: concept.code + ' - ' + concept.description };
+						}), 'value', 'label', true);
+					});
+			}, 250);
+		});
+	}
+
+	function resetConceptSelection() {
+		if (!conceptChoices) return;
+		conceptChoices.removeActiveItems();
+		conceptChoices.clearChoices();
+		conceptSelect.value = '';
+	}
 
 	function setRequired(inputs, required) {
-		inputs.forEach(function (input) { input.required = required; input.disabled = !required; });
+		inputs.forEach(function (input) {
+			input.required = required;
+			if (input.tagName !== 'SELECT') input.disabled = !required;
+		});
 	}
 
 	function chooseType(type) {
@@ -139,6 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 		requiredPurchaseInputs.forEach(function (input) { input.required = isPurchase; });
 		setRequired(returnInputs, !isPurchase);
+		if (isPurchase) resetConceptSelection();
 		document.getElementById('purchase_reference').disabled = !isPurchase;
 		document.getElementById('invoice').required = isPurchase;
 	}
@@ -153,6 +190,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		saveButton.classList.add('d-none');
 		setRequired(purchaseInputs, false);
 		setRequired(returnInputs, false);
+		resetConceptSelection();
 	});
 	modal.addEventListener('show.bs.modal', function () {
 		typeInput.value = '';
@@ -161,6 +199,13 @@ document.addEventListener('DOMContentLoaded', function () {
 		saveButton.classList.add('d-none');
 		setRequired(purchaseInputs, false);
 		setRequired(returnInputs, false);
+	});
+	modal.addEventListener('shown.bs.modal', function () {
+		if (!conceptChoices) initializeConceptSearch();
+	});
+	modal.addEventListener('hidden.bs.modal', function () {
+		if (conceptChoices) { conceptChoices.destroy(); conceptChoices = null; }
+		conceptSelect.innerHTML = '<option value="">Escriba al menos 3 caracteres</option>';
 	});
 });
 </script>

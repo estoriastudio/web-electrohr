@@ -7,7 +7,6 @@ use App\Models\StockCertificate;
 use App\Models\StockEntry;
 use App\Models\StockEntryItem;
 use App\Models\StockExitItem;
-use App\Models\Tool;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,10 +35,7 @@ class StockEntryController extends Controller
             ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->latest('received_at')->paginate(25)->withQueryString();
-        $tools = Tool::notArchived()->whereIn('status', ['active', 'in_service'])
-            ->orderBy('economic_number')
-            ->get(['id', 'economic_number', 'name', 'description']);
-        return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo', 'tools'));
+        return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo'));
     }
 
     public function create(): RedirectResponse
@@ -51,7 +47,7 @@ class StockEntryController extends Controller
     {
         $validated = $request->validate([
             'entry_type' => ['required', Rule::in(['purchase', 'tool_return'])],
-            'tool_id' => ['nullable', Rule::exists('tools', 'id')->whereNull('archived_at')],
+            'concept_code' => ['nullable', 'string', 'max:100'],
             'purchase_reference' => ['nullable', 'string', 'max:255'],
             'quantity' => ['nullable', 'numeric', 'gt:0'],
             'received_at' => ['required', 'date'],
@@ -59,8 +55,15 @@ class StockEntryController extends Controller
             'observations' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if ($validated['entry_type'] === 'tool_return' && empty($validated['tool_id'])) {
-            throw ValidationException::withMessages(['tool_id' => 'Seleccione la herramienta que retorna.']);
+        $returnedConcept = null;
+        if ($validated['entry_type'] === 'tool_return') {
+            if (empty($validated['concept_code'])) {
+                throw ValidationException::withMessages(['concept_code' => 'Seleccione el suministro que retorna.']);
+            }
+            $returnedConcept = Concept::available()->where('code', $validated['concept_code'])->first();
+            if (! $returnedConcept) {
+                throw ValidationException::withMessages(['concept_code' => 'El código de suministro no existe o no está activo.']);
+            }
         }
 
         if ($validated['entry_type'] === 'purchase') {
@@ -92,11 +95,10 @@ class StockEntryController extends Controller
 
         $paths = [];
         try {
-            $entry = DB::transaction(function () use ($request, $validated, $items, &$paths) {
-                $tool = ! empty($validated['tool_id']) ? Tool::findOrFail($validated['tool_id']) : null;
+            $entry = DB::transaction(function () use ($request, $validated, $items, $returnedConcept, &$paths) {
                 $entry = StockEntry::create([
-                    'concept_id' => null,
-                    'tool_id' => $tool?->id,
+                    'concept_id' => $returnedConcept?->id,
+                    'tool_id' => null,
                     'entry_type' => $validated['entry_type'],
                     'purchase_reference' => $validated['purchase_reference'] ?? null,
                     'quantity' => $items->isNotEmpty() ? $items->sum('quantity') : $validated['quantity'],
