@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConceptCategory;
 use App\Models\MaterialRequest;
 use App\Models\Project;
 use App\Models\PurchaseOrder;
@@ -44,24 +45,27 @@ class EngineerProjectController extends Controller
         $project->load([
             'works' => fn ($q) => $q->with(['supervisorUser:id,name', 'residentUser:id,name'])->withCount('purchaseOrders')->orderBy('name'),
             'estimates' => fn ($q) => $q->with('creator')->latest('estimate_date'),
+            'manager:id,name',
         ]);
 
         $materialRequests = MaterialRequest::query()
             ->where('project_id', $project->id)
-            ->with('requestedBy:id,name')
+            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders'])
             ->latest('id')
             ->paginate(15, ['*'], 'solmat_page')
             ->appends(['tab' => 'solmat']);
 
         $purchaseRequests = PurchaseRequest::query()
             ->where('project_id', $project->id)
+            ->with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
             ->latest('id')
             ->paginate(15, ['*'], 'solcom_page')
             ->appends(['tab' => 'solcom']);
 
         $purchaseOrders = PurchaseOrder::query()
             ->where('project_id', $project->id)
-            ->with('supplier:id,commercial_name,rfc_name')
+            ->with(['supplier', 'items', 'buyer', 'projectRelation', 'workRelation', 'purchaseRequest.materialRequest'])
+            ->withMin(['items as next_delivery_due_date' => fn ($query) => $query->whereNotNull('delivery_due_date')], 'delivery_due_date')
             ->latest('id')
             ->paginate(15, ['*'], 'oc_page')
             ->appends(['tab' => 'oc']);
@@ -70,12 +74,15 @@ class EngineerProjectController extends Controller
             ? $request->query('tab')
             : 'estimates';
 
+        $categories = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
+
         return view('my_projects.show', compact(
             'project',
             'materialRequests',
             'purchaseRequests',
             'purchaseOrders',
-            'activeTab'
+            'activeTab',
+            'categories'
         ));
     }
 }

@@ -88,23 +88,23 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @hasanyrole('admin|Solmat')
+                        @hasanyrole('admin|Solmat|Engineer')
                         @if ($canEditSolmatContent)
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
                         @endif
-                        @if ($materialRequest->status === 'pending')
+                        @endhasanyrole
+                        @if ($materialRequest->status === 'pending' && $materialRequest->canBeSentToWarehouseBy(auth()->user()))
                         <form action="{{ route('material_requests.send_to_warehouse', $materialRequest) }}"
-                              method="POST" onsubmit="return confirm('¿Enviar SOLMAT #{{ $materialRequest->folio }} a Almacén?')">
+                              method="POST" onsubmit="return confirm('¿Aprobar y enviar SOLMAT #{{ $materialRequest->folio }} a Almacén?')">
                             @csrf
                             <button type="submit" class="btn btn-warning btn-sm">
-                                <i class="ri-send-plane-2-line me-1"></i>Enviar a Almacén
+                                <i class="ri-send-plane-2-line me-1"></i>Aprobar y Enviar a Almacén
                             </button>
                         </form>
                         @endif
-                        @endhasanyrole
 
                         @hasanyrole('admin|Solcom|Solmat')
                         @if ($materialRequest->status === 'sent_to_warehouse')
@@ -263,7 +263,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|Solmat')
+                                        @hasanyrole('admin|Solmat|Engineer')
                                         @if ($canEditSolmatContent)
                                         <div class="d-flex gap-1">
                                             @if ($item->workQuantities->isNotEmpty())
@@ -288,7 +288,7 @@
                                     </td>
                                 </tr>
                                 @if ($item->workQuantities->isNotEmpty())
-                                    @hasanyrole('admin|Solmat')
+                                    @hasanyrole('admin|Solmat|Engineer')
                                     @if ($canEditSolmatContent)
                                         <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
                                             <td colspan="7" class="py-2">
@@ -346,7 +346,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @hasanyrole('admin|Solmat')
+            @hasanyrole('admin|Solmat|Engineer')
             @if ($canEditSolmatContent)
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
@@ -528,7 +528,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @hasanyrole('admin|Solmat')
+                                    @hasanyrole('admin|Solmat|Engineer')
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -552,7 +552,7 @@
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @hasanyrole('admin|Solmat')
+                            @hasanyrole('admin|Solmat|Engineer')
                             <div class="collapse mt-2" id="solmat_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('material_requests.notes.update', [$materialRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -572,7 +572,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @hasanyrole('admin|Solmat')
+                @hasanyrole('admin|Solmat|Engineer')
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">

@@ -93,6 +93,8 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 - Estimaciones: puede ver, crear y actualizar en sus proyectos; no elimina ni sube/descarga archivos. Documentacion y convenios del proyecto solo para `admin` y `Proyectos`.
 - `show` y PDF de SOLMAT, SOLCOM y OC responden 403 si el registro no es de sus proyectos. El PDF de OC no esta disponible para Engineer y el detalle de OC oculta hitos, pagos, facturas y evidencias.
 - Ya no usa `projects.*` ni `obras.*`; `projects.search`, `works_json` y `works.search` se limitan a sus proyectos.
+- SOLMAT: la pestaña SOLMAT lista solo las del proyecto y permite crear (proyecto fijo, obras del mismo proyecto), editar encabezado, conceptos y observaciones de cualquier SOLMAT del proyecto mientras esté Pendiente o con Cambios Solicitados. No elimina ni archiva.
+- Gerente de Proyecto (`projects.manager_user_id`, usuario con rol Engineer, se asigna al editar el proyecto): accede al proyecto aunque no sea Supervisor/Residente. Solo `admin`, `Solmat` y el gerente del proyecto pueden Aprobar y Enviar a Almacén una SOLMAT; el resto de Engineers recibe 403.
 
 ## Historial de Cambios
 
@@ -107,3 +109,4 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-29: OC vinculadas a comprador usuario; Mis OC y listado completo admin, precarga de Elabora Orden, reasignacion visual admin y vinculacion historica por nombres exactos.
 - 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.
 - 2026-10-10: Engineer pasa a Mis Proyectos (`my-projects.*`) de solo lectura acotado a sus proyectos; se retira de `projects.*` y `obras.*`.
+- 2026-10-12: Engineer crea y edita SOLMAT de sus proyectos; nuevo Gerente de Proyecto por proyecto; envío a Almacén solo para admin, Solmat y el gerente.

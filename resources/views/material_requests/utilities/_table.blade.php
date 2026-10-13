@@ -11,6 +11,7 @@
         : (request()->routeIs('material_requests.soft_deleted') ? 'trashed' : 'index');
 
     $colspan = 11 + ($mode !== 'index' ? 1 : 0);
+    $isEngineerView = request()->routeIs('my-projects.*');
 
     $statusMap = [
         'pending'           => ['label' => 'Pendiente',         'class' => 'bg-warning-subtle text-warning'],
@@ -109,6 +110,26 @@
                                             </a>
                                         </li>
                                         @if ($mode === 'index')
+                                            @if ($isEngineerView)
+                                                @if (in_array($mr->status, ['pending', 'changes_requested'], true))
+                                                <li>
+                                                    <a class="dropdown-item" href="{{ route('material_requests.edit', $mr) }}">
+                                                        <i class="ri-pencil-line me-2 text-muted"></i>Editar
+                                                    </a>
+                                                </li>
+                                                @endif
+                                                @if ($mr->status === 'pending' && $mr->canBeSentToWarehouseBy(auth()->user()))
+                                                <li>
+                                                    <form action="{{ route('material_requests.send_to_warehouse', $mr) }}" method="POST"
+                                                          onsubmit="return confirm('¿Aprobar y enviar SOLMAT #{{ $mr->folio }} a Almacén?')">
+                                                        @csrf
+                                                        <button type="submit" class="dropdown-item">
+                                                            <i class="ri-send-plane-2-line me-2 text-muted"></i>Aprobar y Enviar a Almacén
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                @endif
+                                            @endif
                                             @hasanyrole('admin|Solmat')
                                             @can('update')
                                             <li>

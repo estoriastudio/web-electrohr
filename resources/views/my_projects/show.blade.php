@@ -31,6 +31,9 @@
 
 @php
     $engineerView = true;
+    if ($errors->any() && old('delivery_address') !== null) {
+        $activeTab = 'solmat';
+    }
     $projectStatusMap = [
         'active'   => ['label' => 'Activo',   'class' => 'bg-success-subtle text-success'],
         'inactive' => ['label' => 'Inactivo', 'class' => 'bg-warning-subtle text-warning'],
@@ -39,30 +42,6 @@
     $workStatusMap = [
         'active'   => ['label' => 'Activa',   'class' => 'bg-success-subtle text-success'],
         'inactive' => ['label' => 'Inactiva', 'class' => 'bg-warning-subtle text-warning'],
-    ];
-    $solmatStatusMap = [
-        'pending'           => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
-        'sent_to_warehouse' => ['label' => 'Enviado a Almacén',  'class' => 'bg-secondary-subtle text-secondary'],
-        'changes_requested' => ['label' => 'Cambios Solicitados', 'class' => 'bg-danger-subtle text-danger'],
-        'linked'            => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
-        'completed'         => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
-    ];
-    $solcomStatusMap = [
-        'pending'            => ['label' => 'Pendiente',          'class' => 'bg-warning-subtle text-warning'],
-        'linked'             => ['label' => 'Ligado',             'class' => 'bg-info-subtle text-info'],
-        'sent_to_purchasing' => ['label' => 'En Compras',         'class' => 'bg-primary-subtle text-primary'],
-        'changes_requested'  => ['label' => 'Cambios Solicitados', 'class' => 'bg-danger-subtle text-danger'],
-        'completed'          => ['label' => 'Finalizado',         'class' => 'bg-success-subtle text-success'],
-    ];
-    $ocStatusMap = [
-        'emitida'    => ['label' => 'Emitida',    'class' => 'bg-info-subtle text-info'],
-        'pendiente'  => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
-        'autorizada' => ['label' => 'Autorizada', 'class' => 'bg-success-subtle text-success'],
-    ];
-    $deliveryMap = [
-        'por_entregar' => ['label' => 'Por entregar',   'class' => 'bg-warning-subtle text-warning'],
-        'parcial'      => ['label' => 'Entrega parcial', 'class' => 'bg-info-subtle text-info'],
-        'entregado'    => ['label' => 'Entregado',      'class' => 'bg-success-subtle text-success'],
     ];
     $tabs = [
         'estimates' => ['label' => 'Estimaciones y Obras', 'icon' => 'ri-funds-line',          'count' => $project->estimates->count() + $project->works->count()],
@@ -83,6 +62,9 @@
                     <h5 class="fw-semibold mb-0">{{ $project->name }}</h5>
                     <div class="text-muted fs-13">
                         <i class="ri-user-line me-1"></i>{{ $project->client_name }}
+                        @if ($project->manager)
+                            &nbsp;·&nbsp;<i class="ri-user-star-line me-1"></i>Gerente: {{ $project->manager->name }}
+                        @endif
                         @if ($project->city || $project->state)
                             &nbsp;·&nbsp;<i class="ri-map-pin-line me-1"></i>{{ implode(', ', array_filter([$project->city, $project->state])) }}
                         @endif
@@ -187,49 +169,15 @@
         <div class="card mt-3">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Solicitudes de Material</h5>
-                <span class="text-muted fs-13">{{ $materialRequests->total() }} registros</span>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted fs-13">{{ $materialRequests->total() }} registros</span>
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMR">
+                        <i class="ri-add-line me-1"></i> Nueva SOLMAT
+                    </button>
+                </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Zona</th>
-                                <th>Solicitó</th>
-                                <th>Fecha solicitud</th>
-                                <th>Fecha requerida</th>
-                                <th>Estatus</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($materialRequests as $materialRequest)
-                                @php $s = $solmatStatusMap[$materialRequest->status] ?? ['label' => $materialRequest->status, 'class' => 'bg-secondary-subtle text-secondary']; @endphp
-                                <tr>
-                                    <td class="fw-semibold">{{ $materialRequest->folio }}</td>
-                                    <td>{{ $materialRequest->zone ?: '—' }}</td>
-                                    <td>{{ $materialRequest->requestedBy?->name ?? '—' }}</td>
-                                    <td class="text-muted fs-13">{{ $materialRequest->request_date?->format('d/m/Y') ?? '—' }}</td>
-                                    <td class="text-muted fs-13">{{ $materialRequest->need_date?->format('d/m/Y') ?? '—' }}</td>
-                                    <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
-                                    <td>
-                                        <a href="{{ route('material_requests.show', $materialRequest) }}" class="btn btn-light btn-sm" title="Ver detalle">
-                                            <i class="ri-eye-line"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="ri-inbox-line fs-24 d-block mb-1"></i>
-                                        Sin registros
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('material_requests.utilities._table')
             </div>
             @if ($materialRequests->hasPages())
                 <div class="card-footer d-flex justify-content-end">{{ $materialRequests->links('pagination::bootstrap-5') }}</div>
@@ -245,46 +193,7 @@
                 <span class="text-muted fs-13">{{ $purchaseRequests->total() }} registros</span>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Descripción</th>
-                                <th>Zona</th>
-                                <th>Fecha solicitud</th>
-                                <th>Fecha requerida</th>
-                                <th>Estatus</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($purchaseRequests as $purchaseRequest)
-                                @php $s = $solcomStatusMap[$purchaseRequest->status] ?? ['label' => $purchaseRequest->status, 'class' => 'bg-secondary-subtle text-secondary']; @endphp
-                                <tr>
-                                    <td class="fw-semibold">{{ $purchaseRequest->folio }}</td>
-                                    <td class="text-wrap" style="max-width: 320px;">{{ $purchaseRequest->short_description ?: '—' }}</td>
-                                    <td>{{ $purchaseRequest->zone ?: '—' }}</td>
-                                    <td class="text-muted fs-13">{{ $purchaseRequest->request_date?->format('d/m/Y') ?? '—' }}</td>
-                                    <td class="text-muted fs-13">{{ $purchaseRequest->need_date?->format('d/m/Y') ?? '—' }}</td>
-                                    <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
-                                    <td>
-                                        <a href="{{ route('purchase_requests.show', $purchaseRequest) }}" class="btn btn-light btn-sm" title="Ver detalle">
-                                            <i class="ri-eye-line"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="ri-inbox-line fs-24 d-block mb-1"></i>
-                                        Sin registros
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('purchase_requests.utilities._table')
             </div>
             @if ($purchaseRequests->hasPages())
                 <div class="card-footer d-flex justify-content-end">{{ $purchaseRequests->links('pagination::bootstrap-5') }}</div>
@@ -300,48 +209,7 @@
                 <span class="text-muted fs-13">{{ $purchaseOrders->total() }} registros</span>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle text-nowrap table-hover table-centered mb-0">
-                        <thead class="bg-light-subtle">
-                            <tr>
-                                <th>Folio</th>
-                                <th>Proveedor</th>
-                                <th>Fecha</th>
-                                <th>Estatus</th>
-                                <th>Entrega</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($purchaseOrders as $purchaseOrder)
-                                @php
-                                    $s = $ocStatusMap[$purchaseOrder->status] ?? ['label' => $purchaseOrder->status, 'class' => 'bg-secondary-subtle text-secondary'];
-                                    $deliveryKey = $purchaseOrder->delivery_status ?: ($purchaseOrder->is_delivered ? 'entregado' : 'por_entregar');
-                                    $d = $deliveryMap[$deliveryKey] ?? $deliveryMap['por_entregar'];
-                                @endphp
-                                <tr>
-                                    <td class="fw-semibold">{{ $purchaseOrder->folio ?? $purchaseOrder->id }}</td>
-                                    <td>{{ $purchaseOrder->supplier?->commercial_name ?: ($purchaseOrder->supplier?->rfc_name ?? '—') }}</td>
-                                    <td class="text-muted fs-13">{{ $purchaseOrder->created_at?->format('d/m/Y') ?? '—' }}</td>
-                                    <td><span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span></td>
-                                    <td><span class="badge {{ $d['class'] }} py-1 px-2 fs-12">{{ $d['label'] }}</span></td>
-                                    <td>
-                                        <a href="{{ route('purchase_orders.show', $purchaseOrder) }}" class="btn btn-light btn-sm" title="Ver detalle">
-                                            <i class="ri-eye-line"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        <i class="ri-inbox-line fs-24 d-block mb-1"></i>
-                                        Sin registros
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @include('purchase_orders.utilities._table', ['orders' => $purchaseOrders])
             </div>
             @if ($purchaseOrders->hasPages())
                 <div class="card-footer d-flex justify-content-end">{{ $purchaseOrders->links('pagination::bootstrap-5') }}</div>
@@ -350,5 +218,138 @@
     </div>
 
 </div>
+
+{{-- MODAL — Nueva SOLMAT (proyecto fijo) --}}
+<div class="modal fade" id="modalCreateMR" tabindex="-1" aria-labelledby="modalCreateMRLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('material_requests.store') }}" method="POST">
+                @csrf
+                <input type="hidden" name="project_id" value="{{ $project->id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCreateMRLabel">
+                        <i class="ri-file-add-line me-2 text-primary"></i>Nueva Solicitud de Material (SOLMAT)
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Folio</label>
+                            <div class="form-control" style="background-color: #f8f9fa; color: #6c757d;">Se asignará automáticamente</div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Código</label>
+                            <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
+                                   value="{{ old('code') }}" placeholder="Ej. HR.IG.9150.004-F1">
+                            @error('code') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label">Proyecto</label>
+                            <input type="text" class="form-control bg-light" value="{{ $project->name }}" readonly>
+                            @error('project_id') <div class="text-danger fs-12 mt-1">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Obras <span class="text-danger">*</span></label>
+                            <select name="project_work_ids[]" id="mrProjectWorkId"
+                                    class="form-select @error('project_work_ids') is-invalid @enderror" multiple required>
+                                @foreach ($project->works->where('status', 'active') as $work)
+                                    <option value="{{ $work->id }}" @selected(in_array($work->id, (array) old('project_work_ids', [])))>{{ $work->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('project_work_ids') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            <div class="form-text">Selecciona una o más obras vinculadas.</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Tipo de ubicación</label>
+                            <select name="location_type" class="form-select">
+                                <option value="sitio" @selected(old('location_type', 'sitio') !== 'electrohr')>Sitio</option>
+                                <option value="electrohr" @selected(old('location_type') === 'electrohr')>Electro HR</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Ubicación <span class="text-danger">*</span></label>
+                            <input type="text" name="zone" class="form-control @error('zone') is-invalid @enderror"
+                                   value="{{ old('zone') }}" required placeholder="Nombre o pega un enlace de Google Maps…">
+                            @error('zone') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Dirección de entrega <span class="text-danger">*</span></label>
+                            <input type="text" name="delivery_address" class="form-control @error('delivery_address') is-invalid @enderror"
+                                   value="{{ old('delivery_address') }}" required>
+                            @error('delivery_address') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha de Solicitud <span class="text-danger">*</span></label>
+                            <input type="date" name="request_date" class="form-control @error('request_date') is-invalid @enderror"
+                                   value="{{ old('request_date', now()->format('Y-m-d')) }}" required>
+                            @error('request_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha de Necesidad <span class="text-danger">*</span></label>
+                            <input type="date" name="need_date" class="form-control @error('need_date') is-invalid @enderror"
+                                   value="{{ old('need_date') }}" required>
+                            @error('need_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Categoría de Suministros <span class="text-danger">*</span></label>
+                            <select name="concept_category_id" id="mrCategoryId"
+                                    class="form-select @error('concept_category_id') is-invalid @enderror" required>
+                                <option value="">— Selecciona una categoría —</option>
+                                @foreach ($categories as $cat)
+                                    <option value="{{ $cat->id }}" @selected(old('concept_category_id') == $cat->id)>{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('concept_category_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i>Crear SOLMAT</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var modalEl = document.getElementById('modalCreateMR');
+    var workChoices = null;
+    var categoryChoices = null;
+
+    modalEl.addEventListener('shown.bs.modal', function () {
+        if (!workChoices) {
+            workChoices = new Choices(document.getElementById('mrProjectWorkId'), {
+                searchEnabled: true, searchPlaceholderValue: 'Buscar obra…', itemSelectText: '',
+                noResultsText: 'Sin resultados', noChoicesText: 'Sin obras disponibles',
+                removeItemButton: true, placeholder: true, placeholderValue: '— Selecciona una o más obras —',
+            });
+        }
+        if (!categoryChoices) {
+            categoryChoices = new Choices(document.getElementById('mrCategoryId'), {
+                searchEnabled: true, searchPlaceholderValue: 'Buscar categoría...', itemSelectText: '',
+                noResultsText: 'Sin resultados', noChoicesText: 'Sin categorías disponibles',
+            });
+        }
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (workChoices) { workChoices.destroy(); workChoices = null; }
+        if (categoryChoices) { categoryChoices.destroy(); categoryChoices = null; }
+    });
+
+    @if ($errors->any() && old('delivery_address') !== null)
+        new bootstrap.Modal(modalEl).show();
+    @endif
+});
+</script>
+@endpush
 
 @endsection

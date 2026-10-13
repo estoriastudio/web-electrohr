@@ -682,18 +682,27 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 'names' => [
                     'index' => 'material_requests.index',
                     'create' => 'material_requests.create',
-                    'store' => 'material_requests.store',
-                    'edit' => 'material_requests.edit',
-                    'update' => 'material_requests.update',
                     'destroy' => 'material_requests.destroy',
                 ],
                 'parameters' => ['solicitudes-material' => 'materialRequest'],
-            ])->except(['show']);
+            ])->only(['index', 'create', 'destroy']);
 
             Route::patch('/solicitudes-material/{materialRequest}/archivar', [MaterialRequestController::class, 'archive'])
                 ->name('material_requests.archive');
             Route::patch('/solicitudes-material/{materialRequest}/desarchivar', [MaterialRequestController::class, 'unarchive'])
                 ->name('material_requests.unarchive');
+        });
+
+        // Engineer opera SOLMAT de sus proyectos; el controlador acota por proyecto y limita el envío a Almacén.
+        Route::middleware('role:admin|Solmat|Engineer')->group(function () {
+            Route::post('/solicitudes-material', [MaterialRequestController::class, 'store'])
+                ->name('material_requests.store');
+            Route::get('/solicitudes-material/{materialRequest}/edit', [MaterialRequestController::class, 'edit'])
+                ->whereNumber('materialRequest')
+                ->name('material_requests.edit');
+            Route::match(['put', 'patch'], '/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'update'])
+                ->whereNumber('materialRequest')
+                ->name('material_requests.update');
 
             Route::post('/solicitudes-material/{materialRequest}/items',
                 [MaterialRequestController::class, 'storeItem'])

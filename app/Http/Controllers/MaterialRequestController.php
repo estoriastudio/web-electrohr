@@ -8,6 +8,7 @@ use App\Models\MaterialRequestChangeNote;
 use App\Models\MaterialRequestItem;
 use App\Models\MaterialRequestItemProjectWork;
 use App\Models\Project;
+use App\Models\ProjectWork;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\User;
@@ -80,6 +81,8 @@ class MaterialRequestController extends Controller
             'concept_category_id' => 'nullable|exists:concept_categories,id',
             'supply_category' => 'nullable|string|max:255',
         ]);
+        $this->ensureProjectVisible((int) $data['project_id']);
+        $this->ensureWorksBelongToProject($data);
 
         // Derivar supply_category del nombre de la categoría seleccionada
         if (! empty($data['concept_category_id'])) {
@@ -239,7 +242,12 @@ class MaterialRequestController extends Controller
 
     public function edit(MaterialRequest $materialRequest)
     {
-        $projects = Project::where('status', 'active')->orderBy('name')->get();
+        $this->ensureEngineerCanEdit($materialRequest);
+
+        $projects = Project::where('status', 'active')
+            ->accessibleBy(Auth::user())
+            ->orderBy('name')
+            ->get();
         $categories = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
 
         return view('material_requests.edit', compact('materialRequest', 'projects', 'categories'));
@@ -247,6 +255,8 @@ class MaterialRequestController extends Controller
 
     public function update(Request $request, MaterialRequest $materialRequest)
     {
+        $this->ensureEngineerCanEdit($materialRequest);
+
         $data = $request->validate([
             'code' => 'nullable|string|max:100',
             'project_id' => 'required|exists:projects,id',
@@ -260,6 +270,8 @@ class MaterialRequestController extends Controller
             'concept_category_id' => 'nullable|exists:concept_categories,id',
             'supply_category' => 'nullable|string|max:255',
         ]);
+        $this->ensureProjectVisible((int) $data['project_id']);
+        $this->ensureWorksBelongToProject($data);
 
         // Derivar supply_category del nombre de la categoría seleccionada
         if (! empty($data['concept_category_id'])) {
@@ -475,6 +487,8 @@ class MaterialRequestController extends Controller
 
     public function storeItem(Request $request, MaterialRequest $materialRequest)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         if (! in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
             abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
         }
@@ -561,6 +575,8 @@ class MaterialRequestController extends Controller
 
     public function destroyItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         if (! in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
             abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
         }
@@ -585,6 +601,8 @@ class MaterialRequestController extends Controller
 
     public function updateItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         if ((int) $item->material_request_id !== (int) $materialRequest->id) {
             abort(404);
         }
@@ -818,6 +836,8 @@ class MaterialRequestController extends Controller
 
     public function storeObservation(Request $request, MaterialRequest $materialRequest)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         $data = $request->validate([
             'text' => 'required|string|max:1000',
         ]);
@@ -838,6 +858,8 @@ class MaterialRequestController extends Controller
 
     public function updateObservation(Request $request, MaterialRequest $materialRequest, int $noteIndex)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         $data = $request->validate([
             'text' => 'required|string|max:1000',
         ]);
@@ -860,6 +882,8 @@ class MaterialRequestController extends Controller
 
     public function destroyObservation(MaterialRequest $materialRequest, int $noteIndex)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
         $observations = $materialRequest->observations ?? [];
 
         if (! array_key_exists($noteIndex, $observations)) {
@@ -876,6 +900,13 @@ class MaterialRequestController extends Controller
 
     public function sendToWarehouse(MaterialRequest $materialRequest)
     {
+        $this->ensureProjectVisible($materialRequest->project_id);
+        abort_unless(
+            $materialRequest->canBeSentToWarehouseBy(Auth::user()),
+            403,
+            'Solo admin, Solmat o el gerente del proyecto pueden enviar la SOLMAT a Almacén.'
+        );
+
         $materialRequest->update([
             'status' => 'sent_to_warehouse',
             'sent_to_warehouse_at' => now(),
@@ -1028,5 +1059,36 @@ class MaterialRequestController extends Controller
         $filename = 'SOLMAT-'.($materialRequest->folio ?? $materialRequest->id).'.pdf';
 
         return $pdf->download($filename);
+    }
+
+    private function ensureEngineerCanEdit(MaterialRequest $materialRequest): void
+    {
+        $this->ensureProjectVisible($materialRequest->project_id);
+
+        if (Auth::user()->isRestrictedEngineer()) {
+            abort_unless(
+                in_array($materialRequest->status, ['pending', 'changes_requested'], true),
+                403,
+                'Esta SOLMAT ya no permite edici\u00f3n.'
+            );
+        }
+    }
+
+    private function ensureWorksBelongToProject(array $data): void
+    {
+        if (! Auth::user()->isRestrictedEngineer()) {
+            return;
+        }
+
+        $validWorks = ProjectWork::query()
+            ->where('project_id', $data['project_id'])
+            ->whereIn('id', $data['project_work_ids'])
+            ->count();
+
+        if ($validWorks !== count(array_unique($data['project_work_ids']))) {
+            throw ValidationException::withMessages([
+                'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
+            ]);
+        }
     }
 }

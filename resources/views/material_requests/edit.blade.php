@@ -4,7 +4,11 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>
+    @if (auth()->user()->isRestrictedEngineer())
+        <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
+    @else
+        <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>
+    @endif
     <li class="breadcrumb-item"><a href="{{ route('material_requests.show', $materialRequest) }}">SOLMAT #{{ $materialRequest->folio }}</a></li>
     <li class="breadcrumb-item active">Editar</li>
 @endsection

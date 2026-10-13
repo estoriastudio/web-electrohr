@@ -51,6 +51,12 @@ class MaterialRequest extends Model
         return $query->whereNotNull('archived_at');
     }
 
+    public function canBeSentToWarehouseBy(User $user): bool
+    {
+        return $user->hasAnyRole(['admin', 'Solmat'])
+            || ($this->project !== null && $this->project->isManagedBy($user));
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

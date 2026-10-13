@@ -541,7 +541,8 @@ class PurchaseOrderController extends Controller
     private function purchaseOrderProjectId(PurchaseOrder $purchaseOrder): ?int
     {
         $projectId = $purchaseOrder->project_id
-            ?? $purchaseOrder->workRelation()->value('project_id');
+            ?? $purchaseOrder->workRelation()->value('project_id')
+            ?? $purchaseOrder->purchaseRequest()->value('project_id');
 
         return $projectId ? (int) $projectId : null;
     }

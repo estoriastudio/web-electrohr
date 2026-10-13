@@ -1,0 +1,138 @@
+%% Menu lateral (resources/views/layouts/partials/_navbar.blade.php) por rol, cotejado contra routes/web.php
+%% Verde  = enlace visible en el menu y la ruta lo permite
+%% Rojo   = enlace visible en el menu pero la ruta responde 403 (inconsistencia)
+%% Ambar  = la ruta permite el acceso pero no hay enlace en el menu
+%% Gris   = el rol entra al bloque del menu pero no ve ningun enlace
+flowchart LR
+    classDef ok fill:#e6f4ea,stroke:#2e7d32,color:#1b5e20;
+    classDef broken fill:#fde7e9,stroke:#c62828,color:#b71c1c,stroke-dasharray: 4 3;
+    classDef hidden fill:#fff4e0,stroke:#ef6c00,color:#e65100,stroke-dasharray: 4 3;
+    classDef empty fill:#eeeeee,stroke:#9e9e9e,color:#616161,stroke-dasharray: 2 2;
+
+    subgraph ADMIN["admin"]
+        direction TB
+        ad0["Vista General"]:::ok
+        ad1["Proveedores: Listado, Estado de Cuenta"]:::ok
+        ad2["Bienes Moviles"]:::ok
+        ad3["Herramientas: Registro, Control de uso, Categorias"]:::ok
+        ad4["Proyectos"]:::ok
+        ad5["RRHH: Trabajadores, Cuadrillas, Asistencias, Vacaciones, Bajas, Categorias de puesto, Nomina, Destajo, Incentivos"]:::ok
+        ad6["Almacen: SOLMATs, Vales de Material"]:::ok
+        ad7["Inventario: Consulta, Entradas, Salidas"]:::ok
+        ad8["Cambios SOLMAT"]:::ok
+        ad9["Pila SOLMAT"]:::ok
+        ad10["Compras: SOLCOMs, Cambios SOLCOM, Pila SOLCOM, Carga de Trabajo"]:::ok
+        ad11["Ordenes de Compra"]:::ok
+        ad12["Facturas: Contado, Credito, Ver Todas"]:::ok
+        ad13["Pagos: Hitos, Autorizaciones, Por Pagar, Pagado"]:::ok
+        ad14["Configuracion: Suministros - Conceptos, Precios adjudicados, Familias"]:::ok
+        ad15["Configuracion: Usuarios"]:::ok
+        ad16["Configuracion: Notificaciones - Auditoria"]:::ok
+    end
+
+    subgraph MOV["Moviles"]
+        direction TB
+        mo0["Vista General"]:::ok
+        mo1["Bienes Moviles"]:::ok
+        mo2["Almacen: Vales de Material"]:::ok
+        mo3["Herramientas: Registro, Control de uso, Categorias"]:::broken
+    end
+
+    subgraph OC["Orden de compra"]
+        direction TB
+        oc0["Vista General"]:::ok
+        oc1["Proveedores: Listado, Estado de Cuenta"]:::ok
+        oc2["Pila SOLMAT"]:::ok
+        oc3["Compras: SOLCOMs, Cambios SOLCOM, Pila SOLCOM, Carga de Trabajo"]:::ok
+        oc4["Ordenes de Compra"]:::ok
+        oc5["Facturas: Contado, Credito, Ver Todas"]:::ok
+        oc6["Cambios SOLMAT"]:::broken
+        oc7["Alta de Facturas, Hitos de Pago (escritura), Pagos (crear)"]:::hidden
+    end
+
+    subgraph PAG["Pagos"]
+        direction TB
+        pa0["Vista General"]:::ok
+        pa1["Proveedores: Listado, Estado de Cuenta"]:::ok
+        pa2["Ordenes de Compra"]:::ok
+        pa3["Facturas: Contado, Credito, Ver Todas"]:::ok
+        pa4["Pagos: Hitos, Autorizaciones, Por Pagar, Pagado"]:::ok
+        pa5["Almacen (titulo sin enlaces)"]:::empty
+        pa6["Vales de Material, Alta de Facturas, Evidencias"]:::hidden
+    end
+
+    subgraph REC["Recepcion"]
+        direction TB
+        re0["Vista General"]:::ok
+        re1["Alta de Facturas (ruta existe, sin enlace)"]:::hidden
+    end
+
+    subgraph PRV["Proveedor"]
+        direction TB
+        pv0["Vista General"]:::ok
+        pv1["Almacen (titulo sin enlaces)"]:::empty
+        pv2["Vales de Material (ruta existe, sin enlace)"]:::hidden
+    end
+
+    subgraph PRY["Proyectos"]
+        direction TB
+        py0["Vista General"]:::ok
+        py1["Proyectos"]:::ok
+        py2["Obras (ruta existe, sin enlace)"]:::hidden
+    end
+
+    subgraph SMT["Solmat"]
+        direction TB
+        sm0["Vista General"]:::ok
+        sm1["Almacen: SOLMATs"]:::ok
+        sm2["Cambios SOLMAT"]:::ok
+        sm3["Ordenes de Compra"]:::ok
+        sm4["Facturas: Contado, Credito, Ver Todas"]:::ok
+        sm5["Configuracion: Suministros - Conceptos, Precios adjudicados, Familias"]:::ok
+        sm6["Proyectos y Obras (ruta existe, sin enlace)"]:::hidden
+        sm7["Herramientas, Notificaciones bandeja (ruta existe, sin enlace)"]:::hidden
+    end
+
+    subgraph SCM["Solcom"]
+        direction TB
+        sc0["Vista General"]:::ok
+        sc1["Compras: SOLCOMs, Cambios SOLCOM, Pila SOLCOM"]:::ok
+        sc2["Cambios SOLMAT"]:::ok
+        sc3["Vales de Material (visible en codigo, pero queda oculto por el bloque padre)"]:::broken
+    end
+
+    subgraph INV["Inventario"]
+        direction TB
+        in0["Vista General"]:::ok
+        in1["Inventario: Consulta, Entradas, Salidas"]:::ok
+    end
+
+    subgraph SUM["suministros"]
+        direction TB
+        su0["Vista General"]:::ok
+        su1["Almacen (titulo sin enlaces)"]:::empty
+        su2["Cambios SOLMAT"]:::ok
+        su3["Pila SOLMAT"]:::ok
+    end
+
+    subgraph SPA["supplier_portal_access"]
+        direction TB
+        sp0["Vista General (redirige al Portal)"]:::ok
+        sp1["Portal: Mis Ordenes de Compra"]:::ok
+        sp2["Portal: Mis Vales de Material (si tiene vales)"]:::ok
+        sp3["Portal: Estado de Cuenta"]:::ok
+    end
+
+    subgraph ENG["Engineer"]
+        direction TB
+        en0["Vista General"]:::ok
+        en1["Mis Proyectos"]:::ok
+        en2["RRHH: Cuadrillas, Asistencias"]:::ok
+        en3["SOLMAT crear/editar (solo desde Mis Proyectos, sin enlace propio)"]:::hidden
+    end
+
+    subgraph RH["Recursos Humanos"]
+        direction TB
+        rh0["Vista General"]:::ok
+        rh1["RRHH: Trabajadores, Cuadrillas, Asistencias, Vacaciones, Bajas, Categorias de puesto, Nomina, Destajo, Incentivos"]:::ok
+    end

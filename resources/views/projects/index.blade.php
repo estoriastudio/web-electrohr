@@ -168,6 +168,7 @@
                                                         data-state="{{ $project->state }}"
                                                         data-currency="{{ $project->currency }}"
                                                         data-status="{{ $project->status }}"
+                                                        data-manager="{{ $project->manager_user_id }}"
                                                         data-bs-toggle="modal" data-bs-target="#modalEditProject">
                                                     <i class="ri-edit-line"></i>
                                                 </button>
@@ -259,6 +260,16 @@
                             </select>
                             @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+                        <div class="col-md-6">
+                            <label for="create_manager" class="form-label fw-medium">Gerente de Proyecto</label>
+                            <select class="form-select @error('manager_user_id') is-invalid @enderror" id="create_manager" name="manager_user_id">
+                                <option value="">Sin asignar</option>
+                                @foreach($engineers as $engineer)
+                                    <option value="{{ $engineer->id }}" @selected((string) old('manager_user_id') === (string) $engineer->id)>{{ $engineer->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('manager_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -322,6 +333,15 @@
                                 <option value="MXN">MXN</option>
                                 <option value="USD">USD</option>
                                 <option value="EUR">EUR</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_manager" class="form-label fw-medium">Gerente de Proyecto</label>
+                            <select class="form-select" id="edit_manager" name="manager_user_id">
+                                <option value="">Sin asignar</option>
+                                @foreach($engineers as $engineer)
+                                    <option value="{{ $engineer->id }}">{{ $engineer->name }}</option>
+                                @endforeach
                             </select>
                         </div>
                     </div>
@@ -422,6 +442,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_state').value       = this.dataset.state || '';
             document.getElementById('edit_currency').value    = this.dataset.currency || 'MXN';
             document.getElementById('edit_status').value      = this.dataset.status;
+            document.getElementById('edit_manager').value     = this.dataset.manager || '';
         });
     });
 });

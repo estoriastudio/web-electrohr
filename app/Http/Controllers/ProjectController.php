@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
 
@@ -47,7 +48,12 @@ class ProjectController extends Controller
             }
         });
 
-        return view('projects.index', compact('projects', 'search', 'isAdmin'));
+        return view('projects.index', [
+            'projects' => $projects,
+            'search' => $search,
+            'isAdmin' => $isAdmin,
+            'engineers' => User::role('Engineer')->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function create(): RedirectResponse
@@ -63,7 +69,9 @@ class ProjectController extends Controller
             'city'        => 'nullable|string|max:255',
             'state'       => 'nullable|string|max:255',
             'currency'    => 'required|string|max:10',
+            'manager_user_id' => 'nullable|integer|exists:users,id',
         ]);
+        $this->ensureEngineerManager($validated);
 
         $project = Project::create(array_merge($validated, ['status' => 'active']));
 
@@ -93,6 +101,7 @@ class ProjectController extends Controller
         $project->load([
             'works'     => fn ($q) => $q->with(['supervisorUser', 'residentUser'])->withCount('purchaseOrders'),
             'documents',
+            'manager:id,name',
             'agreements' => fn ($q) => $q->with('works')->latest(),
             'estimates' => fn ($q) => $q->with('creator')->latest('estimate_date'),
         ]);
@@ -117,7 +126,9 @@ class ProjectController extends Controller
             'state'       => 'nullable|string|max:255',
             'status'      => 'required|in:active,inactive',
             'currency'    => 'required|string|max:10',
+            'manager_user_id' => 'nullable|integer|exists:users,id',
         ]);
+        $this->ensureEngineerManager($validated);
 
         $project->update($validated);
 
@@ -463,6 +474,16 @@ class ProjectController extends Controller
 
         return redirect()->route('projects.index')
             ->with('success', 'Proyectos y obras importados correctamente.');
+    }
+
+    private function ensureEngineerManager(array $data): void
+    {
+        if (filled($data['manager_user_id'] ?? null)
+            && ! User::role('Engineer')->whereKey($data['manager_user_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'manager_user_id' => 'Selecciona un usuario con rol Engineer.',
+            ]);
+        }
     }
 }
 

@@ -51,6 +51,9 @@
                     <h5 class="fw-semibold mb-0">{{ $project->name }}</h5>
                     <div class="text-muted fs-13">
                         <i class="ri-user-line me-1"></i>{{ $project->client_name }}
+                        @if ($project->manager)
+                            &nbsp;·&nbsp;<i class="ri-user-star-line me-1"></i>Gerente: {{ $project->manager->name }}
+                        @endif
                         @if ($project->city || $project->state)
                             &nbsp;·&nbsp;<i class="ri-map-pin-line me-1"></i>
                             {{ implode(', ', array_filter([$project->city, $project->state])) }}

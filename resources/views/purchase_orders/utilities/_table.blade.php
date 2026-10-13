@@ -12,6 +12,7 @@
 
     // Número de columnas para el colspan del empty-state
     $colspan = 9 + ($mode !== 'index' ? 1 : 0);
+    $isEngineerView = request()->routeIs('my-projects.*');
 @endphp
 
 <div class="table-responsive po-orders-table-responsive">
@@ -118,11 +119,13 @@
                                             </li>
                                             @endif
                                         @endif
+                                        @unless ($isEngineerView)
                                         <li>
                                             <a class="dropdown-item" href="{{ route('purchase_orders.pdf', $order) }}" target="_blank">
                                                 <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
                                             </a>
                                         </li>
+                                        @endunless
                                         @if ($canManageOrder)
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')
@@ -207,7 +210,7 @@
                         <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12 font-monospace">#{{ $order->folio ?? '—' }}</span>
                     </td>
                     <td class="po-supplier-cell">
-                        @if ($mode !== 'trashed')
+                        @if ($mode !== 'trashed' && ! $isEngineerView)
                             <a href="{{ route('suppliers.show', $order->supplier) }}"
                                class="text-dark fw-medium text-decoration-none">
                                 <span class="hover-marquee d-block" style="--marquee-width:340px;" title="{{ $supplierName }}">
@@ -249,7 +252,7 @@
                         @if (!$proj && !$obra)—@endif
                     </td>
                     <td class="po-due-dates-cell">
-                        @if ($order->next_payment_due_date)
+                        @if ($order->next_payment_due_date && ! $isEngineerView)
                             <div title="Vencimiento de pago">
                                 <i class="ri-calendar-line me-1 text-warning"></i> Pago: {{ \Illuminate\Support\Carbon::parse($order->next_payment_due_date)->translatedFormat('d M Y') }}
                             </div>
@@ -272,12 +275,14 @@
                                   title="Importe total de la OC">
                                 <i class="ri-money-dollar-circle-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->total_with_iva, 2) }} {{ $currencyCode ?: '—' }}
                             </span>
+                            @unless ($isEngineerView)
                             <span class="badge bg-success-subtle text-success py-1 px-2 fs-12"
                                   data-bs-toggle="tooltip"
                                   data-bs-placement="top"
                                   title="Saldo cubierto de la OC">
                                 <i class="ri-bank-card-line me-1"></i>{{ $currencySymbol }}{{ number_format($order->saldo_cubierto, 2) }} {{ $currencyCode ?: '—' }}
                             </span>
+                            @endunless
                         </div>
                     </td>
 

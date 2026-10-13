@@ -34,10 +34,7 @@ class AppServiceProvider extends ServiceProvider
             $currentUser = auth()->user();
             $activeProjectsCount = Project::where('status', 'active')
                 ->when(! $currentUser?->hasRole('admin'), function ($query) use ($currentUser) {
-                    $query->whereHas('works', function ($workQuery) use ($currentUser) {
-                        $workQuery->where('supervisor_user_id', $currentUser?->id)
-                            ->orWhere('resident_user_id', $currentUser?->id);
-                    });
+                    $currentUser ? $query->assignedTo($currentUser) : $query->whereRaw('1 = 0');
                 })
                 ->count();
             $paymentsToAuthorizeCount = Payment::query()

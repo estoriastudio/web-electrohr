@@ -4,22 +4,36 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
-    protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'currency', 'current_agreement_value'];
+    protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'currency', 'current_agreement_value', 'manager_user_id'];
 
     public function works(): HasMany
     {
         return $this->hasMany(ProjectWork::class);
     }
 
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_user_id');
+    }
+
+    public function isManagedBy(User $user): bool
+    {
+        return $this->manager_user_id !== null && (int) $this->manager_user_id === (int) $user->id;
+    }
+
     public function scopeAssignedTo(Builder $query, User $user): Builder
     {
-        return $query->whereHas('works', fn (Builder $works) => $works
-            ->where('supervisor_user_id', $user->id)
-            ->orWhere('resident_user_id', $user->id));
+        return $query->where(fn (Builder $scope) => $scope
+            ->where('projects.manager_user_id', $user->id)
+            ->orWhereHas('works', fn (Builder $works) => $works
+                ->where(fn (Builder $responsible) => $responsible
+                    ->where('supervisor_user_id', $user->id)
+                    ->orWhere('resident_user_id', $user->id))));
     }
 
     public function scopeAccessibleBy(Builder $query, User $user): Builder

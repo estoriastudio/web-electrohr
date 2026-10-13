@@ -136,7 +136,7 @@ class EngineerProjectAccessTest extends TestCase
             ->assertSee('hitos-container', false);
     }
 
-    public function test_engineer_is_read_only_on_solmat_solcom_and_purchase_orders(): void
+    public function test_engineer_is_read_only_on_solcom_and_purchase_orders_and_cannot_delete_solmat(): void
     {
         $engineer = $this->engineer();
         $project = $this->project('Proyecto propio', supervisor: $engineer);
@@ -146,9 +146,9 @@ class EngineerProjectAccessTest extends TestCase
 
         $this->actingAs($engineer);
 
-        $this->post(route('material_requests.store'), [])->assertForbidden();
-        $this->put(route('material_requests.update', $materialRequest), [])->assertForbidden();
         $this->delete(route('material_requests.destroy', $materialRequest))->assertForbidden();
+        $this->patch(route('material_requests.archive', $materialRequest))->assertForbidden();
+        $this->get(route('material_requests.index'))->assertForbidden();
         $this->post(route('purchase_requests.store'), [])->assertForbidden();
         $this->put(route('purchase_requests.update', $purchaseRequest), [])->assertForbidden();
         $this->delete(route('purchase_requests.destroy', $purchaseRequest))->assertForbidden();
