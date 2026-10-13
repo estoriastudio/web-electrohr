@@ -62,6 +62,21 @@ class StockReturnCalendarTest extends TestCase
             $table->text('observations')->nullable();
             $table->timestamps();
         });
+        foreach (['stock_entry_items' => 'stock_entry_id', 'stock_exit_items' => 'stock_exit_id'] as $name => $parent) {
+            Schema::create($name, function (Blueprint $table) use ($parent) {
+                $table->id();
+                $table->unsignedBigInteger($parent);
+                $table->unsignedBigInteger('concept_id');
+                $table->unsignedSmallInteger('line_number');
+                $table->decimal('quantity', 14, 3);
+                $table->timestamps();
+            });
+        }
+    }
+
+    private function seedStock(): void
+    {
+        DB::table('stock_entry_items')->insert(['stock_entry_id' => 99, 'concept_id' => 1, 'line_number' => 1, 'quantity' => 5]);
     }
 
     public function test_supply_loan_stores_the_concept_and_preserves_it_in_calendar_and_return(): void
@@ -70,6 +85,7 @@ class StockReturnCalendarTest extends TestCase
         DB::table('workers')->insert(['id' => 1, 'first_name' => 'Juan', 'last_name' => 'Perez']);
         DB::table('projects')->insert(['id' => 1, 'name' => 'Proyecto']);
         DB::table('project_works')->insert(['id' => 1, 'name' => 'Obra']);
+        $this->seedStock();
         $this->mock(NotificationService::class)->shouldReceive('send')->twice();
 
         $this->post(route('stocks.exits.store'), [
@@ -104,6 +120,7 @@ class StockReturnCalendarTest extends TestCase
         DB::table('concepts')->insert(['id' => 1, 'code' => 'SUM-001', 'description' => 'Taladro']);
         DB::table('projects')->insert(['id' => 1, 'name' => 'Proyecto']);
         DB::table('project_works')->insert(['id' => 1, 'name' => 'Obra']);
+        $this->seedStock();
         $this->mock(NotificationService::class)->shouldReceive('send')->once();
 
         $this->post(route('stocks.exits.store'), [

@@ -22,7 +22,15 @@ class StockMovementEditCancelTest extends TestCase
             $table->string('code')->unique();
             $table->string('description');
             $table->string('unit')->nullable();
+            $table->string('status')->default('active');
+            $table->timestamp('archived_at')->nullable();
         });
+        foreach (['projects', 'project_works'] as $name) {
+            Schema::create($name, function (Blueprint $table) {
+                $table->id();
+            });
+            DB::table($name)->insert(['id' => 1]);
+        }
         Schema::create('workers', function (Blueprint $table) {
             $table->id();
             $table->string('first_name');
@@ -244,5 +252,43 @@ class StockMovementEditCancelTest extends TestCase
 
         $this->delete(route('stocks.exits.destroy', $loan))->assertSessionHasNoErrors();
         $this->assertNull(StockExit::find($loan->id));
+    }
+
+    private function stock(): float
+    {
+        return (float) \App\Models\StockEntryItem::where('concept_id', 1)->sum('quantity')
+            - (float) \App\Models\StockExitItem::where('concept_id', 1)->sum('quantity');
+    }
+
+    public function test_loan_discounts_stock_and_returns_add_it_back(): void
+    {
+        $this->entry(5);
+        $this->mock(NotificationService::class)->shouldReceive('send');
+
+        $this->post(route('stocks.exits.store'), [
+            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001', 'recipient_name' => 'Juan', 'project_id' => 1,
+            'project_work_id' => 1, 'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
+        ])->assertSessionHasNoErrors();
+        $this->assertEquals(4, $this->stock());
+        $loan = StockExit::firstOrFail();
+
+        $this->post(route('stocks.exits.return', $loan), ['received_at' => '2026-09-05'])->assertSessionHasNoErrors();
+        $this->assertEquals(5, $this->stock());
+
+        $this->post(route('stocks.entries.store'), [
+            'entry_type' => 'tool_return', 'received_at' => '2026-09-06', 'items' => [['concept_code' => 'SUM-001', 'quantity' => 2]],
+        ])->assertSessionHasNoErrors();
+        $this->assertEquals(7, $this->stock());
+    }
+
+    public function test_loan_is_rejected_without_available_stock(): void
+    {
+        $this->mock(NotificationService::class)->shouldReceive('send')->never();
+
+        $this->post(route('stocks.exits.store'), [
+            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001', 'recipient_name' => 'Juan', 'project_id' => 1,
+            'project_work_id' => 1, 'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
+        ])->assertSessionHasErrors('concept_code');
+        $this->assertSame(0, StockExit::count());
     }
 }

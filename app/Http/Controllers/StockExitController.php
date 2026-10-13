@@ -131,26 +131,26 @@ class StockExitController extends Controller
                 return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
             });
         } else {
-            $items = collect();
+            $loanConcept = Concept::available()->where('code', $validated['concept_code'])->firstOrFail();
+            $items = collect([['concept' => $loanConcept, 'quantity' => 1, 'index' => 0]]);
         }
 
         $exit = DB::transaction(function () use ($validated, $items) {
-            if ($items->isNotEmpty()) {
-                foreach ($items as $item) {
-                    $available = StockEntryItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity')
-                        - StockExitItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity');
-                    if ((float) $item['quantity'] > (float) $available) {
-                        throw ValidationException::withMessages(["items.{$item['index']}.quantity" => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
-                    }
+            foreach ($items as $item) {
+                $available = StockEntryItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity')
+                    - StockExitItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity');
+                if ((float) $item['quantity'] > (float) $available) {
+                    $field = $validated['exit_type'] === 'tool_loan' ? 'concept_code' : "items.{$item['index']}.quantity";
+                    throw ValidationException::withMessages([$field => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
                 }
             }
 
             $exit = StockExit::create([
-                'concept_id' => $validated['exit_type'] === 'tool_loan' ? Concept::available()->where('code', $validated['concept_code'])->firstOrFail()->id : null,
+                'concept_id' => $validated['exit_type'] === 'tool_loan' ? $items->first()['concept']->id : null,
                 'tool_id' => null, 'exit_type' => $validated['exit_type'],
                 'voucher_number' => $validated['voucher_number'] ?? null, 'recipient_worker_id' => null,
                 'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,
-                'project_work_id' => $validated['project_work_id'] ?? null, 'quantity' => $items->isNotEmpty() ? $items->sum('quantity') : 1,
+                'project_work_id' => $validated['project_work_id'] ?? null, 'quantity' => $items->sum('quantity'),
                 'exited_at' => $validated['exited_at'], 'expected_return_at' => $validated['expected_return_at'] ?? null,
                 'status' => $validated['exit_type'] === 'tool_loan' ? 'open' : 'completed', 'observations' => $validated['observations'] ?? null, 'created_by' => Auth::id(),
             ]);
@@ -190,6 +190,9 @@ class StockExitController extends Controller
                 'observations' => $validated['observations'] ?? null,
                 'created_by' => Auth::id(),
             ]);
+            if ($stockExit->concept_id) {
+                $entry->items()->create(['concept_id' => $stockExit->concept_id, 'line_number' => 1, 'quantity' => $stockExit->quantity]);
+            }
             $stockExit->update(['status' => 'returned', 'return_stock_entry_id' => $entry->id]);
             return $entry;
         });

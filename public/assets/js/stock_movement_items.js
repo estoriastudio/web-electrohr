@@ -2,9 +2,14 @@
     'use strict';
 
     var config = window.stockPurchaseItemsConfig || {};
-    var searchUrl = config.searchUrl || '';
-    var container = document.querySelector('[data-stock-items="purchase"]');
-    if (!container || !searchUrl) return;
+    var modalElement = document.getElementById('entryModal');
+
+    document.querySelectorAll('[data-stock-items]').forEach(function (container) {
+        var searchUrl = container.dataset.searchUrl || config.searchUrl || '';
+        if (searchUrl) initItems(container, searchUrl);
+    });
+
+    function initItems(container, searchUrl) {
 
     var body = container.querySelector('[data-items-body]');
     var searchState = container.querySelector('[data-search-state]');
@@ -21,6 +26,11 @@
         var element = document.createElement('div');
         element.appendChild(document.createTextNode(value == null ? '' : String(value)));
         return element.innerHTML;
+    }
+
+    function emptyRowHtml() {
+        var columns = container.querySelectorAll('thead th').length;
+        return '<tr data-empty-row><td colspan="' + columns + '" class="text-center text-muted py-3">Agregue al menos un suministro.</td></tr>';
     }
 
     function itemRows() {
@@ -53,8 +63,7 @@
         container.querySelector('[data-selected-code]').textContent = concept.code;
         container.querySelector('[data-selected-description]').textContent = concept.description;
         container.querySelector('[data-selected-quantity]').value = '';
-        container.querySelector('[data-origin-certificate]').value = '';
-        container.querySelector('[data-safety-certificate]').value = '';
+        container.querySelectorAll('[data-origin-certificate], [data-safety-certificate]').forEach(function (input) { input.value = ''; });
         results.classList.add('d-none');
         error.classList.add('d-none');
         searchState.classList.add('d-none');
@@ -90,7 +99,7 @@
         }
         debounceTimer = setTimeout(function () {
             var currentRequest = ++requestNumber;
-            fetch(searchUrl + '&q=' + encodeURIComponent(query), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            fetch(searchUrl + (searchUrl.indexOf('?') === -1 ? '?' : '&') + 'q=' + encodeURIComponent(query), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (response) { return response.ok ? response.json() : Promise.reject(); })
                 .then(function (payload) {
                     if (currentRequest !== requestNumber) return;
@@ -119,14 +128,21 @@
         var row = document.createElement('tr');
         row.setAttribute('data-item-row', '');
         row.setAttribute('data-concept-code', selected.code);
+        var originInput = container.querySelector('[data-origin-certificate]');
+        var safetyInput = container.querySelector('[data-safety-certificate]');
+        var certificatesCell = originInput && safetyInput
+            ? '<td><input type="file" name="items[' + index + '][origin_certificate]" accept="application/pdf" class="form-control form-control-sm mb-1" title="Certificado de origen"><input type="file" name="items[' + index + '][safety_certificate]" accept="application/pdf" class="form-control form-control-sm" title="Certificado de seguridad"></td>'
+            : '';
         row.innerHTML = '<td><span class="fw-semibold">' + escHtml(selected.code) + '</span><input type="hidden" name="items[' + index + '][concept_code]" value="' + escHtml(selected.code) + '"></td>'
             + '<td>' + escHtml(selected.description) + '</td>'
             + '<td>' + escHtml(selected.unit || '') + '</td>'
             + '<td><input type="number" name="items[' + index + '][quantity]" value="' + escHtml(quantity) + '" min="0.001" step="0.001" class="form-control form-control-sm text-end" required></td>'
-            + '<td><input type="file" name="items[' + index + '][origin_certificate]" accept="application/pdf" class="form-control form-control-sm mb-1" title="Certificado de origen"><input type="file" name="items[' + index + '][safety_certificate]" accept="application/pdf" class="form-control form-control-sm" title="Certificado de seguridad"></td>'
+            + certificatesCell
             + '<td><button type="button" class="btn btn-soft-danger btn-sm" data-remove-item title="Eliminar concepto"><i class="ri-delete-bin-line"></i></button></td>';
-        row.querySelector('input[name$="[origin_certificate]"]').files = container.querySelector('[data-origin-certificate]').files;
-        row.querySelector('input[name$="[safety_certificate]"]').files = container.querySelector('[data-safety-certificate]').files;
+        if (certificatesCell) {
+            row.querySelector('input[name$="[origin_certificate]"]').files = originInput.files;
+            row.querySelector('input[name$="[safety_certificate]"]').files = safetyInput.files;
+        }
         body.appendChild(row);
         updateCount();
         resetSelector();
@@ -140,14 +156,31 @@
         if (!button) return;
         button.closest('[data-item-row]').remove();
         if (!itemRows().length) {
-            body.innerHTML = '<tr data-empty-row><td colspan="6" class="text-center text-muted py-3">Agregue al menos un suministro.</td></tr>';
+            body.innerHTML = emptyRowHtml();
         }
         updateCount();
     });
 
-    document.getElementById('entryModal').addEventListener('hidden.bs.modal', function () {
-        body.innerHTML = '<tr data-empty-row><td colspan="6" class="text-center text-muted py-3">Agregue al menos un suministro.</td></tr>';
+    function clearItems() {
+        body.innerHTML = emptyRowHtml();
         updateCount();
-        resetSelector();
-    });
+        selected = null;
+        searchInput.value = '';
+        results.classList.add('d-none');
+        error.classList.add('d-none');
+        selectedState.classList.add('d-none');
+        searchState.classList.remove('d-none');
+    }
+
+    container.addEventListener('stock-items:clear', clearItems);
+    if (modalElement) modalElement.addEventListener('hidden.bs.modal', clearItems);
+    var form = container.closest('form');
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            if (container.closest('.d-none') || itemRows().length) return;
+            event.preventDefault();
+            showError('Agregue al menos un suministro.');
+        });
+    }
+    }
 }());

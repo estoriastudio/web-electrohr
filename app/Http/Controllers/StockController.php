@@ -103,7 +103,7 @@ class StockController extends Controller
         ])->merge($exits->map(fn (StockExitItem $item) => (object) [
             'date' => $item->stockExit->exited_at,
             'direction' => 'exit',
-            'label' => $item->stockExit->is_adjustment ? 'Ajuste manual (-)' : 'Salida definitiva',
+            'label' => $item->stockExit->is_adjustment ? 'Ajuste manual (-)' : ($item->stockExit->exit_type === 'tool_loan' ? 'Préstamo de herramienta' : 'Salida definitiva'),
             'quantity' => $item->quantity,
             'reference' => $item->stockExit->voucher_number,
             'record' => $item->stockExit,
