@@ -235,7 +235,7 @@ class PurchaseOrder extends Model
 
     public function getTotalWithTaxAttribute(): float
     {
-        return self::normalizeTotalAmount(
+        return round(
             $this->subtotal
             + $this->tax_amount
             - $this->isr_amount
@@ -244,16 +244,6 @@ class PurchaseOrder extends Model
             + $this->cedular_amount,
             2
         );
-    }
-
-    public static function normalizeTotalAmount(float $amount): float
-    {
-        $roundedAmount = round($amount, 2);
-        $cents = (int) round(($roundedAmount - floor($roundedAmount)) * 100);
-
-        return $cents >= 1 && $cents <= 9
-            ? (float) floor($roundedAmount)
-            : $roundedAmount;
     }
 
     /**
@@ -277,8 +267,9 @@ class PurchaseOrder extends Model
             $cedularAmount = round($subtotal * ($cedularRate / 100), 2);
 
             $this->update([
-                'amount' => self::normalizeTotalAmount(
-                    $subtotal + $taxAmount - $isrAmount - $retentionIvaAmount - $retentionIsrAmount + $cedularAmount
+                'amount' => round(
+                    $subtotal + $taxAmount - $isrAmount - $retentionIvaAmount - $retentionIsrAmount + $cedularAmount,
+                    2
                 ),
             ]);
 

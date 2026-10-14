@@ -103,7 +103,7 @@ class SupplierPortalInvoiceController extends Controller
             ]);
         }
 
-        $resolvedAmount = PurchaseOrder::normalizeTotalAmount((float) $validated['amount']);
+        $resolvedAmount = round((float) $validated['amount'], 2);
         $resolvedCreditNoteAmount = $hasCreditNote ? $creditNoteAmount : null;
         $netScope = round($resolvedAmount - (float) ($resolvedCreditNoteAmount ?? 0), 2);
 

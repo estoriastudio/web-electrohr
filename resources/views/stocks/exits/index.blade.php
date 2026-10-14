@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	function enableSection(inputs, enabled) {
 		inputs.forEach(function (input) {
 			if (input.tagName !== 'SELECT') input.disabled = !enabled;
-			input.required = Boolean(input.name) && enabled;
+			input.required = Boolean(input.name) && enabled && input.name !== 'voucher_number';
 		});
 	}
 	function initializeRemoteSearch(select, urlBuilder, placeholder, labelBuilder, valueBuilder) {

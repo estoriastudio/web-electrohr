@@ -608,15 +608,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return Number.isFinite(parsed) ? parsed : null;
     }
 
-    function normalizeInvoiceAmount(amount) {
-        const cents = Math.round(amount * 100);
-        const centsRemainder = Math.abs(cents % 100);
-
-        return centsRemainder >= 1 && centsRemainder <= 9
-            ? Math.trunc(cents / 100)
-            : cents / 100;
-    }
-
     function readCfdiTotalFromXmlText(xmlText) {
         try {
             const parser = new DOMParser();
@@ -654,7 +645,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const normalizedAmount = normalizeInvoiceAmount(amount);
+        const normalizedAmount = Math.round(amount * 100) / 100;
         invoiceAmountLoadedFromXml = true;
         amountInput.value = normalizedAmount.toFixed(2);
         setAmountReadonly(true);

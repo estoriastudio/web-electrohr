@@ -30,21 +30,14 @@ class PurchaseOrderTotalsTest extends TestCase
         $this->assertSame(206.25, $purchaseOrder->total_with_iva);
     }
 
-    public function test_total_with_cents_between_one_and_nine_rounds_down_to_the_integer(): void
+    public function test_total_with_cents_between_one_and_nine_is_not_rounded_down(): void
     {
         $purchaseOrder = new PurchaseOrder(['tax_rate' => 16]);
         $purchaseOrder->setRelation('items', new Collection([
             new PurchaseOrderItem(['quantity' => 1, 'unit_price' => 7068.972]),
         ]));
 
-        $this->assertSame(8200.0, $purchaseOrder->total_with_iva);
-    }
-
-    public function test_total_normalization_only_removes_cents_between_one_and_nine(): void
-    {
-        $this->assertSame(8200.0, PurchaseOrder::normalizeTotalAmount(8200.01));
-        $this->assertSame(8200.0, PurchaseOrder::normalizeTotalAmount(8200.09));
-        $this->assertSame(8200.10, PurchaseOrder::normalizeTotalAmount(8200.10));
+        $this->assertSame(8200.01, $purchaseOrder->total_with_iva);
     }
 
     public function test_percentage_milestones_reconcile_rounding_with_order_total(): void

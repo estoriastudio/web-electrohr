@@ -140,7 +140,7 @@ XML;
             'unit_price' => 7068.972,
         ]);
 
-        $this->assertSame(8200.0, $purchaseOrder->fresh()->total_with_iva);
+        $this->assertSame(8200.01, $purchaseOrder->fresh()->total_with_iva);
 
         $uuid = '33333333-3333-4333-8333-333333333333';
         $xml = <<<XML

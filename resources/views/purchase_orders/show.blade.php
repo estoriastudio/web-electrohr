@@ -3057,10 +3057,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function setAmountFromXml(amount) {
         var fromXml = amount !== null;
         if (fromXml) {
-            // Misma normalizaci\u00f3n que el portal de proveedores (centavos 01-09 se truncan).
-            var cents = Math.round(amount * 100);
-            var remainder = Math.abs(cents % 100);
-            amount = remainder >= 1 && remainder <= 9 ? Math.trunc(cents / 100) : cents / 100;
+            amount = Math.round(amount * 100) / 100;
             amountInput.value = amount.toFixed(2);
         } else {
             amountInput.value = '';

@@ -197,7 +197,7 @@ class PurchaseOrderInvoiceController extends Controller
             'xml_file'          => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
 
-        $validated['amount'] = PurchaseOrder::normalizeTotalAmount((float) $validated['amount']);
+        $validated['amount'] = round((float) $validated['amount'], 2);
         $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $this->resolveInvoicedAmount($purchaseOrder));
 
         if ($validated['amount'] > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
