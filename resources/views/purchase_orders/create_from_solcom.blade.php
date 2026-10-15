@@ -46,8 +46,9 @@
         <p class="mb-0 fw-semibold fs-13">Bifurcación parcial de SOLCOM</p>
         <p class="mb-0 text-muted fs-12">
             Esta OC puede tomar solo una parte de los conceptos para este proveedor. Los conceptos no seleccionados
-            permanecerán pendientes para generar otra OC desde la misma SOLCOM. Los conceptos que ya se heredaron a
-            otra OC aparecen bloqueados y no pueden repetirse.
+            permanecerán pendientes para generar otra OC desde la misma SOLCOM. También puedes definir la cantidad
+            a heredar por concepto: la diferencia queda como cantidad faltante por comprar. Solo se bloquean los
+            conceptos cuya cantidad ya se heredó por completo.
         </p>
     </div>
 </div>
@@ -55,7 +56,8 @@
 <div class="row justify-content-center">
     <div class="col-xl-10">
         @php
-            $pendingItems = $purchaseRequest->items->reject(fn ($item) => $item->is_inherited);
+            $pendingItems = $purchaseRequest->items->filter(fn ($item) => $item->is_pending);
+            $fmtQty = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.') ?: '0';
             $defaultSelectedItems = $pendingItems->pluck('id')->map(fn($id) => (string) $id)->all();
             $selectedItems = old('selected_item_ids', $defaultSelectedItems);
             $defaultSelectedWorks = $purchaseRequest->projectWorks->pluck('id')->map(fn($id) => (string) $id)->all();
@@ -387,7 +389,10 @@
                                             <th>#</th>
                                             <th>Descripción</th>
                                             <th>Unidad</th>
-                                            <th class="text-end">Cantidad</th>
+                                            <th class="text-end">Cantidad SOLCOM</th>
+                                            <th class="text-end">Ya heredado</th>
+                                            <th class="text-end">Faltante</th>
+                                            <th class="text-end" style="min-width:130px;">Cantidad a heredar</th>
                                             <th class="text-end">P/U</th>
                                             <th class="text-end">Importe</th>
                                         </tr>
@@ -396,45 +401,67 @@
                                         @php $subtotal = 0; @endphp
                                         @forelse ($purchaseRequest->items as $i => $item)
                                             @php
-                                                $qty   = (float) $item->purchase_quantity;
-                                                $formattedQty = rtrim(rtrim(number_format($qty, 4, '.', ''), '0'), '.');
+                                                $remaining = $item->remaining_quantity;
+                                                $inheritedQty = $item->inherited_quantity;
+                                                $isPending = $remaining > 0;
                                                 $price = (float) ($item->concept?->unit_price ?? 0);
-                                                $total = $qty * $price;
-                                                if (!$item->is_inherited) { $subtotal += $total; }
-                                                $inheritedOrder = $item->inherited_order;
-                                                $checked = !$inheritedOrder && in_array((string) $item->id, array_map('strval', (array) $selectedItems), true);
+                                                $checked = $isPending && in_array((string) $item->id, array_map('strval', (array) $selectedItems), true);
+                                                $inheritQty = old('item_quantities.' . $item->id, $remaining);
+                                                $total = $isPending ? (float) $inheritQty * $price : 0;
+                                                if ($checked) { $subtotal += $total; }
+                                                $orders = $item->inheritedOrders();
                                             @endphp
-                                            <tr class="{{ $inheritedOrder ? 'table-light text-muted' : '' }}">
+                                            <tr class="{{ $isPending ? '' : 'table-light text-muted' }}">
                                                 <td>
-                                                    @if ($inheritedOrder)
-                                                        <input type="checkbox" class="form-check-input" disabled>
-                                                    @else
+                                                    @if ($isPending)
                                                     <input type="checkbox"
                                                            class="form-check-input js-inherit-item"
                                                            name="selected_item_ids[]"
                                                            value="{{ $item->id }}"
-                                                           data-total="{{ number_format($total, 2, '.', '') }}"
+                                                           data-price="{{ $price }}"
                                                            {{ $checked ? 'checked' : '' }}>
+                                                    @else
+                                                        <input type="checkbox" class="form-check-input" disabled>
                                                     @endif
                                                 </td>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
                                                 <td>
                                                     {{ $item->description }}
-                                                    @if ($inheritedOrder)
-                                                        <a href="{{ route('purchase_orders.show', $inheritedOrder) }}" target="_blank"
+                                                    @foreach ($orders as $order)
+                                                        <a href="{{ route('purchase_orders.show', $order) }}" target="_blank"
                                                            class="badge bg-info-subtle text-info ms-1 text-decoration-none">
-                                                            <i class="ri-lock-line me-1"></i>Heredado en OC #{{ $inheritedOrder->folio }}
+                                                            @unless ($isPending)<i class="ri-lock-line me-1"></i>@endunless
+                                                            OC #{{ $order->folio }}
                                                         </a>
-                                                    @endif
+                                                    @endforeach
+                                                    @unless ($isPending)
+                                                        <span class="badge bg-secondary-subtle text-secondary ms-1">Heredado por completo</span>
+                                                    @endunless
                                                 </td>
                                                 <td>{{ $item->unit }}</td>
-                                                <td class="text-end">{{ $formattedQty }}</td>
+                                                <td class="text-end">{{ $fmtQty($item->purchase_quantity) }}</td>
+                                                <td class="text-end">{{ $fmtQty($inheritedQty) }}</td>
+                                                <td class="text-end fw-semibold">{{ $fmtQty($remaining) }}</td>
+                                                <td class="text-end">
+                                                    @if ($isPending)
+                                                        <input type="number" step="0.0001" min="0.0001"
+                                                               max="{{ $fmtQty($remaining) }}"
+                                                               class="form-control form-control-sm text-end js-inherit-qty"
+                                                               style="max-width:110px;display:inline-block;"
+                                                               name="item_quantities[{{ $item->id }}]"
+                                                               value="{{ $fmtQty($inheritQty) }}"
+                                                               data-max="{{ $remaining }}"
+                                                               {{ $checked ? '' : 'disabled' }}>
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
                                                 <td class="text-end">{{ number_format($price, 2) }}</td>
-                                                <td class="text-end">{{ number_format($total, 2) }}</td>
+                                                <td class="text-end js-inherit-total">{{ $isPending ? number_format($total, 2) : '—' }}</td>
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="7" class="text-center text-muted py-3">
+                                                <td colspan="10" class="text-center text-muted py-3">
                                                     Esta SOLCOM no tiene conceptos registrados.
                                                 </td>
                                             </tr>
@@ -443,7 +470,7 @@
                                     @if ($purchaseRequest->items->count() > 0)
                                     <tfoot>
                                         <tr class="table-light fw-semibold">
-                                            <td colspan="5" class="text-end">Subtotal estimado (pendientes):</td>
+                                            <td colspan="9" class="text-end">Subtotal estimado (seleccionado):</td>
                                             <td class="text-end">{{ number_format($subtotal, 2) }}</td>
                                         </tr>
                                     </tfoot>
@@ -652,14 +679,40 @@
     const btnClearAllWorks = document.getElementById('btn_clear_all_works');
     const form = document.querySelector('form[action="{{ route('purchase_orders.store') }}"]');
 
+    function qtyInputFor(cb) {
+        return cb.closest('tr').querySelector('.js-inherit-qty');
+    }
+
+    function clampQty(input) {
+        const max = parseFloat(input.dataset.max || 0);
+        let val = parseFloat(input.value);
+        if (isNaN(val) || val <= 0) val = max;
+        if (val > max) val = max;
+        input.value = String(parseFloat(val.toFixed(4)));
+        return val;
+    }
+
     function updateSelectedStats() {
         let selected = 0;
         let subtotal = 0;
 
         checkboxes.forEach(function (cb) {
+            const input = qtyInputFor(cb);
+            const totalCell = cb.closest('tr').querySelector('.js-inherit-total');
+            const qty = input ? parseFloat(input.value) || 0 : 0;
+            const lineTotal = qty * parseFloat(cb.dataset.price || 0);
+
+            if (input) input.disabled = !cb.checked;
+            if (totalCell) {
+                totalCell.textContent = lineTotal.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
             if (!cb.checked) return;
             selected += 1;
-            subtotal += parseFloat(cb.dataset.total || 0);
+            subtotal += lineTotal;
         });
 
         if (selectedBadge) selectedBadge.textContent = String(selected);
@@ -683,6 +736,14 @@
 
     checkboxes.forEach(function (cb) {
         cb.addEventListener('change', updateSelectedStats);
+        const input = qtyInputFor(cb);
+        if (input) {
+            input.addEventListener('input', updateSelectedStats);
+            input.addEventListener('change', function () {
+                clampQty(input);
+                updateSelectedStats();
+            });
+        }
     });
 
     if (btnSelectAll) {
@@ -719,6 +780,10 @@
 
     if (form) {
         form.addEventListener('submit', function (e) {
+            checkboxes.forEach(function (cb) {
+                const input = qtyInputFor(cb);
+                if (cb.checked && input) clampQty(input);
+            });
             const hasItems = updateSelectedStats() > 0;
             const hasWorks = updateSelectedWorks() > 0;
             if (hasItems && hasWorks) return;

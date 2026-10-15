@@ -252,9 +252,9 @@ class PurchaseOrderController extends Controller
             'purchaseOrders:id,purchase_request_id,folio',
         ]);
 
-        if ($purchaseRequest->items->isNotEmpty() && $purchaseRequest->items->every->is_inherited) {
+        if ($purchaseRequest->items->isNotEmpty() && !$purchaseRequest->items->contains(fn ($item) => $item->is_pending)) {
             return redirect()->route('purchasing.solcom_pile', ['section' => 'salida'])
-                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron heredados a una OC.");
+                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron heredados por completo a una OC.");
         }
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
@@ -296,6 +296,8 @@ class PurchaseOrderController extends Controller
             // Si se crea desde SOLCOM, permitir seleccionar qué conceptos heredar
             if ($request->filled('purchase_request_id')) {
                 $rules['selected_item_ids'] = ['required', 'array', 'min:1'];
+                $rules['item_quantities'] = ['nullable', 'array'];
+                $rules['item_quantities.*'] = ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
                 $rules['selected_item_ids.*'] = [
                     'integer',
                     Rule::exists('purchase_request_items', 'id')->where(function ($q) use ($request) {
@@ -430,22 +432,44 @@ class PurchaseOrderController extends Controller
                         ->lockForUpdate()
                         ->get(['id']);
 
-                    $alreadyInherited = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
+                    $requestedQuantities = $validated['item_quantities'] ?? [];
+
+                    $itemsToCopy = PurchaseRequestItem::with([
+                        'concept',
+                        'purchaseOrderItems.purchaseOrder:id,folio,status',
+                    ])
                         ->whereIn('id', $selectedItemIds)
-                        ->inherited()
+                        ->orderBy('id')
                         ->get();
 
-                    if ($alreadyInherited->isNotEmpty()) {
-                        $detail = $alreadyInherited
-                            ->map(fn (PurchaseRequestItem $item) => '"' . $item->description . '" (OC #' . $item->inherited_order?->folio . ')')
-                            ->implode(', ');
+                    $quantitiesToInherit = [];
+                    $errors = [];
 
-                        throw ValidationException::withMessages([
-                            'selected_item_ids' => 'Estos conceptos ya fueron heredados a otra OC: ' . $detail . '.',
-                        ]);
+                    foreach ($itemsToCopy as $item) {
+                        $remaining = $item->remaining_quantity;
+
+                        if ($remaining <= 0) {
+                            $errors[] = '"' . $item->description . '" ya fue heredado por completo (OC #' . $item->inheritedOrders()->pluck('folio')->implode(', #') . ')';
+                            continue;
+                        }
+
+                        $quantity = isset($requestedQuantities[$item->id]) && $requestedQuantities[$item->id] !== ''
+                            ? round((float) $requestedQuantities[$item->id], 4)
+                            : $remaining;
+
+                        if ($quantity > $remaining) {
+                            $errors[] = '"' . $item->description . '": la cantidad a heredar (' . $quantity . ') excede la faltante (' . $remaining . ')';
+                            continue;
+                        }
+
+                        $quantitiesToInherit[$item->id] = $quantity;
                     }
 
-                    $itemsToCopy = $pr->items->whereIn('id', $selectedItemIds)->values();
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages([
+                            'selected_item_ids' => implode('; ', $errors) . '.',
+                        ]);
+                    }
 
                     foreach ($itemsToCopy as $item) {
                         PurchaseOrderItem::create([
@@ -454,7 +478,7 @@ class PurchaseOrderController extends Controller
                             'concept_id'        => $item->concept_id,
                             'description'       => $item->description,
                             'unit'              => $item->unit,
-                            'quantity'          => $item->purchase_quantity,
+                            'quantity'          => $quantitiesToInherit[$item->id],
                             'unit_price'        => $item->concept?->unit_price ?? 0,
                             'delivery_date'     => null,
                         ]);
@@ -1283,6 +1307,22 @@ class PurchaseOrderController extends Controller
             'unit_price'        => 'sometimes|numeric|min:0',
             'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d',
         ]);
+
+        // Un concepto heredado de SOLCOM no puede exceder la cantidad faltante por comprar.
+        if (array_key_exists('quantity', $data) && $item->purchase_request_item_id) {
+            $requestItem = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
+                ->find($item->purchase_request_item_id);
+
+            if ($requestItem) {
+                $maxQuantity = round($requestItem->remaining_quantity + (float) $item->quantity, 4);
+
+                if (round((float) $data['quantity'], 4) > $maxQuantity) {
+                    throw ValidationException::withMessages([
+                        'quantity' => 'La cantidad excede lo disponible de la SOLCOM para este concepto (máximo ' . rtrim(rtrim(number_format($maxQuantity, 4, '.', ''), '0'), '.') . ').',
+                    ]);
+                }
+            }
+        }
 
         $item->update($data);
 

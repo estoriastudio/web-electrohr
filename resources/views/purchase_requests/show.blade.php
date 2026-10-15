@@ -238,15 +238,22 @@
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
                                     <td>
                                         {{ $item->description }}
-                                        @forelse ($inheritedOrders as $order)
+                                        @foreach ($inheritedOrders as $order)
                                             <a href="{{ route('purchase_orders.show', $order) }}"
                                                class="badge bg-info-subtle text-info ms-1 text-decoration-none"
                                                title="Concepto heredado a la OC #{{ $order->folio }} ({{ ucfirst($order->status) }})">
-                                                <i class="ri-{{ in_array($order->status, \App\Models\PurchaseRequestItem::LOCKING_ORDER_STATUSES, true) ? 'lock-line' : 'link' }} me-1"></i>En OC #{{ $order->folio }}
+                                                <i class="ri-{{ in_array($order->status, \App\Models\PurchaseRequestItem::LOCKING_ORDER_STATUSES, true) ? 'lock-line' : 'link' }} me-1"></i>OC #{{ $order->folio }}
                                             </a>
-                                        @empty
+                                        @endforeach
+                                        @if ($item->is_inherited)
+                                            <span class="badge bg-success-subtle text-success ms-1">Heredado por completo</span>
+                                        @elseif ($item->is_partially_inherited)
+                                            <span class="badge bg-warning-subtle text-warning ms-1">
+                                                Heredado {{ rtrim(rtrim(number_format($item->inherited_quantity, 4, '.', ''), '0'), '.') }} · Faltan {{ rtrim(rtrim(number_format($item->remaining_quantity, 4, '.', ''), '0'), '.') }}
+                                            </span>
+                                        @else
                                             <span class="badge bg-warning-subtle text-warning ms-1">Pendiente</span>
-                                        @endforelse
+                                        @endif
                                     </td>
                                     <td class="text-center">
                                         @if ($item->file_path)

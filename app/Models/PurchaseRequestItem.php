@@ -39,15 +39,18 @@ class PurchaseRequestItem extends Model
     // Estatus de OC que bloquean la edición del concepto en la SOLCOM.
     public const LOCKING_ORDER_STATUSES = ['emitida', 'autorizada'];
 
-    // Concepto heredado: tiene una partida en una OC no eliminada.
-    public function scopeInherited(Builder $query): Builder
-    {
-        return $query->whereHas('purchaseOrderItems.purchaseOrder');
-    }
-
+    // Pendiente: la cantidad a comprar aún no se hereda por completo a OC vigentes (no eliminadas).
     public function scopePendingInheritance(Builder $query): Builder
     {
-        return $query->whereDoesntHave('purchaseOrderItems.purchaseOrder');
+        return $query->whereRaw(
+            'purchase_request_items.purchase_quantity > COALESCE((
+                SELECT SUM(poi.quantity)
+                FROM purchase_order_items poi
+                INNER JOIN purchase_orders po ON po.id = poi.purchase_order_id
+                WHERE poi.purchase_request_item_id = purchase_request_items.id
+                  AND po.deleted_at IS NULL
+            ), 0)'
+        );
     }
 
     /**
@@ -70,9 +73,39 @@ class PurchaseRequestItem extends Model
         return $this->inheritedOrders()->first();
     }
 
+    // Cantidad ya heredada a OC vigentes.
+    public function getInheritedQuantityAttribute(): float
+    {
+        $this->loadMissing('purchaseOrderItems.purchaseOrder');
+
+        return round(
+            (float) $this->purchaseOrderItems
+                ->filter(fn (PurchaseOrderItem $orderItem) => $orderItem->purchaseOrder !== null)
+                ->sum(fn (PurchaseOrderItem $orderItem) => (float) $orderItem->quantity),
+            4
+        );
+    }
+
+    // Cantidad faltante por heredar a una OC.
+    public function getRemainingQuantityAttribute(): float
+    {
+        return max(0.0, round((float) $this->purchase_quantity - $this->inherited_quantity, 4));
+    }
+
+    public function getIsPendingAttribute(): bool
+    {
+        return $this->remaining_quantity > 0;
+    }
+
+    // Heredado por completo: ya existe en una OC y no falta cantidad.
     public function getIsInheritedAttribute(): bool
     {
-        return $this->inheritedOrders()->isNotEmpty();
+        return $this->inheritedOrders()->isNotEmpty() && $this->remaining_quantity <= 0;
+    }
+
+    public function getIsPartiallyInheritedAttribute(): bool
+    {
+        return $this->inherited_quantity > 0 && $this->remaining_quantity > 0;
     }
 
     // Bloqueado: heredado en una OC Emitida o Autorizada.

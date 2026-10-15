@@ -116,7 +116,8 @@ class SolcomInheritanceTrackingTest extends TestCase
         $this->actingAs($this->buyer)
             ->get(route('purchase_orders.create_from_solcom', $solcom))
             ->assertOk()
-            ->assertSee('Heredado en OC #' . $order->folio);
+            ->assertSee('OC #' . $order->folio)
+            ->assertSee('Heredado por completo');
 
         $this->inherit($solcom->items[1], 'pendiente');
 
@@ -158,7 +159,8 @@ class SolcomInheritanceTrackingTest extends TestCase
         $this->actingAs($this->buyer)
             ->get(route('purchase_requests.show', $solcom))
             ->assertOk()
-            ->assertSee('En OC #' . $order->folio);
+            ->assertSee('OC #' . $order->folio)
+            ->assertSee('Heredado por completo');
     }
 
     public function test_item_can_be_updated_when_order_is_pending_or_was_deleted(): void
@@ -189,6 +191,75 @@ class SolcomInheritanceTrackingTest extends TestCase
             ->get(route('purchasing.workload'))
             ->assertOk()
             ->assertViewHas('unlinkedRequestCounts', fn ($counts) => (int) $counts->get($user->id, 0) === 1);
+    }
+
+    public function test_partial_quantity_keeps_the_item_pending_until_fully_inherited(): void
+    {
+        $solcom = $this->solcom(1);
+        $item = $solcom->items[0];
+
+        $this->actingAs($this->buyer)
+            ->post(route('purchase_orders.store'), $this->storePayload($solcom, [$item->id], [$item->id => 2]))
+            ->assertSessionHasNoErrors();
+
+        $item = $item->fresh();
+        $this->assertSame(2.0, $item->inherited_quantity);
+        $this->assertSame(3.0, $item->remaining_quantity);
+        $this->assertFalse($item->is_inherited);
+        $this->assertTrue($item->is_partially_inherited);
+        $this->assertTrue(PurchaseRequest::pendingInheritance()->whereKey($solcom->id)->exists());
+        $this->assertSame('2.0000', (string) PurchaseOrderItem::where('purchase_request_item_id', $item->id)->value('quantity'));
+
+        $this->actingAs($this->buyer)
+            ->get(route('purchase_orders.create_from_solcom', $solcom))
+            ->assertOk()
+            ->assertSee('max="3"', false);
+
+        $this->actingAs($this->buyer)
+            ->post(route('purchase_orders.store'), $this->storePayload($solcom, [$item->id], [$item->id => 3]))
+            ->assertSessionHasNoErrors();
+
+        $item = $item->fresh();
+        $this->assertTrue($item->is_inherited);
+        $this->assertTrue(PurchaseRequest::fullyInherited()->whereKey($solcom->id)->exists());
+
+        $this->actingAs($this->buyer)
+            ->post(route('purchase_orders.store'), $this->storePayload($solcom, [$item->id], [$item->id => 1]))
+            ->assertSessionHasErrors('selected_item_ids');
+        $this->assertSame(2, PurchaseOrder::count());
+    }
+
+    public function test_store_rejects_a_quantity_above_the_remaining_quantity(): void
+    {
+        $solcom = $this->solcom(1);
+        $item = $solcom->items[0];
+        $this->inherit($item, 'pendiente', null, 4);
+
+        $this->actingAs($this->buyer)
+            ->post(route('purchase_orders.store'), $this->storePayload($solcom, [$item->id], [$item->id => 2]))
+            ->assertSessionHasErrors('selected_item_ids');
+
+        $this->assertSame(1, PurchaseOrder::count());
+    }
+
+    public function test_quantity_edits_cannot_break_the_inherited_total(): void
+    {
+        $solcom = $this->solcom(1);
+        $item = $solcom->items[0];
+        $order = $this->inherit($item, 'pendiente', null, 3);
+        $orderItem = $order->items()->first();
+
+        $this->actingAs($this->buyer)
+            ->patchJson(route('purchase_requests.items.update', [$solcom, $item]), ['purchase_quantity' => 2])
+            ->assertStatus(422);
+
+        $this->actingAs($this->buyer)
+            ->patchJson(route('purchase_orders.items.update', [$order, $orderItem]), ['quantity' => 6])
+            ->assertStatus(422);
+
+        $this->actingAs($this->buyer)
+            ->patchJson(route('purchase_orders.items.update', [$order, $orderItem]), ['quantity' => 5])
+            ->assertOk();
     }
 
     private function solcom(int $itemCount, array $attributes = []): PurchaseRequest
@@ -237,7 +308,7 @@ class SolcomInheritanceTrackingTest extends TestCase
         return $solcom->load('items');
     }
 
-    private function inherit(PurchaseRequestItem $item, string $status, ?PurchaseOrder $order = null): PurchaseOrder
+    private function inherit(PurchaseRequestItem $item, string $status, ?PurchaseOrder $order = null, ?float $quantity = null): PurchaseOrder
     {
         $order ??= PurchaseOrder::create([
             'folio' => random_int(25000, 99999999),
@@ -255,14 +326,14 @@ class SolcomInheritanceTrackingTest extends TestCase
             'purchase_request_item_id' => $item->id,
             'description' => $item->description,
             'unit' => $item->unit,
-            'quantity' => $item->purchase_quantity,
+            'quantity' => $quantity ?? $item->purchase_quantity,
             'unit_price' => 10,
         ]);
 
         return $order;
     }
 
-    private function storePayload(PurchaseRequest $solcom, array $itemIds): array
+    private function storePayload(PurchaseRequest $solcom, array $itemIds, array $quantities = []): array
     {
         $supplier = Supplier::create([
             'rfc_name' => 'Proveedor de Prueba S.A. de C.V.',
@@ -296,6 +367,7 @@ class SolcomInheritanceTrackingTest extends TestCase
             'project_id' => $solcom->project_id,
             'project_work_ids' => [$solcom->project_work_id],
             'selected_item_ids' => $itemIds,
+            'item_quantities' => $quantities,
         ];
     }
 }

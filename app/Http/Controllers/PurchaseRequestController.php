@@ -633,6 +633,16 @@ class PurchaseRequestController extends Controller
             return $response;
         }
 
+        // La cantidad a comprar no puede ser menor a la que ya se heredó a OC vigentes.
+        $inheritedQuantity = $item->inherited_quantity;
+        if (round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
+            $message = 'La cantidad a comprar no puede ser menor a la ya heredada a OC (' . rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.') . ').';
+
+            return $request->wantsJson()
+                ? response()->json(['message' => $message], 422)
+                : back()->with('error', $message);
+        }
+
         $item->update($data);
 
         if ($request->wantsJson()) {
