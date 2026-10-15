@@ -17,7 +17,8 @@
     $creditNoteAmount = $project->estimates->where('type', 'nota_credito')->sum(fn ($estimate) => (float) $estimate->estimate_amount);
     $tableEstimateTotal = $financialEstimates->sum(fn ($estimate) => (float) $estimate->estimate_amount);
     $tableLiquidTotal = $financialEstimates->sum(fn ($estimate) => $estimate->liquid_amount);
-    $remainingToEstimate = $contractValue - $advanceAmount - $estimatedWorkAmount - $creditNoteAmount;
+    // El anticipo se amortiza dentro de las estimaciones, por lo que no consume contrato por separado.
+    $remainingToEstimate = $contractValue - $estimatedWorkAmount - $creditNoteAmount;
     $physicalProgress = $contractValue > 0 ? ($estimatedWorkAmount / $contractValue) * 100 : 0;
     $estimateDocuments = [
         'invoice_pdf' => ['label' => 'Factura PDF', 'path' => 'invoice_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
