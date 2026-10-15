@@ -35,7 +35,7 @@
             @endif
         </p>
         <p class="mb-0 text-muted fs-12">
-            Puedes elegir que conceptos heredar; por defecto se seleccionan todos.
+            Puedes elegir que conceptos heredar; por defecto se seleccionan todos los pendientes.
         </p>
     </div>
 </div>
@@ -46,7 +46,8 @@
         <p class="mb-0 fw-semibold fs-13">Bifurcación parcial de SOLCOM</p>
         <p class="mb-0 text-muted fs-12">
             Esta OC puede tomar solo una parte de los conceptos para este proveedor. Los conceptos no seleccionados
-            permanecerán disponibles para generar otra OC desde la misma SOLCOM.
+            permanecerán pendientes para generar otra OC desde la misma SOLCOM. Los conceptos que ya se heredaron a
+            otra OC aparecen bloqueados y no pueden repetirse.
         </p>
     </div>
 </div>
@@ -54,7 +55,8 @@
 <div class="row justify-content-center">
     <div class="col-xl-10">
         @php
-            $defaultSelectedItems = $purchaseRequest->items->pluck('id')->map(fn($id) => (string) $id)->all();
+            $pendingItems = $purchaseRequest->items->reject(fn ($item) => $item->is_inherited);
+            $defaultSelectedItems = $pendingItems->pluck('id')->map(fn($id) => (string) $id)->all();
             $selectedItems = old('selected_item_ids', $defaultSelectedItems);
             $defaultSelectedWorks = $purchaseRequest->projectWorks->pluck('id')->map(fn($id) => (string) $id)->all();
             if (empty($defaultSelectedWorks) && $purchaseRequest->project_work_id) {
@@ -398,20 +400,33 @@
                                                 $formattedQty = rtrim(rtrim(number_format($qty, 4, '.', ''), '0'), '.');
                                                 $price = (float) ($item->concept?->unit_price ?? 0);
                                                 $total = $qty * $price;
-                                                $subtotal += $total;
-                                                $checked = in_array((string) $item->id, array_map('strval', (array) $selectedItems), true);
+                                                if (!$item->is_inherited) { $subtotal += $total; }
+                                                $inheritedOrder = $item->inherited_order;
+                                                $checked = !$inheritedOrder && in_array((string) $item->id, array_map('strval', (array) $selectedItems), true);
                                             @endphp
-                                            <tr>
+                                            <tr class="{{ $inheritedOrder ? 'table-light text-muted' : '' }}">
                                                 <td>
+                                                    @if ($inheritedOrder)
+                                                        <input type="checkbox" class="form-check-input" disabled>
+                                                    @else
                                                     <input type="checkbox"
                                                            class="form-check-input js-inherit-item"
                                                            name="selected_item_ids[]"
                                                            value="{{ $item->id }}"
                                                            data-total="{{ number_format($total, 2, '.', '') }}"
                                                            {{ $checked ? 'checked' : '' }}>
+                                                    @endif
                                                 </td>
                                                 <td class="text-muted">{{ $i + 1 }}</td>
-                                                <td>{{ $item->description }}</td>
+                                                <td>
+                                                    {{ $item->description }}
+                                                    @if ($inheritedOrder)
+                                                        <a href="{{ route('purchase_orders.show', $inheritedOrder) }}" target="_blank"
+                                                           class="badge bg-info-subtle text-info ms-1 text-decoration-none">
+                                                            <i class="ri-lock-line me-1"></i>Heredado en OC #{{ $inheritedOrder->folio }}
+                                                        </a>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $item->unit }}</td>
                                                 <td class="text-end">{{ $formattedQty }}</td>
                                                 <td class="text-end">{{ number_format($price, 2) }}</td>
@@ -428,7 +443,7 @@
                                     @if ($purchaseRequest->items->count() > 0)
                                     <tfoot>
                                         <tr class="table-light fw-semibold">
-                                            <td colspan="5" class="text-end">Subtotal estimado:</td>
+                                            <td colspan="5" class="text-end">Subtotal estimado (pendientes):</td>
                                             <td class="text-end">{{ number_format($subtotal, 2) }}</td>
                                         </tr>
                                     </tfoot>

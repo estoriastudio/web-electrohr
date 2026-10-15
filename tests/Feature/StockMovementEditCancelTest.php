@@ -266,7 +266,7 @@ class StockMovementEditCancelTest extends TestCase
         $this->mock(NotificationService::class)->shouldReceive('send');
 
         $this->post(route('stocks.exits.store'), [
-            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001', 'recipient_name' => 'Juan', 'project_id' => 1,
+            'exit_type' => 'tool_loan', 'items' => [['concept_code' => 'SUM-001', 'quantity' => 1]], 'recipient_name' => 'Juan', 'project_id' => 1,
             'project_work_id' => 1, 'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
         ])->assertSessionHasNoErrors();
         $this->assertEquals(4, $this->stock());
@@ -286,9 +286,49 @@ class StockMovementEditCancelTest extends TestCase
         $this->mock(NotificationService::class)->shouldReceive('send')->never();
 
         $this->post(route('stocks.exits.store'), [
-            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001', 'recipient_name' => 'Juan', 'project_id' => 1,
+            'exit_type' => 'tool_loan', 'items' => [['concept_code' => 'SUM-001', 'quantity' => 1]], 'recipient_name' => 'Juan', 'project_id' => 1,
             'project_work_id' => 1, 'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
-        ])->assertSessionHasErrors('concept_code');
+        ])->assertSessionHasErrors('items.0.quantity');
         $this->assertSame(0, StockExit::count());
+    }
+
+    public function test_multi_supply_loan_discounts_each_quantity_and_return_restores_them(): void
+    {
+        DB::table('concepts')->insert(['id' => 2, 'code' => 'SUM-002', 'description' => 'Cinta', 'unit' => 'pz']);
+        $this->entry(10);
+        $second = StockEntry::create(['entry_type' => 'purchase', 'quantity' => 4, 'received_at' => '2026-09-01', 'created_by' => 1]);
+        $second->items()->create(['concept_id' => 2, 'line_number' => 1, 'quantity' => 4]);
+        $this->mock(NotificationService::class)->shouldReceive('send');
+
+        $this->post(route('stocks.exits.store'), [
+            'exit_type' => 'tool_loan', 'recipient_name' => 'Juan', 'project_id' => 1, 'project_work_id' => 1,
+            'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
+            'items' => [['concept_code' => 'SUM-001', 'quantity' => 3], ['concept_code' => 'SUM-002', 'quantity' => 2]],
+        ])->assertSessionHasNoErrors();
+
+        $loan = StockExit::with('items')->firstOrFail();
+        $this->assertNull($loan->concept_id);
+        $this->assertEquals(5, $loan->quantity);
+        $this->assertEquals(7, $this->stock());
+
+        $this->post(route('stocks.exits.return', $loan), ['received_at' => '2026-09-05'])->assertSessionHasNoErrors();
+        $this->assertEquals(10, $this->stock());
+        $this->assertSame(2, StockEntry::where('entry_type', 'tool_return')->firstOrFail()->items()->count());
+    }
+
+    public function test_multi_supply_loan_is_rejected_when_any_line_exceeds_stock(): void
+    {
+        DB::table('concepts')->insert(['id' => 2, 'code' => 'SUM-002', 'description' => 'Cinta', 'unit' => 'pz']);
+        $this->entry(10);
+        $this->mock(NotificationService::class)->shouldReceive('send')->never();
+
+        $this->post(route('stocks.exits.store'), [
+            'exit_type' => 'tool_loan', 'recipient_name' => 'Juan', 'project_id' => 1, 'project_work_id' => 1,
+            'exited_at' => '2026-09-02', 'expected_return_at' => '2026-09-09',
+            'items' => [['concept_code' => 'SUM-001', 'quantity' => 3], ['concept_code' => 'SUM-002', 'quantity' => 2]],
+        ])->assertSessionHasErrors('items.1.quantity');
+
+        $this->assertSame(0, StockExit::count());
+        $this->assertEquals(10, $this->stock());
     }
 }

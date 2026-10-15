@@ -41,24 +41,49 @@
     </div>
 
     <div class="card-body border-bottom py-3">
-        <form method="GET" action="{{ route('stocks.index') }}" class="d-flex gap-2">
-            <div class="input-group input-group-sm" style="max-width:540px">
-                <span class="input-group-text bg-light">
-                    <i class="ri-search-line text-muted"></i>
-                </span>
-                <input name="search"
-                       value="{{ $search }}"
-                       class="form-control"
-                       placeholder="Código, descripción o ubicación"
-                       autocomplete="off">
-                @if ($search)
+        <form method="GET" action="{{ route('stocks.index') }}" class="row g-2 align-items-end">
+            <div class="col-12 col-lg-5">
+                <label for="search" class="form-label fs-12 text-muted mb-1">Buscar</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light">
+                        <i class="ri-search-line text-muted"></i>
+                    </span>
+                    <input id="search"
+                           name="search"
+                           value="{{ $search }}"
+                           class="form-control"
+                           placeholder="Código, descripción o ubicación"
+                           autocomplete="off">
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <label for="location" class="form-label fs-12 text-muted mb-1">Ubicación</label>
+                <select id="location" name="location" class="form-select form-select-sm">
+                    <option value="">Todas las ubicaciones</option>
+                    @foreach ($locations as $option)
+                        <option value="{{ $option }}" @selected($location === $option)>{{ $option }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-12 col-md-6 col-lg-2">
+                <label for="sort" class="form-label fs-12 text-muted mb-1">Ordenar por stock</label>
+                <select id="sort" name="sort" class="form-select form-select-sm">
+                    <option value="">Código (predeterminado)</option>
+                    <option value="stock_desc" @selected($sort === 'stock_desc')>Mayor a menor</option>
+                    <option value="stock_asc" @selected($sort === 'stock_asc')>Menor a mayor</option>
+                </select>
+            </div>
+            <div class="col-12 col-lg-2 d-flex gap-2">
+                <button class="btn btn-primary btn-sm flex-grow-1">
+                    <i class="ri-filter-3-line me-1"></i>Filtrar
+                </button>
+                @if ($search || $location !== '' || $sort)
                     <a href="{{ route('stocks.index') }}"
-                       class="btn btn-outline-secondary"
-                       title="Limpiar búsqueda">
+                       class="btn btn-outline-secondary btn-sm"
+                       title="Limpiar filtros">
                         <i class="ri-close-line"></i>
                     </a>
                 @endif
-                <button class="btn btn-primary">Buscar</button>
             </div>
         </form>
     </div>

@@ -89,20 +89,20 @@ class StockReturnCalendarTest extends TestCase
         $this->mock(NotificationService::class)->shouldReceive('send')->twice();
 
         $this->post(route('stocks.exits.store'), [
-            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001',
+            'exit_type' => 'tool_loan', 'items' => [['concept_code' => 'SUM-001', 'quantity' => 1]],
             'voucher_number' => 'LOAN-SUPPLY', 'recipient_name' => 'Juan Pérez',
             'project_id' => 1, 'project_work_id' => 1,
             'exited_at' => '2026-09-29', 'expected_return_at' => '2026-09-30',
         ])->assertRedirect(route('stocks.exits.index'))->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('stock_exits', [
-            'id' => 1, 'concept_id' => 1, 'tool_id' => null,
+            'id' => 1, 'concept_id' => null, 'tool_id' => null,
             'voucher_number' => 'LOAN-SUPPLY', 'recipient_name' => 'Juan Pérez', 'recipient_worker_id' => null, 'status' => 'open', 'quantity' => 1,
         ]);
         $this->getJson(route('stocks.exits.calendar.events', [
             'start' => '2026-09-01', 'end' => '2026-10-01',
         ]))->assertOk()->assertJsonPath('0.title', 'LOAN-SUPPLY - SUM-001')
-            ->assertJsonPath('0.extendedProps.tool', 'SUM-001 - Taladro');
+            ->assertJsonPath('0.extendedProps.tool', 'SUM-001 - Taladro (x1)');
 
         $response = app(\App\Http\Controllers\StockExitController::class)->returnTool(
             Request::create(route('stocks.exits.return', ['stockExit' => 1]), 'POST', ['received_at' => '2026-09-30']),
@@ -112,6 +112,7 @@ class StockReturnCalendarTest extends TestCase
         $this->assertDatabaseHas('stock_entries', [
             'concept_id' => 1, 'tool_id' => null, 'entry_type' => 'tool_return', 'quantity' => 1,
         ]);
+        $this->assertDatabaseHas('stock_entry_items', ['concept_id' => 1, 'quantity' => 1, 'stock_entry_id' => 1]);
         $this->assertDatabaseHas('stock_exits', ['id' => 1, 'status' => 'returned', 'return_stock_entry_id' => 1]);
     }
 
@@ -124,7 +125,7 @@ class StockReturnCalendarTest extends TestCase
         $this->mock(NotificationService::class)->shouldReceive('send')->once();
 
         $this->post(route('stocks.exits.store'), [
-            'exit_type' => 'tool_loan', 'concept_code' => 'SUM-001', 'recipient_name' => 'Juan Pérez',
+            'exit_type' => 'tool_loan', 'items' => [['concept_code' => 'SUM-001', 'quantity' => 1]], 'recipient_name' => 'Juan Pérez',
             'project_id' => 1, 'project_work_id' => 1,
             'exited_at' => '2026-09-29', 'expected_return_at' => '2026-09-30',
         ])->assertRedirect(route('stocks.exits.index'))->assertSessionHasNoErrors();
@@ -138,11 +139,14 @@ class StockReturnCalendarTest extends TestCase
 
     public function test_supply_loan_requires_an_existing_supply_code_instead_of_a_tool_id(): void
     {
+        DB::table('projects')->insert(['id' => 1, 'name' => 'Proyecto']);
+        DB::table('project_works')->insert(['id' => 1, 'name' => 'Obra']);
         foreach ([null, 'UNKNOWN'] as $code) {
             $this->postJson(route('stocks.exits.store'), [
-                'exit_type' => 'tool_loan', 'concept_code' => $code, 'tool_id' => 1,
-                'voucher_number' => 'INVALID', 'exited_at' => '2026-09-29',
-            ])->assertUnprocessable()->assertJsonValidationErrors('concept_code');
+                'exit_type' => 'tool_loan', 'items' => [['concept_code' => $code, 'quantity' => 1]], 'tool_id' => 1,
+                'voucher_number' => 'INVALID', 'exited_at' => '2026-09-29', 'recipient_name' => 'Juan',
+                'project_id' => 1, 'project_work_id' => 1, 'expected_return_at' => '2026-09-30',
+            ])->assertUnprocessable()->assertJsonValidationErrors('items.0.concept_code');
         }
         $this->assertDatabaseCount('stock_exits', 0);
     }

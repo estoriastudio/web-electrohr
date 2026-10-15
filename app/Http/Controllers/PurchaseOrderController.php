@@ -10,9 +10,11 @@ use App\Models\Concept;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderEvidence;
+use App\Models\PurchaseOrderItemDelivery;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseRequest;
+use App\Models\PurchaseRequestItem;
 use App\Models\ProjectWork;
 use App\Models\Supplier;
 use App\Models\Project;
@@ -239,9 +241,21 @@ class PurchaseOrderController extends Controller
      * Abre el formulario de nueva OC pre-vinculando una SOLCOM.
      * Equivalente a "crear SOLCOM desde SOLMAT" pero para OC desde SOLCOM.
      */
-    public function createFromSolcom(PurchaseRequest $purchaseRequest): View
+    public function createFromSolcom(PurchaseRequest $purchaseRequest): View|RedirectResponse
     {
-        $purchaseRequest->load(['project', 'projectWork', 'projectWorks', 'items.concept', 'purchaseOrders:id,purchase_request_id,folio']);
+        $purchaseRequest->load([
+            'project',
+            'projectWork',
+            'projectWorks',
+            'items.concept',
+            'items.purchaseOrderItems.purchaseOrder:id,folio,status',
+            'purchaseOrders:id,purchase_request_id,folio',
+        ]);
+
+        if ($purchaseRequest->items->isNotEmpty() && $purchaseRequest->items->every->is_inherited) {
+            return redirect()->route('purchasing.solcom_pile', ['section' => 'salida'])
+                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron heredados a una OC.");
+        }
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
         $projects              = Project::where('status', 'active')->orderBy('name')->get();
@@ -409,9 +423,29 @@ class PurchaseOrderController extends Controller
 
                 if ($pr) {
                     $selectedItemIds = collect($validated['selected_item_ids'] ?? [])->map(fn ($id) => (int) $id);
-                    $itemsToCopy = $selectedItemIds->isNotEmpty()
-                        ? $pr->items->whereIn('id', $selectedItemIds)->values()
-                        : $pr->items;
+
+                    // Bloquea los conceptos para que dos OC simultáneas no hereden el mismo concepto.
+                    PurchaseRequestItem::where('purchase_request_id', $pr->id)
+                        ->whereIn('id', $selectedItemIds)
+                        ->lockForUpdate()
+                        ->get(['id']);
+
+                    $alreadyInherited = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
+                        ->whereIn('id', $selectedItemIds)
+                        ->inherited()
+                        ->get();
+
+                    if ($alreadyInherited->isNotEmpty()) {
+                        $detail = $alreadyInherited
+                            ->map(fn (PurchaseRequestItem $item) => '"' . $item->description . '" (OC #' . $item->inherited_order?->folio . ')')
+                            ->implode(', ');
+
+                        throw ValidationException::withMessages([
+                            'selected_item_ids' => 'Estos conceptos ya fueron heredados a otra OC: ' . $detail . '.',
+                        ]);
+                    }
+
+                    $itemsToCopy = $pr->items->whereIn('id', $selectedItemIds)->values();
 
                     foreach ($itemsToCopy as $item) {
                         PurchaseOrderItem::create([
@@ -849,46 +883,92 @@ class PurchaseOrderController extends Controller
             ->with('success', $message);
     }
 
-    public function updateDeliveryStatus(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    public function storeDelivery(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        $user = Auth::user();
+        $canManage = $user->hasAnyRole(['admin', 'Solmat'])
+            || ($user->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) $user->id);
+        abort_unless($canManage, 403);
+
+        if ($purchaseOrder->status !== 'autorizada') {
+            return back()->with('error', 'Solo se puede registrar la entrega de una OC autorizada.');
+        }
+
         $validated = $request->validate([
-            'delivery_status' => ['required', Rule::in(['por_entregar', 'parcial', 'entregado'])],
-            'delivery_evidence' => 'required_if:delivery_status,parcial|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'item_ids' => 'required|array|min:1',
+            'item_ids.*' => [
+                'integer',
+                Rule::exists('purchase_order_items', 'id')
+                    ->where('purchase_order_id', $purchaseOrder->id)
+                    ->whereNull('delivered_at'),
+            ],
+            'quantities' => 'nullable|array',
+            'quantities.*' => 'nullable|numeric|min:0.0001|decimal:0,4',
+            'delivery_evidence' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ], [
+            'item_ids.required' => 'Selecciona al menos un concepto entregado.',
+            'item_ids.min' => 'Selecciona al menos un concepto entregado.',
+            'item_ids.*.exists' => 'Alguno de los conceptos no pertenece a la OC o ya fue entregado.',
+            'quantities.*.min' => 'La cantidad entregada debe ser mayor a cero.',
+            'quantities.*.numeric' => 'La cantidad entregada debe ser numérica.',
+            'quantities.*.decimal' => 'La cantidad entregada admite máximo 4 decimales.',
+            'delivery_evidence.required' => 'Adjunta la evidencia de entrega.',
         ]);
 
-        $deliveryStatus = $validated['delivery_status'];
-        $deliveryLabels = [
-            'por_entregar' => 'Por entregar',
-            'parcial' => 'Entrega parcial',
-            'entregado' => 'Entregado',
-        ];
-        $deliveryLabel = $deliveryLabels[$deliveryStatus];
+        $itemIds = array_values(array_unique($validated['item_ids']));
         $evidenceFileName = null;
 
-        if ($deliveryStatus === 'parcial' && $request->hasFile('delivery_evidence')) {
+        DB::transaction(function () use ($request, $purchaseOrder, $itemIds, $validated, &$evidenceFileName) {
+            $items = $purchaseOrder->items()->whereIn('id', $itemIds)->lockForUpdate()->get();
+
+            // Cada concepto entrega su cantidad indicada; si no se indica, el pendiente completo.
+            $deliveries = [];
+            foreach ($items as $item) {
+                $pending = $item->pending_quantity;
+                $quantity = isset($validated['quantities'][$item->id]) && $validated['quantities'][$item->id] !== ''
+                    ? round((float) $validated['quantities'][$item->id], 4)
+                    : $pending;
+
+                if ($quantity > $pending + 0.00001) {
+                    throw ValidationException::withMessages([
+                        'quantities.' . $item->id => 'La cantidad de "' . $item->description . '" excede lo pendiente por entregar (' . rtrim(rtrim(number_format($pending, 4, '.', ''), '0'), '.') . ').',
+                    ]);
+                }
+
+                $deliveries[$item->id] = $quantity;
+            }
+
             $file = $request->file('delivery_evidence');
             $nextNumber = $purchaseOrder->evidences()->count() + 1;
             $extension = strtolower($file->getClientOriginalExtension());
             $evidenceFileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
             $filePath = $file->storeAs('evidences/' . $purchaseOrder->id, $evidenceFileName);
 
-            PurchaseOrderEvidence::create([
+            $evidence = PurchaseOrderEvidence::create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'uploaded_by' => Auth::id(),
                 'file_name' => $evidenceFileName,
                 'file_path' => $filePath,
                 'mime_type' => $file->getClientMimeType(),
                 'source' => 'internal',
-                'description' => 'Evidencia de entrega parcial',
+                'description' => 'Evidencia de entrega (' . count($itemIds) . ' concepto(s))',
             ]);
-        }
 
-        $purchaseOrder->update([
-            'delivery_status' => $deliveryStatus,
-            'delivery_evidence' => null,
-            'is_delivered' => $deliveryStatus === 'entregado',
-        ]);
+            foreach ($deliveries as $itemId => $quantity) {
+                PurchaseOrderItemDelivery::create([
+                    'purchase_order_item_id' => $itemId,
+                    'evidence_id' => $evidence->id,
+                    'delivered_by' => Auth::id(),
+                    'quantity' => $quantity,
+                    'delivered_at' => now(),
+                ]);
+            }
 
+            $purchaseOrder->syncDeliveryStatus();
+        });
+
+        $purchaseOrder->refresh();
+        $deliveryLabel = ['por_entregar' => 'Por entregar', 'parcial' => 'Entrega parcial', 'entregado' => 'Entregado'][$purchaseOrder->delivery_status];
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
         $this->notification->send([
@@ -896,11 +976,33 @@ class PurchaseOrderController extends Controller
             'action_by'    => Auth::id(),
             'model_action' => 'update',
             'model_id'     => $purchaseOrder->id,
-            'data'         => 'actualizó el estatus de entrega a "' . $deliveryLabel . '"' . ($evidenceFileName ? ' y registró la evidencia ' . $evidenceFileName : '') . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '.',
+            'data'         => 'registró la entrega de ' . count($itemIds) . ' concepto(s) con la evidencia ' . $evidenceFileName . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '. Estatus de entrega: "' . $deliveryLabel . '".',
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', 'Estatus de entrega actualizado a "' . $deliveryLabel . '".');
+            ->with('success', 'Entrega registrada. Estatus de entrega: "' . $deliveryLabel . '".');
+    }
+
+    public function revertDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderItemDelivery $delivery): RedirectResponse
+    {
+        $item = $delivery->item;
+        abort_unless($item && $item->purchase_order_id === $purchaseOrder->id, 404);
+
+        $quantity = rtrim(rtrim(number_format((float) $delivery->quantity, 4, '.', ''), '0'), '.');
+        $delivery->delete();
+
+        $purchaseOrder->syncDeliveryStatus(false);
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'revirtió una entrega de ' . $quantity . ' ' . $item->unit . ' del concepto "' . $item->description . '" en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Entrega revertida.');
     }
 
     public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
@@ -1133,6 +1235,7 @@ class PurchaseOrderController extends Controller
         $item = PurchaseOrderItem::create($data);
 
         $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
+        $purchaseOrder->syncDeliveryStatus();
         $purchaseOrder->refresh();
 
         if ($request->wantsJson()) {
@@ -1184,6 +1287,9 @@ class PurchaseOrderController extends Controller
         $item->update($data);
 
         $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
+        if (array_key_exists('quantity', $data)) {
+            $purchaseOrder->syncDeliveryStatus();
+        }
         $purchaseOrder->refresh();
 
         if ($request->wantsJson()) {
@@ -1225,6 +1331,7 @@ class PurchaseOrderController extends Controller
 
         $item->delete();
         $percentageMilestonePaymentsSynchronized = $purchaseOrder->recalculateAmount();
+        $purchaseOrder->syncDeliveryStatus();
 
         if ($request->wantsJson()) {
             $purchaseOrder->refresh();

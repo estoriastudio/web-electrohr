@@ -230,11 +230,24 @@
                                 @php
                                     $breakdownJson = collect($item->selected_work_breakdown ?? [])->values();
                                     $purchaseQuantity = rtrim(rtrim(number_format((float) $item->purchase_quantity, 4, '.', ''), '0'), '.');
+                                    $inheritedOrders = $item->inheritedOrders();
+                                    $lockingOrder = $item->lockingOrder();
                                 @endphp
                                 <tr class="solcom-item-row">
                                     <td class="solcom-row-num text-muted fs-12">{{ $index + 1 }}</td>
                                     <td><span class="fw-semibold">{{ $item->code }}</span></td>
-                                    <td>{{ $item->description }}</td>
+                                    <td>
+                                        {{ $item->description }}
+                                        @forelse ($inheritedOrders as $order)
+                                            <a href="{{ route('purchase_orders.show', $order) }}"
+                                               class="badge bg-info-subtle text-info ms-1 text-decoration-none"
+                                               title="Concepto heredado a la OC #{{ $order->folio }} ({{ ucfirst($order->status) }})">
+                                                <i class="ri-{{ in_array($order->status, \App\Models\PurchaseRequestItem::LOCKING_ORDER_STATUSES, true) ? 'lock-line' : 'link' }} me-1"></i>En OC #{{ $order->folio }}
+                                            </a>
+                                        @empty
+                                            <span class="badge bg-warning-subtle text-warning ms-1">Pendiente</span>
+                                        @endforelse
+                                    </td>
                                     <td class="text-center">
                                         @if ($item->file_path)
                                             <a href="{{ Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30)) }}"
@@ -275,6 +288,11 @@
                                     </td>
                                     <td style="min-width:170px">
                                         @hasanyrole('admin|Solcom')
+                                        @if ($lockingOrder)
+                                            <span class="fw-bold fs-15" title="Bloqueado: heredado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
+                                                <i class="ri-lock-line text-muted me-1"></i>{{ $purchaseQuantity }}
+                                            </span>
+                                        @else
                                         <div class="input-group">
                                             <button type="button" class="btn btn-light border solcom-qty-minus px-3" title="Restar">
                                                 <i class="ri-subtract-line"></i>
@@ -291,12 +309,19 @@
                                                 <i class="ri-add-line"></i>
                                             </button>
                                         </div>
+                                        @endif
                                         @else
                                         <span class="fw-bold fs-15">{{ $purchaseQuantity }}</span>
                                         @endhasanyrole
                                     </td>
                                     <td>
                                         @hasanyrole('admin|Solcom')
+                                        @if ($lockingOrder)
+                                            <button type="button" class="btn btn-soft-danger btn-sm" disabled
+                                                    title="Bloqueado: heredado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
+                                                <i class="ri-lock-line"></i>
+                                            </button>
+                                        @else
                                         <form action="{{ route('purchase_requests.items.destroy', [$purchaseRequest, $item]) }}"
                                               method="POST"
                                               class="solcom-delete-form">
@@ -305,6 +330,7 @@
                                                 <i class="ri-delete-bin-line"></i>
                                             </button>
                                         </form>
+                                        @endif
                                         @endhasanyrole
                                     </td>
                                 </tr>

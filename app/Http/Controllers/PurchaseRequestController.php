@@ -355,7 +355,7 @@ class PurchaseRequestController extends Controller
             'projectWorks',
             'requestedBy',
             'assignedTo',
-            'items',
+            'items.purchaseOrderItems.purchaseOrder:id,folio,status',
             'purchaseOrders',
             'materialRequest.items.workQuantities.projectWork',
             'materialRequests.items.workQuantities.projectWork',
@@ -602,11 +602,36 @@ class PurchaseRequestController extends Controller
                          ->with('success', 'Concepto agregado.');
     }
 
+    // Un concepto heredado en una OC Emitida o Autorizada no se puede modificar ni eliminar desde la SOLCOM.
+    private function rejectIfItemLocked(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
+    {
+        abort_if($item->purchase_request_id !== $purchaseRequest->id, 404);
+
+        $order = $item->lockingOrder();
+
+        if (!$order) {
+            return null;
+        }
+
+        $statusLabel = $order->status === 'autorizada' ? 'Autorizada' : 'Emitida';
+        $message = "El concepto está bloqueado: ya fue heredado a la OC #{$order->folio} ({$statusLabel}).";
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return back()->with('error', $message);
+    }
+
     public function updateItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
         $data = $request->validate([
             'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
         ]);
+
+        if ($response = $this->rejectIfItemLocked($request, $purchaseRequest, $item)) {
+            return $response;
+        }
 
         $item->update($data);
 
@@ -622,6 +647,10 @@ class PurchaseRequestController extends Controller
 
     public function destroyItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
+        if ($response = $this->rejectIfItemLocked($request, $purchaseRequest, $item)) {
+            return $response;
+        }
+
         $item->delete();
 
         if ($request->wantsJson()) {
@@ -1136,7 +1165,7 @@ class PurchaseRequestController extends Controller
         // SOLCOMs en Compras que aún no tienen una OC, agrupadas por responsable.
         $unlinkedRequestCounts = PurchaseRequest::selectRaw('assigned_to, count(*) as total')
             ->where('status', 'sent_to_purchasing')
-            ->doesntHave('purchaseOrders')
+            ->pendingInheritance()
             ->whereIn('assigned_to', $ordersUserIds)
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
@@ -1163,13 +1192,13 @@ class PurchaseRequestController extends Controller
         // SOLCOMs sin asignar y pendientes de OC
         $unassignedCount = PurchaseRequest::whereNull('assigned_to')
             ->where('status', 'sent_to_purchasing')
-            ->doesntHave('purchaseOrders')
+            ->pendingInheritance()
             ->count();
 
         // Listado detallado de SOLCOMs sin OC por usuario para el drill-down
         $pendingByUser = PurchaseRequest::with(['project', 'projectWork'])
             ->where('status', 'sent_to_purchasing')
-            ->doesntHave('purchaseOrders')
+            ->pendingInheritance()
             ->whereIn('assigned_to', $ordersUserIds)
             ->orderByDesc('folio')
             ->get()
@@ -1189,7 +1218,7 @@ class PurchaseRequestController extends Controller
         $unassignedSolcoms = PurchaseRequest::with(['project', 'projectWork'])
             ->whereNull('assigned_to')
             ->where('status', 'sent_to_purchasing')
-            ->doesntHave('purchaseOrders')
+            ->pendingInheritance()
             ->orderByDesc('folio')
             ->get();
 
@@ -1211,7 +1240,7 @@ class PurchaseRequestController extends Controller
         $search  = $request->input('search', '');
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
 
-        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'changeNotes'])
+        $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'changeNotes', 'items.purchaseOrderItems.purchaseOrder:id,folio,status'])
             ->withCount('purchaseOrders')
             ->withMax('purchaseOrders', 'created_at')
             ->where('status', 'sent_to_purchasing')
@@ -1219,9 +1248,9 @@ class PurchaseRequestController extends Controller
             ->orderByDesc('folio');
 
         if ($section === 'entrada') {
-            $query->doesntHave('purchaseOrders');
+            $query->pendingInheritance();
         } elseif ($section === 'salida') {
-            $query->has('purchaseOrders');
+            $query->fullyInherited();
         }
 
         if ($search) {
@@ -1237,8 +1266,8 @@ class PurchaseRequestController extends Controller
         $baseQuery = PurchaseRequest::where('status', 'sent_to_purchasing')
             ->where('assigned_to', Auth::id());
 
-        $entryCount = (clone $baseQuery)->doesntHave('purchaseOrders')->count();
-        $outCount   = (clone $baseQuery)->has('purchaseOrders')->count();
+        $entryCount = (clone $baseQuery)->pendingInheritance()->count();
+        $outCount   = (clone $baseQuery)->fullyInherited()->count();
 
         return view('purchasing.solcom_pile', compact(
             'purchaseRequests',

@@ -57,7 +57,7 @@ class StockExitController extends Controller
         $start = \Carbon\Carbon::parse($validated['start'])->toDateString();
         $end = \Carbon\Carbon::parse($validated['end'])->toDateString();
 
-        $events = StockExit::with(['concept', 'tool', 'recipientWorker', 'project', 'projectWork', 'returnStockEntry'])
+        $events = StockExit::with(['concept', 'tool', 'items.concept', 'recipientWorker', 'project', 'projectWork', 'returnStockEntry'])
             ->where('exit_type', 'tool_loan')
             ->where('expected_return_at', '>=', $start)
             ->where('expected_return_at', '<', $end)
@@ -69,15 +69,19 @@ class StockExitController extends Controller
 
                 return [
                     'id' => (string) $exit->id,
-                    'title' => ($exit->voucher_number ? $exit->voucher_number . ' - ' : '') . ($exit->concept?->code ?: $exit->tool?->economic_number ?: 'Suministro'),
+                    'title' => ($exit->voucher_number ? $exit->voucher_number . ' - ' : '') . ($exit->items->isNotEmpty()
+                        ? $exit->items->first()->concept->code . ($exit->items->count() > 1 ? ' +' . ($exit->items->count() - 1) : '')
+                        : ($exit->concept?->code ?: $exit->tool?->economic_number ?: 'Suministro')),
                     'start' => $exit->expected_return_at->toDateString(),
                     'allDay' => true,
                     'classNames' => [$returned ? 'bg-success' : ($overdue ? 'bg-danger' : 'bg-primary')],
                     'extendedProps' => [
                         'voucher' => $exit->voucher_number ?: '—',
-                        'tool' => $exit->concept
+                        'tool' => $exit->items->isNotEmpty()
+                            ? $exit->items->map(fn ($item) => $item->concept->code . ' - ' . $item->concept->description . ' (x' . $this->formatQuantity((float) $item->quantity) . ')')->implode('; ')
+                            : ($exit->concept
                             ? $exit->concept->code . ' - ' . $exit->concept->description
-                            : trim(($exit->tool?->economic_number ?? '') . ' - ' . ($exit->tool?->name ?: $exit->tool?->description ?: 'Sin suministro')),
+                            : trim(($exit->tool?->economic_number ?? '') . ' - ' . ($exit->tool?->name ?: $exit->tool?->description ?: 'Sin suministro'))),
                         'worker' => $exit->recipient_name ?: ($worker ? trim($worker->first_name . ' ' . $worker->last_name) : 'Sin responsable'),
                         'project' => $exit->project?->name ?: 'Sin proyecto',
                         'work' => $exit->projectWork?->name ?: 'Sin obra',
@@ -104,10 +108,9 @@ class StockExitController extends Controller
     {
         $validated = $request->validate([
             'exit_type' => ['required', Rule::in(['definitive', 'tool_loan'])],
-            'concept_code' => ['required_if:exit_type,tool_loan', 'nullable', 'string', 'max:100', Rule::exists('concepts', 'code')->whereNull('archived_at')->where('status', 'active')],
             'voucher_number' => ['nullable', 'string', 'max:100'], 'recipient_name' => ['nullable', 'string', 'max:150'],
             'project_id' => ['nullable', 'exists:projects,id'],
-            'project_work_id' => ['nullable', 'exists:project_works,id'], 'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'project_work_id' => ['nullable', 'exists:project_works,id'],
             'exited_at' => ['required', 'date'], 'expected_return_at' => ['nullable', 'date', 'after_or_equal:exited_at'],
             'observations' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -115,38 +118,32 @@ class StockExitController extends Controller
             throw ValidationException::withMessages(['recipient_name' => 'Indique a quién se entrega el material.']);
         }
         if ($validated['exit_type'] === 'tool_loan' && (empty($validated['recipient_name']) || empty($validated['project_id']) || empty($validated['project_work_id']) || empty($validated['expected_return_at']))) {
-            throw ValidationException::withMessages(['concept_code' => 'El préstamo requiere suministro, persona responsable, proyecto, obra y fecha de retorno.']);
+            throw ValidationException::withMessages(['recipient_name' => 'El préstamo requiere persona responsable, proyecto, obra y fecha de retorno.']);
         }
-        if ($validated['exit_type'] === 'definitive') {
-            $definitive = $request->validate([
-                'items' => ['required', 'array', 'min:1'],
-                'items.*.concept_code' => ['required', 'string', 'max:100', 'distinct'],
-                'items.*.quantity' => ['required', 'numeric', 'gt:0'],
-            ]);
-            $items = collect($definitive['items'])->values()->map(function (array $item, int $index) {
-                $concept = Concept::available()->where('code', $item['concept_code'])->first();
-                if (! $concept) {
-                    throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
-                }
-                return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
-            });
-        } else {
-            $loanConcept = Concept::available()->where('code', $validated['concept_code'])->firstOrFail();
-            $items = collect([['concept' => $loanConcept, 'quantity' => 1, 'index' => 0]]);
-        }
+        $payload = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.concept_code' => ['required', 'string', 'max:100', 'distinct'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+        ]);
+        $items = collect($payload['items'])->values()->map(function (array $item, int $index) {
+            $concept = Concept::available()->where('code', $item['concept_code'])->first();
+            if (! $concept) {
+                throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
+            }
+            return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
+        });
 
         $exit = DB::transaction(function () use ($validated, $items) {
             foreach ($items as $item) {
                 $available = StockEntryItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity')
                     - StockExitItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity');
                 if ((float) $item['quantity'] > (float) $available) {
-                    $field = $validated['exit_type'] === 'tool_loan' ? 'concept_code' : "items.{$item['index']}.quantity";
-                    throw ValidationException::withMessages([$field => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
+                    throw ValidationException::withMessages(["items.{$item['index']}.quantity" => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
                 }
             }
 
             $exit = StockExit::create([
-                'concept_id' => $validated['exit_type'] === 'tool_loan' ? $items->first()['concept']->id : null,
+                'concept_id' => null,
                 'tool_id' => null, 'exit_type' => $validated['exit_type'],
                 'voucher_number' => $validated['voucher_number'] ?? null, 'recipient_worker_id' => null,
                 'recipient_name' => $validated['recipient_name'] ?? null, 'project_id' => $validated['project_id'] ?? null,
@@ -180,19 +177,25 @@ class StockExitController extends Controller
             'observations' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $entry = DB::transaction(function () use ($stockExit, $validated) {
+        $stockExit->load('items');
+        // Los préstamos anteriores a los renglones múltiples solo guardan el suministro en el propio registro.
+        $lines = $stockExit->items->isNotEmpty()
+            ? $stockExit->items->map(fn ($item) => ['concept_id' => $item->concept_id, 'quantity' => $item->quantity])
+            : collect($stockExit->concept_id ? [['concept_id' => $stockExit->concept_id, 'quantity' => $stockExit->quantity]] : []);
+
+        $entry = DB::transaction(function () use ($stockExit, $validated, $lines) {
             $entry = StockEntry::create([
-                'concept_id' => $stockExit->concept_id,
+                'concept_id' => $lines->count() === 1 ? $lines->first()['concept_id'] : null,
                 'tool_id' => $stockExit->tool_id,
                 'entry_type' => 'tool_return',
-                'quantity' => $stockExit->quantity,
+                'quantity' => $lines->isNotEmpty() ? $lines->sum('quantity') : $stockExit->quantity,
                 'received_at' => $validated['received_at'],
                 'observations' => $validated['observations'] ?? null,
                 'created_by' => Auth::id(),
             ]);
-            if ($stockExit->concept_id) {
-                $entry->items()->create(['concept_id' => $stockExit->concept_id, 'line_number' => 1, 'quantity' => $stockExit->quantity]);
-            }
+            $lines->values()->each(fn (array $line, int $index) => $entry->items()->create([
+                'concept_id' => $line['concept_id'], 'line_number' => $index + 1, 'quantity' => $line['quantity'],
+            ]));
             $stockExit->update(['status' => 'returned', 'return_stock_entry_id' => $entry->id]);
             return $entry;
         });
@@ -308,9 +311,9 @@ class StockExitController extends Controller
     public function destroy(StockExit $stockExit): RedirectResponse
     {
         $stockExit->load('items.concept');
-        $summary = $stockExit->exit_type === 'tool_loan'
-            ? ($stockExit->concept?->code ?: $stockExit->tool?->economic_number)
-            : $stockExit->items->map(fn ($item) => $item->concept->code . ' x ' . $this->formatQuantity((float) $item->quantity))->implode(', ');
+        $summary = $stockExit->items->isNotEmpty()
+            ? $stockExit->items->map(fn ($item) => $item->concept->code . ' x ' . $this->formatQuantity((float) $item->quantity))->implode(', ')
+            : ($stockExit->concept?->code ?: $stockExit->tool?->economic_number);
 
         DB::transaction(function () use ($stockExit) {
             $returnEntryId = $stockExit->return_stock_entry_id;

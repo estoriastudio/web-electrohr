@@ -27,12 +27,20 @@ class StockController extends Controller
     {
         $this->notifyOverdueLoans();
         $search = trim((string) $request->input('search', ''));
+        $location = trim((string) $request->input('location', ''));
+        $sort = in_array($request->input('sort'), ['stock_asc', 'stock_desc'], true) ? $request->input('sort') : '';
+        $locations = Concept::query()->notArchived()
+            ->whereNotNull('warehouse_location')->where('warehouse_location', '!=', '')
+            ->distinct()->orderBy('warehouse_location')->pluck('warehouse_location');
+
         $concepts = $this->inventoryQuery()
             ->when($search, fn ($query) => $query->where(fn ($conceptQuery) => $conceptQuery
-                ->where('code', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%")
-                ->orWhere('warehouse_location', 'like', "%{$search}%")))
-            ->orderBy('code')->paginate(25)->withQueryString();
+                ->where('concepts.code', 'like', "%{$search}%")
+                ->orWhere('concepts.description', 'like', "%{$search}%")
+                ->orWhere('concepts.warehouse_location', 'like', "%{$search}%")))
+            ->when($location !== '', fn ($query) => $query->where('concepts.warehouse_location', $location))
+            ->when($sort, fn ($query) => $query->orderBy('current_stock', $sort === 'stock_asc' ? 'asc' : 'desc'))
+            ->orderBy('concepts.code')->paginate(25)->withQueryString();
 
         $concepts->getCollection()->each(function (Concept $concept) {
             $lastEntry = StockEntry::whereHas('items', fn ($query) => $query->where('concept_id', $concept->id))
@@ -48,7 +56,7 @@ class StockController extends Controller
 
         $overdueLoans = StockExit::with(['tool', 'recipientWorker'])->where('exit_type', 'tool_loan')->where('status', 'open')->whereDate('expected_return_at', '<', today())->orderBy('expected_return_at')->get();
 
-        return view('stocks.index', compact('concepts', 'overdueLoans', 'search'));
+        return view('stocks.index', compact('concepts', 'overdueLoans', 'search', 'location', 'sort', 'locations'));
     }
 
     public function lowStock(Request $request): View

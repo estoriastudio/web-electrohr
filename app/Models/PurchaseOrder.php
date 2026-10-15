@@ -150,6 +150,48 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderItem::class);
     }
 
+    // Cada concepto aporta su avance (cantidad entregada / cantidad pedida) en partes iguales.
+    public function getDeliveryProgressAttribute(): int
+    {
+        $items = $this->items;
+
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        return (int) round($items->avg(fn ($item) => $item->delivery_fraction) * 100);
+    }
+
+    /**
+     * Recalcula el estatus de entrega según las cantidades entregadas de cada concepto.
+     * Con $preserveLegacyPartial, una OC en "parcial" sin entregas registradas conserva su estatus.
+     */
+    public function syncDeliveryStatus(bool $preserveLegacyPartial = true): void
+    {
+        $items = $this->items()->get();
+        $items->each->recalculateDelivery();
+
+        $total = $items->count();
+        $completed = $items->whereNotNull('delivered_at')->count();
+        $hasDeliveries = $items->contains(fn ($item) => (float) $item->delivered_quantity > 0);
+
+        if ($total > 0 && $completed === $total) {
+            $status = 'entregado';
+        } elseif ($hasDeliveries) {
+            $status = 'parcial';
+        } elseif ($preserveLegacyPartial && $this->delivery_status === 'parcial') {
+            $status = 'parcial';
+        } else {
+            $status = 'por_entregar';
+        }
+
+        $this->update([
+            'delivery_status' => $status,
+            'is_delivered' => $status === 'entregado',
+        ]);
+        $this->unsetRelation('items');
+    }
+
     public function annex(): HasOne
     {
         return $this->hasOne(PurchaseOrderAnnex::class);

@@ -16,6 +16,13 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 <div class="row">
     <div class="col-xl-12">
         <div class="card">
@@ -106,6 +113,9 @@
                             @forelse ($purchaseRequests as $pr)
                                 @php
                                     $pendingNotes = $pr->changeNotes->whereNull('resolved_at')->count();
+                                    $totalItems = $pr->items->count();
+                                    $inheritedItems = $pr->items->filter(fn ($item) => $item->is_inherited)->count();
+                                    $pendingItems = $totalItems - $inheritedItems;
                                 @endphp
                                 <tr>
                                     <td>
@@ -149,8 +159,13 @@
                                     <td>{{ $pr->need_date?->format('d/m/Y') }}</td>
                                     <td>
                                         <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
-                                            {{ $pr->items->count() ?? 0 }} ítem(s)
+                                            {{ $totalItems }} ítem(s)
                                         </span>
+                                        @if ($inheritedItems > 0)
+                                            <small class="d-block text-muted mt-1">
+                                                {{ $inheritedItems }} heredado(s) · {{ $pendingItems }} pendiente(s)
+                                            </small>
+                                        @endif
                                     </td>
                                     <td>
                                         @if (($pr->purchase_orders_count ?? 0) > 0)
@@ -187,7 +202,7 @@
                                                 <i class="ri-eye-line"></i>
                                             </a>
                                             {{-- Botón crear OC solo si no tiene notas pendientes --}}
-                                            @if ($pendingNotes === 0)
+                                            @if ($pendingNotes === 0 && ($totalItems === 0 || $pendingItems > 0))
                                                 @hasanyrole('admin|Orden de compra')
                                                 <a href="{{ route('purchase_orders.create_from_solcom', $pr) }}"
                                                    class="btn btn-primary btn-sm" title="Crear OC vinculada a esta SOLCOM">

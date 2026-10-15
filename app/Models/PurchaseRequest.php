@@ -51,6 +51,22 @@ class PurchaseRequest extends Model
         return $query->whereNotNull('archived_at');
     }
 
+    // En Entrada: sin conceptos o con al menos un concepto sin heredar a una OC vigente.
+    public function scopePendingInheritance($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereDoesntHave('items')
+                ->orWhereHas('items', fn ($items) => $items->pendingInheritance());
+        });
+    }
+
+    // Con salida: tiene conceptos y todos están heredados a una OC vigente.
+    public function scopeFullyInherited($query)
+    {
+        return $query->whereHas('items')
+            ->whereDoesntHave('items', fn ($items) => $items->pendingInheritance());
+    }
+
     public function materialRequest(): BelongsTo
     {
         return $this->belongsTo(MaterialRequest::class);

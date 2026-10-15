@@ -77,6 +77,13 @@
         'entregado' => ['label' => 'Entregado', 'class' => 'bg-success-subtle text-success', 'icon' => 'ri-check-line'],
     ];
     $deliveryBadge = $deliveryBadgeMap[$deliveryStatus] ?? $deliveryBadgeMap['por_entregar'];
+    $deliveryTotalItems = $purchaseOrder->items->count();
+    $purchaseOrder->loadMissing('items.deliveries.evidence', 'items.deliveries.deliveredByUser');
+    $deliveredItemsCount = $purchaseOrder->items->whereNotNull('delivered_at')->count();
+    $deliveryProgress = $purchaseOrder->delivery_progress;
+    $fmtQty = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.') ?: '0';
+    $hasItemDeliveries = (float) $purchaseOrder->items->sum('delivered_quantity') > 0;
+    $pendingDeliveryItems = $purchaseOrder->items->whereNull('delivered_at');
     $supplier = $purchaseOrder->supplier;
     $primarySupplierContact = $supplier?->contacts->firstWhere('is_primary', true) ?? $supplier?->contacts->first();
     $supplierBankDetails = $supplier?->locations->first();
@@ -322,6 +329,12 @@
                             <small class="text-muted">{{ $progressTotal }}% cubierto</small>
                         </div>
                         @endunless
+                        <div class="mt-2" style="min-width: 160px;">
+                            <div class="progress" style="height: 8px;" role="progressbar" aria-valuenow="{{ $deliveryProgress }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de entrega">
+                                <div class="progress-bar {{ $deliveryProgress >= 100 ? 'bg-success' : 'bg-info' }}" style="width: {{ $deliveryProgress }}%"></div>
+                            </div>
+                            <small class="text-muted"><i class="ri-truck-line me-1"></i>{{ $deliveryProgress }}% entregado ({{ $deliveredItemsCount }}/{{ $deliveryTotalItems }})</small>
+                        </div>
                     </div>
                     <div class="d-flex flex-column gap-2">
                         @if (! $isRestrictedEngineer && ($purchaseOrder->status === 'emitida' || $purchaseOrder->status === 'autorizada'))
@@ -334,7 +347,7 @@
                         @if ($purchaseOrder->status === 'autorizada')
                         <button type="button" class="btn btn-sm btn-outline-success"
                                 data-bs-toggle="modal" data-bs-target="#modalDeliveryStatus">
-                            <i class="ri-truck-line me-1"></i> Cambiar entrega
+                            <i class="ri-truck-line me-1"></i> Entregas
                         </button>
                         @endif
                         @endif
@@ -530,49 +543,147 @@
 </div>
 @endif
 
-{{-- MODAL Cambiar Estatus de Entrega --}}
+{{-- MODAL Entregas por concepto --}}
 @if ($canManageOrder || auth()->user()->hasAnyRole(["admin","Solmat"]))
 <div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <form action="{{ route('purchase_orders.delivery_status.update', $purchaseOrder) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}" method="POST" enctype="multipart/form-data">
                 @csrf
-                @method('PATCH')
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalDeliveryStatusLabel">
-                        <i class="ri-truck-line me-1 text-success"></i> Estatus de entrega
+                        <i class="ri-truck-line me-1 text-success"></i> Entregas
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <p class="text-muted fs-13 mb-3">
-                        Define manualmente el estatus de entrega para la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }}.
+                        Selecciona los conceptos que se están entregando de la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }} y adjunta la evidencia.
                     </p>
-                    <label for="delivery_status" class="form-label fw-medium">Estatus de entrega <span class="text-danger">*</span></label>
-                    <select id="delivery_status" name="delivery_status" class="form-select @error('delivery_status') is-invalid @enderror" required>
-                        <option value="por_entregar" {{ old('delivery_status', $deliveryStatus) === 'por_entregar' ? 'selected' : '' }}>Por entregar</option>
-                        <option value="parcial" {{ old('delivery_status', $deliveryStatus) === 'parcial' ? 'selected' : '' }}>Entrega parcial</option>
-                        <option value="entregado" {{ old('delivery_status', $deliveryStatus) === 'entregado' ? 'selected' : '' }}>Entregado</option>
-                    </select>
-                    @error('delivery_status')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <div id="delivery_evidence_group" class="mt-3 {{ old('delivery_status', $deliveryStatus) === 'parcial' ? '' : 'd-none' }}">
-                        <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
-                        <input id="delivery_evidence" name="delivery_evidence" type="file" class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
-                        <div class="form-text">PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
-                        @error('delivery_evidence')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    @if ($errors->has('item_ids') || $errors->has('item_ids.*'))
+                        <div class="alert alert-danger py-2 fs-13">{{ $errors->first('item_ids') ?: $errors->first('item_ids.*') }}</div>
+                    @endif
+                    @if ($purchaseOrder->items->isEmpty())
+                        <div class="text-muted text-center py-3">Esta OC no tiene conceptos.</div>
+                    @else
+                    <div class="table-responsive border rounded mb-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="bg-light-subtle">
+                                <tr>
+                                    <th style="width:40px;">
+                                        <input type="checkbox" class="form-check-input" id="delivery_select_all" title="Seleccionar todos" @disabled($pendingDeliveryItems->isEmpty())>
+                                    </th>
+                                    <th>Concepto</th>
+                                    <th>Unidad</th>
+                                    <th class="text-end">Pedido</th>
+                                    <th class="text-end">Entregado</th>
+                                    <th class="text-end" style="width:140px;">A entregar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($purchaseOrder->items as $item)
+                                    @php
+                                        $isItemDelivered = $item->delivered_at !== null;
+                                        $oldQuantity = old('quantities.' . $item->id);
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" class="form-check-input delivery-item-checkbox"
+                                                   name="item_ids[]" value="{{ $item->id }}" id="delivery_item_{{ $item->id }}"
+                                                   {{ $isItemDelivered ? 'checked disabled' : '' }}
+                                                   {{ !$isItemDelivered && in_array($item->id, (array) old('item_ids', [])) ? 'checked' : '' }}>
+                                        </td>
+                                        <td><label for="delivery_item_{{ $item->id }}" class="mb-0">{{ $item->description }}</label></td>
+                                        <td class="fs-12">{{ $item->unit }}</td>
+                                        <td class="text-end">{{ $fmtQty($item->quantity) }}</td>
+                                        <td class="text-end {{ $isItemDelivered ? 'text-success' : '' }}">{{ $fmtQty($item->delivered_quantity) }}</td>
+                                        <td class="text-end">
+                                            @if ($isItemDelivered)
+                                                <span class="text-success fs-12"><i class="ri-checkbox-circle-line me-1"></i>Completo</span>
+                                            @else
+                                                <input type="number" step="0.0001" min="0.0001" max="{{ $item->pending_quantity }}"
+                                                       class="form-control form-control-sm text-end delivery-qty-input @error('quantities.' . $item->id) is-invalid @enderror"
+                                                       name="quantities[{{ $item->id }}]" data-item-id="{{ $item->id }}"
+                                                       value="{{ $oldQuantity ?? $fmtQty($item->pending_quantity) }}"
+                                                       data-pending="{{ $item->pending_quantity }}" disabled>
+                                                @error('quantities.' . $item->id)<div class="invalid-feedback d-block text-start">{{ $message }}</div>@enderror
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="form-text">Este estatus es independiente del estatus de la OC (Emitida, Pendiente, Autorizada).</div>
+                    @if ($deliveryStatus === 'parcial' && !$hasItemDeliveries)
+                        <div class="alert alert-info py-2 fs-13">Esta OC ya estaba en entrega parcial sin detalle de conceptos. Marca los conceptos entregados para regularizarla.</div>
+                    @endif
+                    <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
+                    <input id="delivery_evidence" name="delivery_evidence" type="file" required class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                    <div class="form-text">PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
+                    @error('delivery_evidence')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    @endif
+
+                    @php $deliveryHistory = $purchaseOrder->items->flatMap(fn ($i) => $i->deliveries->each->setRelation('item', $i))->sortByDesc('delivered_at')->values(); @endphp
+                    @if ($deliveryHistory->isNotEmpty())
+                        <hr>
+                        <h6 class="fw-semibold fs-13 mb-2"><i class="ri-history-line me-1"></i>Historial de entregas</h6>
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm align-middle mb-0 fs-12">
+                                <thead class="bg-light-subtle">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Concepto</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th>Registró</th>
+                                        <th class="text-center">Evidencia</th>
+                                        @if ($isAdmin)<th></th>@endif
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($deliveryHistory as $delivery)
+                                        <tr>
+                                            <td>{{ $delivery->delivered_at?->format('d/m/Y H:i') }}</td>
+                                            <td>{{ $delivery->item->description }}</td>
+                                            <td class="text-end">{{ $fmtQty($delivery->quantity) }} {{ $delivery->item->unit }}</td>
+                                            <td>{{ $delivery->deliveredByUser?->name ?? '—' }}</td>
+                                            <td class="text-center">
+                                                @if ($delivery->evidence)
+                                                    <a href="{{ route('evidences.download', ['evidence' => $delivery->evidence, 'disposition' => 'inline']) }}" target="_blank" title="Ver evidencia"><i class="ri-attachment-2"></i></a>
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
+                                            @if ($isAdmin)
+                                            <td class="text-end">
+                                                <button type="submit" form="deliveryRevertForm" formmethod="POST"
+                                                        formaction="{{ route('purchase_orders.deliveries.revert', [$purchaseOrder, $delivery]) }}"
+                                                        class="btn btn-link btn-sm p-0 text-danger" title="Revertir entrega"
+                                                        onclick="return confirm('¿Revertir esta entrega?');"><i class="ri-arrow-go-back-line"></i></button>
+                                            </td>
+                                            @endif
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">
-                        <i class="ri-save-line me-1"></i> Guardar estatus de entrega
+                    <button type="submit" class="btn btn-success" @disabled($pendingDeliveryItems->isEmpty())>
+                        <i class="ri-save-line me-1"></i> Registrar entrega
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+@if ($isAdmin)
+<form id="deliveryRevertForm" method="POST" class="d-none">
+    @csrf
+    @method('DELETE')
+</form>
+@endif
 @endif
 
 {{-- ── CONCEPTOS ── --}}
@@ -609,6 +720,7 @@
                                 @if (!$ocLocked)
                                 <th></th>
                                 @endif
+                                <th class="text-center">Entrega</th>
                             </tr>
                         </thead>
                         
@@ -702,10 +814,25 @@
                                         @endif
                                     </td>
                                     @endif
+                                    <td class="text-center oc-delivery-cell">
+                                        @if ($item->delivered_at)
+                                            <span class="d-inline-flex align-items-center gap-1 text-success"
+                                                  title="Entregado el {{ $item->delivered_at->format('d/m/Y H:i') }}">
+                                                <span class="position-relative d-inline-block" style="width:24px;height:20px;">
+                                                    <i class="ri-truck-line fs-18"></i>
+                                                    <i class="ri-checkbox-circle-fill position-absolute fs-12 bg-white rounded-circle" style="right:-4px;top:-5px;line-height:1;"></i>
+                                                </span>
+                                            </span>
+                                        @elseif ((float) $item->delivered_quantity > 0)
+                                            <span class="badge bg-warning-subtle text-warning" title="Entrega parcial: faltan {{ $fmtQty($item->pending_quantity) }} {{ $item->unit }}"><i class="ri-time-line me-1"></i>Parcial {{ $fmtQty($item->delivered_quantity) }}/{{ $fmtQty($item->quantity) }}</span>
+                                        @else
+                                            <span class="badge bg-warning-subtle text-warning" title="Entrega pendiente"><i class="ri-time-line me-1"></i>Pendiente</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr id="oc_empty_row">
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         <i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>
                                         Sin conceptos registrados.
                                     </td>
@@ -2343,20 +2470,37 @@
 @push('scripts')
 <script>
 (function () {
-    var deliveryStatus = document.getElementById('delivery_status');
-    var evidenceGroup = document.getElementById('delivery_evidence_group');
-    var evidenceInput = document.getElementById('delivery_evidence');
+    @if ($errors->has('item_ids') || $errors->has('item_ids.*') || $errors->has('delivery_evidence') || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'quantities')))
+    var deliveryModalEl = document.getElementById('modalDeliveryStatus');
+    if (deliveryModalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(deliveryModalEl).show();
+    @endif
 
-    if (!deliveryStatus || !evidenceGroup || !evidenceInput) return;
+    var selectAll = document.getElementById('delivery_select_all');
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.delivery-item-checkbox:not(:disabled)'));
 
-    function toggleDeliveryEvidence() {
-        var isPartial = deliveryStatus.value === 'parcial';
-        evidenceGroup.classList.toggle('d-none', !isPartial);
-        evidenceInput.required = isPartial;
+    if (!selectAll || !boxes.length) return;
+
+    function qtyInput(box) {
+        return document.querySelector('.delivery-qty-input[data-item-id="' + box.value + '"]');
     }
 
-    deliveryStatus.addEventListener('change', toggleDeliveryEvidence);
-    toggleDeliveryEvidence();
+    function syncRow(box) {
+        var input = qtyInput(box);
+        if (input) input.disabled = !box.checked;
+    }
+
+    function syncSelectAll() {
+        selectAll.checked = boxes.every(function (b) { return b.checked; });
+    }
+
+    selectAll.addEventListener('change', function () {
+        boxes.forEach(function (b) { b.checked = selectAll.checked; syncRow(b); });
+    });
+    boxes.forEach(function (b) {
+        b.addEventListener('change', function () { syncRow(b); syncSelectAll(); });
+        syncRow(b);
+    });
+    syncSelectAll();
 })();
 
 (function () {
@@ -2515,7 +2659,7 @@
         if (tbody.querySelectorAll('tr.oc-item-row').length === 0) {
             var tr = document.createElement('tr');
             tr.id = 'oc_empty_row';
-            tr.innerHTML = '<td colspan="8" class="text-center text-muted py-4">'
+            tr.innerHTML = '<td colspan="9" class="text-center text-muted py-4">'
                 + '<i class="ri-inbox-line fs-4 d-block mb-1 opacity-50"></i>'
                 + 'Sin conceptos registrados.</td>';
             tbody.appendChild(tr);
@@ -2789,7 +2933,8 @@
                 + '<td class="text-end" style="min-width:140px;"><div class="input-group input-group-sm" style="max-width:130px;display:inline-flex;"><span class="input-group-text py-0 px-2">$</span><input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm text-end oc-qty-input oc-price-input" value="' + escHtml(String(data.unit_price)) + '" data-item-id="' + escHtml(String(data.id)) + '" data-field="unit_price" data-original="' + escHtml(String(data.unit_price)) + '"></div></td>'
                 + '<td class="text-end fw-semibold oc-importe">$' + fmtMoney(data.quantity * data.unit_price) + '</td>'
                 + '<td><input type="date" class="form-control form-control-sm oc-delivery-input" value="' + escHtml(data.delivery_due_date || '') + '" data-item-id="' + escHtml(String(data.id)) + '" data-original="' + escHtml(data.delivery_due_date || '') + '"></td>'
-                + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>';
+                + '<td><button type="button" class="btn btn-soft-danger btn-sm oc-item-delete" data-item-id="' + escHtml(String(data.id)) + '" title="Eliminar"><i class="ri-delete-bin-line"></i></button></td>'
+                + '<td class="text-center oc-delivery-cell"><span class="badge bg-warning-subtle text-warning" title="Entrega pendiente"><i class="ri-time-line me-1"></i>Pendiente</span></td>';
             tbody.appendChild(tr);
             formatPriceInput(tr.querySelector('.oc-price-input'));
             updateBadge();

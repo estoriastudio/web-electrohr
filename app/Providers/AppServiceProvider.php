@@ -38,7 +38,10 @@ class AppServiceProvider extends ServiceProvider
                 })
                 ->count();
             $paymentsToAuthorizeCount = Payment::query()
-                ->where('status', 'por_autorizar')
+                ->whereIn('status', ['por_autorizar', 'pospuesto'])
+                ->whereHas('milestone', function ($query) {
+                    $query->whereDate('due_date', '<', today());
+                })
                 ->whereHas('milestone.purchaseOrder', function ($query) {
                     $query->where('status', 'autorizada');
                 })

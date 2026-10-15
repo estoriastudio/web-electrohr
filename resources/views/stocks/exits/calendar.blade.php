@@ -41,7 +41,7 @@
                 <span id="return-status" class="badge mb-3"></span>
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Vale</dt><dd class="col-sm-8 text-break" data-return-field="voucher"></dd>
-                    <dt class="col-sm-4">Herramienta</dt><dd class="col-sm-8 text-break" data-return-field="tool"></dd>
+                    <dt class="col-sm-4">Suministros</dt><dd class="col-sm-8 text-break" data-return-field="tool"></dd>
                     <dt class="col-sm-4">Trabajador</dt><dd class="col-sm-8 text-break" data-return-field="worker"></dd>
                     <dt class="col-sm-4">Proyecto</dt><dd class="col-sm-8 text-break" data-return-field="project"></dd>
                     <dt class="col-sm-4">Obra</dt><dd class="col-sm-8 text-break" data-return-field="work"></dd>

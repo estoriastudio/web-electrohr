@@ -640,10 +640,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])->name('evidences.destroy');
         });
 
-        // Estatus de entrega (manual)
+        // Entregas por concepto
         Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
-            Route::patch('/ordenes-de-compra/{purchase_order}/estatus-entrega', [PurchaseOrderController::class, 'updateDeliveryStatus'])
-                ->name('purchase_orders.delivery_status.update');
+            Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
+                ->name('purchase_orders.deliveries.store');
+        });
+        Route::middleware('role:admin')->group(function () {
+            Route::delete('/ordenes-de-compra/{purchase_order}/entregas/{delivery}', [PurchaseOrderController::class, 'revertDelivery'])
+                ->name('purchase_orders.deliveries.revert');
         });
 
         // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra
