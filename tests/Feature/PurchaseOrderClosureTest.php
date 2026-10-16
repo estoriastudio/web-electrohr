@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
+use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\Supplier;
 use App\Models\User;
@@ -33,7 +34,7 @@ class PurchaseOrderClosureTest extends TestCase
         $closure = app(PurchaseOrderClosureEvaluator::class)->evaluate($order);
 
         $this->assertFalse($closure['ready']);
-        $this->assertContains('Checklist de todos los hitos', $closure['pending']);
+        $this->assertContains('Todos los eventos cerrados', $closure['pending']);
         $this->assertContains('Pagos completos sin saldo', $closure['pending']);
     }
 
@@ -57,7 +58,51 @@ class PurchaseOrderClosureTest extends TestCase
 
         $closure = app(PurchaseOrderClosureEvaluator::class)->evaluate($order);
 
-        $this->assertSame(['Facturación aceptada'], $closure['pending']);
+        $this->assertSame(['Sin regularizaciones documentales pendientes'], $closure['pending']);
+    }
+
+    public function test_invoiced_amount_must_cover_the_order_total(): void
+    {
+        $order = $this->readyOrder();
+        PurchaseOrderItem::create([
+            'purchase_order_id' => $order->id,
+            'description' => 'Varilla',
+            'unit' => 'pza',
+            'quantity' => 10,
+            'unit_price' => 1000,
+            'delivered_at' => now(),
+        ]);
+        $total = round((float) $order->fresh()->total_with_iva, 2);
+        $order->milestones()->first()->update(['value' => $total, 'covered_amount' => $total]);
+        $order->payments()->first()->update(['amount' => $total]);
+        $order->invoices()->first()->update(['amount' => 1000]);
+
+        $closure = app(PurchaseOrderClosureEvaluator::class)->evaluate($order);
+        $this->assertSame(['Importe facturado completo'], $closure['pending']);
+
+        $order->invoices()->first()->update(['amount' => $total - 0.4]);
+        $this->assertTrue(app(PurchaseOrderClosureEvaluator::class)->evaluate($order)['ready']);
+    }
+
+    public function test_payment_without_accepted_invoice_blocks_closure_as_documentary_regularization(): void
+    {
+        $order = $this->readyOrder();
+        $order->invoices()->first()->update(['status' => PurchaseOrderInvoice::STATUS_RECHAZADA]);
+
+        $closure = app(PurchaseOrderClosureEvaluator::class)->evaluate($order);
+
+        $this->assertContains('Sin regularizaciones documentales pendientes', $closure['pending']);
+        $this->assertContains('Todos los eventos cerrados', $closure['pending']);
+    }
+
+    public function test_an_advance_event_must_also_have_its_delivery_confirmed_to_close(): void
+    {
+        $order = $this->readyOrder();
+        $order->milestones()->first()->update(['is_advance' => true, 'delivery_confirmed_at' => null]);
+
+        $closure = app(PurchaseOrderClosureEvaluator::class)->evaluate($order);
+
+        $this->assertSame(['Todos los eventos cerrados'], $closure['pending']);
     }
 
     public function test_admin_closes_a_ready_order_and_it_gets_locked(): void

@@ -7,14 +7,16 @@ use App\Models\PurchaseOrderInvoice;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Evalúa si una OC puede cerrarse.
- *
- * OC cerrable = autorizada + entregada + checklist de todos sus hitos completo
- * + pagos totalmente pagados sin saldo + facturación aceptada sin regularizaciones pendientes.
+ * Evalúa si una OC puede cerrarse (solicitud funcional §12):
+ * OC autorizada + entregada + todos sus eventos (hitos) cerrados + sin saldo por pagar
+ * + importe facturado completo + sin regularizaciones documentales pendientes.
  */
 class PurchaseOrderClosureEvaluator
 {
-    public function __construct(private PurchaseOrderMilestoneChecklist $checklist) {}
+    /** Misma tolerancia de centavos que se acepta al facturar una OC. */
+    private const AMOUNT_TOLERANCE = 0.5;
+
+    public function __construct(private MilestoneEventStatus $eventStatus) {}
 
     /**
      * @return array{ready: bool, requirements: array<int, array{key: string, label: string, met: bool, detail: string}>, pending: array<int, string>}
@@ -29,9 +31,10 @@ class PurchaseOrderClosureEvaluator
         $requirements = [
             $this->authorization($order),
             $this->delivery($order),
-            $this->milestoneChecklists($milestones),
+            $this->events($milestones),
             $this->payments($order, $milestones),
-            $this->invoices($order, $milestones),
+            $this->invoicedAmount($order),
+            $this->documentary($order),
         ];
 
         $pending = collect($requirements)->where('met', false)->pluck('label')->values()->all();
@@ -71,19 +74,22 @@ class PurchaseOrderClosureEvaluator
         ];
     }
 
-    private function milestoneChecklists($milestones): array
+    private function events($milestones): array
     {
-        $checklists = $this->checklist->forMilestones($milestones);
-        $incomplete = collect($checklists)->reject(fn ($checklist) => $checklist['complete'])->count();
-        $met = $milestones->isNotEmpty() && $incomplete === 0;
+        $statuses = $this->eventStatus->forMilestones($milestones);
+        $open = collect($statuses)->reject(fn ($status) => $status['closed']);
+        $met = $milestones->isNotEmpty() && $open->isEmpty();
 
         return [
-            'key' => 'milestone_checklists',
-            'label' => 'Checklist de todos los hitos',
+            'key' => 'events',
+            'label' => 'Todos los eventos cerrados',
             'met' => $met,
             'detail' => $milestones->isEmpty()
                 ? 'La OC no tiene hitos'
-                : ($met ? 'Todos los hitos cumplen su checklist' : $incomplete . ' hito(s) con checklist pendiente'),
+                : ($met
+                    ? 'Cumplimiento, facturación y pago completos en todos los hitos'
+                    : $open->count() . ' de ' . $milestones->count() . ' hito(s) abiertos (pendiente de '
+                        . $open->flatMap(fn ($status) => $status['pending'])->unique()->implode(', ') . ')'),
         ];
     }
 
@@ -111,29 +117,51 @@ class PurchaseOrderClosureEvaluator
         ];
     }
 
-    private function invoices(PurchaseOrder $order, $milestones): array
+    private function invoicedAmount(PurchaseOrder $order): array
     {
-        $acceptedByMilestone = DB::table('invoice_milestone')
-            ->join('purchase_order_invoices', 'purchase_order_invoices.id', '=', 'invoice_milestone.purchase_order_invoice_id')
-            ->whereIn('invoice_milestone.purchase_order_milestone_id', $milestones->pluck('id'))
-            ->where('purchase_order_invoices.status', PurchaseOrderInvoice::STATUS_ACEPTADA)
-            ->distinct()
-            ->pluck('invoice_milestone.purchase_order_milestone_id');
+        $total = round((float) $order->total_with_iva, 2);
+        $invoiced = round((float) $order->invoices()
+            ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+            ->selectRaw('COALESCE(SUM(COALESCE(net_scope, amount)), 0) as total')
+            ->value('total'), 2);
+        $met = $total <= 0 || $invoiced >= $total - self::AMOUNT_TOLERANCE;
 
-        $withoutInvoice = $milestones->reject(fn ($milestone) => $acceptedByMilestone->contains($milestone->id))->count();
+        return [
+            'key' => 'invoiced_amount',
+            'label' => 'Importe facturado completo',
+            'met' => $met,
+            'detail' => $met
+                ? 'Facturado ' . number_format($invoiced, 2) . ' de ' . number_format($total, 2)
+                : 'Faltan ' . number_format($total - $invoiced, 2) . ' por facturar (aceptadas ' . number_format($invoiced, 2) . ' de ' . number_format($total, 2) . ')',
+        ];
+    }
+
+    private function documentary(PurchaseOrder $order): array
+    {
+        $withoutRegularization = DB::table('payments')
+            ->join('purchase_order_milestones', 'purchase_order_milestones.id', '=', 'payments.milestone_id')
+            ->where('purchase_order_milestones.purchase_order_id', $order->id)
+            ->where('payments.status', 'pagado')
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('invoice_milestone')
+                    ->join('purchase_order_invoices', 'purchase_order_invoices.id', '=', 'invoice_milestone.purchase_order_invoice_id')
+                    ->whereColumn('invoice_milestone.purchase_order_milestone_id', 'payments.milestone_id')
+                    ->where('purchase_order_invoices.status', PurchaseOrderInvoice::STATUS_ACEPTADA);
+            })
+            ->count();
         $inProcess = $order->invoices()->where('status', PurchaseOrderInvoice::STATUS_EN_PROCESO)->count();
 
         $problems = array_filter([
-            $milestones->isEmpty() ? 'La OC no tiene hitos' : null,
-            $withoutInvoice > 0 && $milestones->isNotEmpty() ? $withoutInvoice . ' hito(s) sin factura aceptada' : null,
+            $withoutRegularization > 0 ? $withoutRegularization . ' pago(s) pendientes de regularización documental' : null,
             $inProcess > 0 ? $inProcess . ' factura(s) en proceso de revisión' : null,
         ]);
 
         return [
-            'key' => 'invoices',
-            'label' => 'Facturación aceptada',
+            'key' => 'documentary',
+            'label' => 'Sin regularizaciones documentales pendientes',
             'met' => $problems === [],
-            'detail' => $problems === [] ? 'Todos los hitos tienen factura aceptada' : implode('; ', $problems),
+            'detail' => $problems === [] ? 'Toda la documentación está regularizada' : implode('; ', $problems),
         ];
     }
 }

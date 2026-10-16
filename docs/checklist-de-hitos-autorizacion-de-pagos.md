@@ -108,9 +108,10 @@ Para poder cerrar una OC deben cumplirse **todos** estos puntos (el panel "Cierr
 
 1. La OC está **autorizada**.
 2. **Entrega completa** (todos los conceptos entregados).
-3. **Checklist de todos los hitos** completo.
+3. **Todos los eventos cerrados**: cada hito tiene cumplimiento, facturación y pago completos. Esto incluye los anticipos, que también deben tener su entrega confirmada y su factura aceptada.
 4. **Pagos completos**: todos los pagos están pagados y no queda saldo pendiente.
-5. **Facturación aceptada**: cada hito tiene al menos una factura aceptada y no hay facturas en proceso de revisión.
+5. **Importe facturado completo**: las facturas aceptadas (netas de notas de crédito) cubren el total de la OC, con una tolerancia de $0.50.
+6. **Sin regularizaciones documentales pendientes**: ningún pago realizado sin factura aceptada y ninguna factura en proceso de revisión.
 
 - Cuando todo se cumple, el panel indica **"Lista para cerrar"** y aparece el botón **Cerrar OC** (con nota opcional). Pueden cerrarla **Admin** y el **comprador de la OC**.
 - Mientras algo falte, el botón aparece bloqueado y el panel muestra qué falta.

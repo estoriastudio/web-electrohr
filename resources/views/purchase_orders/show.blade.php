@@ -248,7 +248,12 @@
             @foreach ($closure['requirements'] as $requirement)
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <span class="fs-13"><i class="{{ $requirement['met'] ? 'ri-checkbox-circle-line text-success' : 'ri-close-circle-line text-danger' }} me-1"></i>{{ $requirement['label'] }}</span>
-                    <span class="fs-12 text-end {{ $requirement['met'] ? 'text-success' : 'text-danger' }}">{{ $requirement['detail'] }}</span>
+                    <span class="fs-12 text-end {{ $requirement['met'] ? 'text-success' : 'text-danger' }}">
+                        {{ $requirement['detail'] }}
+                        @if ($requirement['key'] === 'documentary' && !$requirement['met'])
+                            <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="d-block fs-11">Ver regularización documental</a>
+                        @endif
+                    </span>
                 </div>
             @endforeach
             @if ($canCloseOrder)

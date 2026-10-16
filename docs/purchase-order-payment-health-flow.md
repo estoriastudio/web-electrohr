@@ -118,9 +118,10 @@ El cierre es un estatus propio (`purchase_orders.closed_at`, `closed_by`, `closu
 |---|---|
 | OC autorizada | `status = autorizada` |
 | Entrega completa | `delivery_status = entregado` (una OC sin conceptos cumple) |
-| Checklist de hitos | Todos los hitos cumplen el checklist y existe al menos un hito |
+| Todos los eventos cerrados | Existe al menos un hito y cada uno tiene cumplimiento, facturacion y pago completos (`MilestoneEventStatus`); los anticipos tambien requieren entrega confirmada |
 | Pagos completos | Todos los pagos estan `pagado`, cada hito esta cubierto y los hitos cubren el total de la OC |
-| Facturacion aceptada | Cada hito tiene al menos una factura `aceptada` ligada y no hay facturas `en_proceso` |
+| Importe facturado completo | Las facturas `aceptadas` (netas de notas de credito) cubren el total de la OC, con tolerancia de $0.50 |
+| Sin regularizaciones documentales | Ningun pago `pagado` en hitos sin factura aceptada y ninguna factura `en_proceso` |
 
 - **Cerrar** (`PurchaseOrderController::close`): admin o el comprador de la OC; revalida los requisitos dentro de una transaccion y registra quien y cuando cerro, con nota opcional.
 - **Reabrir** (`PurchaseOrderController::reopen`): solo admin, con motivo obligatorio (queda en notificaciones).
