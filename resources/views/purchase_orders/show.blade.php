@@ -21,6 +21,13 @@
     </div>
 @endif
 
+@if (session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ session('warning') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @if (session('error'))
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {{ session('error') }}
@@ -80,6 +87,9 @@
     $deliveryTotalItems = $purchaseOrder->items->count();
     $purchaseOrder->loadMissing('items.deliveries.evidence', 'items.deliveries.deliveredByUser');
     $deliveredItemsCount = $purchaseOrder->items->whereNotNull('delivered_at')->count();
+    $creditTermsService = app(\App\Services\MilestoneCreditTerms::class);
+    $eventStatuses = app(\App\Services\MilestoneEventStatus::class)->forMilestones($purchaseOrder->milestones);
+    $economicSummary = app(\App\Services\PurchaseOrderEconomicSummary::class)->forOrder($purchaseOrder);
     $milestoneChecklists = app(\App\Services\PurchaseOrderMilestoneChecklist::class)->forMilestones($purchaseOrder->milestones);
     $deliveryProgress = $purchaseOrder->delivery_progress;
     $fmtQty = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.') ?: '0';
@@ -144,6 +154,121 @@
         @endrole
         @endif
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+{{-- ── RESUMEN ECONÓMICO ── --}}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold fs-14"><i class="ri-bar-chart-box-line me-1"></i>Resumen económico</span>
+        @if ($economicSummary['paid_without_invoice'] > 0)
+            <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="badge bg-warning-subtle text-warning text-decoration-none">
+                <i class="ri-file-warning-line me-1"></i>Pagado sin factura aceptada: {{ $purchaseOrder->currency }} {{ number_format($economicSummary['paid_without_invoice'], 2) }}
+            </a>
+        @endif
+    </div>
+    <div class="card-body py-2">
+        <div class="row g-2 text-center">
+            @foreach ([
+                ['Importe total de la OC', $economicSummary['total'], 'text-dark'],
+                ['Importe facturado', $economicSummary['invoiced'], 'text-primary'],
+                ['Pendiente de facturar', $economicSummary['pending_invoicing'], 'text-warning'],
+                ['Importe pagado', $economicSummary['paid'], 'text-success'],
+                ['Pendiente de pagar', $economicSummary['pending_payment'], 'text-danger'],
+                ['Facturado sin pagar', $economicSummary['invoiced_unpaid'], 'text-info'],
+            ] as [$summaryLabel, $summaryAmount, $summaryClass])
+                <div class="col-6 col-md-4 col-xl-2">
+                    <div class="fs-11 text-muted">{{ $summaryLabel }}</div>
+                    <div class="fw-semibold {{ $summaryClass }}">{{ $purchaseOrder->currency }} {{ number_format($summaryAmount, 2) }}</div>
+                </div>
+            @endforeach
+        </div>
+        <div class="form-text mt-1">Facturado considera solo facturas aceptadas, netas de notas de crédito.</div>
+    </div>
+</div>
+
+{{-- ── CIERRE DE LA OC ── --}}
+@if ($purchaseOrder->is_closed)
+    <div class="alert alert-dark d-flex align-items-start gap-3 mb-3" role="alert">
+        <i class="ri-lock-2-line fs-22 mt-1"></i>
+        <div class="flex-grow-1">
+            <h6 class="alert-heading mb-1 fw-semibold">Orden de compra cerrada</h6>
+            <p class="mb-0 fs-13">
+                Cerrada el {{ $purchaseOrder->closed_at->format('d/m/Y H:i') }}{{ $purchaseOrder->closer ? ' por ' . $purchaseOrder->closer->name : '' }}.
+                Entrega, pagos y facturación quedaron completos; no admite cambios hasta reabrirla.
+            </p>
+            @if ($purchaseOrder->closure_note)
+                <p class="mb-0 fs-12 text-muted mt-1">Nota de cierre: {{ $purchaseOrder->closure_note }}</p>
+            @endif
+        </div>
+        @role('admin')
+        <button type="button" class="btn btn-outline-dark btn-sm align-self-center" data-bs-toggle="modal" data-bs-target="#modalReopenPurchaseOrder">
+            <i class="ri-lock-unlock-line me-1"></i> Reabrir OC
+        </button>
+        @endrole
+    </div>
+
+    @role('admin')
+    <div class="modal fade" id="modalReopenPurchaseOrder" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('purchase_orders.reopen', $purchaseOrder) }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="ri-lock-unlock-line me-1"></i> Reabrir orden de compra</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label for="reopen_reason" class="form-label fw-medium">Motivo de la reapertura <span class="text-danger">*</span></label>
+                        <textarea id="reopen_reason" name="reopen_reason" class="form-control" rows="3" minlength="10" maxlength="1000" required></textarea>
+                        <div class="form-text">Queda registrado en las notificaciones de la OC.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-dark">Reabrir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endrole
+@elseif ($purchaseOrder->status === 'autorizada')
+    @php
+        $closure = app(\App\Services\PurchaseOrderClosureEvaluator::class)->evaluate($purchaseOrder);
+        $canCloseOrder = $canManageOrder ?? false;
+    @endphp
+    <div class="card mb-3 {{ $closure['ready'] ? 'border-success' : '' }}">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span class="fw-semibold fs-14"><i class="ri-lock-2-line me-1"></i>Cierre de la OC</span>
+            <span class="badge {{ $closure['ready'] ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">
+                {{ $closure['ready'] ? 'Lista para cerrar' : 'Abierta' }}
+            </span>
+        </div>
+        <div class="card-body py-2">
+            @foreach ($closure['requirements'] as $requirement)
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fs-13"><i class="{{ $requirement['met'] ? 'ri-checkbox-circle-line text-success' : 'ri-close-circle-line text-danger' }} me-1"></i>{{ $requirement['label'] }}</span>
+                    <span class="fs-12 text-end {{ $requirement['met'] ? 'text-success' : 'text-danger' }}">{{ $requirement['detail'] }}</span>
+                </div>
+            @endforeach
+            @if ($canCloseOrder)
+                <form action="{{ route('purchase_orders.close', $purchaseOrder) }}" method="POST" class="mt-2 d-flex flex-wrap gap-2 align-items-center"
+                      onsubmit="return confirm('¿Cerrar esta orden de compra? No admitirá cambios hasta que un administrador la reabra.')">
+                    @csrf
+                    <input type="text" name="closure_note" class="form-control form-control-sm" style="max-width:360px;" maxlength="1000"
+                           placeholder="Nota de cierre (opcional)" @disabled(!$closure['ready'])>
+                    @if ($closure['ready'])
+                        <button type="submit" class="btn btn-success btn-sm"><i class="ri-lock-2-line me-1"></i>Cerrar OC</button>
+                    @else
+                        <span class="d-inline-block" style="cursor:not-allowed;" title="Bloqueado: {{ implode(', ', $closure['pending']) }}">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled style="pointer-events:none; opacity:.65; border-style:dashed;">
+                                <i class="ri-lock-line me-1"></i>Cerrar OC (pendiente)
+                            </button>
+                        </span>
+                    @endif
+                </form>
+            @endif
+        </div>
     </div>
 @endif
 
@@ -1208,6 +1333,19 @@
                             <span class="fs-12">{{ $milestone->invoice_date->format('d/m/Y') }}</span>
                         </div>
                     @endif
+                    @if ($creditTermsService->hasTerms($milestone))
+                        @php $creditBase = $creditTermsService->baseDate($milestone); @endphp
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted fs-12">Plazo de crédito:</span>
+                            <span class="fs-12 text-end">
+                                {{ $milestone->credit_days }} días desde
+                                {{ $creditTermsService->startsWith($milestone) === 'fulfillment_validated' ? 'cumplimiento validado' : 'validación de factura' }}
+                                <span class="d-block fs-11 {{ $creditBase ? 'text-success' : 'text-muted' }}">
+                                    {{ $creditBase ? 'Inicio: ' . $creditBase->format('d/m/Y') . ' (vencimiento calculado)' : 'Inicio pendiente: vencimiento estimado' }}
+                                </span>
+                            </span>
+                        </div>
+                    @endif
                     @if ($milestone->due_date)
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted fs-12">Vencimiento:</span>
@@ -1224,6 +1362,9 @@
 
                     {{-- Checklist de comprobación previo a la autorización del pago --}}
                     @php $milestoneChecklist = $milestoneChecklists[$milestone->id]; @endphp
+                    <div class="border rounded p-2 mt-2">
+                        @include('purchase_orders.partials._event_status', ['eventStatus' => $eventStatuses[$milestone->id]])
+                    </div>
                     <div class="border rounded p-2 mt-2 {{ $milestoneChecklist['complete'] ? 'border-success-subtle' : 'border-danger-subtle' }}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="fs-12 fw-semibold"><i class="ri-list-check-2 me-1"></i>Checklist del hito</span>
@@ -1962,6 +2103,7 @@
                                 <input type="date" class="form-control"
                                        name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}" min="{{ $minDueDate }}" required>
                             </div>
+                            @include('purchase_orders.partials._credit_terms_fields', ['idPrefix' => 'edit_' . $milestone->id, 'milestone' => $milestone])
                             <div class="col-12">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" name="is_advance" value="1"
@@ -2239,6 +2381,7 @@
                             <label class="form-label fw-medium">Fecha vencimiento <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" name="due_date" min="{{ $minDueDate }}" required>
                         </div>
+                        @include('purchase_orders.partials._credit_terms_fields', ['idPrefix' => 'create', 'milestone' => new \App\Models\PurchaseOrderMilestone()])
                         <div class="col-12">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="is_advance" value="1"

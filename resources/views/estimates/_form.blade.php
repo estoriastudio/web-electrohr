@@ -153,3 +153,42 @@
             </div>
         </div>
     </div>
+
+    <div class="border-top mt-3 pt-3 js-liquidation-slip-block">
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input js-liquidation-slip-toggle" id="{{ $prefix }}_attach_liquidation_slip"
+                   name="attach_liquidation_slip" value="1" @checked(old('attach_liquidation_slip', $estimate?->liquidation_slip_path ? 1 : 0))>
+            <label class="form-check-label fw-medium" for="{{ $prefix }}_attach_liquidation_slip">Adjuntar boleta de liquidación</label>
+        </div>
+        <div class="mt-2 js-liquidation-slip-field" @if (! old('attach_liquidation_slip', $estimate?->liquidation_slip_path ? 1 : 0)) hidden @endif>
+            <input type="file" class="form-control js-liquidation-slip-input @error('liquidation_slip') is-invalid @enderror"
+                   id="{{ $prefix }}_liquidation_slip" name="liquidation_slip" accept=".pdf,application/pdf"
+                   @disabled(! old('attach_liquidation_slip', $estimate?->liquidation_slip_path ? 1 : 0))>
+            <div class="form-text js-liquidation-slip-current" hidden>
+                Archivo actual: <a href="#" target="_blank" class="js-liquidation-slip-link">ver boleta</a>. Selecciona otro PDF para reemplazarlo.
+            </div>
+            <div class="form-text">PDF de hasta 10 MB.</div>
+            @error('liquidation_slip')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    @once
+        @push('scripts')
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.js-liquidation-slip-toggle').forEach(function (toggle) {
+                var block = toggle.closest('.js-liquidation-slip-block');
+                var field = block.querySelector('.js-liquidation-slip-field');
+                var input = block.querySelector('.js-liquidation-slip-input');
+                var sync = function () {
+                    field.hidden = !toggle.checked;
+                    input.disabled = !toggle.checked;
+                    if (!toggle.checked) input.value = '';
+                };
+                toggle.addEventListener('change', sync);
+                sync();
+            });
+        });
+        </script>
+        @endpush
+    @endonce

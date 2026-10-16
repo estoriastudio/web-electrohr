@@ -383,6 +383,7 @@ class PaymentController extends Controller
         ]);
 
         $milestone = $payment->milestone()->with('purchaseOrder')->firstOrFail();
+        $milestone->purchaseOrder->ensureOpen();
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
             [$payment->id => $validated['status']],
@@ -433,6 +434,8 @@ class PaymentController extends Controller
                     ->with('purchaseOrder')
                     ->lockForUpdate()
                     ->findOrFail($milestone->id);
+
+                $milestone->purchaseOrder->ensureOpen();
 
                 if ($milestone->purchaseOrder->status !== 'autorizada') {
                     throw ValidationException::withMessages([
@@ -541,6 +544,8 @@ class PaymentController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($milestone->purchase_order_id);
 
+            $purchaseOrder->ensureOpen();
+
             if ($lockedPayment->status !== 'rechazado') {
                 return ['error' => 'Solo se puede solicitar la reactivación de pagos rechazados.'];
             }
@@ -592,6 +597,7 @@ class PaymentController extends Controller
 
         $milestone = $payment->milestone()->firstOrFail();
         $orderId   = $milestone->purchase_order_id;
+        $milestone->purchaseOrder->ensureOpen();
         $returnTo  = $validated['return_to'] ?? 'purchase_order';
 
         $hasStatusChange = array_key_exists('status', $validated) && !is_null($validated['status']);
@@ -939,6 +945,7 @@ class PaymentController extends Controller
     {
         $milestone = $payment->milestone;
         $orderId   = $milestone->purchase_order_id;
+        $milestone->purchaseOrder->ensureOpen();
 
         $hasSharedSpeiReceipt = $payment->spei_receipt_path
             && Payment::whereKeyNot($payment->id)
@@ -1155,6 +1162,56 @@ class PaymentController extends Controller
     /**
      * Vista de Alta de Facturas (acceso rápido para perfil payments).
      */
+    /**
+     * Pagos ya pagados cuyo hito aún no tiene una factura aceptada (regularización documental pendiente).
+     */
+    public function regularization(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+        $currency = $this->selectedCurrency($request);
+        $buyerId = Auth::user()->invoiceBuyerFilter();
+
+        $query = Payment::query()
+            ->has('milestone.purchaseOrder')
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
+            ->where('payments.status', 'pagado')
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('invoice_milestone')
+                    ->join('purchase_order_invoices', 'purchase_order_invoices.id', '=', 'invoice_milestone.purchase_order_invoice_id')
+                    ->whereColumn('invoice_milestone.purchase_order_milestone_id', 'payments.milestone_id')
+                    ->where('purchase_order_invoices.status', 'aceptada');
+            })
+            ->when($buyerId !== null, fn ($q) => $q->where('purchase_orders.buyer_id', $buyerId))
+            ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('payments.folio', 'like', '%' . $search . '%')
+                        ->orWhere('purchase_orders.folio', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
+                });
+            });
+
+        $totalsByCurrency = (clone $query)
+            ->selectRaw('purchase_orders.currency as currency, COUNT(*) as payments_count, SUM(payments.amount) as total')
+            ->groupBy('purchase_orders.currency')
+            ->get()
+            ->keyBy('currency');
+
+        $payments = $query
+            ->with(['milestone.purchaseOrder.supplier'])
+            ->select('payments.*')
+            ->orderBy('payments.payment_date')
+            ->orderBy('payments.id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('payments.regularization', compact('payments', 'search', 'currency', 'totalsByCurrency'));
+    }
+
     public function altaFacturas(Request $request): \Illuminate\View\View
     {
         $search = trim($request->input('search', ''));

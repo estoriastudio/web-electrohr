@@ -14,9 +14,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /* Notificaciones */
+use App\Services\MilestoneCreditTerms;
+use App\Services\MilestoneEventStatus;
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
 use App\Services\PurchaseOrderMilestoneChecklist;
@@ -29,6 +32,8 @@ class PurchaseOrderMilestoneController extends Controller
         private PaymentFolioGenerator $paymentFolioGenerator,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
         private PurchaseOrderMilestoneChecklist $checklist,
+        private MilestoneCreditTerms $creditTerms,
+        private MilestoneEventStatus $eventStatus,
     ) {}
 
     /**
@@ -80,6 +85,7 @@ class PurchaseOrderMilestoneController extends Controller
             ? $request->input('checklist_filter')
             : '';
         $checklists = $this->checklist->forMilestones($milestones);
+        $eventStatuses = $this->eventStatus->forMilestones($milestones);
         if ($checklistFilter !== '') {
             $milestones = $milestones
                 ->filter(fn ($milestone) => $checklists[$milestone->id]['complete'] === ($checklistFilter === 'complete'))
@@ -90,7 +96,7 @@ class PurchaseOrderMilestoneController extends Controller
         // se marcan en AMARILLO. Cambiar el valor para ajustar la regla.
         $urgentDate = Carbon::today()->addDays(7);
 
-        return view('milestones.index', compact('milestones', 'urgentDate', 'search', 'checklists', 'checklistFilter'));
+        return view('milestones.index', compact('milestones', 'urgentDate', 'search', 'checklists', 'checklistFilter', 'eventStatuses'));
     }
 
     public function create()
@@ -109,9 +115,11 @@ class PurchaseOrderMilestoneController extends Controller
             'value'             => 'required|numeric|min:0.01',
             'invoice_date'      => 'nullable|date',
             'due_date'          => 'required|date',
+            ...$this->creditTermRules($request),
         ]);
 
         $purchaseOrder = PurchaseOrder::findOrFail((int) $validated['purchase_order_id']);
+        $purchaseOrder->ensureOpen();
         if ($purchaseOrder->status === 'autorizada'
             && !$purchaseOrder->is_destajo
             && !Auth::user()->hasRole('admin')) {
@@ -122,6 +130,7 @@ class PurchaseOrderMilestoneController extends Controller
         $validated['covered_amount'] = 0;
         $validated['is_advance']     = $request->boolean('is_advance');
         $validated['type']           = 'regular'; // campo legacy, valor fijo
+        $validated = $this->normalizeCreditTerms($validated);
 
         $order = DB::transaction(function () use ($validated) {
             $lockedPurchaseOrder = PurchaseOrder::query()
@@ -188,9 +197,11 @@ class PurchaseOrderMilestoneController extends Controller
             'value'             => 'required|numeric|min:0.01',
             'invoice_date'      => 'nullable|date',
             'due_date'          => 'required|date',
+            ...$this->creditTermRules($request),
         ]);
 
         $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
+        $purchaseOrder?->ensureOpen();
         if ($purchaseOrder?->status === 'autorizada'
             && !$purchaseOrder->is_destajo
             && !Auth::user()->hasRole('admin')) {
@@ -207,6 +218,7 @@ class PurchaseOrderMilestoneController extends Controller
 
         $validated['is_advance'] = $request->boolean('is_advance');
         $validated['type']       = $purchaseOrderMilestone->type; // preservar valor legacy existente
+        $validated = $this->normalizeCreditTerms($validated);
 
         // Capturar valores anteriores para el log de auditoría
         $before = [
@@ -327,8 +339,11 @@ class PurchaseOrderMilestoneController extends Controller
             'data'         => "actualizó el Hito #{$purchaseOrderMilestone->id} de OC #{$ocFolio}{$summary}.",
         ]);
 
+        $creditWarning = $this->creditTerms->apply($purchaseOrderMilestone->refresh()->load('purchaseOrder'));
+
         return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
-            ->with('success', 'Hito actualizado correctamente.');
+            ->with('success', 'Hito actualizado correctamente.')
+            ->with('warning', $creditWarning);
     }
 
     private function ensureMilestoneValueIsWithinOrderTotal(
@@ -404,6 +419,7 @@ class PurchaseOrderMilestoneController extends Controller
         $orderId     = $purchaseOrderMilestone->purchase_order_id;
 
         $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
+        $purchaseOrder?->ensureOpen();
         if ($purchaseOrder?->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $orderId)
                 ->with('error', 'Solo admin puede editar hitos de una OC autorizada.');
@@ -436,6 +452,29 @@ class PurchaseOrderMilestoneController extends Controller
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Hito eliminado.');
+    }
+
+    private function creditTermRules(Request $request): array
+    {
+        $requiresTerms = $request->input('payment_condition') === 'credito' && !$request->boolean('is_advance');
+
+        return [
+            'credit_start' => [Rule::requiredIf($requiresTerms), 'nullable', Rule::in([
+                PurchaseOrderMilestone::CREDIT_START_INVOICE,
+                PurchaseOrderMilestone::CREDIT_START_FULFILLMENT,
+            ])],
+            'credit_days' => [Rule::requiredIf($requiresTerms), 'nullable', 'integer', 'min:0', 'max:365'],
+        ];
+    }
+
+    private function normalizeCreditTerms(array $validated): array
+    {
+        if ($validated['payment_condition'] !== 'credito' || $validated['is_advance']) {
+            $validated['credit_start'] = null;
+            $validated['credit_days'] = null;
+        }
+
+        return $validated;
     }
 
     /**

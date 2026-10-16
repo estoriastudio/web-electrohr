@@ -5,6 +5,7 @@
         'credit_note_pdf' => ['label' => 'Nota de crédito PDF', 'path' => 'credit_note_pdf_path', 'accept' => '.pdf,application/pdf'],
         'credit_note_xml' => ['label' => 'Nota de crédito XML', 'path' => 'credit_note_xml_path', 'accept' => '.xml,text/xml,application/xml'],
         'spei_receipt' => ['label' => 'Comprobante SPEI', 'path' => 'spei_receipt_path', 'accept' => '.pdf,application/pdf'],
+        'liquidation_slip' => ['label' => 'Boleta de liquidación', 'path' => 'liquidation_slip_path', 'accept' => '.pdf,application/pdf'],
     ];
 @endphp
 

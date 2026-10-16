@@ -289,6 +289,11 @@
                     <td>
                         <div class="d-flex flex-column align-items-start gap-1">
                             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                            @if ($order->closed_at)
+                                <span class="badge bg-dark text-white py-1 px-2 fs-12" title="Cerrada el {{ $order->closed_at->format('d/m/Y') }}">
+                                    <i class="ri-lock-2-line me-1"></i>Cerrada
+                                </span>
+                            @endif
                             <span class="badge {{ $deliveryBadge['class'] }} py-1 px-2 fs-12">
                                 <i class="{{ $deliveryBadge['icon'] }} me-1"></i>{{ $deliveryBadge['label'] }}
                             </span>

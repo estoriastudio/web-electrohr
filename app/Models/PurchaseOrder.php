@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseOrder extends Model
 {
@@ -48,6 +49,9 @@ class PurchaseOrder extends Model
         'authorized_signatory',
         'deletion_comment',
         'archived_at',
+        'closed_at',
+        'closed_by',
+        'closure_note',
     ];
 
     protected $casts = [
@@ -63,11 +67,44 @@ class PurchaseOrder extends Model
         'recurrence_end_date'   => 'date',
         'observations'          => 'array',
         'archived_at'           => 'datetime',
+        'closed_at'             => 'datetime',
     ];
 
     public function scopeActive($query)
     {
         return $query->whereNull('archived_at');
+    }
+
+    public function scopeOpen($query)
+    {
+        return $query->whereNull('purchase_orders.closed_at');
+    }
+
+    public function scopeClosed($query)
+    {
+        return $query->whereNotNull('purchase_orders.closed_at');
+    }
+
+    public function getIsClosedAttribute(): bool
+    {
+        return $this->closed_at !== null;
+    }
+
+    public function closer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * Una OC cerrada no admite cambios en hitos, pagos, entregas ni facturas hasta reabrirla.
+     */
+    public function ensureOpen(): void
+    {
+        if ($this->is_closed) {
+            throw ValidationException::withMessages([
+                'purchase_order' => 'La orden de compra #' . ($this->folio ?? $this->id) . ' está cerrada. Reábrela para modificarla.',
+            ]);
+        }
     }
 
     public function scopeArchived($query)

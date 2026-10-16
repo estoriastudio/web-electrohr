@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Exports\PurchaseOrderInvoiceExport;
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
+use App\Services\MilestoneCreditTerms;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +22,10 @@ class PurchaseOrderInvoiceController extends Controller
 {
     private const PURCHASE_ORDER_AMOUNT_TOLERANCE = 0.50;
 
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private MilestoneCreditTerms $creditTerms,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -185,6 +190,7 @@ class PurchaseOrderInvoiceController extends Controller
     {
         // Cargar la OC antes de validar para usar su importe como límite
         $purchaseOrder = PurchaseOrder::findOrFail($request->input('purchase_order_id'));
+        $purchaseOrder->ensureOpen();
 
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
@@ -348,6 +354,8 @@ class PurchaseOrderInvoiceController extends Controller
      */
     public function destroy(PurchaseOrderInvoice $invoice): RedirectResponse
     {
+        $invoice->purchaseOrder->ensureOpen();
+        $this->releaseRegularizations($invoice);
         $purchaseOrderId = $invoice->purchase_order_id;
         $fileName        = $invoice->file_name;
 
@@ -375,6 +383,8 @@ class PurchaseOrderInvoiceController extends Controller
 
     public function updateStatus(Request $request, PurchaseOrderInvoice $invoice): RedirectResponse
     {
+        $invoice->purchaseOrder->ensureOpen();
+
         $validated = $request->validate([
             'status' => 'required|in:' . implode(',', PurchaseOrderInvoice::STATUSES),
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
@@ -416,12 +426,25 @@ class PurchaseOrderInvoiceController extends Controller
             DB::transaction(function () use ($invoice, $validIds) {
                 PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id);
                 $invoice->milestones()->sync($validIds->all());
-                $invoice->update(['status' => PurchaseOrderInvoice::STATUS_ACEPTADA]);
+                $invoice->update([
+                    'status' => PurchaseOrderInvoice::STATUS_ACEPTADA,
+                    'accepted_at' => $invoice->accepted_at ?? now(),
+                ]);
+
+                $this->regularizePaidPayments($invoice, $validIds->all());
             });
+
+            $creditWarnings = $invoice->purchaseOrder->milestones()
+                ->whereIn('id', $validIds)
+                ->get()
+                ->map(fn ($milestone) => $this->creditTerms->apply($milestone->setRelation('purchaseOrder', $invoice->purchaseOrder)))
+                ->filter()
+                ->implode(' ');
         }
 
         if ($validated['status'] !== PurchaseOrderInvoice::STATUS_ACEPTADA) {
-            $invoice->update(['status' => $validated['status']]);
+            $invoice->update(['status' => $validated['status'], 'accepted_at' => null]);
+            $this->releaseRegularizations($invoice);
         }
 
         $statusLabel = match ($validated['status']) {
@@ -440,7 +463,39 @@ class PurchaseOrderInvoiceController extends Controller
 
         return redirect()
             ->back()
-            ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.');
+            ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.')
+            ->with('warning', $creditWarnings ?? null);
+    }
+
+    /**
+     * Regularización documental: al aceptarse la primera factura de un hito, los pagos ya pagados
+     * quedan vinculados a ella (sin crear pagos ni importes nuevos).
+     */
+    private function regularizePaidPayments(PurchaseOrderInvoice $invoice, array $milestoneIds): void
+    {
+        foreach ($milestoneIds as $milestoneId) {
+            $hadAcceptedInvoice = DB::table('invoice_milestone')
+                ->join('purchase_order_invoices', 'purchase_order_invoices.id', '=', 'invoice_milestone.purchase_order_invoice_id')
+                ->where('invoice_milestone.purchase_order_milestone_id', $milestoneId)
+                ->where('purchase_order_invoices.status', PurchaseOrderInvoice::STATUS_ACEPTADA)
+                ->where('purchase_order_invoices.id', '!=', $invoice->id)
+                ->exists();
+
+            if ($hadAcceptedInvoice) {
+                continue;
+            }
+
+            Payment::where('milestone_id', $milestoneId)
+                ->where('status', 'pagado')
+                ->whereNull('regularized_at')
+                ->update(['regularization_invoice_id' => $invoice->id, 'regularized_at' => now()]);
+        }
+    }
+
+    private function releaseRegularizations(PurchaseOrderInvoice $invoice): void
+    {
+        Payment::where('regularization_invoice_id', $invoice->id)
+            ->update(['regularization_invoice_id' => null, 'regularized_at' => null]);
     }
 
     private function resolveInvoicedAmount(PurchaseOrder $purchaseOrder): float

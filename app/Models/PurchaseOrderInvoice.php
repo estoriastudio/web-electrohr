@@ -40,6 +40,7 @@ class PurchaseOrderInvoice extends Model
         'credit_note_amount',
         'net_scope',
         'attached_at',
+        'accepted_at',
     ];
 
     protected $casts = [
@@ -49,6 +50,7 @@ class PurchaseOrderInvoice extends Model
         'due_date'    => 'date',
         'issue_date'  => 'date',
         'attached_at' => 'datetime',
+        'accepted_at' => 'datetime',
     ];
 
     public function purchaseOrder(): BelongsTo

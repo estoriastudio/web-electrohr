@@ -87,6 +87,7 @@
                                 <th>Vencimiento</th>
                                 <th>Facturas</th>
                                 <th>Checklist</th>
+                                <th>Estado del evento</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -250,6 +251,12 @@
                                     </td>
 
                                     <td>
+                                        <span class="badge {{ $eventStatuses[$milestone->id]['class'] }} fs-11" title="Cumplimiento: {{ $eventStatuses[$milestone->id]['fulfillment'] ? 'completo' : 'pendiente' }} · Facturación: {{ $eventStatuses[$milestone->id]['invoicing'] ? 'completa' : 'pendiente' }} · Pago: {{ ['complete' => 'completo', 'partial' => 'parcial', 'pending' => 'pendiente'][$eventStatuses[$milestone->id]['payment']] }}">
+                                            {{ $eventStatuses[$milestone->id]['label'] }}
+                                        </span>
+                                    </td>
+
+                                    <td>
                                         @include('purchase_orders.partials._milestone_checklist', ['checklist' => $checklists[$milestone->id], 'compact' => true])
                                     </td>
 
@@ -262,7 +269,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center text-muted py-5">
+                                    <td colspan="14" class="text-center text-muted py-5">
                                         <i class="ri-file-list-3-line fs-36 d-block mb-2"></i>
                                         No hay hitos registrados.
                                     </td>

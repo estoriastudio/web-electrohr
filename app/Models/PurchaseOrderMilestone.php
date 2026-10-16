@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderMilestone extends Model
 {
+    public const CREDIT_START_INVOICE = 'invoice_validation';
+    public const CREDIT_START_FULFILLMENT = 'fulfillment_validated';
+
     protected $fillable = [
         'purchase_order_id',
         'type',
@@ -22,6 +25,8 @@ class PurchaseOrderMilestone extends Model
         'due_date',
         'delivery_confirmed_at',
         'delivery_confirmed_by',
+        'credit_start',
+        'credit_days',
     ];
 
     protected $casts = [

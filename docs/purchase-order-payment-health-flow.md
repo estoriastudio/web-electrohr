@@ -75,12 +75,57 @@ Antes de que un pago pueda autorizarse, su hito debe cumplir un checklist. Admin
 |---|---|
 | Anticipo (`is_advance`) | Ninguno |
 | Contado | Entrega confirmada |
-| Credito | Entrega confirmada + al menos una factura `aceptada` ligada al hito (`invoice_milestone`) |
+| Credito, inicio del plazo = validacion de factura (valor de hitos legados) | Entrega confirmada + al menos una factura `aceptada` ligada al hito (`invoice_milestone`) |
+| Credito, inicio del plazo = cumplimiento validado | Entrega confirmada; la factura no es requisito para autorizar (se regulariza despues) |
 
 - **Entrega confirmada**: al registrar una entrega se puede elegir el hito que cubre (`purchase_order_item_deliveries.milestone_id`). Con al menos una entrega ligada, un usuario con permiso de entregas confirma "entrega completa para este hito" (`purchase_order_milestones.delivery_confirmed_at/by`). Revertir la ultima entrega ligada limpia la confirmacion. Los hitos de OCs ya `entregado` al desplegar quedaron confirmados por la migracion.
 - **Bloqueo**: `PurchaseOrderMilestoneChecklist::ensureComplete` se invoca en `PaymentController::swipe`, `update` (a `autorizado`), `authorizeMultiple` y `PurchaseOrderController::approveWithPayments`. Al autorizar se guarda `payments.checklist_verified_at`, visible en la bandeja Por pagar.
 - **Visibilidad**: detalle de la OC (panel por hito), `payments.index` (badges, autorizar deshabilitado y filtro), modo interactivo (solo muestra pagos con checklist completo), `milestones.index` (columna y filtro).
 - La seleccion persistida para autorizar en bloque descarta pagos con checklist pendiente.
+
+## Estado del evento, regularizacion documental y resumen economico
+
+Cada hito se trata como un evento de pago con tres dimensiones independientes (`MilestoneEventStatus`):
+
+| Dimension | Completa cuando |
+|---|---|
+| Cumplimiento | La entrega del hito esta confirmada (tambien en anticipos) |
+| Facturacion | Hay al menos una factura `aceptada` ligada al hito |
+| Pago | El hito esta cubierto (`covered_amount` >= monto); `partial` si hay pagos parciales |
+
+El evento esta **cerrado** cuando las tres estan completas; si no, se muestra "Abierto – pendiente de ..." con lo que falta. Se ve en el detalle de la OC y en el listado de hitos.
+
+- **Regularizacion documental**: un pago `pagado` cuyo hito no tiene factura aceptada. `payments.regularization` (admin, Pagos, Recepcion, Orden de compra; Compras solo ve sus OCs) lista esos pagos y su antiguedad. Al aceptar la primera factura de un hito, los pagos ya pagados quedan ligados a ella (`payments.regularization_invoice_id`, `regularized_at`) sin crear pagos ni importes nuevos; rechazar o eliminar la factura libera esa vinculacion. Los pagos historicos sin factura aparecen en la lista hasta que se acepte una factura ligada a su hito.
+- **Resumen economico** (`PurchaseOrderEconomicSummary`, detalle de la OC): importe total, facturado (solo aceptadas, neto de notas de credito), pendiente de facturar, pagado, pendiente de pagar y facturado sin pagar.
+
+## Plazo de credito
+
+Los hitos a credito (no anticipo) definen `credit_start` (`invoice_validation` | `fulfillment_validated`) y `credit_days`. `MilestoneCreditTerms` calcula el vencimiento = fecha base + dias:
+
+- Base `invoice_validation`: la primera fecha de aceptacion (`purchase_order_invoices.accepted_at`) de una factura aceptada ligada al hito.
+- Base `fulfillment_validated`: `delivery_confirmed_at` del hito.
+- Se recalcula al aceptar una factura (`PurchaseOrderInvoiceController::updateStatus`), al confirmar la entrega (`confirmMilestoneDelivery`) y al editar el hito. Actualiza `due_date` y la fecha de los pagos `por_autorizar` / `pospuesto`.
+- Si la nueva fecha rompe la secuencia de fechas entre hitos, no se aplica y se muestra un aviso (`session('warning')`).
+- Antes de que exista la fecha base, `due_date` es la fecha estimada capturada. Los hitos a credito existentes quedaron con `invoice_validation` y sin dias, por lo que conservan su fecha manual.
+
+## Cierre de la OC
+
+El cierre es un estatus propio (`purchase_orders.closed_at`, `closed_by`, `closure_note`), independiente de `status` (`emitida|pendiente|autorizada`) para no alterar las restricciones de edicion de OCs autorizadas. Una OC cerrada se muestra con la etiqueta "Cerrada", tiene la bandeja "Cerradas" en el listado y queda bloqueada.
+
+`PurchaseOrderClosureEvaluator` decide si una OC puede cerrarse. Requiere todo lo siguiente:
+
+| Requisito | Regla |
+|---|---|
+| OC autorizada | `status = autorizada` |
+| Entrega completa | `delivery_status = entregado` (una OC sin conceptos cumple) |
+| Checklist de hitos | Todos los hitos cumplen el checklist y existe al menos un hito |
+| Pagos completos | Todos los pagos estan `pagado`, cada hito esta cubierto y los hitos cubren el total de la OC |
+| Facturacion aceptada | Cada hito tiene al menos una factura `aceptada` ligada y no hay facturas `en_proceso` |
+
+- **Cerrar** (`PurchaseOrderController::close`): admin o el comprador de la OC; revalida los requisitos dentro de una transaccion y registra quien y cuando cerro, con nota opcional.
+- **Reabrir** (`PurchaseOrderController::reopen`): solo admin, con motivo obligatorio (queda en notificaciones).
+- **Bloqueo**: `PurchaseOrder::ensureOpen()` rechaza cambios en la OC, sus conceptos, hitos, pagos, entregas y facturas hasta reabrirla.
+- **Migracion**: las OCs ya entregadas y pagadas quedaron cerradas con una nota de cierre automatico.
 
 ## Invariantes de salud
 
@@ -191,6 +236,9 @@ Antes de cambiar las reglas, definir el efecto esperado sobre las OCs ya existen
 - [tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php](../tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php): contrato de validacion de secuencias.
 - [tests/Feature/PurchaseOrderHealthReportCommandTest.php](../tests/Feature/PurchaseOrderHealthReportCommandTest.php): salida y aislamiento por OC del reporte.
 - [tests/Feature/PaymentMultipleMilestoneTest.php](../tests/Feature/PaymentMultipleMilestoneTest.php): comportamiento de pagos divididos y operaciones de pago.
+- [tests/Feature/MilestoneEventStatusTest.php](../tests/Feature/MilestoneEventStatusTest.php): estado del evento, regularizacion documental y resumen economico.
+- [tests/Feature/MilestoneCreditTermsTest.php](../tests/Feature/MilestoneCreditTermsTest.php): plazo de credito, recalculo de vencimiento y checklist segun el inicio del plazo.
+- [tests/Feature/PurchaseOrderClosureTest.php](../tests/Feature/PurchaseOrderClosureTest.php): requisitos, cierre, reapertura y bloqueo de la OC.
 - [tests/Feature/MilestoneChecklistTest.php](../tests/Feature/MilestoneChecklistTest.php): reglas del checklist, bloqueo de autorizacion y entregas ligadas a hitos.
 
 Actualmente las pruebas que usan `RefreshDatabase` requieren que las migraciones SQLite sean compatibles. La migracion existente de `project_documents` usa `ALTER TABLE ... MODIFY`, sintaxis que SQLite no admite; mientras no se ajuste, las pruebas se detienen antes de ejecutar sus aserciones.

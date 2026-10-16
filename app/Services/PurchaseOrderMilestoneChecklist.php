@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
  *
  * - Anticipo (is_advance): sin requisitos.
  * - Contado: entrega confirmada.
- * - Crédito: entrega confirmada + factura aceptada ligada al hito.
+ * - Crédito: entrega confirmada; además factura aceptada ligada al hito cuando el plazo
+ *   de crédito inicia con la validación de factura (valor predeterminado de hitos legados).
  */
 class PurchaseOrderMilestoneChecklist
 {
@@ -100,12 +101,16 @@ class PurchaseOrderMilestoneChecklist
         $isAdvance = (bool) $milestone->is_advance;
         $isCredit = ($milestone->payment_condition ?? 'credito') === 'credito';
         $deliveryConfirmed = $milestone->delivery_confirmed_at !== null;
+        $invoiceRequired = !$isAdvance && $isCredit
+            && ($milestone->credit_start ?: PurchaseOrderMilestone::CREDIT_START_INVOICE) === PurchaseOrderMilestone::CREDIT_START_INVOICE;
+        $invoiceApplicable = !$isAdvance;
 
         $requirements = [
             [
                 'key' => self::KEY_DELIVERY,
                 'label' => 'Entrega confirmada',
                 'required' => !$isAdvance,
+                'applicable' => !$isAdvance,
                 'met' => $isAdvance || $deliveryConfirmed,
                 'detail' => $isAdvance
                     ? 'No aplica a anticipos'
@@ -116,13 +121,14 @@ class PurchaseOrderMilestoneChecklist
             [
                 'key' => self::KEY_INVOICE,
                 'label' => 'Factura aceptada',
-                'required' => !$isAdvance && $isCredit,
-                'met' => $isAdvance || !$isCredit || $acceptedInvoices > 0,
-                'detail' => $isAdvance || !$isCredit
-                    ? 'No requerida'
-                    : ($acceptedInvoices > 0
-                        ? $acceptedInvoices . ' aceptada(s)'
-                        : ($pendingInvoices > 0 ? $pendingInvoices . ' factura(s) en proceso' : 'Sin factura ligada al hito')),
+                'required' => $invoiceRequired,
+                'applicable' => $invoiceApplicable,
+                'met' => !$invoiceRequired || $acceptedInvoices > 0,
+                'detail' => $acceptedInvoices > 0
+                    ? $acceptedInvoices . ' aceptada(s)'
+                    : ($invoiceRequired
+                        ? ($pendingInvoices > 0 ? $pendingInvoices . ' factura(s) en proceso' : 'Sin factura ligada al hito')
+                        : ($invoiceApplicable ? 'No requerida para autorizar el pago' : 'No aplica a anticipos')),
             ],
         ];
 

@@ -35,6 +35,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\MilestoneCreditTerms;
+use App\Services\PurchaseOrderClosureEvaluator;
 use App\Services\PurchaseOrderMilestoneChecklist;
 use App\Services\PurchaseOrderPaymentSequenceValidator;
 
@@ -44,10 +46,14 @@ class PurchaseOrderController extends Controller
         private NotificationService $notification,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
         private PurchaseOrderMilestoneChecklist $milestoneChecklist,
+        private PurchaseOrderClosureEvaluator $closureEvaluator,
+        private MilestoneCreditTerms $creditTerms,
     ) {}
 
     private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         if ($purchaseOrder->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
                 ->with('error', 'Solo admin puede editar una OC autorizada.');
@@ -70,7 +76,7 @@ class PurchaseOrderController extends Controller
         };
         $tray    = $request->input('tray', 'all');
         $searchMode = $request->input('search_mode', 'default');
-        $trays   = ['all', 'issued', 'authorized', 'delivered'];
+        $trays   = ['all', 'issued', 'authorized', 'delivered', 'closed'];
 
         if (!in_array($tray, $trays, true) || !Auth::user()->hasRole('admin')) {
             $tray = 'all';
@@ -88,7 +94,7 @@ class PurchaseOrderController extends Controller
 
         $orders = (clone $orderQuery)
             ->when($sortDue, function ($query) {
-                $query->where(function ($query) {
+                $query->whereNull('purchase_orders.closed_at')->where(function ($query) {
                 $query->whereNull('delivery_status')
                     ->orWhere('delivery_status', '!=', 'entregado')
                     ->orWhereRaw(
@@ -130,6 +136,7 @@ class PurchaseOrderController extends Controller
             ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'delivered', fn ($q) => $q->where('delivery_status', 'entregado'))
+            ->when($tray === 'closed', fn ($q) => $q->whereNotNull('closed_at'))
             ->withMin([
                 'milestones as next_payment_due_date' => fn ($query) => $query
                     ->whereNotNull('due_date')
@@ -181,6 +188,7 @@ class PurchaseOrderController extends Controller
                 'issued' => (clone $orderQuery)->where('status', 'emitida')->where('delivery_status', '!=', 'entregado')->count(),
                 'authorized' => (clone $orderQuery)->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado')->count(),
                 'delivered' => (clone $orderQuery)->where('delivery_status', 'entregado')->count(),
+                'closed' => (clone $orderQuery)->whereNotNull('closed_at')->count(),
             ]
             : [];
 
@@ -799,6 +807,80 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' emitida correctamente.');
     }
 
+    public function close(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'closure_note' => 'nullable|string|max:1000',
+        ]);
+
+        $isAdmin = Auth::user()->hasRole('admin');
+        if (!$isAdmin && (int) $purchaseOrder->buyer_id !== (int) Auth::id()) {
+            abort(403);
+        }
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+
+        DB::transaction(function () use ($purchaseOrder, $validated) {
+            $locked = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($locked->is_closed) {
+                throw ValidationException::withMessages(['purchase_order' => 'La orden de compra ya está cerrada.']);
+            }
+
+            $closure = $this->closureEvaluator->evaluate($locked);
+            if (!$closure['ready']) {
+                throw ValidationException::withMessages([
+                    'purchase_order' => 'No se puede cerrar la OC. Pendiente: ' . implode(', ', $closure['pending']) . '.',
+                ]);
+            }
+
+            $locked->update([
+                'closed_at' => now(),
+                'closed_by' => Auth::id(),
+                'closure_note' => $validated['closure_note'] ?? null,
+            ]);
+        });
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'cerró la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . $folio . ' cerrada.');
+    }
+
+    public function reopen(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reopen_reason' => 'required|string|min:10|max:1000',
+        ]);
+
+        if (!$purchaseOrder->is_closed) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La orden de compra no está cerrada.');
+        }
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $purchaseOrder->update(['closed_at' => null, 'closed_by' => null, 'closure_note' => null]);
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'reabrió la orden de compra #' . $folio . ' de ' . $supplierName . '. Motivo: ' . $validated['reopen_reason'],
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . $folio . ' reabierta.');
+    }
+
     public function approve(PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($purchaseOrder->status === 'autorizada') {
@@ -913,6 +995,8 @@ class PurchaseOrderController extends Controller
 
     public function storeDelivery(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         $user = Auth::user();
         $canManage = $user->hasAnyRole(['admin', 'Solmat'])
             || ($user->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) $user->id);
@@ -1020,6 +1104,8 @@ class PurchaseOrderController extends Controller
 
     public function revertDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderItemDelivery $delivery): RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         $item = $delivery->item;
         abort_unless($item && $item->purchase_order_id === $purchaseOrder->id, 404);
 
@@ -1050,6 +1136,8 @@ class PurchaseOrderController extends Controller
 
     public function confirmMilestoneDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderMilestone $milestone): RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         abort_unless($milestone->purchase_order_id === $purchaseOrder->id, 404);
 
         if ($milestone->delivery_confirmed_at === null && !$milestone->deliveries()->exists()) {
@@ -1062,6 +1150,7 @@ class PurchaseOrderController extends Controller
             'delivery_confirmed_at' => $confirmed ? now() : null,
             'delivery_confirmed_by' => $confirmed ? Auth::id() : null,
         ]);
+        $creditWarning = $confirmed ? $this->creditTerms->apply($milestone->load('purchaseOrder')) : null;
 
         $this->notification->send([
             'type'         => 'PurchaseOrder',
@@ -1073,7 +1162,8 @@ class PurchaseOrderController extends Controller
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', $confirmed ? 'Entrega del hito confirmada.' : 'Confirmación de entrega revocada.');
+            ->with('success', $confirmed ? 'Entrega del hito confirmada.' : 'Confirmación de entrega revocada.')
+            ->with('warning', $creditWarning);
     }
 
     public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
