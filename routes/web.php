@@ -644,6 +644,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
+            Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
+                ->name('purchase_orders.milestones.confirm_delivery');
         });
         Route::middleware('role:admin')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}/entregas/{delivery}', [PurchaseOrderController::class, 'revertDelivery'])

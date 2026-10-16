@@ -80,6 +80,7 @@
     $deliveryTotalItems = $purchaseOrder->items->count();
     $purchaseOrder->loadMissing('items.deliveries.evidence', 'items.deliveries.deliveredByUser');
     $deliveredItemsCount = $purchaseOrder->items->whereNotNull('delivered_at')->count();
+    $milestoneChecklists = app(\App\Services\PurchaseOrderMilestoneChecklist::class)->forMilestones($purchaseOrder->milestones);
     $deliveryProgress = $purchaseOrder->delivery_progress;
     $fmtQty = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.') ?: '0';
     $hasItemDeliveries = (float) $purchaseOrder->items->sum('delivered_quantity') > 0;
@@ -181,7 +182,9 @@
                                 <tbody>
                                     @foreach ($purchaseOrderPayments as $payment)
                                         @php
-                                            $canAuthorizePayment = in_array($payment->status, ['por_autorizar', 'pospuesto'], true);
+                                            $paymentChecklist = $milestoneChecklists[$payment->milestone_id] ?? null;
+                                            $paymentChecklistBlocked = $paymentChecklist && !$paymentChecklist['complete'];
+                                            $canAuthorizePayment = in_array($payment->status, ['por_autorizar', 'pospuesto'], true) && !$paymentChecklistBlocked;
                                             $paymentStatusMap = [
                                                 'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
                                                 'pospuesto' => ['label' => 'Pospuesto', 'class' => 'bg-secondary-subtle text-secondary'],
@@ -196,14 +199,21 @@
                                                 @if ($canAuthorizePayment)
                                                     <input class="form-check-input" type="checkbox" name="payment_ids[]" value="{{ $payment->id }}" aria-label="Autorizar pago {{ $payment->folio }}">
                                                 @else
-                                                    <input class="form-check-input" type="checkbox" disabled aria-label="Pago no disponible para autorización">
+                                                    <input class="form-check-input" type="checkbox" disabled
+                                                           aria-label="Pago no disponible para autorización"
+                                                           @if ($paymentChecklistBlocked) title="Checklist pendiente: {{ implode(', ', $paymentChecklist['pending']) }}" @endif>
                                                 @endif
                                             </td>
                                             <td>Hito #{{ $milestonePositionMap[$payment->milestone_id] ?? '—' }}</td>
                                             <td class="fw-medium">{{ $payment->folio ?: '—' }}</td>
                                             <td>{{ $payment->payment_date?->format('d/m/Y') ?? '—' }}</td>
                                             <td class="text-end fw-medium">{{ $purchaseOrder->currency }} {{ number_format($payment->amount, 2) }}</td>
-                                            <td><span class="badge {{ $paymentStatus['class'] }}">{{ $paymentStatus['label'] }}</span></td>
+                                            <td>
+                                                <span class="badge {{ $paymentStatus['class'] }}">{{ $paymentStatus['label'] }}</span>
+                                                @if ($paymentChecklistBlocked && in_array($payment->status, ['por_autorizar', 'pospuesto'], true))
+                                                    <span class="badge bg-danger-subtle text-danger fs-10 d-block mt-1">Checklist pendiente: {{ implode(', ', $paymentChecklist['pending']) }}</span>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -616,6 +626,18 @@
                     </div>
                     @if ($deliveryStatus === 'parcial' && !$hasItemDeliveries)
                         <div class="alert alert-info py-2 fs-13">Esta OC ya estaba en entrega parcial sin detalle de conceptos. Marca los conceptos entregados para regularizarla.</div>
+                    @endif
+                    @if ($orderedMilestones->isNotEmpty())
+                        <label for="delivery_milestone_id" class="form-label fw-medium">Hito que cubre esta entrega</label>
+                        <select id="delivery_milestone_id" name="milestone_id" class="form-select mb-3 @error('milestone_id') is-invalid @enderror">
+                            <option value="">Sin hito</option>
+                            @foreach ($orderedMilestones as $deliveryMilestone)
+                                <option value="{{ $deliveryMilestone->id }}" @selected((string) old('milestone_id') === (string) $deliveryMilestone->id)>
+                                    Hito #{{ $milestonePositionMap[$deliveryMilestone->id] ?? $deliveryMilestone->id }}{{ $deliveryMilestone->concept ? ' · ' . $deliveryMilestone->concept : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('milestone_id')<div class="invalid-feedback d-block mb-2">{{ $message }}</div>@enderror
                     @endif
                     <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
                     <input id="delivery_evidence" name="delivery_evidence" type="file" required class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
@@ -1200,6 +1222,34 @@
                         </div>
                     @endif
 
+                    {{-- Checklist de comprobación previo a la autorización del pago --}}
+                    @php $milestoneChecklist = $milestoneChecklists[$milestone->id]; @endphp
+                    <div class="border rounded p-2 mt-2 {{ $milestoneChecklist['complete'] ? 'border-success-subtle' : 'border-danger-subtle' }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fs-12 fw-semibold"><i class="ri-list-check-2 me-1"></i>Checklist del hito</span>
+                            <span class="badge {{ $milestoneChecklist['complete'] ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }} fs-11">
+                                {{ $milestoneChecklist['complete'] ? 'Listo para autorizar' : 'Pendiente' }}
+                            </span>
+                        </div>
+                        @include('purchase_orders.partials._milestone_checklist', ['checklist' => $milestoneChecklist])
+                        @if (!$milestone->is_advance && ($canManageOrder || auth()->user()->hasAnyRole(['admin', 'Solmat'])))
+                            @if ($milestone->delivery_confirmed_at)
+                                <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
+                                      onsubmit="return confirm('¿Revocar la confirmación de entrega de este hito?')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-soft-secondary btn-sm">Revocar confirmación de entrega</button>
+                                </form>
+                            @elseif ($milestone->deliveries()->exists())
+                                <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-soft-success btn-sm">
+                                        <i class="ri-check-double-line me-1"></i>Confirmar entrega completa del hito
+                                    </button>
+                                </form>
+                            @endif
+                        @endif
+                    </div>
+
                     {{-- Barra de progreso --}}
                     <div class="mt-2 mb-1">
                         <div class="d-flex justify-content-between mb-1">
@@ -1320,7 +1370,16 @@
                                                         {{-- Transiciones de estatus --}}
                                                         @hasanyrole('admin|Pagos')
                                                         @foreach ($transitions as $newStatus => $transition)
+                                                            @php $blockedByChecklist = $newStatus === 'autorizado' && !$milestoneChecklist['complete']; @endphp
                                                             <li>
+                                                                @if ($blockedByChecklist)
+                                                                    <span class="dropdown-item-text text-muted d-flex align-items-start gap-1 border border-dashed rounded mx-2 py-1 fs-12"
+                                                                          style="cursor:not-allowed; border-style:dashed !important;"
+                                                                          title="Bloqueado: checklist pendiente ({{ implode(', ', $milestoneChecklist['pending']) }})">
+                                                                        <i class="ri-lock-line mt-1"></i>
+                                                                        <span>Autorizar bloqueado<small class="d-block fs-11 text-danger">Falta: {{ implode(', ', $milestoneChecklist['pending']) }}</small></span>
+                                                                    </span>
+                                                                @else
                                                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                     @csrf @method('PATCH')
                                                                     <input type="hidden" name="status" value="{{ $newStatus }}">
@@ -1329,6 +1388,7 @@
                                                                         <i class="{{ $transition['icon'] }} me-1"></i>{{ $transition['label'] }}
                                                                     </button>
                                                                 </form>
+                                                                @endif
                                                             </li>
                                                         @endforeach
                                                         @endhasanyrole

@@ -17,12 +17,14 @@ class Payment extends Model
         'reference_number',
         'spei_receipt_path',
         'spei_receipt_name',
+        'checklist_verified_at',
     ];
 
     protected $casts = [
         'amount'       => 'decimal:2',
         'payment_date' => 'date',
         'invoice_date' => 'date',
+        'checklist_verified_at' => 'datetime',
     ];
 
     public function milestone(): BelongsTo

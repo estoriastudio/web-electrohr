@@ -119,6 +119,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
             'purchase_order_id' => $purchaseOrder->id,
             'type' => 'regular',
             'payment_condition' => 'credito',
+            'is_advance' => true,
             'value_type' => 'fijo',
             'value' => 1000,
             'covered_amount' => 0,

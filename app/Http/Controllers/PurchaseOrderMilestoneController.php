@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 /* Notificaciones */
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
+use App\Services\PurchaseOrderMilestoneChecklist;
 use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PurchaseOrderMilestoneController extends Controller
@@ -27,6 +28,7 @@ class PurchaseOrderMilestoneController extends Controller
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
+        private PurchaseOrderMilestoneChecklist $checklist,
     ) {}
 
     /**
@@ -74,11 +76,21 @@ class PurchaseOrderMilestoneController extends Controller
             ->orderBy('due_date', 'asc')
             ->get();
 
+        $checklistFilter = in_array($request->input('checklist_filter'), ['complete', 'pending'], true)
+            ? $request->input('checklist_filter')
+            : '';
+        $checklists = $this->checklist->forMilestones($milestones);
+        if ($checklistFilter !== '') {
+            $milestones = $milestones
+                ->filter(fn ($milestone) => $checklists[$milestone->id]['complete'] === ($checklistFilter === 'complete'))
+                ->values();
+        }
+
         // Umbral de urgencia: hitos que vencen dentro de este número de días
         // se marcan en AMARILLO. Cambiar el valor para ajustar la regla.
         $urgentDate = Carbon::today()->addDays(7);
 
-        return view('milestones.index', compact('milestones', 'urgentDate', 'search'));
+        return view('milestones.index', compact('milestones', 'urgentDate', 'search', 'checklists', 'checklistFilter'));
     }
 
     public function create()

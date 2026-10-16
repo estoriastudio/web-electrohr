@@ -13,6 +13,7 @@ use App\Models\PurchaseOrderEvidence;
 use App\Models\PurchaseOrderItemDelivery;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderMilestone;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Models\ProjectWork;
@@ -34,6 +35,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\PurchaseOrderMilestoneChecklist;
 use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PurchaseOrderController extends Controller
@@ -41,6 +43,7 @@ class PurchaseOrderController extends Controller
     public function __construct(
         private NotificationService $notification,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
+        private PurchaseOrderMilestoneChecklist $milestoneChecklist,
     ) {}
 
     private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
@@ -871,8 +874,9 @@ class PurchaseOrderController extends Controller
                 $lockedPurchaseOrder,
                 $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),
             );
+            $this->milestoneChecklist->ensureComplete($payments);
             $lockedPurchaseOrder->update(['status' => 'autorizada']);
-            $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado']));
+            $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado', 'checklist_verified_at' => now()]));
 
             return $payments;
         });
@@ -926,12 +930,18 @@ class PurchaseOrderController extends Controller
                     ->where('purchase_order_id', $purchaseOrder->id)
                     ->whereNull('delivered_at'),
             ],
+            'milestone_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('purchase_order_milestones', 'id')->where('purchase_order_id', $purchaseOrder->id),
+            ],
             'quantities' => 'nullable|array',
             'quantities.*' => 'nullable|numeric|min:0.0001|decimal:0,4',
             'delivery_evidence' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ], [
             'item_ids.required' => 'Selecciona al menos un concepto entregado.',
             'item_ids.min' => 'Selecciona al menos un concepto entregado.',
+            'milestone_id.exists' => 'El hito seleccionado no pertenece a la OC.',
             'item_ids.*.exists' => 'Alguno de los conceptos no pertenece a la OC o ya fue entregado.',
             'quantities.*.min' => 'La cantidad entregada debe ser mayor a cero.',
             'quantities.*.numeric' => 'La cantidad entregada debe ser numérica.',
@@ -982,6 +992,7 @@ class PurchaseOrderController extends Controller
                 PurchaseOrderItemDelivery::create([
                     'purchase_order_item_id' => $itemId,
                     'evidence_id' => $evidence->id,
+                    'milestone_id' => $validated['milestone_id'] ?? null,
                     'delivered_by' => Auth::id(),
                     'quantity' => $quantity,
                     'delivered_at' => now(),
@@ -1013,7 +1024,15 @@ class PurchaseOrderController extends Controller
         abort_unless($item && $item->purchase_order_id === $purchaseOrder->id, 404);
 
         $quantity = rtrim(rtrim(number_format((float) $delivery->quantity, 4, '.', ''), '0'), '.');
+        $milestoneId = $delivery->milestone_id;
         $delivery->delete();
+
+        if ($milestoneId && !PurchaseOrderItemDelivery::where('milestone_id', $milestoneId)->exists()) {
+            PurchaseOrderMilestone::whereKey($milestoneId)->update([
+                'delivery_confirmed_at' => null,
+                'delivery_confirmed_by' => null,
+            ]);
+        }
 
         $purchaseOrder->syncDeliveryStatus(false);
 
@@ -1027,6 +1046,34 @@ class PurchaseOrderController extends Controller
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
             ->with('success', 'Entrega revertida.');
+    }
+
+    public function confirmMilestoneDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderMilestone $milestone): RedirectResponse
+    {
+        abort_unless($milestone->purchase_order_id === $purchaseOrder->id, 404);
+
+        if ($milestone->delivery_confirmed_at === null && !$milestone->deliveries()->exists()) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'Registra al menos una entrega ligada al hito antes de confirmarla.');
+        }
+
+        $confirmed = $milestone->delivery_confirmed_at === null;
+        $milestone->update([
+            'delivery_confirmed_at' => $confirmed ? now() : null,
+            'delivery_confirmed_by' => $confirmed ? Auth::id() : null,
+        ]);
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => ($confirmed ? 'confirmó' : 'revocó la confirmación de')
+                . ' la entrega del hito #' . $milestone->id . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', $confirmed ? 'Entrega del hito confirmada.' : 'Confirmación de entrega revocada.');
     }
 
     public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse

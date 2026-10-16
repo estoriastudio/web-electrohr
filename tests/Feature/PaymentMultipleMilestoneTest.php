@@ -342,6 +342,7 @@ class PaymentMultipleMilestoneTest extends TestCase
             'payment_date' => '2026-09-15',
             'status' => 'pospuesto',
         ]);
+        $this->satisfyChecklist($firstMilestone);
         $admin = User::factory()->create();
         $admin->assignRole('admin');
 
@@ -386,7 +387,7 @@ class PaymentMultipleMilestoneTest extends TestCase
         $otherMilestone->purchaseOrder->supplier->update(['rfc_name' => 'Proveedor del Sur']);
 
         $this->actingAs($this->paymentsUser())
-            ->get(route('payments.index', ['search' => 'Suministros Norte']))
+            ->get(route('payments.index', ['search' => 'Suministros Norte', 'checklist_filter' => 'all']))
             ->assertOk()
             ->assertViewHas('payments', function ($payments) use ($matchingPayment): bool {
                 return $payments->count() === 1 && $payments->first()->is($matchingPayment);
@@ -426,6 +427,19 @@ class PaymentMultipleMilestoneTest extends TestCase
             ->assertViewHas('payments', function ($payments) use ($usdPayment): bool {
                 return $payments->count() === 1 && $payments->first()->is($usdPayment);
             });
+    }
+
+    private function satisfyChecklist(PurchaseOrderMilestone $milestone): void
+    {
+        $invoice = PurchaseOrderInvoice::create([
+            'purchase_order_id' => $milestone->purchase_order_id,
+            'folio' => 'F-' . random_int(1000, 9999),
+            'status' => PurchaseOrderInvoice::STATUS_ACEPTADA,
+            'amount' => 1000,
+            'currency' => 'MXN',
+        ]);
+        $invoice->milestones()->sync([$milestone->id]);
+        $milestone->update(['delivery_confirmed_at' => now()]);
     }
 
     private function paymentsUser(): User

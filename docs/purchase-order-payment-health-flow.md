@@ -67,6 +67,21 @@ por_autorizar / pospuesto -> autorizado -> pagado
 
 Los pagos se pueden crear desde un hito autorizado, dividir cuando el pago inicial aun esta por autorizar, autorizar individualmente o en bloque, pagar con comprobante SPEI individual o multiple, posponer, rechazar y solicitar su reactivacion.
 
+## Checklist de comprobacion por hito
+
+Antes de que un pago pueda autorizarse, su hito debe cumplir un checklist. Admin solo verifica el checklist y autoriza; Pagos recibe pagos que ya cumplieron la regla.
+
+| Tipo de hito | Requisitos |
+|---|---|
+| Anticipo (`is_advance`) | Ninguno |
+| Contado | Entrega confirmada |
+| Credito | Entrega confirmada + al menos una factura `aceptada` ligada al hito (`invoice_milestone`) |
+
+- **Entrega confirmada**: al registrar una entrega se puede elegir el hito que cubre (`purchase_order_item_deliveries.milestone_id`). Con al menos una entrega ligada, un usuario con permiso de entregas confirma "entrega completa para este hito" (`purchase_order_milestones.delivery_confirmed_at/by`). Revertir la ultima entrega ligada limpia la confirmacion. Los hitos de OCs ya `entregado` al desplegar quedaron confirmados por la migracion.
+- **Bloqueo**: `PurchaseOrderMilestoneChecklist::ensureComplete` se invoca en `PaymentController::swipe`, `update` (a `autorizado`), `authorizeMultiple` y `PurchaseOrderController::approveWithPayments`. Al autorizar se guarda `payments.checklist_verified_at`, visible en la bandeja Por pagar.
+- **Visibilidad**: detalle de la OC (panel por hito), `payments.index` (badges, autorizar deshabilitado y filtro), modo interactivo (solo muestra pagos con checklist completo), `milestones.index` (columna y filtro).
+- La seleccion persistida para autorizar en bloque descarta pagos con checklist pendiente.
+
 ## Invariantes de salud
 
 ### 1. Secuencia de estatus
@@ -176,5 +191,6 @@ Antes de cambiar las reglas, definir el efecto esperado sobre las OCs ya existen
 - [tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php](../tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php): contrato de validacion de secuencias.
 - [tests/Feature/PurchaseOrderHealthReportCommandTest.php](../tests/Feature/PurchaseOrderHealthReportCommandTest.php): salida y aislamiento por OC del reporte.
 - [tests/Feature/PaymentMultipleMilestoneTest.php](../tests/Feature/PaymentMultipleMilestoneTest.php): comportamiento de pagos divididos y operaciones de pago.
+- [tests/Feature/MilestoneChecklistTest.php](../tests/Feature/MilestoneChecklistTest.php): reglas del checklist, bloqueo de autorizacion y entregas ligadas a hitos.
 
 Actualmente las pruebas que usan `RefreshDatabase` requieren que las migraciones SQLite sean compatibles. La migracion existente de `project_documents` usa `ALTER TABLE ... MODIFY`, sintaxis que SQLite no admite; mientras no se ajuste, las pruebas se detienen antes de ejecutar sus aserciones.
