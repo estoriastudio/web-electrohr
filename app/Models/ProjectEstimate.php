@@ -45,6 +45,7 @@ class ProjectEstimate extends Model
         'invoice_amount',
         'spei_reference',
         'spei_receipt_path',
+        'liquidation_slip_path',
         'spei_amount',
         'payment_date',
         'status',

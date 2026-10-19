@@ -296,6 +296,18 @@
             @endcan
             @endhasanyrole
 
+            @hasanyrole('admin|Inventario|Solmat')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('purchase_orders.delivery_report') ? 'active' : '' }}"
+                   href="{{ route('purchase_orders.delivery_report') }}">
+                    <span class="nav-icon">
+                        <i class="ri-file-list-3-line"></i>
+                    </span>
+                    <span class="nav-text">Buscar OCs</span>
+                </a>
+            </li>
+            @endhasanyrole
+
             @hasanyrole('admin|Inventario')
             @can('read')
             <li class="menu-title">Inventario</li>
@@ -414,7 +426,9 @@
             @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Pagos|Orden de compra|Solmat')
+            
+
+            @hasanyrole('admin|Pagos|Orden de compra')
             @can('read')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('purchase_orders.*') ? 'active' : '' }}"
@@ -453,16 +467,6 @@
             @hasanyrole('admin|Pagos')
             @can('read')
             <li class="menu-title">Pagos</li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('milestones.*') ? 'active' : '' }}"
-                    href="{{ route('milestones.index') }}">
-                        <span class="nav-icon">
-                            <i class="ri-file-list-3-line"></i>
-                        </span>
-                        <span class="nav-text">Hitos</span>
-                    </a>
-                </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('payments.index') || request()->routeIs('payments.interactive') ? 'active' : '' }}"
                     href="{{ route('payments.index') }}">

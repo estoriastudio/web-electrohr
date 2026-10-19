@@ -114,8 +114,9 @@
                                 @php
                                     $pendingNotes = $pr->changeNotes->whereNull('resolved_at')->count();
                                     $totalItems = $pr->items->count();
-                                    $inheritedItems = $pr->items->filter(fn ($item) => $item->is_inherited)->count();
-                                    $pendingItems = $totalItems - $inheritedItems;
+                                    $fullItems = $pr->items->filter(fn ($item) => $item->is_inherited)->count();
+                                    $partialItems = $pr->items->filter(fn ($item) => $item->is_partially_inherited)->count();
+                                    $pendingItems = $pr->items->filter(fn ($item) => $item->is_pending)->count();
                                 @endphp
                                 <tr>
                                     <td>
@@ -161,9 +162,9 @@
                                         <span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
                                             {{ $totalItems }} ítem(s)
                                         </span>
-                                        @if ($inheritedItems > 0)
+                                        @if ($fullItems > 0 || $partialItems > 0)
                                             <small class="d-block text-muted mt-1">
-                                                {{ $inheritedItems }} heredado(s) · {{ $pendingItems }} pendiente(s)
+                                                {{ $fullItems }} completo(s) · {{ $partialItems }} parcial(es) · {{ $pendingItems }} con faltante
                                             </small>
                                         @endif
                                     </td>

@@ -46,6 +46,9 @@
                             </form>
                         </div>
                     </div>
+                    <a href="{{ route('payments.regularization') }}" class="btn btn-sm btn-outline-warning">
+                        <i class="ri-file-warning-line me-1"></i> Regularización documental
+                    </a>
                     <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
                         <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
                     </a>

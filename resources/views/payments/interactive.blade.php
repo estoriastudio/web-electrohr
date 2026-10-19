@@ -45,6 +45,13 @@
                 </div>
             </div>
 
+            @if (($skippedByChecklist ?? 0) > 0)
+                <div class="alert alert-warning mb-0 rounded-0 fs-13">
+                    <i class="ri-list-check-2 me-1"></i>
+                    {{ $skippedByChecklist }} pago(s) no se muestran porque su hito aún no cumple el checklist (entrega / factura). Consúltalos en el listado.
+                </div>
+            @endif
+
             <div class="card-body p-3 p-sm-4 p-md-5 d-flex justify-content-center align-items-center">
                 @include('payments.utilities.swipable_cards', ['payments' => $payments])
             </div>

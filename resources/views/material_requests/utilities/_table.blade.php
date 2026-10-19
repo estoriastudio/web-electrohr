@@ -262,7 +262,20 @@
                         </span>
                     </td>
                     <td>
+                      <div class="d-flex flex-column align-items-start gap-1">
                         <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
+                        @if ($mr->is_completed)
+                            <span class="badge bg-success text-white py-1 px-2 fs-12"
+                                  title="Todas las OCs vinculadas están cerradas">
+                                <i class="ri-checkbox-circle-line me-1"></i>Completada
+                            </span>
+                        @else
+                            <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12"
+                                  title="Sin OCs vinculadas o con OCs aún sin cerrar">
+                                <i class="ri-inbox-line me-1"></i>Abierta
+                            </span>
+                        @endif
+                      </div>
                     </td>
 
                     {{-- Columna condicional: fecha de archivo o eliminación --}}
@@ -298,7 +311,7 @@
     @push('styles')
     <style>
     .solmat-table-responsive {
-        overflow: visible;
+        overflow-x: auto;
     }
 
     .solmat-table-responsive .dropdown-menu {
@@ -355,11 +368,6 @@
     }
 
     @media (max-width: 1199.98px) {
-        .solmat-table-responsive {
-            overflow-x: auto;
-            overflow-y: visible;
-        }
-
         .po-trace-map {
             min-width: 56px;
         }
@@ -390,6 +398,19 @@
 
         return confirm('¿Seguro que deseas eliminar esta SOLMAT?');
     }
+
+    // Los menús usan posición fija para no recortarse dentro del contenedor con scroll horizontal.
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!window.bootstrap || !window.bootstrap.Dropdown) return;
+
+        document.querySelectorAll('.solmat-table-responsive [data-bs-toggle="dropdown"]').forEach(function (el) {
+            new bootstrap.Dropdown(el, {
+                popperConfig: function (defaultConfig) {
+                    return Object.assign({}, defaultConfig, { strategy: 'fixed' });
+                }
+            });
+        });
+    });
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!window.bootstrap || !window.bootstrap.Tooltip) return;

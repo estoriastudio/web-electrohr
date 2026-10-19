@@ -25,6 +25,7 @@ use Carbon\Carbon;
 /* Notificaciones */
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
+use App\Services\PurchaseOrderMilestoneChecklist;
 use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PaymentController extends Controller
@@ -37,6 +38,7 @@ class PaymentController extends Controller
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
+        private PurchaseOrderMilestoneChecklist $milestoneChecklist,
     ) {}
 
     public function index(Request $request): View
@@ -49,6 +51,10 @@ class PaymentController extends Controller
             : '';
         $currency = $this->selectedCurrency($request);
         $paymentCondition = $this->selectedPaymentCondition($request);
+        // Por defecto solo se listan los pagos cuyo hito ya cumplió su checklist.
+        $checklistFilter = in_array($request->input('checklist_filter'), ['complete', 'pending', 'all'], true)
+            ? $request->input('checklist_filter')
+            : 'complete';
         $selectionState = Auth::user()->hasRole('admin')
             ? $this->getAuthorizationSelectionState($request)
             : ['selected_ids' => [], 'selected_count' => 0];
@@ -114,7 +120,14 @@ class PaymentController extends Controller
             ])
             ->get();
 
-        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState'));
+        $checklists = $this->milestoneChecklist->forMilestones($payments->pluck('milestone')->unique('id'));
+        $pendingChecklistCount = $payments->reject(fn ($payment) => $checklists[$payment->milestone_id]['complete'])->count();
+        $payments = $payments
+            ->when($checklistFilter === 'complete', fn ($items) => $items->filter(fn ($payment) => $checklists[$payment->milestone_id]['complete']))
+            ->when($checklistFilter === 'pending', fn ($items) => $items->reject(fn ($payment) => $checklists[$payment->milestone_id]['complete']))
+            ->values();
+
+        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState', 'checklists', 'checklistFilter', 'pendingChecklistCount'));
     }
 
     public function syncAuthorizationSelection(Request $request): \Illuminate\Http\JsonResponse
@@ -354,7 +367,13 @@ class PaymentController extends Controller
             ", [$urgentDate->toDateString()])
             ->get();
 
-        return view('payments.interactive', compact('payments', 'urgentDate'));
+        // El modo interactivo solo presenta pagos cuyo hito ya cumplió su checklist.
+        $checklists = $this->milestoneChecklist->forMilestones($payments->pluck('milestone')->unique('id'));
+        $totalPending = $payments->count();
+        $payments = $payments->filter(fn ($payment) => $checklists[$payment->milestone_id]['complete'])->values();
+        $skippedByChecklist = $totalPending - $payments->count();
+
+        return view('payments.interactive', compact('payments', 'urgentDate', 'skippedByChecklist'));
     }
 
     public function swipe(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
@@ -364,11 +383,18 @@ class PaymentController extends Controller
         ]);
 
         $milestone = $payment->milestone()->with('purchaseOrder')->firstOrFail();
+        $milestone->purchaseOrder->ensureOpen();
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
             [$payment->id => $validated['status']],
         );
-        $payment->update(['status' => $validated['status']]);
+        if ($validated['status'] === 'autorizado') {
+            $this->milestoneChecklist->ensureComplete([$payment], 'status');
+        }
+        $payment->update([
+            'status' => $validated['status'],
+            'checklist_verified_at' => $validated['status'] === 'autorizado' ? now() : null,
+        ]);
 
         // Solo notificar si no es un undo (revertir a por_autorizar)
         if (!in_array($validated['status'], ['por_autorizar', 'pospuesto'])) {
@@ -408,6 +434,8 @@ class PaymentController extends Controller
                     ->with('purchaseOrder')
                     ->lockForUpdate()
                     ->findOrFail($milestone->id);
+
+                $milestone->purchaseOrder->ensureOpen();
 
                 if ($milestone->purchaseOrder->status !== 'autorizada') {
                     throw ValidationException::withMessages([
@@ -516,6 +544,8 @@ class PaymentController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($milestone->purchase_order_id);
 
+            $purchaseOrder->ensureOpen();
+
             if ($lockedPayment->status !== 'rechazado') {
                 return ['error' => 'Solo se puede solicitar la reactivación de pagos rechazados.'];
             }
@@ -567,6 +597,7 @@ class PaymentController extends Controller
 
         $milestone = $payment->milestone()->firstOrFail();
         $orderId   = $milestone->purchase_order_id;
+        $milestone->purchaseOrder->ensureOpen();
         $returnTo  = $validated['return_to'] ?? 'purchase_order';
 
         $hasStatusChange = array_key_exists('status', $validated) && !is_null($validated['status']);
@@ -667,7 +698,15 @@ class PaymentController extends Controller
             $milestone->purchaseOrder,
             [$payment->id => $newStatus],
         );
+        if ($newStatus === 'autorizado') {
+            $this->milestoneChecklist->ensureComplete([$payment], 'status');
+        }
         $payment->status = $newStatus;
+        if ($newStatus === 'autorizado') {
+            $payment->checklist_verified_at = now();
+        } elseif ($newStatus !== 'pagado') {
+            $payment->checklist_verified_at = null;
+        }
         $payment->save();
 
         // Ajustar saldo cubierto del hito según transición
@@ -867,8 +906,10 @@ class PaymentController extends Controller
                 );
             }
 
+            $this->milestoneChecklist->ensureComplete($payments);
+
             foreach ($payments as $payment) {
-                $payment->update(['status' => 'autorizado']);
+                $payment->update(['status' => 'autorizado', 'checklist_verified_at' => now()]);
             }
 
             return $payments->map(function (Payment $payment) use ($milestones) {
@@ -904,6 +945,7 @@ class PaymentController extends Controller
     {
         $milestone = $payment->milestone;
         $orderId   = $milestone->purchase_order_id;
+        $milestone->purchaseOrder->ensureOpen();
 
         $hasSharedSpeiReceipt = $payment->spei_receipt_path
             && Payment::whereKeyNot($payment->id)
@@ -970,13 +1012,22 @@ class PaymentController extends Controller
             return ['selected_ids' => [], 'selected_count' => 0];
         }
 
-        $allowedPaymentIds = Payment::query()
+        $candidatePayments = Payment::query()
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
             ->whereIn('payments.id', $normalizedIds)
             ->whereIn('payments.status', ['por_autorizar', 'pospuesto'])
             ->where('purchase_orders.status', 'autorizada')
-            ->pluck('payments.id')
+            ->select('payments.id', 'payments.milestone_id')
+            ->get();
+
+        $checklists = $this->milestoneChecklist->forMilestones(
+            PurchaseOrderMilestone::query()->whereIn('id', $candidatePayments->pluck('milestone_id')->unique())->get()
+        );
+
+        $allowedPaymentIds = $candidatePayments
+            ->filter(fn ($payment) => $checklists[$payment->milestone_id]['complete'] ?? false)
+            ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->flip();
 
@@ -1111,6 +1162,56 @@ class PaymentController extends Controller
     /**
      * Vista de Alta de Facturas (acceso rápido para perfil payments).
      */
+    /**
+     * Pagos ya pagados cuyo hito aún no tiene una factura aceptada (regularización documental pendiente).
+     */
+    public function regularization(Request $request): View
+    {
+        $search = trim($request->input('search', ''));
+        $currency = $this->selectedCurrency($request);
+        $buyerId = Auth::user()->invoiceBuyerFilter();
+
+        $query = Payment::query()
+            ->has('milestone.purchaseOrder')
+            ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
+            ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
+            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
+            ->where('payments.status', 'pagado')
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('invoice_milestone')
+                    ->join('purchase_order_invoices', 'purchase_order_invoices.id', '=', 'invoice_milestone.purchase_order_invoice_id')
+                    ->whereColumn('invoice_milestone.purchase_order_milestone_id', 'payments.milestone_id')
+                    ->where('purchase_order_invoices.status', 'aceptada');
+            })
+            ->when($buyerId !== null, fn ($q) => $q->where('purchase_orders.buyer_id', $buyerId))
+            ->when($currency, fn ($q) => $q->where('purchase_orders.currency', $currency))
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('payments.folio', 'like', '%' . $search . '%')
+                        ->orWhere('purchase_orders.folio', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.rfc_name', 'like', '%' . $search . '%')
+                        ->orWhere('suppliers.commercial_name', 'like', '%' . $search . '%');
+                });
+            });
+
+        $totalsByCurrency = (clone $query)
+            ->selectRaw('purchase_orders.currency as currency, COUNT(*) as payments_count, SUM(payments.amount) as total')
+            ->groupBy('purchase_orders.currency')
+            ->get()
+            ->keyBy('currency');
+
+        $payments = $query
+            ->with(['milestone.purchaseOrder.supplier'])
+            ->select('payments.*')
+            ->orderBy('payments.payment_date')
+            ->orderBy('payments.id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('payments.regularization', compact('payments', 'search', 'currency', 'totalsByCurrency'));
+    }
+
     public function altaFacturas(Request $request): \Illuminate\View\View
     {
         $search = trim($request->input('search', ''));

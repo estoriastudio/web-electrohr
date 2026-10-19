@@ -214,6 +214,50 @@ class ProjectEstimateTest extends TestCase
         $this->assertDatabaseMissing('project_estimates', ['id' => $estimate->id]);
     }
 
+    public function test_it_attaches_a_liquidation_slip_when_creating_and_replaces_it_when_updating(): void
+    {
+        Storage::fake('s3');
+        $project = $this->project();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->post(route('projects.estimates.store', $project), $this->estimateData([
+                'attach_liquidation_slip' => '1',
+                'liquidation_slip' => UploadedFile::fake()->create('boleta.pdf', 100, 'application/pdf'),
+            ]))
+            ->assertRedirect(route('projects.show', $project));
+
+        $estimate = ProjectEstimate::firstOrFail();
+        $originalPath = $estimate->liquidation_slip_path;
+        $this->assertNotNull($originalPath);
+        Storage::disk('s3')->assertExists($originalPath);
+
+        $this->actingAs($admin)
+            ->put(route('projects.estimates.update', $estimate), $this->estimateData([
+                'attach_liquidation_slip' => '1',
+                'liquidation_slip' => UploadedFile::fake()->create('nueva.pdf', 100, 'application/pdf'),
+            ]))
+            ->assertRedirect(route('projects.show', $project));
+
+        $estimate->refresh();
+        $this->assertNotSame($originalPath, $estimate->liquidation_slip_path);
+        Storage::disk('s3')->assertMissing($originalPath);
+        Storage::disk('s3')->assertExists($estimate->liquidation_slip_path);
+    }
+
+    public function test_it_requires_the_pdf_when_the_liquidation_slip_checkbox_is_checked(): void
+    {
+        $project = $this->project();
+
+        $this->actingAs($this->admin())
+            ->post(route('projects.estimates.store', $project), $this->estimateData([
+                'attach_liquidation_slip' => '1',
+            ]))
+            ->assertSessionHasErrors('liquidation_slip');
+
+        $this->assertDatabaseCount('project_estimates', 0);
+    }
+
     private function project(string $name = 'Proyecto de prueba'): Project
     {
         return Project::create([

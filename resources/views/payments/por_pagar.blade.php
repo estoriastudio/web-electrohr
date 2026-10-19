@@ -285,7 +285,17 @@
                                             </span>
                                         @endif
                                     </td>
-                                    <td class="fw-semibold">{{ $payment->folio }}</td>
+                                    <td class="fw-semibold">
+                                        {{ $payment->folio }}
+                                        @if ($payment->checklist_verified_at)
+                                            <span class="badge bg-success-subtle text-success fs-10 d-block mt-1"
+                                                  title="Checklist verificado el {{ $payment->checklist_verified_at->format('d/m/Y H:i') }}">
+                                                <i class="ri-list-check-2 me-1"></i>Checklist verificado
+                                            </span>
+                                        @else
+                                            <span class="badge bg-secondary-subtle text-secondary fs-10 d-block mt-1">Sin verificación de checklist</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         <a href="{{ route('purchase_orders.show', $order) }}" class="text-dark fw-medium">
                                             #{{ $order->folio }}

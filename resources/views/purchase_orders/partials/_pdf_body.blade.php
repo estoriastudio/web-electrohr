@@ -126,11 +126,17 @@
             <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($item->unit_price, 2) }}</td>
             <td style="border: 1px solid #999; padding: 5px; text-align: right;">$ {{ number_format($item->total, 2) }}</td>
             <td style="border: 1px solid #999; padding: 5px; text-align: center;">
-                @if ($item->delivery_due_date && $po->created_at)
+                @php
+                    // Las OCs autorizadas antes de existir authorized_at usan la fecha de creación.
+                    $deliveryBaseDate = $po->authorized_at ?? $po->created_at;
+                @endphp
+                @if ($item->delivery_due_date && $deliveryBaseDate)
                     @php
-                        $deliveryDays = $po->created_at->copy()->startOfDay()->diffInDays($item->delivery_due_date, false);
+                        $deliveryDays = (int) $deliveryBaseDate->copy()->startOfDay()->diffInDays($item->delivery_due_date, false);
                     @endphp
-                    @if ($deliveryDays >= 7 && $deliveryDays % 7 === 0)
+                    @if ($deliveryDays === 0)
+                        INMEDIATO
+                    @elseif ($deliveryDays >= 7 && $deliveryDays % 7 === 0)
                         {{ intdiv($deliveryDays, 7) }} {{ intdiv($deliveryDays, 7) === 1 ? 'SEMANA' : 'SEMANAS' }}
                     @elseif ($deliveryDays >= 0)
                         {{ $deliveryDays }} {{ $deliveryDays === 1 ? 'DIA' : 'DIAS' }}

@@ -10,6 +10,7 @@ class PurchaseOrderItemDelivery extends Model
     protected $fillable = [
         'purchase_order_item_id',
         'evidence_id',
+        'milestone_id',
         'delivered_by',
         'quantity',
         'delivered_at',
@@ -28,6 +29,11 @@ class PurchaseOrderItemDelivery extends Model
     public function evidence(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrderEvidence::class, 'evidence_id');
+    }
+
+    public function milestone(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrderMilestone::class, 'milestone_id');
     }
 
     public function deliveredByUser(): BelongsTo

@@ -119,6 +119,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
             'purchase_order_id' => $purchaseOrder->id,
             'type' => 'regular',
             'payment_condition' => 'credito',
+            'is_advance' => true,
             'value_type' => 'fijo',
             'value' => 1000,
             'covered_amount' => 0,
@@ -273,7 +274,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
     private function completedPurchaseOrder(): PurchaseOrder
     {
         $purchaseOrder = $this->purchaseOrder('autorizada');
-        $purchaseOrder->update(['delivery_status' => 'entregado']);
+        $purchaseOrder->update(['delivery_status' => 'entregado', 'closed_at' => now()]);
 
         $milestone = PurchaseOrderMilestone::create([
             'purchase_order_id' => $purchaseOrder->id,
@@ -300,6 +301,8 @@ class PurchaseOrderStatusFlowTest extends TestCase
         return [
             'purchase_order_id' => $purchaseOrder->id,
             'payment_condition' => 'credito',
+            'credit_start' => 'invoice_validation',
+            'credit_days' => 30,
             'value_type' => 'porcentaje',
             'value' => 10,
             'due_date' => '2026-09-01',

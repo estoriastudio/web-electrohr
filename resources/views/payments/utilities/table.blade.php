@@ -19,8 +19,9 @@
                 <th>Proveedor</th>
                 <th>Proyecto / Obra</th>
                 <th>Monto</th>
+                <th>Tipo de hito</th>
                 <th>Pago / Vencimiento</th>
-                <th>Estatus</th>
+                <th>Checklist</th>
                 <th>Acciones</th>
             </tr>
         </thead>
@@ -69,19 +70,16 @@
                         ];
                     }
 
-                    $payStatusMap = [
-                        'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
-                        'autorizado'    => ['label' => 'Autorizado',    'class' => 'bg-info-subtle text-info'],
-                        'pagado'        => ['label' => 'Pagado',         'class' => 'bg-success-subtle text-success'],
-                    ];
-                    $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
+                    $checklist = $checklists[$payment->milestone_id];
                 @endphp
                 <tr>
                     @role('admin')
                     <td>
                         <input type="checkbox" class="form-check-input js-authorization-payment-select"
                                value="{{ $payment->id }}" aria-label="Seleccionar pago {{ $payment->folio }}"
-                               @checked(in_array($payment->id, $selectedAuthorizationPaymentIds, true))>
+                               @checked(in_array($payment->id, $selectedAuthorizationPaymentIds, true))
+                               @disabled(!$checklist['complete'])
+                               @if (!$checklist['complete']) title="Checklist pendiente: {{ implode(', ', $checklist['pending']) }}" @endif>
                     </td>
                     @endrole
                     <td>
@@ -127,19 +125,28 @@
                         <small class="badge bg-secondary-subtle text-secondary fs-10 mt-1">{{ $order->currency }}</small>
                     </td>
                     <td>
+                        @if ($milestone->is_advance)
+                            <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12"><i class="ri-bank-line me-1"></i>Anticipo</span>
+                        @else
+                            <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">Pago regular</span>
+                        @endif
+                        <small class="d-block text-muted fs-11 mt-1">{{ ($milestone->payment_condition ?? 'credito') === 'contado' ? 'Contado' : 'Crédito' }}</small>
+                    </td>
+                    <td>
                         <span class="d-flex align-items-center gap-1 fs-12">
                             <i class="ri-calendar-check-line text-primary"></i>
                             {{ $payment->payment_date->format('d/m/Y') }}
                         </span>
                     </td>
                     <td>
-                        <span class="badge {{ $ps['class'] }} py-1 px-2 fs-12">{{ $ps['label'] }}</span>
+                        @include('purchase_orders.partials._milestone_checklist', ['checklist' => $checklist, 'compact' => true])
                     </td>
                     <td>
                         <div class="d-flex gap-1 flex-wrap">
                             {{-- Autorizar: solo admin --}}
                             @if (in_array($payment->status, ['por_autorizar', 'pospuesto']))
                                 @role('admin')
+                                @if ($checklist['complete'])
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="status" value="autorizado">
@@ -148,6 +155,16 @@
                                         <i class="ri-check-line"></i> Autorizar
                                     </button>
                                 </form>
+                                @else
+                                {{-- Un botón disabled no dispara tooltip; se coloca en un contenedor que sí lo muestra. --}}
+                                <span class="d-inline-block" style="cursor:not-allowed;"
+                                      title="Bloqueado: checklist pendiente ({{ implode(', ', $checklist['pending']) }})">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                            style="pointer-events:none; opacity:.65; border-style:dashed;">
+                                        <i class="ri-lock-line"></i> Checklist pendiente
+                                    </button>
+                                </span>
+                                @endif
                                 @endrole
                             @endif
 
@@ -183,7 +200,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ auth()->user()->hasRole('admin') ? 9 : 8 }}" class="text-center text-muted py-5">
+                    <td colspan="{{ auth()->user()->hasRole('admin') ? 10 : 9 }}" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

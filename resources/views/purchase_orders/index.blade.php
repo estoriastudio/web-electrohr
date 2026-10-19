@@ -174,6 +174,7 @@
                     'issued' => ['label' => 'Emitidas', 'icon' => 'ri-file-list-3-line', 'class' => 'text-info', 'badgeClass' => 'bg-info-subtle text-info'],
                     'authorized' => ['label' => 'Autorizadas', 'icon' => 'ri-checkbox-circle-line', 'class' => 'text-success', 'badgeClass' => 'bg-success-subtle text-success'],
                     'delivered' => ['label' => 'Entregadas', 'icon' => 'ri-truck-line', 'class' => 'text-primary', 'badgeClass' => 'bg-primary-subtle text-primary'],
+                    'closed' => ['label' => 'Cerradas', 'icon' => 'ri-lock-2-line', 'class' => 'text-dark', 'badgeClass' => 'bg-dark-subtle text-dark'],
                 ];
             @endphp
             <div class="card-body border-bottom py-3">

@@ -106,9 +106,16 @@
                             <option value="contado" @selected($paymentCondition === 'contado')>Contado</option>
                         </select>
                     </div>
+                    <div class="col-md-2">
+                        <select name="checklist_filter" class="form-select form-select-sm" aria-label="Filtrar por checklist">
+                            <option value="complete" @selected($checklistFilter === 'complete')>Checklist completo</option>
+                            <option value="pending" @selected($checklistFilter === 'pending')>Checklist pendiente</option>
+                            <option value="all" @selected($checklistFilter === 'all')>Todos los checklists</option>
+                        </select>
+                    </div>
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-                        @if ($search || $dueDateFilter || $currency || $paymentCondition)
+                        @if ($search || $dueDateFilter || $currency || $paymentCondition || $checklistFilter !== 'complete')
                             <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar filtros">
                                 <i class="ri-close-line"></i>
                             </a>
@@ -116,6 +123,23 @@
                     </div>
                 </form>
             </div>
+
+            @if ($checklistFilter === 'complete' && $pendingChecklistCount > 0)
+                <div class="alert alert-warning mb-0 rounded-0 fs-13 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>
+                        <i class="ri-list-check-2 me-1"></i>
+                        {{ $pendingChecklistCount }} pago(s) aún no aparecen aquí porque su hito todavía no completa su checklist (entrega / factura).
+                    </span>
+                    <a href="{{ route('payments.index', array_merge(request()->except('page'), ['checklist_filter' => 'pending'])) }}" class="btn btn-sm btn-outline-warning">
+                        Ver pendientes de checklist
+                    </a>
+                </div>
+            @elseif ($checklistFilter === 'pending')
+                <div class="alert alert-info mb-0 rounded-0 fs-13 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="ri-lock-line me-1"></i>Mostrando pagos con checklist pendiente; no pueden autorizarse hasta completarlo.</span>
+                    <a href="{{ route('payments.index', request()->except('page', 'checklist_filter')) }}" class="btn btn-sm btn-outline-info">Volver a listos para autorizar</a>
+                </div>
+            @endif
 
             <div class="card-body p-0">
                 @if ($payments->isEmpty())
@@ -127,6 +151,7 @@
                     @include('payments.utilities.table', [
                         'payments' => $payments,
                         'authorizationSelectionState' => $selectionState,
+                        'checklists' => $checklists,
                     ])
                 @endif
             </div>
@@ -150,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var syncUrl = @json(route('payments.authorization.selection.sync'));
     var clearUrl = @json(route('payments.authorization.selection.clear'));
     var csrfToken = @json(csrf_token());
-    var checkboxes = Array.from(document.querySelectorAll('.js-authorization-payment-select'));
+    var checkboxes = Array.from(document.querySelectorAll('.js-authorization-payment-select:not(:disabled)'));
     var selectAll = document.getElementById('selectAllAuthorizationPayments');
     var authorizeButton = document.getElementById('btnAuthorizeMultiplePayments');
     var clearButton = document.getElementById('btnClearAuthorizationSelection');

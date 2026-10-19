@@ -33,15 +33,16 @@ class MaterialRequestController extends Controller
         $status = $request->input('status', '');
         $scope = $request->input('scope', 'mine'); // 'mine' | 'all'
 
-        $query = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders'])
-            ->orderByDesc('folio');
+        $tray = in_array($request->input('tray'), ['open', 'completed'], true) ? $request->input('tray') : 'all';
+
+        $baseQuery = MaterialRequest::query();
 
         if ($scope !== 'all') {
-            $query->where('requested_by', Auth::id());
+            $baseQuery->where('requested_by', Auth::id());
         }
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
+            $baseQuery->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
                     ->orWhere('zone', 'like', "%{$search}%")
                     ->orWhere('supply_category', 'like', "%{$search}%")
@@ -51,14 +52,26 @@ class MaterialRequestController extends Controller
         }
 
         if ($status) {
-            $query->where('status', $status);
+            $baseQuery->where('status', $status);
         }
 
-        $materialRequests = $query->paginate(15)->withQueryString();
+        $trayCounts = [
+            'all' => (clone $baseQuery)->count(),
+            'open' => (clone $baseQuery)->openTray()->count(),
+            'completed' => (clone $baseQuery)->completedTray()->count(),
+        ];
+
+        $materialRequests = (clone $baseQuery)
+            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders', 'linkedPurchaseRequests.purchaseOrders'])
+            ->when($tray === 'open', fn ($q) => $q->openTray())
+            ->when($tray === 'completed', fn ($q) => $q->completedTray())
+            ->orderByDesc('folio')
+            ->paginate(15)
+            ->withQueryString();
         $projects = Project::where('status', 'active')->orderBy('name')->get();
         $categories = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
 
-        return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'scope', 'categories'));
+        return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'scope', 'categories', 'tray', 'trayCounts'));
     }
 
     public function create()
@@ -374,7 +387,7 @@ class MaterialRequestController extends Controller
     {
         $search = trim($request->input('search', ''));
 
-        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
+        $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders', 'linkedPurchaseRequests.purchaseOrders'])
             ->archived()
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -396,7 +409,7 @@ class MaterialRequestController extends Controller
         $search = trim($request->input('search', ''));
 
         $materialRequests = MaterialRequest::onlyTrashed()
-            ->with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders'])
+            ->with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders', 'linkedPurchaseRequests.purchaseOrders'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('folio', 'like', '%'.$search.'%')

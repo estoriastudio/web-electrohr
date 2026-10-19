@@ -496,6 +496,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
+        // Reporte de entregas por folio — Inventario y Solmat
+        Route::middleware('role:admin|Inventario|Solmat')->group(function () {
+            Route::get('/ordenes-de-compra/reportar-entregas', [PurchaseOrderController::class, 'deliveryReport'])
+                ->name('purchase_orders.delivery_report');
+        });
+
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
                 ->name('purchase_orders.overdue_deliveries');
@@ -597,11 +603,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Emisión de Órdenes de Compra — Compras y admin
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
+            Route::post('/ordenes-de-compra/{purchase_order}/cerrar', [PurchaseOrderController::class, 'close'])->name('purchase_orders.close');
         });
 
         // Autorización de Órdenes de Compra — solo admin
         Route::middleware('role:admin')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
+            Route::post('/ordenes-de-compra/{purchase_order}/reabrir', [PurchaseOrderController::class, 'reopen'])->name('purchase_orders.reopen');
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar-con-pagos', [PurchaseOrderController::class, 'approveWithPayments'])
                 ->name('purchase_orders.approve_with_payments');
         });
@@ -615,6 +623,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Facturas de Órdenes de Compra
         Route::middleware('role:admin|Pagos|Recepción|Orden de compra')->group(function () {
             Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
+            Route::get('/facturas/regularizacion-documental', [PaymentController::class, 'regularization'])->name('payments.regularization');
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
             Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
             Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
@@ -641,9 +650,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Entregas por concepto
-        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+        Route::middleware('role:admin|Solmat|Inventario|Orden de compra')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
+        });
+        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+            Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
+                ->name('purchase_orders.milestones.confirm_delivery');
         });
         Route::middleware('role:admin')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}/entregas/{delivery}', [PurchaseOrderController::class, 'revertDelivery'])

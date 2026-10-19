@@ -7,12 +7,14 @@ use Illuminate\Support\Facades\Auth;
 /* Modelos */
 use App\Models\MobileAsset;
 use App\Models\Concept;
+use App\Models\Notification;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderEvidence;
 use App\Models\PurchaseOrderItemDelivery;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderMilestone;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Models\ProjectWork;
@@ -34,6 +36,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 /* Notificaciones */
 use App\Services\NotificationService;
+use App\Services\MilestoneCreditTerms;
+use App\Services\PurchaseOrderClosureEvaluator;
+use App\Services\PurchaseOrderMilestoneChecklist;
 use App\Services\PurchaseOrderPaymentSequenceValidator;
 
 class PurchaseOrderController extends Controller
@@ -41,10 +46,15 @@ class PurchaseOrderController extends Controller
     public function __construct(
         private NotificationService $notification,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
+        private PurchaseOrderMilestoneChecklist $milestoneChecklist,
+        private PurchaseOrderClosureEvaluator $closureEvaluator,
+        private MilestoneCreditTerms $creditTerms,
     ) {}
 
     private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         if ($purchaseOrder->status === 'autorizada' && !Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
                 ->with('error', 'Solo admin puede editar una OC autorizada.');
@@ -67,7 +77,7 @@ class PurchaseOrderController extends Controller
         };
         $tray    = $request->input('tray', 'all');
         $searchMode = $request->input('search_mode', 'default');
-        $trays   = ['all', 'issued', 'authorized', 'delivered'];
+        $trays   = ['all', 'issued', 'authorized', 'delivered', 'closed'];
 
         if (!in_array($tray, $trays, true) || !Auth::user()->hasRole('admin')) {
             $tray = 'all';
@@ -85,7 +95,7 @@ class PurchaseOrderController extends Controller
 
         $orders = (clone $orderQuery)
             ->when($sortDue, function ($query) {
-                $query->where(function ($query) {
+                $query->whereNull('purchase_orders.closed_at')->where(function ($query) {
                 $query->whereNull('delivery_status')
                     ->orWhere('delivery_status', '!=', 'entregado')
                     ->orWhereRaw(
@@ -127,6 +137,7 @@ class PurchaseOrderController extends Controller
             ->when($tray === 'issued', fn ($q) => $q->where('status', 'emitida')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'authorized', fn ($q) => $q->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado'))
             ->when($tray === 'delivered', fn ($q) => $q->where('delivery_status', 'entregado'))
+            ->when($tray === 'closed', fn ($q) => $q->whereNotNull('closed_at'))
             ->withMin([
                 'milestones as next_payment_due_date' => fn ($query) => $query
                     ->whereNotNull('due_date')
@@ -178,6 +189,7 @@ class PurchaseOrderController extends Controller
                 'issued' => (clone $orderQuery)->where('status', 'emitida')->where('delivery_status', '!=', 'entregado')->count(),
                 'authorized' => (clone $orderQuery)->where('status', 'autorizada')->where('delivery_status', '!=', 'entregado')->count(),
                 'delivered' => (clone $orderQuery)->where('delivery_status', 'entregado')->count(),
+                'closed' => (clone $orderQuery)->whereNotNull('closed_at')->count(),
             ]
             : [];
 
@@ -252,9 +264,9 @@ class PurchaseOrderController extends Controller
             'purchaseOrders:id,purchase_request_id,folio',
         ]);
 
-        if ($purchaseRequest->items->isNotEmpty() && $purchaseRequest->items->every->is_inherited) {
+        if ($purchaseRequest->items->isNotEmpty() && !$purchaseRequest->items->contains(fn ($item) => $item->is_pending)) {
             return redirect()->route('purchasing.solcom_pile', ['section' => 'salida'])
-                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron heredados a una OC.");
+                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron fincados por completo a una OC.");
         }
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
@@ -296,6 +308,8 @@ class PurchaseOrderController extends Controller
             // Si se crea desde SOLCOM, permitir seleccionar qué conceptos heredar
             if ($request->filled('purchase_request_id')) {
                 $rules['selected_item_ids'] = ['required', 'array', 'min:1'];
+                $rules['item_quantities'] = ['nullable', 'array'];
+                $rules['item_quantities.*'] = ['nullable', 'numeric', 'gt:0', 'decimal:0,4'];
                 $rules['selected_item_ids.*'] = [
                     'integer',
                     Rule::exists('purchase_request_items', 'id')->where(function ($q) use ($request) {
@@ -430,22 +444,44 @@ class PurchaseOrderController extends Controller
                         ->lockForUpdate()
                         ->get(['id']);
 
-                    $alreadyInherited = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
+                    $requestedQuantities = $validated['item_quantities'] ?? [];
+
+                    $itemsToCopy = PurchaseRequestItem::with([
+                        'concept',
+                        'purchaseOrderItems.purchaseOrder:id,folio,status',
+                    ])
                         ->whereIn('id', $selectedItemIds)
-                        ->inherited()
+                        ->orderBy('id')
                         ->get();
 
-                    if ($alreadyInherited->isNotEmpty()) {
-                        $detail = $alreadyInherited
-                            ->map(fn (PurchaseRequestItem $item) => '"' . $item->description . '" (OC #' . $item->inherited_order?->folio . ')')
-                            ->implode(', ');
+                    $quantitiesToInherit = [];
+                    $errors = [];
 
-                        throw ValidationException::withMessages([
-                            'selected_item_ids' => 'Estos conceptos ya fueron heredados a otra OC: ' . $detail . '.',
-                        ]);
+                    foreach ($itemsToCopy as $item) {
+                        $remaining = $item->remaining_quantity;
+
+                        if ($remaining <= 0) {
+                            $errors[] = '"' . $item->description . '" ya fue fincado por completo (OC #' . $item->inheritedOrders()->pluck('folio')->implode(', #') . ')';
+                            continue;
+                        }
+
+                        $quantity = isset($requestedQuantities[$item->id]) && $requestedQuantities[$item->id] !== ''
+                            ? round((float) $requestedQuantities[$item->id], 4)
+                            : $remaining;
+
+                        if ($quantity > $remaining) {
+                            $errors[] = '"' . $item->description . '": la cantidad a fincar (' . $quantity . ') excede la no fincada (' . $remaining . ')';
+                            continue;
+                        }
+
+                        $quantitiesToInherit[$item->id] = $quantity;
                     }
 
-                    $itemsToCopy = $pr->items->whereIn('id', $selectedItemIds)->values();
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages([
+                            'selected_item_ids' => implode('; ', $errors) . '.',
+                        ]);
+                    }
 
                     foreach ($itemsToCopy as $item) {
                         PurchaseOrderItem::create([
@@ -454,7 +490,7 @@ class PurchaseOrderController extends Controller
                             'concept_id'        => $item->concept_id,
                             'description'       => $item->description,
                             'unit'              => $item->unit,
-                            'quantity'          => $item->purchase_quantity,
+                            'quantity'          => $quantitiesToInherit[$item->id],
                             'unit_price'        => $item->concept?->unit_price ?? 0,
                             'delivery_date'     => null,
                         ]);
@@ -520,6 +556,7 @@ class PurchaseOrderController extends Controller
                 'nextPendingPurchaseOrder' => null,
                 'buyers' => collect(),
                 'isRestrictedEngineer' => true,
+                'movementHistory' => collect(),
             ]);
         }
 
@@ -563,12 +600,22 @@ class PurchaseOrderController extends Controller
             }
         }
 
+        $movementHistory = Auth::user()->hasRole('admin')
+            ? Notification::with('user:id,name')
+                ->forPurchaseOrder($purchaseOrder)
+                ->latest()
+                ->latest('id')
+                ->limit(200)
+                ->get()
+            : collect();
+
         return view('purchase_orders.show', compact(
             'purchaseOrder',
             'pendingAuthCount',
             'nextPendingPurchaseOrder',
             'buyers',
-            'isRestrictedEngineer'
+            'isRestrictedEngineer',
+            'movementHistory'
         ));
     }
 
@@ -772,6 +819,80 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' emitida correctamente.');
     }
 
+    public function close(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'closure_note' => 'nullable|string|max:1000',
+        ]);
+
+        $isAdmin = Auth::user()->hasRole('admin');
+        if (!$isAdmin && (int) $purchaseOrder->buyer_id !== (int) Auth::id()) {
+            abort(403);
+        }
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+
+        DB::transaction(function () use ($purchaseOrder, $validated) {
+            $locked = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($locked->is_closed) {
+                throw ValidationException::withMessages(['purchase_order' => 'La orden de compra ya está cerrada.']);
+            }
+
+            $closure = $this->closureEvaluator->evaluate($locked);
+            if (!$closure['ready']) {
+                throw ValidationException::withMessages([
+                    'purchase_order' => 'No se puede cerrar la OC. Pendiente: ' . implode(', ', $closure['pending']) . '.',
+                ]);
+            }
+
+            $locked->update([
+                'closed_at' => now(),
+                'closed_by' => Auth::id(),
+                'closure_note' => $validated['closure_note'] ?? null,
+            ]);
+        });
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'cerró la orden de compra #' . $folio . ' de ' . $supplierName . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . $folio . ' cerrada.');
+    }
+
+    public function reopen(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reopen_reason' => 'required|string|min:10|max:1000',
+        ]);
+
+        if (!$purchaseOrder->is_closed) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La orden de compra no está cerrada.');
+        }
+
+        $folio = $purchaseOrder->folio ?? $purchaseOrder->id;
+        $purchaseOrder->update(['closed_at' => null, 'closed_by' => null, 'closure_note' => null]);
+
+        $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => 'reabrió la orden de compra #' . $folio . ' de ' . $supplierName . '. Motivo: ' . $validated['reopen_reason'],
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', 'Orden de compra #' . $folio . ' reabierta.');
+    }
+
     public function approve(PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($purchaseOrder->status === 'autorizada') {
@@ -784,7 +905,7 @@ class PurchaseOrderController extends Controller
                 ->with('error', 'La orden de compra debe estar emitida antes de autorizarse.');
         }
 
-        $purchaseOrder->update(['status' => 'autorizada']);
+        $purchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -847,8 +968,9 @@ class PurchaseOrderController extends Controller
                 $lockedPurchaseOrder,
                 $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),
             );
-            $lockedPurchaseOrder->update(['status' => 'autorizada']);
-            $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado']));
+            $this->milestoneChecklist->ensureComplete($payments);
+            $lockedPurchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
+            $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado', 'checklist_verified_at' => now()]));
 
             return $payments;
         });
@@ -883,10 +1005,41 @@ class PurchaseOrderController extends Controller
             ->with('success', $message);
     }
 
+    public function deliveryReport(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+        $orders = collect();
+        $selectedOrder = null;
+
+        if ($search !== '') {
+            $escaped = addcslashes($search, '\\%_');
+            $orders = PurchaseOrder::with('supplier')
+                ->whereNull('archived_at')
+                ->where('folio', 'like', '%' . $escaped . '%')
+                ->orderByDesc('id')
+                ->limit(20)
+                ->get();
+
+            $selectedId = $request->integer('order') ?: ($orders->count() === 1 ? $orders->first()->id : null);
+            $selectedOrder = $selectedId ? $orders->firstWhere('id', $selectedId) : null;
+
+            if ($selectedOrder) {
+                $selectedOrder->load([
+                    'items.deliveries.deliveredByUser',
+                    'milestones',
+                ]);
+            }
+        }
+
+        return view('purchase_orders.delivery_report', compact('search', 'orders', 'selectedOrder'));
+    }
+
     public function storeDelivery(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         $user = Auth::user();
-        $canManage = $user->hasAnyRole(['admin', 'Solmat'])
+        $canManage = $user->hasAnyRole(['admin', 'Solmat', 'Inventario'])
             || ($user->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) $user->id);
         abort_unless($canManage, 403);
 
@@ -902,12 +1055,18 @@ class PurchaseOrderController extends Controller
                     ->where('purchase_order_id', $purchaseOrder->id)
                     ->whereNull('delivered_at'),
             ],
+            'milestone_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('purchase_order_milestones', 'id')->where('purchase_order_id', $purchaseOrder->id),
+            ],
             'quantities' => 'nullable|array',
             'quantities.*' => 'nullable|numeric|min:0.0001|decimal:0,4',
             'delivery_evidence' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ], [
             'item_ids.required' => 'Selecciona al menos un concepto entregado.',
             'item_ids.min' => 'Selecciona al menos un concepto entregado.',
+            'milestone_id.exists' => 'El hito seleccionado no pertenece a la OC.',
             'item_ids.*.exists' => 'Alguno de los conceptos no pertenece a la OC o ya fue entregado.',
             'quantities.*.min' => 'La cantidad entregada debe ser mayor a cero.',
             'quantities.*.numeric' => 'La cantidad entregada debe ser numérica.',
@@ -958,6 +1117,7 @@ class PurchaseOrderController extends Controller
                 PurchaseOrderItemDelivery::create([
                     'purchase_order_item_id' => $itemId,
                     'evidence_id' => $evidence->id,
+                    'milestone_id' => $validated['milestone_id'] ?? null,
                     'delivered_by' => Auth::id(),
                     'quantity' => $quantity,
                     'delivered_at' => now(),
@@ -979,17 +1139,30 @@ class PurchaseOrderController extends Controller
             'data'         => 'registró la entrega de ' . count($itemIds) . ' concepto(s) con la evidencia ' . $evidenceFileName . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '. Estatus de entrega: "' . $deliveryLabel . '".',
         ]);
 
-        return redirect()->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', 'Entrega registrada. Estatus de entrega: "' . $deliveryLabel . '".');
+        $route = $request->input('return_to') === 'delivery_report'
+            ? redirect()->route('purchase_orders.delivery_report', ['search' => $purchaseOrder->folio ?? '', 'order' => $purchaseOrder->id])
+            : redirect()->route('purchase_orders.show', $purchaseOrder);
+
+        return $route->with('success', 'Entrega registrada. Estatus de entrega: "' . $deliveryLabel . '".');
     }
 
     public function revertDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderItemDelivery $delivery): RedirectResponse
     {
+        $purchaseOrder->ensureOpen();
+
         $item = $delivery->item;
         abort_unless($item && $item->purchase_order_id === $purchaseOrder->id, 404);
 
         $quantity = rtrim(rtrim(number_format((float) $delivery->quantity, 4, '.', ''), '0'), '.');
+        $milestoneId = $delivery->milestone_id;
         $delivery->delete();
+
+        if ($milestoneId && !PurchaseOrderItemDelivery::where('milestone_id', $milestoneId)->exists()) {
+            PurchaseOrderMilestone::whereKey($milestoneId)->update([
+                'delivery_confirmed_at' => null,
+                'delivery_confirmed_by' => null,
+            ]);
+        }
 
         $purchaseOrder->syncDeliveryStatus(false);
 
@@ -1003,6 +1176,38 @@ class PurchaseOrderController extends Controller
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
             ->with('success', 'Entrega revertida.');
+    }
+
+    public function confirmMilestoneDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderMilestone $milestone): RedirectResponse
+    {
+        $purchaseOrder->ensureOpen();
+
+        abort_unless($milestone->purchase_order_id === $purchaseOrder->id, 404);
+
+        if ($milestone->delivery_confirmed_at === null && !$milestone->deliveries()->exists()) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'Registra al menos una entrega ligada al hito antes de confirmarla.');
+        }
+
+        $confirmed = $milestone->delivery_confirmed_at === null;
+        $milestone->update([
+            'delivery_confirmed_at' => $confirmed ? now() : null,
+            'delivery_confirmed_by' => $confirmed ? Auth::id() : null,
+        ]);
+        $creditWarning = $confirmed ? $this->creditTerms->apply($milestone->load('purchaseOrder')) : null;
+
+        $this->notification->send([
+            'type'         => 'PurchaseOrder',
+            'action_by'    => Auth::id(),
+            'model_action' => 'update',
+            'model_id'     => $purchaseOrder->id,
+            'data'         => ($confirmed ? 'confirmó' : 'revocó la confirmación de')
+                . ' la entrega del hito #' . $milestone->id . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)
+            ->with('success', $confirmed ? 'Entrega del hito confirmada.' : 'Confirmación de entrega revocada.')
+            ->with('warning', $creditWarning);
     }
 
     public function destroy(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
@@ -1283,6 +1488,22 @@ class PurchaseOrderController extends Controller
             'unit_price'        => 'sometimes|numeric|min:0',
             'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d',
         ]);
+
+        // Un concepto fincado de SOLCOM no puede exceder la cantidad faltante por comprar.
+        if (array_key_exists('quantity', $data) && $item->purchase_request_item_id) {
+            $requestItem = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
+                ->find($item->purchase_request_item_id);
+
+            if ($requestItem) {
+                $maxQuantity = round($requestItem->remaining_quantity + (float) $item->quantity, 4);
+
+                if (round((float) $data['quantity'], 4) > $maxQuantity) {
+                    throw ValidationException::withMessages([
+                        'quantity' => 'La cantidad excede lo disponible de la SOLCOM para este concepto (máximo ' . rtrim(rtrim(number_format($maxQuantity, 4, '.', ''), '0'), '.') . ').',
+                    ]);
+                }
+            }
+        }
 
         $item->update($data);
 

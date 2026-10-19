@@ -26,6 +26,7 @@
         'credit_note_pdf' => ['label' => 'Nota de crédito PDF', 'path' => 'credit_note_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
         'credit_note_xml' => ['label' => 'Nota de crédito XML', 'path' => 'credit_note_xml_path', 'icon' => 'ri-file-code-line'],
         'spei_receipt' => ['label' => 'Comprobante SPEI', 'path' => 'spei_receipt_path', 'icon' => 'ri-bank-card-line'],
+        'liquidation_slip' => ['label' => 'Boleta de liquidación', 'path' => 'liquidation_slip_path', 'icon' => 'ri-file-list-3-line'],
     ];
     $documentErrorModalId = old('estimate_document_form') ? 'modalEstimateDocuments' . old('estimate_document_form') : null;
 @endphp
@@ -146,7 +147,9 @@
                                             data-advance-amortization-vat-amount="{{ $estimate->advance_amortization_vat_amount }}"
                                             data-funeral-expense-amount="{{ $estimate->funeral_expense_amount }}"
                                             data-delay-penalty-amount="{{ $estimate->delay_penalty_amount }}"
-                                            data-notes="{{ $estimate->notes }}">
+                                            data-notes="{{ $estimate->notes }}"
+                                            data-liquidation-slip-url="{{ $estimate->liquidation_slip_path && ! $engineerView ? route('projects.estimates.documents.download', [$estimate, 'liquidation_slip']) : '' }}"
+                                            data-has-liquidation-slip="{{ $estimate->liquidation_slip_path ? 1 : 0 }}">
                                         <i class="ri-edit-line"></i>
                                     </button>
                                     @unless ($engineerView)
@@ -195,7 +198,7 @@
 
 <div class="modal fade" id="modalEditEstimate" tabindex="-1" aria-labelledby="modalEditEstimateLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-        <form id="formEditEstimate" action="" method="POST" class="h-100">
+        <form id="formEditEstimate" action="" method="POST" enctype="multipart/form-data" class="h-100">
             <div class="modal-content">
             @csrf
             @method('PUT')
@@ -307,6 +310,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 ['funeral_expense_amount', 'funeralExpenseAmount'], ['delay_penalty_amount', 'delayPenaltyAmount'],
             ].forEach(function (field) { setMoneyValue(document.getElementById('edit_' + field[0]), this.dataset[field[1]] || 0); }, this);
             document.getElementById('edit_notes').value = this.dataset.notes || '';
+            var slipToggle = document.getElementById('edit_attach_liquidation_slip');
+            slipToggle.checked = this.dataset.hasLiquidationSlip === '1';
+            slipToggle.dispatchEvent(new Event('change'));
+            var slipCurrent = modal.querySelector('.js-liquidation-slip-current');
+            slipCurrent.hidden = !this.dataset.liquidationSlipUrl;
+            modal.querySelector('.js-liquidation-slip-link').href = this.dataset.liquidationSlipUrl || '#';
             recalculateEstimate('edit');
         });
     });

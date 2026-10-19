@@ -21,6 +21,13 @@
     </div>
 @endif
 
+@if (session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ session('warning') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @if (session('error'))
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {{ session('error') }}
@@ -80,6 +87,10 @@
     $deliveryTotalItems = $purchaseOrder->items->count();
     $purchaseOrder->loadMissing('items.deliveries.evidence', 'items.deliveries.deliveredByUser');
     $deliveredItemsCount = $purchaseOrder->items->whereNotNull('delivered_at')->count();
+    $creditTermsService = app(\App\Services\MilestoneCreditTerms::class);
+    $eventStatuses = app(\App\Services\MilestoneEventStatus::class)->forMilestones($purchaseOrder->milestones);
+    $economicSummary = app(\App\Services\PurchaseOrderEconomicSummary::class)->forOrder($purchaseOrder);
+    $milestoneChecklists = app(\App\Services\PurchaseOrderMilestoneChecklist::class)->forMilestones($purchaseOrder->milestones);
     $deliveryProgress = $purchaseOrder->delivery_progress;
     $fmtQty = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.') ?: '0';
     $hasItemDeliveries = (float) $purchaseOrder->items->sum('delivered_quantity') > 0;
@@ -146,6 +157,126 @@
     </div>
 @endif
 
+{{-- ── RESUMEN ECONÓMICO ── --}}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold fs-14"><i class="ri-bar-chart-box-line me-1"></i>Resumen económico</span>
+        @if ($economicSummary['paid_without_invoice'] > 0)
+            <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="badge bg-warning-subtle text-warning text-decoration-none">
+                <i class="ri-file-warning-line me-1"></i>Pagado sin factura aceptada: {{ $purchaseOrder->currency }} {{ number_format($economicSummary['paid_without_invoice'], 2) }}
+            </a>
+        @endif
+    </div>
+    <div class="card-body py-2">
+        <div class="row g-2 text-center">
+            @foreach ([
+                ['Importe total de la OC', $economicSummary['total'], 'text-dark'],
+                ['Importe facturado', $economicSummary['invoiced'], 'text-primary'],
+                ['Pendiente de facturar', $economicSummary['pending_invoicing'], 'text-warning'],
+                ['Importe pagado', $economicSummary['paid'], 'text-success'],
+                ['Pendiente de pagar', $economicSummary['pending_payment'], 'text-danger'],
+                ['Facturado sin pagar', $economicSummary['invoiced_unpaid'], 'text-info'],
+            ] as [$summaryLabel, $summaryAmount, $summaryClass])
+                <div class="col-6 col-md-4 col-xl-2">
+                    <div class="fs-11 text-muted">{{ $summaryLabel }}</div>
+                    <div class="fw-semibold {{ $summaryClass }}">{{ $purchaseOrder->currency }} {{ number_format($summaryAmount, 2) }}</div>
+                </div>
+            @endforeach
+        </div>
+        <div class="form-text mt-1">Facturado considera solo facturas aceptadas, netas de notas de crédito.</div>
+    </div>
+</div>
+
+{{-- ── CIERRE DE LA OC ── --}}
+@if ($purchaseOrder->is_closed)
+    <div class="alert alert-dark d-flex align-items-start gap-3 mb-3" role="alert">
+        <i class="ri-lock-2-line fs-22 mt-1"></i>
+        <div class="flex-grow-1">
+            <h6 class="alert-heading mb-1 fw-semibold">Orden de compra cerrada</h6>
+            <p class="mb-0 fs-13">
+                Cerrada el {{ $purchaseOrder->closed_at->format('d/m/Y H:i') }}{{ $purchaseOrder->closer ? ' por ' . $purchaseOrder->closer->name : '' }}.
+                Entrega, pagos y facturación quedaron completos; no admite cambios hasta reabrirla.
+            </p>
+            @if ($purchaseOrder->closure_note)
+                <p class="mb-0 fs-12 text-muted mt-1">Nota de cierre: {{ $purchaseOrder->closure_note }}</p>
+            @endif
+        </div>
+        @role('admin')
+        <button type="button" class="btn btn-outline-dark btn-sm align-self-center" data-bs-toggle="modal" data-bs-target="#modalReopenPurchaseOrder">
+            <i class="ri-lock-unlock-line me-1"></i> Reabrir OC
+        </button>
+        @endrole
+    </div>
+
+    @role('admin')
+    <div class="modal fade" id="modalReopenPurchaseOrder" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('purchase_orders.reopen', $purchaseOrder) }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="ri-lock-unlock-line me-1"></i> Reabrir orden de compra</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label for="reopen_reason" class="form-label fw-medium">Motivo de la reapertura <span class="text-danger">*</span></label>
+                        <textarea id="reopen_reason" name="reopen_reason" class="form-control" rows="3" minlength="10" maxlength="1000" required></textarea>
+                        <div class="form-text">Queda registrado en las notificaciones de la OC.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-dark">Reabrir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endrole
+@elseif ($purchaseOrder->status === 'autorizada')
+    @php
+        $closure = app(\App\Services\PurchaseOrderClosureEvaluator::class)->evaluate($purchaseOrder);
+        $canCloseOrder = $canManageOrder ?? false;
+    @endphp
+    <div class="card mb-3 {{ $closure['ready'] ? 'border-success' : '' }}">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span class="fw-semibold fs-14"><i class="ri-lock-2-line me-1"></i>Cierre de la OC</span>
+            <span class="badge {{ $closure['ready'] ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">
+                {{ $closure['ready'] ? 'Lista para cerrar' : 'Abierta' }}
+            </span>
+        </div>
+        <div class="card-body py-2">
+            @foreach ($closure['requirements'] as $requirement)
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fs-13"><i class="{{ $requirement['met'] ? 'ri-checkbox-circle-line text-success' : 'ri-close-circle-line text-danger' }} me-1"></i>{{ $requirement['label'] }}</span>
+                    <span class="fs-12 text-end {{ $requirement['met'] ? 'text-success' : 'text-danger' }}">
+                        {{ $requirement['detail'] }}
+                        @if ($requirement['key'] === 'documentary' && !$requirement['met'])
+                            <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="d-block fs-11">Ver regularización documental</a>
+                        @endif
+                    </span>
+                </div>
+            @endforeach
+            @if ($canCloseOrder)
+                <form action="{{ route('purchase_orders.close', $purchaseOrder) }}" method="POST" class="mt-2 d-flex flex-wrap gap-2 align-items-center"
+                      onsubmit="return confirm('¿Cerrar esta orden de compra? No admitirá cambios hasta que un administrador la reabra.')">
+                    @csrf
+                    <input type="text" name="closure_note" class="form-control form-control-sm" style="max-width:360px;" maxlength="1000"
+                           placeholder="Nota de cierre (opcional)" @disabled(!$closure['ready'])>
+                    @if ($closure['ready'])
+                        <button type="submit" class="btn btn-success btn-sm"><i class="ri-lock-2-line me-1"></i>Cerrar OC</button>
+                    @else
+                        <span class="d-inline-block" style="cursor:not-allowed;" title="Bloqueado: {{ implode(', ', $closure['pending']) }}">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled style="pointer-events:none; opacity:.65; border-style:dashed;">
+                                <i class="ri-lock-line me-1"></i>Cerrar OC (pendiente)
+                            </button>
+                        </span>
+                    @endif
+                </form>
+            @endif
+        </div>
+    </div>
+@endif
+
 @if ($purchaseOrder->status === 'emitida')
 @role('admin')
 <div class="modal fade" id="modalApprovePurchaseOrder" tabindex="-1" aria-labelledby="modalApprovePurchaseOrderLabel" aria-hidden="true">
@@ -181,7 +312,9 @@
                                 <tbody>
                                     @foreach ($purchaseOrderPayments as $payment)
                                         @php
-                                            $canAuthorizePayment = in_array($payment->status, ['por_autorizar', 'pospuesto'], true);
+                                            $paymentChecklist = $milestoneChecklists[$payment->milestone_id] ?? null;
+                                            $paymentChecklistBlocked = $paymentChecklist && !$paymentChecklist['complete'];
+                                            $canAuthorizePayment = in_array($payment->status, ['por_autorizar', 'pospuesto'], true) && !$paymentChecklistBlocked;
                                             $paymentStatusMap = [
                                                 'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
                                                 'pospuesto' => ['label' => 'Pospuesto', 'class' => 'bg-secondary-subtle text-secondary'],
@@ -196,14 +329,21 @@
                                                 @if ($canAuthorizePayment)
                                                     <input class="form-check-input" type="checkbox" name="payment_ids[]" value="{{ $payment->id }}" aria-label="Autorizar pago {{ $payment->folio }}">
                                                 @else
-                                                    <input class="form-check-input" type="checkbox" disabled aria-label="Pago no disponible para autorización">
+                                                    <input class="form-check-input" type="checkbox" disabled
+                                                           aria-label="Pago no disponible para autorización"
+                                                           @if ($paymentChecklistBlocked) title="Checklist pendiente: {{ implode(', ', $paymentChecklist['pending']) }}" @endif>
                                                 @endif
                                             </td>
                                             <td>Hito #{{ $milestonePositionMap[$payment->milestone_id] ?? '—' }}</td>
                                             <td class="fw-medium">{{ $payment->folio ?: '—' }}</td>
                                             <td>{{ $payment->payment_date?->format('d/m/Y') ?? '—' }}</td>
                                             <td class="text-end fw-medium">{{ $purchaseOrder->currency }} {{ number_format($payment->amount, 2) }}</td>
-                                            <td><span class="badge {{ $paymentStatus['class'] }}">{{ $paymentStatus['label'] }}</span></td>
+                                            <td>
+                                                <span class="badge {{ $paymentStatus['class'] }}">{{ $paymentStatus['label'] }}</span>
+                                                @if ($paymentChecklistBlocked && in_array($payment->status, ['por_autorizar', 'pospuesto'], true))
+                                                    <span class="badge bg-danger-subtle text-danger fs-10 d-block mt-1">Checklist pendiente: {{ implode(', ', $paymentChecklist['pending']) }}</span>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -616,6 +756,18 @@
                     </div>
                     @if ($deliveryStatus === 'parcial' && !$hasItemDeliveries)
                         <div class="alert alert-info py-2 fs-13">Esta OC ya estaba en entrega parcial sin detalle de conceptos. Marca los conceptos entregados para regularizarla.</div>
+                    @endif
+                    @if ($orderedMilestones->isNotEmpty())
+                        <label for="delivery_milestone_id" class="form-label fw-medium">Hito que cubre esta entrega</label>
+                        <select id="delivery_milestone_id" name="milestone_id" class="form-select mb-3 @error('milestone_id') is-invalid @enderror">
+                            <option value="">Sin hito</option>
+                            @foreach ($orderedMilestones as $deliveryMilestone)
+                                <option value="{{ $deliveryMilestone->id }}" @selected((string) old('milestone_id') === (string) $deliveryMilestone->id)>
+                                    Hito #{{ $milestonePositionMap[$deliveryMilestone->id] ?? $deliveryMilestone->id }}{{ $deliveryMilestone->concept ? ' · ' . $deliveryMilestone->concept : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('milestone_id')<div class="invalid-feedback d-block mb-2">{{ $message }}</div>@enderror
                     @endif
                     <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
                     <input id="delivery_evidence" name="delivery_evidence" type="file" required class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
@@ -1186,6 +1338,19 @@
                             <span class="fs-12">{{ $milestone->invoice_date->format('d/m/Y') }}</span>
                         </div>
                     @endif
+                    @if ($creditTermsService->hasTerms($milestone))
+                        @php $creditBase = $creditTermsService->baseDate($milestone); @endphp
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted fs-12">Plazo de crédito:</span>
+                            <span class="fs-12 text-end">
+                                {{ $milestone->credit_days }} días desde
+                                {{ $creditTermsService->startsWith($milestone) === 'fulfillment_validated' ? 'cumplimiento validado' : 'validación de factura' }}
+                                <span class="d-block fs-11 {{ $creditBase ? 'text-success' : 'text-muted' }}">
+                                    {{ $creditBase ? 'Inicio: ' . $creditBase->format('d/m/Y') . ' (vencimiento calculado)' : 'Inicio pendiente: vencimiento estimado' }}
+                                </span>
+                            </span>
+                        </div>
+                    @endif
                     @if ($milestone->due_date)
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted fs-12">Vencimiento:</span>
@@ -1199,6 +1364,37 @@
                             </span>
                         </div>
                     @endif
+
+                    {{-- Checklist de comprobación previo a la autorización del pago --}}
+                    @php $milestoneChecklist = $milestoneChecklists[$milestone->id]; @endphp
+                    <div class="border rounded p-2 mt-2">
+                        @include('purchase_orders.partials._event_status', ['eventStatus' => $eventStatuses[$milestone->id]])
+                    </div>
+                    <div class="border rounded p-2 mt-2 {{ $milestoneChecklist['complete'] ? 'border-success-subtle' : 'border-danger-subtle' }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fs-12 fw-semibold"><i class="ri-list-check-2 me-1"></i>Checklist del hito</span>
+                            <span class="badge {{ $milestoneChecklist['complete'] ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }} fs-11">
+                                {{ $milestoneChecklist['complete'] ? 'Listo para autorizar' : 'Pendiente' }}
+                            </span>
+                        </div>
+                        @include('purchase_orders.partials._milestone_checklist', ['checklist' => $milestoneChecklist])
+                        @if (!$milestone->is_advance && ($canManageOrder || auth()->user()->hasAnyRole(['admin', 'Solmat'])))
+                            @if ($milestone->delivery_confirmed_at)
+                                <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
+                                      onsubmit="return confirm('¿Revocar la confirmación de entrega de este hito?')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-soft-secondary btn-sm">Revocar confirmación de entrega</button>
+                                </form>
+                            @elseif ($milestone->deliveries()->exists())
+                                <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-soft-success btn-sm">
+                                        <i class="ri-check-double-line me-1"></i>Confirmar entrega completa del hito
+                                    </button>
+                                </form>
+                            @endif
+                        @endif
+                    </div>
 
                     {{-- Barra de progreso --}}
                     <div class="mt-2 mb-1">
@@ -1320,7 +1516,16 @@
                                                         {{-- Transiciones de estatus --}}
                                                         @hasanyrole('admin|Pagos')
                                                         @foreach ($transitions as $newStatus => $transition)
+                                                            @php $blockedByChecklist = $newStatus === 'autorizado' && !$milestoneChecklist['complete']; @endphp
                                                             <li>
+                                                                @if ($blockedByChecklist)
+                                                                    <span class="dropdown-item-text text-muted d-flex align-items-start gap-1 border border-dashed rounded mx-2 py-1 fs-12"
+                                                                          style="cursor:not-allowed; border-style:dashed !important;"
+                                                                          title="Bloqueado: checklist pendiente ({{ implode(', ', $milestoneChecklist['pending']) }})">
+                                                                        <i class="ri-lock-line mt-1"></i>
+                                                                        <span>Autorizar bloqueado<small class="d-block fs-11 text-danger">Falta: {{ implode(', ', $milestoneChecklist['pending']) }}</small></span>
+                                                                    </span>
+                                                                @else
                                                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                     @csrf @method('PATCH')
                                                                     <input type="hidden" name="status" value="{{ $newStatus }}">
@@ -1329,6 +1534,7 @@
                                                                         <i class="{{ $transition['icon'] }} me-1"></i>{{ $transition['label'] }}
                                                                     </button>
                                                                 </form>
+                                                                @endif
                                                             </li>
                                                         @endforeach
                                                         @endhasanyrole
@@ -1831,6 +2037,55 @@
     </div>
 </div>
 
+{{-- ── HISTÓRICO DE MOVIMIENTOS ── --}}
+@if (auth()->user()->hasRole('admin'))
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-history-line me-1 text-primary"></i> Histórico de movimientos de esta OC</h5>
+                <span class="text-muted fs-13">{{ $movementHistory->count() }} registros</span>
+            </div>
+            <div class="card-body" style="max-height: 480px; overflow-y: auto;">
+                @forelse ($movementHistory as $log)
+                    @php
+                        $logAction = \App\Models\Notification::ACTION_LABELS[$log->model_action]
+                            ?? ['icon' => 'ri-information-line', 'color' => 'secondary', 'label' => $log->model_action];
+                        $logModule = \App\Models\Notification::MODULE_LABELS[$log->type]['label'] ?? $log->type;
+                    @endphp
+                    <div class="d-flex gap-3">
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="avatar-xs bg-{{ $logAction['color'] }}-subtle text-{{ $logAction['color'] }} rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="{{ $logAction['icon'] }}"></i>
+                            </span>
+                            @unless ($loop->last)
+                                <span class="flex-grow-1 border-start my-1"></span>
+                            @endunless
+                        </div>
+                        <div class="{{ $loop->last ? '' : 'pb-4' }}">
+                            <div class="fs-13">
+                                <span class="fw-semibold">{{ $log->user?->name ?? 'Sistema' }}</span>
+                                <span class="text-body-secondary">{{ $log->data }}</span>
+                            </div>
+                            <div class="mt-1">
+                                <span class="badge bg-{{ $logAction['color'] }}-subtle text-{{ $logAction['color'] }} fs-11">
+                                    {{ $log->type === 'PurchaseOrder' ? '' : $logModule . ' · ' }}{{ $logAction['label'] }}
+                                </span>
+                            </div>
+                            <div class="text-muted fs-12 mt-1">
+                                <i class="ri-time-line me-1"></i>{{ $log->created_at->format('d/m/Y H:i') }}
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-muted fs-13 mb-0">Sin movimientos registrados.</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 @unless ($isRestrictedEngineer)
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($orderedMilestones as $milestone)
@@ -1902,6 +2157,7 @@
                                 <input type="date" class="form-control"
                                        name="due_date" value="{{ $milestone->due_date?->format('Y-m-d') }}" min="{{ $minDueDate }}" required>
                             </div>
+                            @include('purchase_orders.partials._credit_terms_fields', ['idPrefix' => 'edit_' . $milestone->id, 'milestone' => $milestone])
                             <div class="col-12">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" name="is_advance" value="1"
@@ -2179,6 +2435,7 @@
                             <label class="form-label fw-medium">Fecha vencimiento <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" name="due_date" min="{{ $minDueDate }}" required>
                         </div>
+                        @include('purchase_orders.partials._credit_terms_fields', ['idPrefix' => 'create', 'milestone' => new \App\Models\PurchaseOrderMilestone()])
                         <div class="col-12">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="is_advance" value="1"
