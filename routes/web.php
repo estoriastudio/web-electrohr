@@ -785,7 +785,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/inventario/{concept}', [StockController::class, 'show'])->name('stocks.show');
         });
 
-        Route::middleware('role:admin|Pagos|Proveedor|Moviles')->group(function () {
+        Route::middleware('role:admin|Solmat|Pagos|Moviles')->group(function () {
             Route::resource('/vales-material', MaterialVoucherController::class, [
                 'names' => [
                     'index' => 'material_vouchers.index',
