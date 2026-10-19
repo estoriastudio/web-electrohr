@@ -1516,7 +1516,10 @@
                                                         {{-- Transiciones de estatus --}}
                                                         @hasanyrole('admin|Pagos')
                                                         @foreach ($transitions as $newStatus => $transition)
-                                                            @php $blockedByChecklist = $newStatus === 'autorizado' && !$milestoneChecklist['complete']; @endphp
+                                                            @php
+                                                                $blockedByChecklist = $newStatus === 'autorizado' && !$milestoneChecklist['complete'] && !auth()->user()->hasRole('admin');
+                                                                $adminChecklistOverride = $newStatus === 'autorizado' && !$milestoneChecklist['complete'] && auth()->user()->hasRole('admin');
+                                                            @endphp
                                                             <li>
                                                                 @if ($blockedByChecklist)
                                                                     <span class="dropdown-item-text text-muted d-flex align-items-start gap-1 border border-dashed rounded mx-2 py-1 fs-12"
@@ -1529,8 +1532,9 @@
                                                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                     @csrf @method('PATCH')
                                                                     <input type="hidden" name="status" value="{{ $newStatus }}">
+                                                                    <input type="hidden" name="origin" value="purchase_order_detail">
                                                                     <button type="submit" class="dropdown-item"
-                                                                            onclick="return confirm('{{ $transition['confirm'] }}')">
+                                                                            onclick="return confirm('{{ $adminChecklistOverride ? 'ATENCION: el hito no cumple su checklist (' . implode(', ', $milestoneChecklist['pending']) . '). Se autorizara como excepcion de administrador. ' : '' }}{{ $transition['confirm'] }}')">
                                                                         <i class="{{ $transition['icon'] }} me-1"></i>{{ $transition['label'] }}
                                                                     </button>
                                                                 </form>

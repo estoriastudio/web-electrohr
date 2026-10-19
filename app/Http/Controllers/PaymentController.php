@@ -593,6 +593,7 @@ class PaymentController extends Controller
             'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado,pospuesto',
             'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
             'return_to' => 'nullable|in:purchase_order,payable',
+            'origin' => 'nullable|in:purchase_order_detail',
         ]);
 
         $milestone = $payment->milestone()->firstOrFail();
@@ -698,7 +699,9 @@ class PaymentController extends Controller
             $milestone->purchaseOrder,
             [$payment->id => $newStatus],
         );
-        if ($newStatus === 'autorizado') {
+        // Excepción de emergencia: admin puede autorizar desde el listado de hitos de la OC sin cumplir el checklist.
+        $skipChecklist = $isAdmin && ($validated['origin'] ?? null) === 'purchase_order_detail';
+        if ($newStatus === 'autorizado' && !$skipChecklist) {
             $this->milestoneChecklist->ensureComplete([$payment], 'status');
         }
         $payment->status = $newStatus;
