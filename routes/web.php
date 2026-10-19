@@ -496,6 +496,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
+        // Reporte de entregas por folio — Inventario y Solmat
+        Route::middleware('role:admin|Inventario|Solmat')->group(function () {
+            Route::get('/ordenes-de-compra/reportar-entregas', [PurchaseOrderController::class, 'deliveryReport'])
+                ->name('purchase_orders.delivery_report');
+        });
+
         Route::middleware('role:admin|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
                 ->name('purchase_orders.overdue_deliveries');
@@ -644,9 +650,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // Entregas por concepto
-        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+        Route::middleware('role:admin|Solmat|Inventario|Orden de compra')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
+        });
+        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
                 ->name('purchase_orders.milestones.confirm_delivery');
         });

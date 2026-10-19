@@ -2037,6 +2037,55 @@
     </div>
 </div>
 
+{{-- ── HISTÓRICO DE MOVIMIENTOS ── --}}
+@if (auth()->user()->hasRole('admin'))
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-history-line me-1 text-primary"></i> Histórico de movimientos de esta OC</h5>
+                <span class="text-muted fs-13">{{ $movementHistory->count() }} registros</span>
+            </div>
+            <div class="card-body" style="max-height: 480px; overflow-y: auto;">
+                @forelse ($movementHistory as $log)
+                    @php
+                        $logAction = \App\Models\Notification::ACTION_LABELS[$log->model_action]
+                            ?? ['icon' => 'ri-information-line', 'color' => 'secondary', 'label' => $log->model_action];
+                        $logModule = \App\Models\Notification::MODULE_LABELS[$log->type]['label'] ?? $log->type;
+                    @endphp
+                    <div class="d-flex gap-3">
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="avatar-xs bg-{{ $logAction['color'] }}-subtle text-{{ $logAction['color'] }} rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="{{ $logAction['icon'] }}"></i>
+                            </span>
+                            @unless ($loop->last)
+                                <span class="flex-grow-1 border-start my-1"></span>
+                            @endunless
+                        </div>
+                        <div class="{{ $loop->last ? '' : 'pb-4' }}">
+                            <div class="fs-13">
+                                <span class="fw-semibold">{{ $log->user?->name ?? 'Sistema' }}</span>
+                                <span class="text-body-secondary">{{ $log->data }}</span>
+                            </div>
+                            <div class="mt-1">
+                                <span class="badge bg-{{ $logAction['color'] }}-subtle text-{{ $logAction['color'] }} fs-11">
+                                    {{ $log->type === 'PurchaseOrder' ? '' : $logModule . ' · ' }}{{ $logAction['label'] }}
+                                </span>
+                            </div>
+                            <div class="text-muted fs-12 mt-1">
+                                <i class="ri-time-line me-1"></i>{{ $log->created_at->format('d/m/Y H:i') }}
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-muted fs-13 mb-0">Sin movimientos registrados.</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 @unless ($isRestrictedEngineer)
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($orderedMilestones as $milestone)

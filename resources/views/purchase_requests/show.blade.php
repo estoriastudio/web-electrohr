@@ -241,18 +241,18 @@
                                         @foreach ($inheritedOrders as $order)
                                             <a href="{{ route('purchase_orders.show', $order) }}"
                                                class="badge bg-info-subtle text-info ms-1 text-decoration-none"
-                                               title="Concepto heredado a la OC #{{ $order->folio }} ({{ ucfirst($order->status) }})">
+                                               title="Concepto fincado a la OC #{{ $order->folio }} ({{ ucfirst($order->status) }})">
                                                 <i class="ri-{{ in_array($order->status, \App\Models\PurchaseRequestItem::LOCKING_ORDER_STATUSES, true) ? 'lock-line' : 'link' }} me-1"></i>OC #{{ $order->folio }}
                                             </a>
                                         @endforeach
                                         @if ($item->is_inherited)
-                                            <span class="badge bg-success-subtle text-success ms-1">Heredado por completo</span>
+                                            <span class="badge bg-success-subtle text-success ms-1">Fincado por completo</span>
                                         @elseif ($item->is_partially_inherited)
                                             <span class="badge bg-warning-subtle text-warning ms-1">
-                                                Heredado {{ rtrim(rtrim(number_format($item->inherited_quantity, 4, '.', ''), '0'), '.') }} · Faltan {{ rtrim(rtrim(number_format($item->remaining_quantity, 4, '.', ''), '0'), '.') }}
+                                                Fincado {{ rtrim(rtrim(number_format($item->inherited_quantity, 4, '.', ''), '0'), '.') }} · No fincado {{ rtrim(rtrim(number_format($item->remaining_quantity, 4, '.', ''), '0'), '.') }}
                                             </span>
                                         @else
-                                            <span class="badge bg-warning-subtle text-warning ms-1">Pendiente</span>
+                                            <span class="badge bg-warning-subtle text-warning ms-1">No fincado</span>
                                         @endif
                                     </td>
                                     <td class="text-center">
@@ -296,7 +296,7 @@
                                     <td style="min-width:170px">
                                         @hasanyrole('admin|Solcom')
                                         @if ($lockingOrder)
-                                            <span class="fw-bold fs-15" title="Bloqueado: heredado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
+                                            <span class="fw-bold fs-15" title="Bloqueado: fincado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
                                                 <i class="ri-lock-line text-muted me-1"></i>{{ $purchaseQuantity }}
                                             </span>
                                         @else
@@ -325,7 +325,7 @@
                                         @hasanyrole('admin|Solcom')
                                         @if ($lockingOrder)
                                             <button type="button" class="btn btn-soft-danger btn-sm" disabled
-                                                    title="Bloqueado: heredado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
+                                                    title="Bloqueado: fincado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
                                                 <i class="ri-lock-line"></i>
                                             </button>
                                         @else

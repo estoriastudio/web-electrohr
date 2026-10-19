@@ -49,6 +49,7 @@ class PurchaseOrder extends Model
         'authorized_signatory',
         'deletion_comment',
         'archived_at',
+        'authorized_at',
         'closed_at',
         'closed_by',
         'closure_note',
@@ -67,6 +68,7 @@ class PurchaseOrder extends Model
         'recurrence_end_date'   => 'date',
         'observations'          => 'array',
         'archived_at'           => 'datetime',
+        'authorized_at'         => 'datetime',
         'closed_at'             => 'datetime',
     ];
 

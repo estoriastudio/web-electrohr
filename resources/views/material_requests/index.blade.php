@@ -83,11 +83,44 @@
                 </div>
             </div>
 
+            {{-- Bandejas --}}
+            @php
+                $trayQuery = array_filter([
+                    'scope' => $scope === 'all' ? 'all' : null,
+                    'search' => $search,
+                    'status' => $status,
+                ], fn ($value) => $value !== null && $value !== '');
+                $trays = [
+                    'all' => ['label' => 'Todas', 'icon' => 'ri-stack-line', 'class' => 'text-secondary', 'badgeClass' => 'bg-secondary-subtle text-secondary'],
+                    'open' => ['label' => 'Abiertas', 'icon' => 'ri-inbox-line', 'class' => 'text-warning', 'badgeClass' => 'bg-warning-subtle text-warning'],
+                    'completed' => ['label' => 'Completadas', 'icon' => 'ri-checkbox-circle-line', 'class' => 'text-success', 'badgeClass' => 'bg-success-subtle text-success'],
+                ];
+            @endphp
+            <div class="card-body border-bottom py-3">
+                <div class="form-label form-label-sm mb-2">Bandeja</div>
+                <ul class="nav nav-tabs nav-justified" role="tablist" aria-label="Bandejas de SOLMAT">
+                    @foreach ($trays as $trayKey => $trayMeta)
+                        <li class="nav-item" role="presentation">
+                            <a href="{{ route('material_requests.index', array_merge($trayQuery, $trayKey === 'all' ? [] : ['tray' => $trayKey])) }}"
+                               class="nav-link {{ $tray === $trayKey ? 'active' : '' }}"
+                               aria-current="{{ $tray === $trayKey ? 'page' : 'false' }}">
+                                <i class="{{ $trayMeta['icon'] }} {{ $tray === $trayKey ? $trayMeta['class'] : 'text-muted' }} me-1"></i>
+                                <span class="{{ $tray === $trayKey ? $trayMeta['class'] : '' }}">{{ $trayMeta['label'] }}</span>
+                                <span class="badge rounded-pill {{ $trayMeta['badgeClass'] }} ms-1">{{ $trayCounts[$trayKey] ?? 0 }}</span>
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+
             {{-- Filtros --}}
             <div class="card-body border-bottom py-3">
                 <form method="GET" action="{{ route('material_requests.index') }}" class="row g-2 align-items-end">
                     @if ($scope === 'all')
                         <input type="hidden" name="scope" value="all">
+                    @endif
+                    @if ($tray !== 'all')
+                        <input type="hidden" name="tray" value="{{ $tray }}">
                     @endif
                     <div class="col-md-5">
                         <div class="input-group input-group-sm">
@@ -110,7 +143,7 @@
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
                         @if ($search || $status)
-                            <a href="{{ route('material_requests.index', $scope === 'all' ? ['scope' => 'all'] : []) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
+                            <a href="{{ route('material_requests.index', array_filter(['scope' => $scope === 'all' ? 'all' : null, 'tray' => $tray !== 'all' ? $tray : null])) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar">
                                 <i class="ri-close-line"></i>
                             </a>
                         @endif

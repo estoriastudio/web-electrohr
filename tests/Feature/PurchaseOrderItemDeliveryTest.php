@@ -241,6 +241,42 @@ class PurchaseOrderItemDeliveryTest extends TestCase
             ->assertDontSee('Cambiar entrega');
     }
 
+    public function test_inventory_and_solmat_can_search_by_folio_and_report_delivery_from_the_new_view(): void
+    {
+        foreach (['Inventario', 'Solmat'] as $role) {
+            $user = $this->user($role);
+            $order = $this->purchaseOrder();
+            $item = $this->item($order);
+
+            $this->actingAs($user)
+                ->get(route('purchase_orders.delivery_report', ['search' => $order->folio]))
+                ->assertOk()
+                ->assertSee('#' . $order->folio)
+                ->assertSee('Registrar entrega');
+
+            $this->actingAs($user)
+                ->post(route('purchase_orders.deliveries.store', $order), [
+                    'return_to' => 'delivery_report',
+                    'item_ids' => [$item->id],
+                    'delivery_evidence' => UploadedFile::fake()->create('remision.pdf', 50, 'application/pdf'),
+                ])
+                ->assertRedirect(route('purchase_orders.delivery_report', ['search' => $order->folio, 'order' => $order->id]));
+
+            $this->assertSame('entregado', $order->fresh()->delivery_status);
+        }
+    }
+
+    public function test_inventory_cannot_access_the_purchase_order_listing_or_milestone_confirmation(): void
+    {
+        $inventory = $this->user('Inventario');
+
+        $this->actingAs($inventory)->get(route('purchase_orders.index'))->assertForbidden();
+        $this->actingAs($inventory)->get(route('purchase_orders.delivery_report'))->assertOk()
+            ->assertSee('href="' . route('purchase_orders.delivery_report') . '"', false)
+            ->assertDontSee('href="' . route('purchase_orders.index') . '"', false);
+        $this->actingAs($this->user('Pagos'))->get(route('purchase_orders.delivery_report'))->assertForbidden();
+    }
+
     private function deliver(User $user, PurchaseOrder $order, array $itemIds, array $quantities = []): void
     {
         $this->actingAs($user)

@@ -51,6 +51,51 @@ class MaterialRequest extends Model
         return $query->whereNotNull('archived_at');
     }
 
+    // Las OCs vinculadas llegan por SOLCOM directas (material_request_id) o por el pivote de SOLCOMs ligadas.
+    private function whereHasLinkedOrders($query, ?\Closure $constraint = null, bool $negate = false)
+    {
+        // Con $negate = true ninguna de las dos rutas debe tener OCs (AND); en caso contrario basta una (OR).
+        return $negate
+            ? $query->whereDoesntHave('purchaseRequests.purchaseOrders', $constraint)
+                ->whereDoesntHave('linkedPurchaseRequests.purchaseOrders', $constraint)
+            : $query->whereHas('purchaseRequests.purchaseOrders', $constraint)
+                ->orWhereHas('linkedPurchaseRequests.purchaseOrders', $constraint);
+    }
+
+    // Completada: tiene al menos una OC vinculada y todas están cerradas.
+    public function scopeCompletedTray($query)
+    {
+        return $query->where(function ($q) {
+            $q->where(fn ($linked) => $this->whereHasLinkedOrders($linked))
+                ->where(fn ($open) => $this->whereHasLinkedOrders($open, fn ($oc) => $oc->whereNull('closed_at'), true));
+        });
+    }
+
+    // Abierta: sin OCs vinculadas o con al menos una OC sin cerrar.
+    public function scopeOpenTray($query)
+    {
+        return $query->where(function ($q) {
+            $q->where(fn ($none) => $this->whereHasLinkedOrders($none, null, true))
+                ->orWhere(fn ($open) => $this->whereHasLinkedOrders($open, fn ($oc) => $oc->whereNull('closed_at')));
+        });
+    }
+
+    public function getLinkedPurchaseOrdersAttribute()
+    {
+        return $this->purchaseRequests
+            ->merge($this->linkedPurchaseRequests)
+            ->flatMap->purchaseOrders
+            ->unique('id')
+            ->values();
+    }
+
+    public function getIsCompletedAttribute(): bool
+    {
+        $orders = $this->linked_purchase_orders;
+
+        return $orders->isNotEmpty() && $orders->every(fn ($order) => $order->closed_at !== null);
+    }
+
     public function canBeSentToWarehouseBy(User $user): bool
     {
         return $user->hasAnyRole(['admin', 'Solmat'])

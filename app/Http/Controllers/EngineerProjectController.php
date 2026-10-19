@@ -50,7 +50,7 @@ class EngineerProjectController extends Controller
 
         $materialRequests = MaterialRequest::query()
             ->where('project_id', $project->id)
-            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders'])
+            ->with(['project', 'projectWorks', 'requestedBy', 'items.workQuantities', 'purchaseRequests.purchaseOrders', 'linkedPurchaseRequests.purchaseOrders'])
             ->latest('id')
             ->paginate(15, ['*'], 'solmat_page')
             ->appends(['tab' => 'solmat']);

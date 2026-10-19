@@ -73,7 +73,7 @@ class PurchaseRequestItem extends Model
         return $this->inheritedOrders()->first();
     }
 
-    // Cantidad ya heredada a OC vigentes.
+    // Cantidad ya fincada a OC vigentes.
     public function getInheritedQuantityAttribute(): float
     {
         $this->loadMissing('purchaseOrderItems.purchaseOrder');
@@ -86,7 +86,7 @@ class PurchaseRequestItem extends Model
         );
     }
 
-    // Cantidad faltante por heredar a una OC.
+    // Cantidad no fincada a una OC.
     public function getRemainingQuantityAttribute(): float
     {
         return max(0.0, round((float) $this->purchase_quantity - $this->inherited_quantity, 4));
@@ -97,7 +97,7 @@ class PurchaseRequestItem extends Model
         return $this->remaining_quantity > 0;
     }
 
-    // Heredado por completo: ya existe en una OC y no falta cantidad.
+    // Fincado por completo: ya existe en una OC y no falta cantidad.
     public function getIsInheritedAttribute(): bool
     {
         return $this->inheritedOrders()->isNotEmpty() && $this->remaining_quantity <= 0;
@@ -108,7 +108,7 @@ class PurchaseRequestItem extends Model
         return $this->inherited_quantity > 0 && $this->remaining_quantity > 0;
     }
 
-    // Bloqueado: heredado en una OC Emitida o Autorizada.
+    // Bloqueado: fincado en una OC Emitida o Autorizada.
     public function lockingOrder(): ?PurchaseOrder
     {
         return $this->inheritedOrders()

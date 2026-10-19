@@ -602,7 +602,7 @@ class PurchaseRequestController extends Controller
                          ->with('success', 'Concepto agregado.');
     }
 
-    // Un concepto heredado en una OC Emitida o Autorizada no se puede modificar ni eliminar desde la SOLCOM.
+    // Un concepto fincado en una OC Emitida o Autorizada no se puede modificar ni eliminar desde la SOLCOM.
     private function rejectIfItemLocked(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
         abort_if($item->purchase_request_id !== $purchaseRequest->id, 404);
@@ -614,7 +614,7 @@ class PurchaseRequestController extends Controller
         }
 
         $statusLabel = $order->status === 'autorizada' ? 'Autorizada' : 'Emitida';
-        $message = "El concepto está bloqueado: ya fue heredado a la OC #{$order->folio} ({$statusLabel}).";
+        $message = "El concepto está bloqueado: ya fue fincado a la OC #{$order->folio} ({$statusLabel}).";
 
         if ($request->wantsJson()) {
             return response()->json(['message' => $message], 422);
@@ -636,7 +636,7 @@ class PurchaseRequestController extends Controller
         // La cantidad a comprar no puede ser menor a la que ya se heredó a OC vigentes.
         $inheritedQuantity = $item->inherited_quantity;
         if (round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
-            $message = 'La cantidad a comprar no puede ser menor a la ya heredada a OC (' . rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.') . ').';
+            $message = 'La cantidad a comprar no puede ser menor a la ya fincada a OC (' . rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.') . ').';
 
             return $request->wantsJson()
                 ? response()->json(['message' => $message], 422)

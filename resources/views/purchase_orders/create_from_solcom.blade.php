@@ -35,7 +35,7 @@
             @endif
         </p>
         <p class="mb-0 text-muted fs-12">
-            Puedes elegir que conceptos heredar; por defecto se seleccionan todos los pendientes.
+            Puedes elegir qué conceptos fincar; por defecto se seleccionan todos los no fincados.
         </p>
     </div>
 </div>
@@ -46,9 +46,9 @@
         <p class="mb-0 fw-semibold fs-13">Bifurcación parcial de SOLCOM</p>
         <p class="mb-0 text-muted fs-12">
             Esta OC puede tomar solo una parte de los conceptos para este proveedor. Los conceptos no seleccionados
-            permanecerán pendientes para generar otra OC desde la misma SOLCOM. También puedes definir la cantidad
-            a heredar por concepto: la diferencia queda como cantidad faltante por comprar. Solo se bloquean los
-            conceptos cuya cantidad ya se heredó por completo.
+            permanecerán como no fincados para generar otra OC desde la misma SOLCOM. También puedes definir la cantidad
+            a fincar por concepto: la diferencia queda como cantidad no fincada. Solo se bloquean los
+            conceptos cuya cantidad ya se fincó por completo.
         </p>
     </div>
 </div>
@@ -390,16 +390,24 @@
                                             <th>Descripción</th>
                                             <th>Unidad</th>
                                             <th class="text-end">Cantidad SOLCOM</th>
-                                            <th class="text-end">Ya heredado</th>
-                                            <th class="text-end">Faltante</th>
-                                            <th class="text-end" style="min-width:130px;">Cantidad a heredar</th>
+                                            <th class="text-end">Ya fincado</th>
+                                            <th class="text-end">No fincado</th>
+                                            <th class="text-end" style="min-width:130px;">Cantidad a fincar</th>
                                             <th class="text-end">P/U</th>
                                             <th class="text-end">Importe</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @php $subtotal = 0; @endphp
-                                        @forelse ($purchaseRequest->items as $i => $item)
+                                        @php
+                                            // Se conserva el número de partida original; los fincados por completo van al final.
+                                            $sortedItems = $purchaseRequest->items->values()
+                                                ->map(fn ($row, $idx) => ['i' => $idx, 'item' => $row])
+                                                ->sortBy(fn ($row) => [$row['item']->remaining_quantity > 0 ? 0 : 1, $row['i']])
+                                                ->values();
+                                        @endphp
+                                        @forelse ($sortedItems as $row)
+                                            @php $i = $row['i']; $item = $row['item']; @endphp
                                             @php
                                                 $remaining = $item->remaining_quantity;
                                                 $inheritedQty = $item->inherited_quantity;
@@ -435,7 +443,7 @@
                                                         </a>
                                                     @endforeach
                                                     @unless ($isPending)
-                                                        <span class="badge bg-secondary-subtle text-secondary ms-1">Heredado por completo</span>
+                                                        <span class="badge bg-secondary-subtle text-secondary ms-1">Fincado por completo</span>
                                                     @endunless
                                                 </td>
                                                 <td>{{ $item->unit }}</td>

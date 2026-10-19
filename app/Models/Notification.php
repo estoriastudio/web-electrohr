@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\NotificationRecipient as NotificationRecipientModel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -68,6 +69,32 @@ class Notification extends Model
         'read_at',
         'is_hidden',
     ];
+
+    public function scopeForPurchaseOrder(Builder $query, PurchaseOrder $purchaseOrder): Builder
+    {
+        $orderId = $purchaseOrder->id;
+        $milestoneIds = $purchaseOrder->milestones()->pluck('id');
+        $paymentIds = $purchaseOrder->payments()->pluck('payments.id');
+        $invoiceIds = $purchaseOrder->invoices()->pluck('id');
+        $evidenceIds = $purchaseOrder->evidences()->withoutGlobalScopes()->pluck('id');
+
+        // Los registros eliminados ya no existen, por lo que se identifican por el texto guardado.
+        $deletedLike = fn ($suffix) => ["%orden de compra #{$orderId}{$suffix}", "%OC #{$orderId}{$suffix}"];
+
+        return $query->where(function (Builder $q) use ($orderId, $milestoneIds, $paymentIds, $invoiceIds, $evidenceIds, $deletedLike) {
+            $q->where(fn (Builder $sub) => $sub->where('type', 'PurchaseOrder')->where('model_id', (string) $orderId))
+                ->orWhere(fn (Builder $sub) => $sub->where('type', 'PurchaseOrderMilestone')->whereIn('model_id', $milestoneIds->map(fn ($id) => (string) $id)))
+                ->orWhere(fn (Builder $sub) => $sub->where('type', 'Payment')->whereIn('model_id', $paymentIds->map(fn ($id) => (string) $id)))
+                ->orWhere(fn (Builder $sub) => $sub->where('type', 'PurchaseOrderInvoice')->whereIn('model_id', $invoiceIds->map(fn ($id) => (string) $id)))
+                ->orWhere(fn (Builder $sub) => $sub->where('type', 'PurchaseOrderEvidence')->whereIn('model_id', $evidenceIds->map(fn ($id) => (string) $id)));
+
+            foreach (['PurchaseOrderMilestone', 'Payment', 'PurchaseOrderInvoice'] as $type) {
+                foreach ($deletedLike('') as $pattern) {
+                    $q->orWhere(fn (Builder $sub) => $sub->where('type', $type)->where('data', 'like', $pattern));
+                }
+            }
+        });
+    }
 
     public function user()
     {

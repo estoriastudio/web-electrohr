@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 /* Modelos */
 use App\Models\MobileAsset;
 use App\Models\Concept;
+use App\Models\Notification;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAnnex;
 use App\Models\PurchaseOrderEvidence;
@@ -265,7 +266,7 @@ class PurchaseOrderController extends Controller
 
         if ($purchaseRequest->items->isNotEmpty() && !$purchaseRequest->items->contains(fn ($item) => $item->is_pending)) {
             return redirect()->route('purchasing.solcom_pile', ['section' => 'salida'])
-                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron heredados por completo a una OC.");
+                ->with('error', "Todos los conceptos de la SOLCOM #{$purchaseRequest->folio} ya fueron fincados por completo a una OC.");
         }
 
         $suppliers             = Supplier::orderBy('rfc_name')->orderBy('commercial_name')->get();
@@ -460,7 +461,7 @@ class PurchaseOrderController extends Controller
                         $remaining = $item->remaining_quantity;
 
                         if ($remaining <= 0) {
-                            $errors[] = '"' . $item->description . '" ya fue heredado por completo (OC #' . $item->inheritedOrders()->pluck('folio')->implode(', #') . ')';
+                            $errors[] = '"' . $item->description . '" ya fue fincado por completo (OC #' . $item->inheritedOrders()->pluck('folio')->implode(', #') . ')';
                             continue;
                         }
 
@@ -469,7 +470,7 @@ class PurchaseOrderController extends Controller
                             : $remaining;
 
                         if ($quantity > $remaining) {
-                            $errors[] = '"' . $item->description . '": la cantidad a heredar (' . $quantity . ') excede la faltante (' . $remaining . ')';
+                            $errors[] = '"' . $item->description . '": la cantidad a fincar (' . $quantity . ') excede la no fincada (' . $remaining . ')';
                             continue;
                         }
 
@@ -555,6 +556,7 @@ class PurchaseOrderController extends Controller
                 'nextPendingPurchaseOrder' => null,
                 'buyers' => collect(),
                 'isRestrictedEngineer' => true,
+                'movementHistory' => collect(),
             ]);
         }
 
@@ -598,12 +600,22 @@ class PurchaseOrderController extends Controller
             }
         }
 
+        $movementHistory = Auth::user()->hasRole('admin')
+            ? Notification::with('user:id,name')
+                ->forPurchaseOrder($purchaseOrder)
+                ->latest()
+                ->latest('id')
+                ->limit(200)
+                ->get()
+            : collect();
+
         return view('purchase_orders.show', compact(
             'purchaseOrder',
             'pendingAuthCount',
             'nextPendingPurchaseOrder',
             'buyers',
-            'isRestrictedEngineer'
+            'isRestrictedEngineer',
+            'movementHistory'
         ));
     }
 
@@ -893,7 +905,7 @@ class PurchaseOrderController extends Controller
                 ->with('error', 'La orden de compra debe estar emitida antes de autorizarse.');
         }
 
-        $purchaseOrder->update(['status' => 'autorizada']);
+        $purchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -957,7 +969,7 @@ class PurchaseOrderController extends Controller
                 $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),
             );
             $this->milestoneChecklist->ensureComplete($payments);
-            $lockedPurchaseOrder->update(['status' => 'autorizada']);
+            $lockedPurchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
             $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado', 'checklist_verified_at' => now()]));
 
             return $payments;
@@ -993,12 +1005,41 @@ class PurchaseOrderController extends Controller
             ->with('success', $message);
     }
 
+    public function deliveryReport(Request $request): View
+    {
+        $search = trim((string) $request->input('search', ''));
+        $orders = collect();
+        $selectedOrder = null;
+
+        if ($search !== '') {
+            $escaped = addcslashes($search, '\\%_');
+            $orders = PurchaseOrder::with('supplier')
+                ->whereNull('archived_at')
+                ->where('folio', 'like', '%' . $escaped . '%')
+                ->orderByDesc('id')
+                ->limit(20)
+                ->get();
+
+            $selectedId = $request->integer('order') ?: ($orders->count() === 1 ? $orders->first()->id : null);
+            $selectedOrder = $selectedId ? $orders->firstWhere('id', $selectedId) : null;
+
+            if ($selectedOrder) {
+                $selectedOrder->load([
+                    'items.deliveries.deliveredByUser',
+                    'milestones',
+                ]);
+            }
+        }
+
+        return view('purchase_orders.delivery_report', compact('search', 'orders', 'selectedOrder'));
+    }
+
     public function storeDelivery(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         $purchaseOrder->ensureOpen();
 
         $user = Auth::user();
-        $canManage = $user->hasAnyRole(['admin', 'Solmat'])
+        $canManage = $user->hasAnyRole(['admin', 'Solmat', 'Inventario'])
             || ($user->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) $user->id);
         abort_unless($canManage, 403);
 
@@ -1098,8 +1139,11 @@ class PurchaseOrderController extends Controller
             'data'         => 'registró la entrega de ' . count($itemIds) . ' concepto(s) con la evidencia ' . $evidenceFileName . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . ' de ' . $supplierName . '. Estatus de entrega: "' . $deliveryLabel . '".',
         ]);
 
-        return redirect()->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', 'Entrega registrada. Estatus de entrega: "' . $deliveryLabel . '".');
+        $route = $request->input('return_to') === 'delivery_report'
+            ? redirect()->route('purchase_orders.delivery_report', ['search' => $purchaseOrder->folio ?? '', 'order' => $purchaseOrder->id])
+            : redirect()->route('purchase_orders.show', $purchaseOrder);
+
+        return $route->with('success', 'Entrega registrada. Estatus de entrega: "' . $deliveryLabel . '".');
     }
 
     public function revertDelivery(PurchaseOrder $purchaseOrder, PurchaseOrderItemDelivery $delivery): RedirectResponse
@@ -1445,7 +1489,7 @@ class PurchaseOrderController extends Controller
             'delivery_due_date' => 'sometimes|nullable|date_format:Y-m-d',
         ]);
 
-        // Un concepto heredado de SOLCOM no puede exceder la cantidad faltante por comprar.
+        // Un concepto fincado de SOLCOM no puede exceder la cantidad faltante por comprar.
         if (array_key_exists('quantity', $data) && $item->purchase_request_item_id) {
             $requestItem = PurchaseRequestItem::with('purchaseOrderItems.purchaseOrder:id,folio,status')
                 ->find($item->purchase_request_item_id);
