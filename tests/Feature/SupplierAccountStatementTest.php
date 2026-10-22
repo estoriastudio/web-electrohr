@@ -148,6 +148,20 @@ class SupplierAccountStatementTest extends TestCase
         $this->assertSame(3, $all['rows']->total());
     }
 
+    public function test_status_filter_does_not_change_summary_totals(): void
+    {
+        $this->movement();
+        [, , $overdue] = $this->movement(['folio' => '25002']);
+        $overdue->update(['due_date' => now()->subDays(5)]);
+        $service = app(SupplierAccountStatementService::class);
+        $all = $service->report([], 1, 25);
+        $pending = $service->report(['status' => 'pendiente'], 1, 25);
+        $this->assertSame(40000, $all['summary']['MXN']['pending']);
+        $this->assertSame(20000, $all['summary']['MXN']['overdue']);
+        $this->assertSame(1, $pending['rows']->total());
+        $this->assertSame($all['summary'], $pending['summary']);
+    }
+
     public function test_report_modal_and_excel_do_not_write_financial_records(): void
     {
         [$order] = $this->movement();
@@ -232,6 +246,33 @@ class SupplierAccountStatementTest extends TestCase
             $this->assertEquals(400, $sheet->getCell('N2')->getValue());
             $this->assertEquals(200, $sheet->getCell('O2')->getValue());
             $this->assertSame('n', $sheet->getCell('N2')->getDataType());
+        } finally {
+            unlink($file);
+        }
+    }
+
+    public function test_excel_formats_amounts_as_currency_and_fits_columns(): void
+    {
+        $this->movement();
+        $this->movement(['currency' => 'USD', 'folio' => '25002']);
+        $bytes = Excel::raw(new SupplierAccountStatementExport(app(SupplierAccountStatementService::class), ['supplier_id' => 1, 'project_id' => 1, 'order' => '250']), \Maatwebsite\Excel\Excel::XLSX);
+        $file = tempnam(sys_get_temp_dir(), 'statement-test-');
+        try {
+            file_put_contents($file, $bytes);
+            \PhpOffice\PhpSpreadsheet\Cell\Cell::setValueBinder(new \PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder());
+            $sheet = IOFactory::load($file)->getActiveSheet();
+            $this->assertSame('"$"#,##0.00', $sheet->getStyle('N2')->getNumberFormat()->getFormatCode());
+            $this->assertSame('"US$"#,##0.00', $sheet->getStyle('N3')->getNumberFormat()->getFormatCode());
+            $summaryRow = null;
+            foreach ($sheet->getRowIterator() as $row) {
+                if ($sheet->getCell('A' . $row->getRowIndex())->getValue() === 'Moneda' && $row->getRowIndex() > 1) {
+                    $summaryRow = $row->getRowIndex() + 1;
+                }
+            }
+            $this->assertSame('MXN', $sheet->getCell('A' . $summaryRow)->getValue());
+            $this->assertSame('"$"#,##0.00', $sheet->getStyle('B' . $summaryRow)->getNumberFormat()->getFormatCode());
+            $this->assertSame('General', $sheet->getStyle('H' . $summaryRow)->getNumberFormat()->getFormatCode());
+            $this->assertLessThan(40, $sheet->getColumnDimension('B')->getWidth());
         } finally {
             unlink($file);
         }

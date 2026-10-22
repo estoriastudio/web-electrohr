@@ -8,9 +8,16 @@ use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PayablePaymentExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping
+class PayablePaymentExport implements FromQuery, ShouldAutoSize, WithColumnFormatting, WithHeadings, WithMapping, WithStyles
 {
     public function __construct(
         private readonly string $startDate,
@@ -62,6 +69,41 @@ class PayablePaymentExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             (float) $payment->amount,
             $purchaseOrder?->currency ?? '',
             $payment->payment_date?->format('d/m/Y') ?? '',
+        ];
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        $sheet->freezePane('A2');
+        $sheet->setAutoFilter('A1:G1');
+        $sheet->getRowDimension(1)->setRowHeight(24);
+
+        return [
+            1 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '1F4E78'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'BFBFBF'],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    public function columnFormats(): array
+    {
+        return [
+            'E' => NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1,
         ];
     }
 }

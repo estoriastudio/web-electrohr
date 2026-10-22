@@ -19,6 +19,11 @@
     $tableLiquidTotal = $financialEstimates->sum(fn ($estimate) => $estimate->liquid_amount);
     // El anticipo se amortiza dentro de las estimaciones, por lo que no consume contrato por separado.
     $remainingToEstimate = $contractValue - $estimatedWorkAmount - $creditNoteAmount;
+    $paidEstimates = $project->estimates->where('status', 'pagada');
+    // Lo pagado es el "Total pagos + IVA" (valor facturado) de estimaciones pagadas menos notas de crédito pagadas; el anticipo ya se amortiza en las estimaciones.
+    $paidAmount = $paidEstimates->where('type', 'estimacion')->sum(fn ($estimate) => $estimate->total_payments_amount)
+        - $paidEstimates->where('type', 'nota_credito')->sum(fn ($estimate) => $estimate->total_payments_amount);
+    $remainingToCollect = $contractValue - $paidAmount;
     $physicalProgress = $contractValue > 0 ? ($estimatedWorkAmount / $contractValue) * 100 : 0;
     $estimateDocuments = [
         'invoice_pdf' => ['label' => 'Factura PDF', 'path' => 'invoice_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
@@ -191,6 +196,8 @@
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Imp. NC</div><div class="fw-semibold text-danger">{{ $estimateCurrency }} {{ number_format($creditNoteAmount, 2) }}</div></div>
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Imp. estimado</div><div class="fw-semibold text-primary">{{ $estimateCurrency }} {{ number_format($estimatedWorkAmount, 2) }}</div></div>
             <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Por estimar</div><div class="fw-semibold {{ $remainingToEstimate < 0 ? 'text-danger' : 'text-success' }}">{{ $estimateCurrency }} {{ number_format($remainingToEstimate, 2) }}</div></div>
+            <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Pagado</div><div class="fw-semibold text-success">{{ $estimateCurrency }} {{ number_format($paidAmount, 2) }}</div></div>
+            <div class="col-sm-6 col-xl"><div class="text-muted fs-12">Por cobrar</div><div class="fw-semibold {{ $remainingToCollect < 0 ? 'text-danger' : 'text-warning' }}">{{ $estimateCurrency }} {{ number_format($remainingToCollect, 2) }}</div></div>
             <div class="col-sm-6 col-xl text-xl-end"><div class="text-muted fs-12">Avance Financiero</div><div class="fw-semibold text-danger display-6">{{ number_format($physicalProgress, 2) }}%</div></div>
         </div>
     </div>

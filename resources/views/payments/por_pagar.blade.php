@@ -338,6 +338,14 @@
                                         @endforeach
                                     </td>
                                 </tr>
+                                <tr>
+                                    <td colspan="6" class="text-end fw-semibold">Total por pagar (total de registros)</td>
+                                    <td colspan="4" class="fw-semibold text-primary">
+                                        @foreach ($grandTotalsByCurrency as $totalCurrency => $totalAmount)
+                                            <span class="d-inline-block me-3">{{ $totalCurrency }} {{ number_format($totalAmount, 2) }}</span>
+                                        @endforeach
+                                    </td>
+                                </tr>
                             </tfoot>
                         @endif
                     </table>

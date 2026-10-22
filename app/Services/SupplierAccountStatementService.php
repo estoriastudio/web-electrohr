@@ -33,16 +33,31 @@ class SupplierAccountStatementService
             ]);
     }
 
-    public function rows(array $filters = []): Generator
+    /**
+     * Filas del alcance (OC, proveedor, proyecto, responsable, moneda) sin importar el estatus.
+     * Los totales se calculan sobre este alcance para que no cambien al filtrar por estatus.
+     */
+    public function scopeRows(array $filters = []): Generator
     {
         foreach ($this->orderQuery($filters)->lazyById(100) as $order) {
             foreach ($this->calculateOrder($order)['rows'] as $row) {
                 if (!empty($filters['currency']) && $row['currency'] !== $filters['currency']) {
                     continue;
                 }
-                if (!empty($filters['status']) && $row['status'] !== $filters['status']) {
-                    continue;
-                }
+                yield $row;
+            }
+        }
+    }
+
+    public function matchesStatus(array $row, array $filters): bool
+    {
+        return empty($filters['status']) || $row['status'] === $filters['status'];
+    }
+
+    public function rows(array $filters = []): Generator
+    {
+        foreach ($this->scopeRows($filters) as $row) {
+            if ($this->matchesStatus($row, $filters)) {
                 yield $row;
             }
         }
@@ -54,8 +69,11 @@ class SupplierAccountStatementService
         $items = [];
         $total = 0;
         $offset = ($page - 1) * $perPage;
-        foreach ($this->rows($filters) as $row) {
+        foreach ($this->scopeRows($filters) as $row) {
             $this->accumulate($summary, $row);
+            if (!$this->matchesStatus($row, $filters)) {
+                continue;
+            }
             if ($total >= $offset && count($items) < $perPage) {
                 $items[] = $row;
             }

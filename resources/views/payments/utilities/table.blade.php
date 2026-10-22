@@ -171,12 +171,14 @@
                             {{-- Marcar como pagado: admin|Pagos --}}
                             @hasanyrole('admin|Pagos')
                             @if ($payment->status === 'autorizado')
-                                <form action="{{ route('payments.update', $payment) }}" method="POST">
+                                <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
                                     @csrf @method('PATCH')
-                                    <input type="hidden" name="status" value="pagado">
-                                    <button type="submit" class="btn btn-soft-success btn-sm" title="Marcar como pagado"
-                                            onclick="return confirm('¿Marcar como PAGADO? Esto actualizará el saldo cubierto del hito.')">
-                                        <i class="ri-money-dollar-circle-line"></i> Pagado
+                                    <input type="file" name="spei_receipt_file" class="d-none"
+                                           accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                           onchange="if (this.files.length) this.form.submit()">
+                                    <button type="button" class="btn btn-soft-success btn-sm" title="Adjuntar SPEI y marcar como pagado"
+                                            onclick="this.form.querySelector('input[type=file]').click()">
+                                        <i class="ri-upload-2-line"></i> Subir SPEI
                                     </button>
                                 </form>
                             @endif

@@ -14,7 +14,13 @@
     .statement-metric .metric-value { font-size: 1.15rem; overflow-wrap: anywhere; }
     .statement-review-link .statement-review-label { text-decoration: underline; text-underline-offset: 3px; }
     .statement-review-link:hover { border-color: var(--bs-primary); }
-    .statement-review-link:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+    .statement-review-link:focus-within { border-color: var(--bs-primary); }
+    .statement-review-label:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+    .statement-info-btn { position: absolute; top: .4rem; right: .4rem; z-index: 2; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; text-decoration: none; }
+    .statement-info-btn:hover, .statement-info-btn[aria-describedby] { color: var(--bs-primary) !important; }
+    .statement-info-btn:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 1px; border-radius: 50%; }
+    .statement-popover { --bs-popover-max-width: 320px; font-size: 12.5px; }
+    .statement-popover .popover-header { font-size: 13px; }
     .statement-status { display: inline-block; min-height: 30px; padding: .35rem .6rem; border: 1px solid transparent; border-radius: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; white-space: nowrap; line-height: 1.35; text-align: left; }
     .statement-status i { display: inline-block; width: 16px; margin-right: .35rem; font-size: 16px; line-height: 1; vertical-align: -2px; }
     .statement-status--pendiente { color: var(--bs-warning-text-emphasis, #664d03); background: var(--bs-warning-bg-subtle, #fff3cd); border-color: var(--bs-warning-border-subtle, #ffe69c); }
@@ -122,10 +128,51 @@
     @include('suppliers.partials._account_statement_review_help')
 @endif
 
+@php
+    $cardHelp = [
+        'invoiced' => [
+            'means' => 'Importe total de las facturas aceptadas, ya descontadas las notas de crédito.',
+            'how' => 'Suma del neto de cada factura aceptada (importe − nota de crédito).',
+            'related' => 'Es la base del cálculo: <strong>Pendiente de pago</strong> = Total facturado − pagos aplicados a facturas.',
+        ],
+        'paid' => [
+            'means' => 'Todo el dinero ya pagado a proveedores en esta moneda.',
+            'how' => 'Suma de los pagos con estatus «pagado»: los aplicados a facturas, más los que no se pudieron aplicar.',
+            'related' => '<strong>Total pagado</strong> = pagos aplicados a facturas + <strong>Pagos sin factura</strong> + <strong>Pagos por revisar</strong>.',
+        ],
+        'pending' => [
+            'means' => 'Lo que todavía se debe pagar de las facturas ya aceptadas, incluyendo lo que ya venció.',
+            'how' => 'Suma del saldo de cada factura: neto facturado − pagos aplicados a esa factura.',
+            'related' => '<strong>Vencido</strong> es una parte de este monto (no los sumes). No incluye facturas «Por revisar» ni pagos sin factura.',
+            'incomplete' => 'Hay facturas por revisar: su saldo no se incluye, por lo que este monto es un mínimo y no la deuda total real.',
+        ],
+        'overdue' => [
+            'means' => 'Parte del pendiente cuya fecha de vencimiento ya pasó.',
+            'how' => 'Suma del saldo de las facturas con vencimiento anterior a hoy y saldo mayor a cero.',
+            'related' => 'Está incluido en <strong>Pendiente de pago</strong>. Pendiente − Vencido = lo que aún está por vencer.',
+            'incomplete' => 'Hay facturas por revisar: su saldo no se incluye en este monto.',
+        ],
+        'unregularized' => [
+            'means' => 'Pagos realizados a proveedores que no tienen una factura aceptada que los respalde.',
+            'how' => 'Suma de los pagos «pagado» ligados a hitos sin factura aceptada, o el excedente que ninguna factura cubre.',
+            'related' => 'Ya forma parte de <strong>Total pagado</strong>, pero no reduce ningún saldo de <strong>Pendiente de pago</strong>. No es deuda: es dinero que falta regularizar con factura.',
+        ],
+        'unreconciled' => [
+            'means' => 'Pagos ligados a facturas que no se pueden conciliar automáticamente y requieren revisión manual.',
+            'how' => 'Suma de los pagos «pagado» cuya factura tiene un problema: moneda distinta a la OC, neto negativo o facturas que suman más que los pagos programados.',
+            'related' => 'Ya forma parte de <strong>Total pagado</strong>. Las facturas afectadas quedan fuera de <strong>Pendiente</strong> y <strong>Vencido</strong>. Haz clic en la tarjeta para ver el detalle.',
+        ],
+    ];
+@endphp
+
 @foreach($summary as $currency => $totals)
     <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
         <span class="fw-semibold">{{ $currency }}</span>
-        <span class="text-muted fs-12">{{ $totals['invoices'] }} facturas / {{ $totals['records'] - $totals['invoices'] }} pagos sin aplicar</span>
+        <span class="text-muted fs-12">{{ $totals['invoices'] }} facturas / {{ $totals['records'] - $totals['invoices'] }} pagos sin aplicar
+            @if(!empty($filters['status']))
+                · Los totales no cambian con el filtro de estatus; la tabla sí.
+            @endif
+        </span>
     </div>
     @if(!$totals['complete'])
         <div class="alert alert-warning py-2 fs-13" role="alert">
@@ -141,29 +188,33 @@
             ['unregularized', 'Pagos sin factura', 'ri-file-warning-line', 'warning'],
             ['unreconciled', 'Pagos por revisar', 'ri-links-line', 'secondary'],
         ] as [$field, $label, $icon, $color])
+            @php
+                $help = $cardHelp[$field];
+                $popoverBody = '<p class="mb-2"><strong>Qué es:</strong> ' . e($help['means']) . '</p>'
+                    . '<p class="mb-2"><strong>Cómo se calcula:</strong> ' . e($help['how']) . '</p>'
+                    . '<p class="mb-0"><strong>Relación con otras tarjetas:</strong> ' . $help['related'] . '</p>'
+                    . (!$totals['complete'] && isset($help['incomplete']) ? '<p class="mt-2 mb-0 text-warning-emphasis"><strong>Atención:</strong> ' . e($help['incomplete']) . '</p>' : '');
+            @endphp
             <div class="col-6 col-md-4 col-xl-2">
-                @if($field === 'unreconciled')
-                <a href="{{ route('suppliers.account_statement.index', array_merge($filters, ['status' => 'conciliacion', 'currency' => $currency, 'per_page' => $rows->perPage()])) }}"
-                   class="card statement-metric statement-review-link h-100 mb-0 text-reset text-decoration-none"
-                   aria-label="Ver pagos por revisar en {{ $currency }}">
-                @else
-                <div class="card statement-metric h-100 mb-0">
-                @endif
+                <div class="card statement-metric h-100 mb-0 position-relative {{ $field === 'unreconciled' ? 'statement-review-link' : '' }}">
+                    <button type="button" class="btn btn-link p-0 statement-info-btn text-muted" data-statement-info data-bs-title="{{ $label }}" data-bs-content="{{ $popoverBody }}" aria-label="Qué significa {{ $label }} en {{ $currency }}"><i class="ri-information-line" aria-hidden="true"></i></button>
                     <div class="card-body p-3">
                         <div class="d-flex gap-2 align-items-start">
                             <i class="{{ $icon }} text-{{ $color }} fs-20 flex-shrink-0"></i>
-                            <div class="min-w-0">
-                                <div class="text-muted fs-12 mb-1 {{ $field === 'unreconciled' ? 'statement-review-label' : '' }}">{{ $label }} @if($field === 'unreconciled')<i class="ri-arrow-right-up-line" aria-hidden="true"></i>@endif</div>
+                            <div class="min-w-0 pe-3">
+                                @if($field === 'unreconciled')
+                                    <a href="{{ route('suppliers.account_statement.index', array_merge($filters, ['status' => 'conciliacion', 'currency' => $currency, 'per_page' => $rows->perPage()])) }}"
+                                       class="stretched-link text-muted text-decoration-none d-block fs-12 mb-1 statement-review-label"
+                                       aria-label="Ver pagos por revisar en {{ $currency }}">{{ $label }} <i class="ri-arrow-right-up-line" aria-hidden="true"></i></a>
+                                @else
+                                    <div class="text-muted fs-12 mb-1">{{ $label }}</div>
+                                @endif
                                 <div class="fw-semibold metric-value {{ $field === 'overdue' ? 'text-danger' : '' }}">$ {{ number_format($totals[$field] / 100, 2) }}</div>
                                 <div class="text-muted fs-11">{{ $currency }}</div>
                             </div>
                         </div>
                     </div>
-                @if($field === 'unreconciled')
-                </a>
-                @else
                 </div>
-                @endif
             </div>
         @endforeach
     </div>
@@ -368,6 +419,26 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     setupSearch('statementSupplier', 'Todos los proveedores');
     setupSearch('statementProject', 'Todos los proyectos');
+
+    const infoButtons = Array.from(document.querySelectorAll('[data-statement-info]'));
+    const infoPopovers = infoButtons.map(button => new bootstrap.Popover(button, {
+        html: true,
+        trigger: 'manual',
+        placement: 'auto',
+        container: 'body',
+        customClass: 'statement-popover',
+    }));
+    infoButtons.forEach((button, index) => button.addEventListener('click', event => {
+        event.stopPropagation();
+        infoPopovers.forEach((popover, other) => { if (other !== index) popover.hide(); });
+        infoPopovers[index].toggle();
+    }));
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.statement-popover')) infoPopovers.forEach(popover => popover.hide());
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') infoPopovers.forEach(popover => popover.hide());
+    });
 
     const modal = document.getElementById('statementOrderModal');
     const body = document.getElementById('statementOrderBody');

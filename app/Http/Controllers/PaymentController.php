@@ -232,6 +232,16 @@ class PaymentController extends Controller
                 ->orderBy('payments.id'),
         };
 
+        $grandTotalsByCurrency = (clone $paymentsQuery)
+            ->toBase()
+            ->reorder()
+            ->select('purchase_orders.currency')
+            ->selectRaw('SUM(payments.amount) as total')
+            ->groupBy('purchase_orders.currency')
+            ->orderBy('purchase_orders.currency')
+            ->pluck('total', 'currency')
+            ->map(fn ($total) => (float) $total);
+
         $payments = $paymentsQuery->paginate(25)->withQueryString();
 
         $pageTotalsByCurrency = $payments->getCollection()
@@ -251,6 +261,7 @@ class PaymentController extends Controller
             'paymentDateTo',
             'selectionState',
             'pageTotalsByCurrency',
+            'grandTotalsByCurrency',
         ));
     }
 
@@ -609,6 +620,21 @@ class PaymentController extends Controller
                 ->with('error', 'No se enviaron cambios para actualizar el pago.');
         }
 
+        if ($hasStatusChange && $validated['status'] === 'pagado' && !$hasSpeiFile) {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'Para marcar el pago como pagado es obligatorio adjuntar el comprobante SPEI.');
+        }
+
+        if ($hasSpeiFile && $hasStatusChange) {
+            if ($validated['status'] !== 'pagado') {
+                return $this->paymentUpdateRedirect($returnTo, $orderId)
+                    ->with('error', 'El comprobante SPEI solo se puede adjuntar para marcar o mantener el pago como pagado.');
+            }
+
+            // Subir SPEI siempre implica estatus pagado; se procesa como carga/reemplazo de comprobante.
+            $hasStatusChange = false;
+        }
+
         if ($hasSpeiFile && !in_array($payment->status, ['autorizado', 'pagado'], true)) {
             return $this->paymentUpdateRedirect($returnTo, $orderId)
                 ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado o pagado.');
@@ -620,6 +646,8 @@ class PaymentController extends Controller
                 [$payment->id => 'pagado'],
             );
         }
+
+        $previousSpeiPath = null;
 
         if ($hasSpeiFile) {
             $file = $request->file('spei_receipt_file');
@@ -634,11 +662,6 @@ class PaymentController extends Controller
             }
 
             $previousSpeiPath = $payment->spei_receipt_path;
-
-            if ($previousSpeiPath && Storage::disk('s3')->exists($previousSpeiPath)) {
-                Storage::disk('s3')->delete($previousSpeiPath);
-            }
-
             $payment->spei_receipt_path = $storedPath;
             $payment->spei_receipt_name = $fileName;
         }
@@ -661,7 +684,20 @@ class PaymentController extends Controller
         }
 
         if (!$hasStatusChange) {
+            // Reemplazar el SPEI nunca debe dejar el pago en un estatus distinto de pagado.
+            $payment->status = 'pagado';
             $payment->save();
+
+            if ($previousSpeiPath && $previousSpeiPath !== $payment->spei_receipt_path) {
+                $isSharedWithOthers = Payment::query()
+                    ->where('spei_receipt_path', $previousSpeiPath)
+                    ->whereKeyNot($payment->id)
+                    ->exists();
+
+                if (!$isSharedWithOthers && Storage::disk('s3')->exists($previousSpeiPath)) {
+                    Storage::disk('s3')->delete($previousSpeiPath);
+                }
+            }
 
             $this->notification->send([
                 'type'         => 'Payment',

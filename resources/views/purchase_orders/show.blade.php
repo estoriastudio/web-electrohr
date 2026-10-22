@@ -1472,7 +1472,6 @@
                                                         'rechazado'  => ['label' => 'Rechazar',   'icon' => 'ri-close-circle-line',    'btn' => 'btn-soft-danger',  'confirm' => '¿Rechazar este pago?'],
                                                     ],
                                                     'autorizado' => [
-                                                        'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
                                                         'por_autorizar' => ['label' => 'Revertir', 'icon' => 'ri-arrow-go-back-line', 'btn' => 'btn-soft-warning', 'confirm' => '¿Revertir a «Por autorizar»?'],
                                                     ],
                                                     'rechazado' => [
@@ -1480,12 +1479,7 @@
                                                     ],
                                                     default => [],
                                                 }
-                                                : match ($payment->status) {
-                                                    'autorizado' => [
-                                                        'pagado' => ['label' => 'Marcar pagado', 'icon' => 'ri-money-dollar-circle-line', 'btn' => 'btn-soft-success', 'confirm' => '¿Marcar como PAGADO? Esto actualizará el saldo del hito.'],
-                                                    ],
-                                                    default => [],
-                                                };
+                                                : [];
                                         @endphp
                                         <tr class="{{ $statusRowClass }}" data-bs-theme="light">
                                             <td>
@@ -1563,7 +1557,7 @@
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#modalSpeiReceipt{{ $payment->id }}">
                                                                 <i class="ri-file-upload-line me-1"></i>
-                                                                {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI' }}
+                                                                {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI y marcar pagado' }}
                                                             </button>
                                                         </li>
                                                         @endif
@@ -1627,6 +1621,11 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
+                                            @if ($payment->status === 'autorizado')
+                                                <div class="alert alert-info fs-12 py-2">
+                                                    Al adjuntar el comprobante SPEI, el pago se marcará como <strong>pagado</strong>.
+                                                </div>
+                                            @endif
                                             <div class="mb-0">
                                                 <label class="form-label fw-medium">
                                                     Archivo comprobante SPEI <span class="text-danger">*</span>
@@ -1644,7 +1643,7 @@
                                             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="ri-upload-2-line me-1"></i>
-                                                {{ $payment->spei_receipt_path ? 'Reemplazar archivo' : 'Subir archivo' }}
+                                                {{ $payment->spei_receipt_path ? 'Reemplazar archivo' : 'Subir y marcar pagado' }}
                                             </button>
                                         </div>
                                     </form>
