@@ -318,6 +318,18 @@
         z-index: 1085;
     }
 
+    /* El tema fuerza top/right con !important y anima transform; se anula para que Popper posicione el menú. */
+    .dropdown-menu.solmat-menu-floating.show {
+        z-index: 1085;
+        position: fixed;
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: auto !important;
+        margin: 0 !important;
+        animation: none !important;
+    }
+
     .po-trace-map {
         display: inline-flex;
         align-items: center;
@@ -399,15 +411,33 @@
         return confirm('¿Seguro que deseas eliminar esta SOLMAT?');
     }
 
-    // Los menús usan posición fija para no recortarse dentro del contenedor con scroll horizontal.
+    // El contenedor con scroll recorta los menús; al abrirlos se mueven al <body> con posición fija
+    // y se regresan a su lugar al cerrarse.
     document.addEventListener('DOMContentLoaded', function () {
         if (!window.bootstrap || !window.bootstrap.Dropdown) return;
 
-        document.querySelectorAll('.solmat-table-responsive [data-bs-toggle="dropdown"]').forEach(function (el) {
-            new bootstrap.Dropdown(el, {
+        document.querySelectorAll('.solmat-table-responsive [data-bs-toggle="dropdown"]').forEach(function (toggle) {
+            var menu = toggle.parentElement.querySelector('.dropdown-menu');
+            var parent = toggle.parentElement;
+            if (!menu) return;
+
+            bootstrap.Dropdown.getOrCreateInstance(toggle, {
                 popperConfig: function (defaultConfig) {
-                    return Object.assign({}, defaultConfig, { strategy: 'fixed' });
+                    var modifiers = (defaultConfig.modifiers || []).concat([
+                        { name: 'computeStyles', options: { adaptive: false } }
+                    ]);
+                    return Object.assign({}, defaultConfig, { strategy: 'fixed', modifiers: modifiers });
                 }
+            });
+
+            toggle.addEventListener('show.bs.dropdown', function () {
+                menu.classList.add('solmat-menu-floating');
+                document.body.appendChild(menu);
+            });
+
+            toggle.addEventListener('hidden.bs.dropdown', function () {
+                menu.classList.remove('solmat-menu-floating');
+                parent.appendChild(menu);
             });
         });
     });
