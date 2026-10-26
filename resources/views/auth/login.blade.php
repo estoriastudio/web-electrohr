@@ -49,9 +49,11 @@
                                     </div>
 
                                     <div class="mb-3">
+                                        {{--  
                                         @if (Route::has('password.request'))
                                             <a href="{{ route('password.request') }}" class="float-end text-muted text-unline-dashed ms-1">Restablecer contraseña</a>
                                         @endif
+                                        --}}
                                         <label class="form-label" for="password">Contraseña</label>
                                         <div class="input-group">
                                             <input type="password" id="password" name="password" class="form-control bg-light bg-opacity-50 border-light py-2 @error('password') is-invalid @enderror" placeholder="Ingrese su contraseña" required autocomplete="current-password">
