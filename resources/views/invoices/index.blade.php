@@ -181,6 +181,7 @@
 										'id' => $m->id,
 										'label' => 'Hito #' . ($index + 1) . ' - ' . $concept . ' . ' . $invoice->currency . ' ' . number_format($paymentAmount, 2),
 										'amount' => $paymentAmount,
+										'blocked' => $m->invoices->where('id', '!=', $invoice->id)->isNotEmpty(),
 									];
 								})->all()
 								: [];
@@ -431,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		milestonesBlock.classList.toggle('d-none', !requiresMilestone);
 
 		if (milestonesList) {
-			milestonesList.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+			milestonesList.querySelectorAll('input[name="milestone_ids[]"]').forEach(function (checkbox) {
 				checkbox.required = false;
 			});
 		}
@@ -497,14 +498,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			html += `
 				<div class="col-md-6">
 					<div class="form-check border rounded p-2 bg-white">
-						<input class="form-check-input" type="checkbox"
+						<input class="form-check-input" type="radio"
 							name="milestone_ids[]"
 							value="${milestone.id}"
 							data-amount="${milestone.amount}"
 							id="modal_milestone_${invoiceId}_${milestone.id}"
-							${checked}>
+							${milestone.blocked ? 'disabled' : checked}>
 						<label class="form-check-label fs-13" for="modal_milestone_${invoiceId}_${milestone.id}">
-							${milestone.label}
+							${milestone.label}${milestone.blocked ? ' (ya tiene factura)' : ''}
 						</label>
 					</div>
 				</div>
@@ -573,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			const checkedMilestones = form.querySelectorAll('input[name="milestone_ids[]"]:checked');
 			if (!checkedMilestones.length) {
 				e.preventDefault();
-				alert('Para aprobar una factura debes seleccionar al menos un hito relacionado.');
+				alert('Para aprobar una factura debes seleccionar un solo hito disponible.');
 			}
 		});
 	}
@@ -605,4 +606,3 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
-

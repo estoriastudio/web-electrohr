@@ -1251,14 +1251,14 @@
             $requiresInitialPaymentSplit = $paymentsCount === 1
                 && $initialPayment?->status === 'por_autorizar';
             $committedPaymentAmount = (float) $milestone->payments
-                ->whereIn('status', ['por_autorizar', 'pagado'])
+                ->whereIn('status', \App\Models\Payment::COMMITTED_STATUSES)
                 ->sum('amount');
             $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
             $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
                 && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
             $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
                 || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
-            $canEditMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
+            $canEditMilestone = $isAdmin;
             $canDeleteMilestone = !$milestone->payments->contains('status', 'pagado');
         @endphp
 
@@ -1283,6 +1283,13 @@
                     </div>
                     <div class="d-flex gap-1">
                         @if ($canManageOrder || auth()->user()->hasAnyRole(["admin"]))
+                        @if (!$purchaseOrder->is_closed && !$milestone->payments->whereIn('status', ['autorizado', 'pagado'])->count())
+                            <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
+                                    title="Modificar monto" data-bs-toggle="modal"
+                                    data-bs-target="#modalAdjustAmount{{ $milestone->id }}">
+                                Modificar monto
+                            </button>
+                        @endif
                         @if ($canEditMilestone)
                             <button type="button" class="btn btn-xs btn-soft-primary btn-sm"
                                     title="Editar hito"
@@ -1317,6 +1324,31 @@
                 </div>
 
                 <div class="card-body pb-2">
+                    @if ($milestone->split_from_milestone_id)
+                        <div class="text-info fs-12 mb-2">
+                            Parcialidad del Hito #{{ $milestonePositionMap[$milestone->split_from_milestone_id] ?? $milestone->split_from_milestone_id }}
+                        </div>
+                    @endif
+                    @if ($milestone->adjustments->isNotEmpty())
+                        <details class="fs-12 mb-2">
+                            <summary>Bitácora de modificaciones de monto</summary>
+                            @foreach ($milestone->adjustments as $adjustment)
+                                <div class="border-bottom py-2">
+                                    <strong>{{ $adjustment->user?->name ?? 'Usuario eliminado' }}</strong>
+                                    · {{ $adjustment->created_at->format('d/m/Y H:i') }}<br>
+                                    {{ $purchaseOrder->currency }} {{ number_format($adjustment->previous_amount, 2) }}
+                                    → {{ number_format($adjustment->new_amount, 2) }}
+                                    @if ($adjustment->previous_value_type === 'porcentaje')
+                                        (antes {{ $adjustment->previous_value }}%; ahora fijo)
+                                    @endif
+                                    <div>{{ $adjustment->reason }}</div>
+                                    @if ($adjustment->partial_milestone_id)
+                                        <div>Parcialidad generada: Hito #{{ $milestonePositionMap[$adjustment->partial_milestone_id] ?? $adjustment->partial_milestone_id }}</div>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </details>
+                    @endif
                     {{-- Info principal --}}
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted fs-12">Concepto:</span>
@@ -1378,7 +1410,7 @@
                             </span>
                         </div>
                         @include('purchase_orders.partials._milestone_checklist', ['checklist' => $milestoneChecklist])
-                        @if (!$milestone->is_advance && ($canManageOrder || auth()->user()->hasAnyRole(['admin', 'Solmat'])))
+                        @if ($canManageOrder || auth()->user()->hasAnyRole(['admin', 'Solmat']))
                             @if ($milestone->delivery_confirmed_at)
                                 <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
                                       onsubmit="return confirm('¿Revocar la confirmación de entrega de este hito?')">
@@ -2099,17 +2131,19 @@
         $requiresInitialPaymentSplit = $paymentsCount === 1
             && $initialPayment?->status === 'por_autorizar';
         $committedPaymentAmount = (float) $milestone->payments
-            ->whereIn('status', ['por_autorizar', 'pagado'])
+            ->whereIn('status', \App\Models\Payment::COMMITTED_STATUSES)
             ->sum('amount');
         $availablePaymentAmount = max(0, round($milestone->effective_amount - $committedPaymentAmount, 2));
         $canRegisterAdditionalPayment = $purchaseOrder->status === 'autorizada'
             && ($requiresInitialPaymentSplit || $availablePaymentAmount > 0);
         $canManageAdditionalPayments = auth()->user()?->hasAnyRole(['admin', 'Pagos'])
             || ($purchaseOrder->is_destajo && $canManageOrder && auth()->user()?->hasRole('Orden de compra'));
-        $hasPendingPayment = $milestone->payments->contains('status', 'por_autorizar');
     @endphp
 
     {{-- MODAL Editar Hito --}}
+    @if ($canManageOrder && !$purchaseOrder->is_closed)
+        @include('purchase_orders.partials._adjust_milestone_amount')
+    @endif
     <div class="modal fade" id="modalEditMilestone{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -2120,15 +2154,9 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        @if (!$hasPendingPayment && $milestone->payments->isNotEmpty())
-                            <div class="alert alert-warning fs-13">
-                                No hay pagos por autorizar. Puedes actualizar los datos del hito, pero su monto debe conservar el total de los pagos ya aprobados o bloqueados.
-                            </div>
-                        @elseif ($milestone->payments->count() > 1)
-                            <div class="alert alert-info fs-13">
-                                Los pagos autorizados, pagados o bloqueados conservarán su importe. El ajuste se distribuirá únicamente entre los pagos por autorizar.
-                            </div>
-                        @endif
+                        <div class="alert alert-info fs-13">
+                            La edición de condiciones está reservada a Dirección (admin). Para cambiar el importe utiliza Modificar monto, con motivo obligatorio.
+                        </div>
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label fw-medium">Concepto</label>
@@ -2145,7 +2173,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Tipo de valor <span class="text-danger">*</span></label>
-                                <select class="form-select" name="value_type" required>
+                                <input type="hidden" name="value_type" value="{{ $milestone->value_type }}">
+                                <select class="form-select" disabled>
                                     <option value="fijo"       {{ $milestone->value_type === 'fijo'       ? 'selected' : '' }}>Fijo</option>
                                     <option value="porcentaje" {{ $milestone->value_type === 'porcentaje' ? 'selected' : '' }}>Porcentaje</option>
                                 </select>
@@ -2153,7 +2182,8 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Valor <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0.01" class="form-control"
-                                       name="value" value="{{ $milestone->value }}" required>
+                                       name="value" value="{{ $milestone->value }}" readonly required>
+                                <div class="form-text">Para cambiar el importe utiliza Modificar monto; se requiere motivo.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-medium">Fecha vencimiento <span class="text-danger">*</span></label>
@@ -2209,6 +2239,7 @@
                         @else
                             <div class="alert alert-light border fs-13">
                                 Saldo disponible del hito: <strong>{{ $purchaseOrder->currency }} {{ number_format($availablePaymentAmount, 2) }}</strong>.
+                                Incluye pagos pendientes, autorizados, pagados y pospuestos; excluye rechazados.
                             </div>
                         @endif
                         <div class="mb-3">
@@ -2351,17 +2382,19 @@
                         {{-- Hitos relacionados --}}
                         @if ($purchaseOrder->milestones->count() > 0)
                             <div class="col-12">
-                                <label class="form-label fw-medium">Hitos relacionados</label>
+                                <label class="form-label fw-medium">Hito relacionado (uno solo)</label>
                                 <div class="border rounded p-3 bg-light">
                                     <div class="row g-2">
                                         @foreach ($orderedMilestones as $m)
                                             <div class="col-md-6">
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox"
+                                                    <input class="form-check-input" type="radio"
                                                            name="milestone_ids[]" value="{{ $m->id }}"
+                                                           @disabled($m->invoices->isNotEmpty())
                                                            id="inv_milestone_{{ $m->id }}">
                                                     <label class="form-check-label fs-13" for="inv_milestone_{{ $m->id }}">
                                                         <strong>Hito #{{ $loop->iteration }}</strong>
+                                                        @if ($m->invoices->isNotEmpty()) (ya tiene factura) @endif
                                                         <span class="text-muted">
                                                             — {{ $m->concept ?: ($m->type === 'anticipo' ? 'Anticipo' : 'Regular') }}
                                                             · {{ $purchaseOrder->currency }} {{ number_format($m->effective_amount, 2) }}
@@ -2372,7 +2405,7 @@
                                         @endforeach
                                     </div>
                                 </div>
-                                <div class="form-text">Selecciona los hitos que cubre esta factura (opcional).</div>
+                                <div class="form-text">Selecciona un hito disponible para esta factura (opcional al cargar, obligatorio al aceptar). Un hito solo puede tener una factura.</div>
                                 @error('milestone_ids')<div class="text-danger fs-12 mt-1">{{ $message }}</div>@enderror
                             </div>
                         @endif

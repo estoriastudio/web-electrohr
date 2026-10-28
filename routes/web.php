@@ -503,6 +503,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         Route::middleware('role:admin|Orden de compra')->group(function () {
+            Route::post('/ordenes-de-compra/{purchaseOrder}/hitos/{milestone}/modificar-monto', [PurchaseOrderMilestoneController::class, 'adjustAmount'])
+                ->name('purchase_orders.milestones.adjust_amount');
             Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
                 ->name('purchase_orders.overdue_deliveries');
         });

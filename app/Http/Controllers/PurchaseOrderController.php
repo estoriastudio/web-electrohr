@@ -568,6 +568,7 @@ class PurchaseOrderController extends Controller
             'projectRelation',
             'milestones.payments',
             'milestones.invoices',
+            'milestones.adjustments.user',
             'invoices.milestones',
             'evidences.milestone',
             'evidences.uploader',

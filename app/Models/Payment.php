@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payment extends Model
 {
+    public const COMMITTED_STATUSES = ['por_autorizar', 'autorizado', 'pagado', 'pospuesto'];
+
     protected $fillable = [
         'milestone_id',
         'folio',

@@ -18,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /* Notificaciones */
+use App\Services\MilestoneAmountAdjuster;
 use App\Services\MilestoneCreditTerms;
 use App\Services\MilestoneEventStatus;
 use App\Services\NotificationService;
@@ -189,6 +190,7 @@ class PurchaseOrderMilestoneController extends Controller
 
     public function update(Request $request, PurchaseOrderMilestone $purchaseOrderMilestone): RedirectResponse
     {
+        abort_unless(Auth::user()->hasRole('admin'), 403);
         $validated = $request->validate([
             'concept'           => 'nullable|string|max:255',
             'payment_condition' => 'required|in:contado,credito',
@@ -202,20 +204,6 @@ class PurchaseOrderMilestoneController extends Controller
 
         $purchaseOrder = $purchaseOrderMilestone->purchaseOrder;
         $purchaseOrder?->ensureOpen();
-        if ($purchaseOrder?->status === 'autorizada'
-            && !$purchaseOrder->is_destajo
-            && !Auth::user()->hasRole('admin')) {
-            return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
-                ->with('error', 'Solo admin puede editar hitos de una OC autorizada que no es destajo.');
-        }
-
-        $this->ensureMilestoneValueIsWithinOrderTotal(
-            $purchaseOrder,
-            (string) $validated['value_type'],
-            (float) $validated['value'],
-            $purchaseOrderMilestone,
-        );
-
         $validated['is_advance'] = $request->boolean('is_advance');
         $validated['type']       = $purchaseOrderMilestone->type; // preservar valor legacy existente
         $validated = $this->normalizeCreditTerms($validated);
@@ -231,6 +219,16 @@ class PurchaseOrderMilestoneController extends Controller
         ];
 
         DB::transaction(function () use ($purchaseOrderMilestone, $validated): void {
+            $order = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrderMilestone->purchase_order_id);
+            $order->ensureOpen();
+            $purchaseOrderMilestone = PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($purchaseOrderMilestone->id);
+            if ($validated['value_type'] !== $purchaseOrderMilestone->value_type
+                || round((float) $validated['value'], 2) !== round((float) $purchaseOrderMilestone->value, 2)) {
+                throw ValidationException::withMessages([
+                    'value' => 'Utiliza Modificar monto para cambiar el importe del hito y registrar el motivo.',
+                ]);
+            }
+            $this->ensureMilestoneValueIsWithinOrderTotal($order, $validated['value_type'], (float) $validated['value'], $purchaseOrderMilestone);
             $payments = $purchaseOrderMilestone->payments()
                 ->lockForUpdate()
                 ->orderBy('id')
@@ -274,14 +272,11 @@ class PurchaseOrderMilestoneController extends Controller
             $pendingPayments = $payments->where('status', 'por_autorizar')->values();
             $lockedAmount = round((float) $payments
                 ->where('status', '!=', 'por_autorizar')
+                ->where('status', '!=', 'rechazado')
                 ->sum('amount'), 2);
 
             if ($pendingPayments->isEmpty()) {
-                if (abs($targetAmount - $lockedAmount) > 0.009) {
-                    throw ValidationException::withMessages([
-                        'value' => 'No se puede modificar el monto del hito porque no tiene pagos por autorizar.',
-                    ]);
-                }
+                $purchaseOrderMilestone->ensurePaymentTotalWithinAmount($lockedAmount, 'value');
 
                 return;
             }
@@ -301,7 +296,9 @@ class PurchaseOrderMilestoneController extends Controller
                 $isLastPayment = $index === $pendingPayments->count() - 1;
                 $amount = $isLastPayment
                     ? $remainingAmount
-                    : round($pendingAmount * ((float) $payment->amount / $currentPendingAmount), 2);
+                    : min($remainingAmount, round($pendingAmount * ($currentPendingAmount > 0
+                        ? (float) $payment->amount / $currentPendingAmount
+                        : 1 / $pendingPayments->count()), 2));
 
                 $remainingAmount = round($remainingAmount - $amount, 2);
 
@@ -312,11 +309,13 @@ class PurchaseOrderMilestoneController extends Controller
             }
         });
 
+        $purchaseOrderMilestone->refresh();
         // Construir resumen de cambios para auditoría
         $changes = [];
         if ($before['due_date'] !== $purchaseOrderMilestone->fresh()->due_date?->format('d/m/Y')) {
             $changes[] = 'vencimiento: ' . ($before['due_date'] ?? 'sin fecha') . ' → ' . ($purchaseOrderMilestone->due_date?->format('d/m/Y') ?? 'sin fecha');
         }
+
         if ($before['value'] !== (float) $validated['value']) {
             $changes[] = 'valor: ' . $before['value'] . ' → ' . $validated['value'];
         }
@@ -344,6 +343,38 @@ class PurchaseOrderMilestoneController extends Controller
         return redirect()->route('purchase_orders.show', $purchaseOrderMilestone->purchase_order_id)
             ->with('success', 'Hito actualizado correctamente.')
             ->with('warning', $creditWarning);
+    }
+
+    public function adjustAmount(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderMilestone $milestone, MilestoneAmountAdjuster $adjuster): RedirectResponse
+    {
+        abort_unless((int) $milestone->purchase_order_id === (int) $purchaseOrder->id, 404);
+        abort_unless(Auth::user()->hasRole('admin')
+            || (Auth::user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) Auth::id()), 403);
+        $isReduction = (float) $request->input('amount') < $milestone->effective_amount;
+        $isCredit = $request->input('partial.payment_condition') === 'credito' && !$request->boolean('partial.is_advance');
+        $data = $request->validate([
+            'amount' => 'required|numeric|decimal:0,2|min:0.01',
+            'reason' => 'required|string|max:1000',
+            'partial' => [Rule::requiredIf($isReduction), 'array'],
+            'partial.concept' => 'nullable|string|max:255',
+            'partial.payment_condition' => [Rule::requiredIf($isReduction), 'in:contado,credito'],
+            'partial.is_advance' => 'sometimes|boolean',
+            'partial.due_date' => [Rule::requiredIf($isReduction), 'date'],
+            'partial.credit_days' => [Rule::requiredIf($isReduction && $isCredit), 'nullable', 'integer', 'min:0', 'max:365'],
+            'partial.credit_start' => [Rule::requiredIf($isReduction && $isCredit), 'nullable', Rule::in([
+                PurchaseOrderMilestone::CREDIT_START_INVOICE, PurchaseOrderMilestone::CREDIT_START_FULFILLMENT,
+            ])],
+        ]);
+        $adjuster->adjust($purchaseOrder, $milestone, Auth::user(), $data);
+        $this->notification->send([
+            'type' => 'PurchaseOrderMilestone',
+            'action_by' => Auth::id(),
+            'model_action' => 'update',
+            'model_id' => $milestone->id,
+            'data' => 'modificó el monto del hito #' . $milestone->id . ' de OC #' . $purchaseOrder->folio . '. Motivo: ' . $data['reason'],
+        ]);
+
+        return redirect()->route('purchase_orders.show', $purchaseOrder)->with('success', 'Monto del hito actualizado correctamente.');
     }
 
     private function ensureMilestoneValueIsWithinOrderTotal(
@@ -484,6 +515,7 @@ class PurchaseOrderMilestoneController extends Controller
     {
         $milestones = $purchaseOrder->milestones()
             ->select('id', 'purchase_order_id', 'concept', 'payment_condition', 'value_type', 'value', 'covered_amount', 'due_date', 'is_advance')
+            ->withCount('invoices')
             ->orderBy('id')
             ->get()
             ->values()
@@ -499,6 +531,7 @@ class PurchaseOrderMilestoneController extends Controller
                     'covered_amount'   => $m->covered_amount,
                     'due_date'         => $m->due_date ? $m->due_date->format('d/m/Y') : null,
                     'is_advance'       => $m->is_advance,
+                    'invoice_linked'   => $m->invoices_count > 0,
                 ];
             });
 

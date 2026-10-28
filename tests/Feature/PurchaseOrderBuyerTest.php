@@ -128,6 +128,7 @@ class PurchaseOrderBuyerTest extends TestCase
             $table->date('invoice_date')->nullable();
             $table->timestamps();
         });
+        (require database_path('migrations/2026_10_27_000000_add_milestone_amount_adjustments.php'))->up();
         Schema::create('purchase_order_invoices', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('purchase_order_id');

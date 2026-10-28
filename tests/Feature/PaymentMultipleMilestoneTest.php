@@ -131,7 +131,7 @@ class PaymentMultipleMilestoneTest extends TestCase
         ]);
     }
 
-    public function test_cannot_add_payment_when_the_initial_payment_is_already_authorized(): void
+    public function test_cannot_add_payment_when_authorized_initial_payment_consumes_full_milestone(): void
     {
         $milestone = $this->milestoneWithInitialPayment();
         $milestone->payments()->first()->update(['status' => 'autorizado']);
@@ -144,7 +144,7 @@ class PaymentMultipleMilestoneTest extends TestCase
                 'payment_date' => '2026-08-30',
             ])
             ->assertRedirect(route('purchase_orders.show', $milestone->purchaseOrder))
-            ->assertSessionHasErrors('milestone_id');
+            ->assertSessionHasErrors('amount');
 
         $this->assertSame(1, $milestone->payments()->count());
     }

@@ -94,7 +94,7 @@ class MilestoneCreditTermsTest extends TestCase
         $this->assertSame($expected, $payment->fresh()->payment_date->toDateString());
     }
 
-    public function test_due_date_is_not_changed_when_it_breaks_the_date_sequence(): void
+    public function test_each_credit_milestone_has_its_own_due_date_regardless_of_sequence(): void
     {
         $admin = $this->admin();
         $order = $this->order();
@@ -106,9 +106,9 @@ class MilestoneCreditTermsTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('purchase_orders.milestones.confirm_delivery', [$order, $second]))
-            ->assertSessionHas('warning');
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame('2026-12-15', $second->fresh()->due_date->toDateString());
+        $this->assertSame(today()->toDateString(), $second->fresh()->due_date->toDateString());
     }
 
     public function test_credit_milestone_requires_terms_but_cash_and_advances_do_not(): void

@@ -389,12 +389,25 @@ class PaymentController extends Controller
 
     public function swipe(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
     {
+        return DB::transaction(function () use ($request, $payment) {
+            PurchaseOrder::query()->lockForUpdate()->findOrFail($payment->milestone->purchase_order_id)->ensureOpen();
+            PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($payment->milestone_id);
+
+            return $this->swipeLockedPayment($request, Payment::query()->lockForUpdate()->findOrFail($payment->id));
+        });
+    }
+
+    private function swipeLockedPayment(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
+    {
         $validated = $request->validate([
             'status' => 'required|in:autorizado,rechazado,pospuesto,por_autorizar',
         ]);
 
         $milestone = $payment->milestone()->with('purchaseOrder')->firstOrFail();
         $milestone->purchaseOrder->ensureOpen();
+        if ($validated['status'] !== 'rechazado') {
+            $milestone->ensureReactivationFits($payment);
+        }
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
             [$payment->id => $validated['status']],
@@ -441,6 +454,7 @@ class PaymentController extends Controller
 
         try {
             $payment = DB::transaction(function () use ($validated, $milestone) {
+                PurchaseOrder::query()->lockForUpdate()->findOrFail($milestone->purchase_order_id)->ensureOpen();
                 $milestone = PurchaseOrderMilestone::query()
                     ->with('purchaseOrder')
                     ->lockForUpdate()
@@ -464,7 +478,6 @@ class PaymentController extends Controller
 
                 $payments = $milestone->payments()->lockForUpdate()->orderBy('id')->get();
                 $firstPayment = $payments->first();
-                $targetAmount = round($milestone->effective_amount, 2);
                 $newAmount = round((float) $validated['amount'], 2);
 
                 if ($firstPayment === null) {
@@ -486,24 +499,14 @@ class PaymentController extends Controller
                     }
 
                     $existingAmount = round((float) $validated['existing_payment_amount'], 2);
-                    if (round($existingAmount + $newAmount, 2) > $targetAmount) {
-                        throw ValidationException::withMessages([
-                            'amount' => 'La suma del pago inicial y el nuevo pago no puede exceder el importe del hito (' . number_format($targetAmount, 2) . ').',
-                        ]);
-                    }
+                    $milestone->ensurePaymentTotalWithinAmount($existingAmount + $newAmount);
 
                     $firstPayment->update(['amount' => $existingAmount]);
                 } else {
                     $committedAmount = round((float) $payments
-                        ->whereIn('status', ['por_autorizar', 'pagado'])
+                        ->whereIn('status', Payment::COMMITTED_STATUSES)
                         ->sum('amount'), 2);
-                    $availableAmount = round($targetAmount - $committedAmount, 2);
-
-                    if ($newAmount > $availableAmount) {
-                        throw ValidationException::withMessages([
-                            'amount' => 'El importe excede el saldo disponible del hito (' . number_format(max(0, $availableAmount), 2) . ').',
-                        ]);
-                    }
+                    $milestone->ensurePaymentTotalWithinAmount($committedAmount + $newAmount);
                 }
 
                 return Payment::create([
@@ -549,11 +552,12 @@ class PaymentController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($payment) {
-            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
-            $milestone = $lockedPayment->milestone()->lockForUpdate()->firstOrFail();
+            $milestoneId = $payment->milestone_id;
             $purchaseOrder = PurchaseOrder::query()
                 ->lockForUpdate()
-                ->findOrFail($milestone->purchase_order_id);
+                ->findOrFail($payment->milestone->purchase_order_id);
+            $milestone = PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($milestoneId);
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
 
             $purchaseOrder->ensureOpen();
 
@@ -565,6 +569,7 @@ class PaymentController extends Controller
                 return ['error' => 'La OC debe estar autorizada para solicitar la reactivación de un pago.'];
             }
 
+            $milestone->ensureReactivationFits($lockedPayment);
             $this->paymentSequenceValidator->ensureStatusSequence(
                 $purchaseOrder,
                 [$lockedPayment->id => 'por_autorizar'],
@@ -599,6 +604,16 @@ class PaymentController extends Controller
     }
 
     public function update(Request $request, Payment $payment): RedirectResponse
+    {
+        return DB::transaction(function () use ($request, $payment) {
+            PurchaseOrder::query()->lockForUpdate()->findOrFail($payment->milestone->purchase_order_id);
+            PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($payment->milestone_id);
+
+            return $this->updateLockedPayment($request, Payment::query()->lockForUpdate()->findOrFail($payment->id));
+        });
+    }
+
+    private function updateLockedPayment(Request $request, Payment $payment): RedirectResponse
     {
         $validated = $request->validate([
             'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado,pospuesto',
@@ -731,6 +746,9 @@ class PaymentController extends Controller
                 ->with('error', 'Transición de estatus no permitida.');
         }
 
+        if ($previousStatus === 'rechazado' && $newStatus !== 'rechazado') {
+            $milestone->ensureReactivationFits($payment);
+        }
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
             [$payment->id => $newStatus],
@@ -814,6 +832,9 @@ class PaymentController extends Controller
 
         try {
             $updatedPayments = DB::transaction(function () use ($paymentIds, $storedPath, $fileName) {
+                PurchaseOrder::query()
+                    ->whereHas('milestones.payments', fn ($query) => $query->whereIn('payments.id', $paymentIds))
+                    ->orderBy('id')->lockForUpdate()->get();
                 $payments = Payment::query()
                     ->whereIn('id', $paymentIds)
                     ->lockForUpdate()
@@ -900,6 +921,9 @@ class PaymentController extends Controller
             ->values();
 
         $authorizedPayments = DB::transaction(function () use ($paymentIds) {
+            PurchaseOrder::query()
+                ->whereHas('milestones.payments', fn ($query) => $query->whereIn('payments.id', $paymentIds))
+                ->orderBy('id')->lockForUpdate()->get();
             $payments = Payment::query()
                 ->whereIn('id', $paymentIds)
                 ->lockForUpdate()

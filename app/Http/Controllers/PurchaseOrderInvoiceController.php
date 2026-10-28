@@ -69,6 +69,7 @@ class PurchaseOrderInvoiceController extends Controller
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
                 'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
+                'purchaseOrder.milestones.invoices:id',
                 'purchaseOrder.invoices:id,purchase_order_id,folio,amount,status',
                 'purchaseOrder.invoices.milestones:id',
                 'milestones:id,concept,payment_condition',
@@ -134,6 +135,7 @@ class PurchaseOrderInvoiceController extends Controller
             'purchaseOrder.supplier:id,rfc_name,commercial_name',
             'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
             'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
+            'purchaseOrder.milestones.invoices:id',
             'milestones:id,concept,payment_condition',
         ]);
 
@@ -188,6 +190,15 @@ class PurchaseOrderInvoiceController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        return DB::transaction(function () use ($request) {
+            PurchaseOrder::query()->lockForUpdate()->findOrFail($request->input('purchase_order_id'))->ensureOpen();
+
+            return $this->storeLockedInvoice($request);
+        });
+    }
+
+    private function storeLockedInvoice(Request $request): RedirectResponse
+    {
         // Cargar la OC antes de validar para usar su importe como límite
         $purchaseOrder = PurchaseOrder::findOrFail($request->input('purchase_order_id'));
         $purchaseOrder->ensureOpen();
@@ -197,12 +208,13 @@ class PurchaseOrderInvoiceController extends Controller
             'folio'             => 'nullable|string|max:100',
             'amount'            => ['required', 'numeric', 'min:0.01'],
             'currency'          => 'required|in:MXN,USD,EUR',
-            'milestone_ids'     => 'nullable|array',
+            'milestone_ids'     => 'nullable|array|max:1',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
             'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
             'xml_file'          => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
 
+        $this->ensureSingleMilestoneAvailable($purchaseOrder, $validated['milestone_ids'] ?? []);
         $validated['amount'] = round((float) $validated['amount'], 2);
         $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $this->resolveInvoicedAmount($purchaseOrder));
 
@@ -383,12 +395,21 @@ class PurchaseOrderInvoiceController extends Controller
 
     public function updateStatus(Request $request, PurchaseOrderInvoice $invoice): RedirectResponse
     {
+        return DB::transaction(function () use ($request, $invoice) {
+            PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id)->ensureOpen();
+
+            return $this->updateLockedInvoiceStatus($request, PurchaseOrderInvoice::query()->lockForUpdate()->findOrFail($invoice->id));
+        });
+    }
+
+    private function updateLockedInvoiceStatus(Request $request, PurchaseOrderInvoice $invoice): RedirectResponse
+    {
         $invoice->purchaseOrder->ensureOpen();
 
         $validated = $request->validate([
             'status' => 'required|in:' . implode(',', PurchaseOrderInvoice::STATUSES),
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
-            'milestone_ids' => 'nullable|array',
+            'milestone_ids' => 'nullable|array|max:1',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
         ]);
 
@@ -410,6 +431,7 @@ class PurchaseOrderInvoiceController extends Controller
                 ]);
             }
 
+            $this->ensureSingleMilestoneAvailable($invoice->purchaseOrder, $selectedMilestoneIds->all(), $invoice);
             $validIds = $invoice->purchaseOrder
                 ->milestones()
                 ->whereIn('id', $selectedMilestoneIds)
@@ -465,6 +487,24 @@ class PurchaseOrderInvoiceController extends Controller
             ->back()
             ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.')
             ->with('warning', $creditWarnings ?? null);
+    }
+
+    private function ensureSingleMilestoneAvailable(PurchaseOrder $order, array $ids, ?PurchaseOrderInvoice $invoice = null): void
+    {
+        if ($ids === []) {
+            return;
+        }
+        $milestone = count($ids) === 1 ? $order->milestones()->find($ids[0]) : null;
+        if (!$milestone) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'milestone_ids' => 'Selecciona un solo hito que pertenezca a esta OC.',
+            ]);
+        }
+        if ($milestone->invoices()->when($invoice, fn ($query) => $query->where('purchase_order_invoices.id', '!=', $invoice->id))->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'milestone_ids' => 'El hito ya tiene una factura vinculada. No se puede asignar otra.',
+            ]);
+        }
     }
 
     /**

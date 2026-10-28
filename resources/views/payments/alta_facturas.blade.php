@@ -199,13 +199,13 @@
 
                         {{-- Hitos relacionados --}}
                         <div class="col-12" id="milestones-wrapper">
-                            <label class="form-label fw-medium">Hitos relacionados</label>
+                            <label class="form-label fw-medium">Hito relacionado (uno solo)</label>
                             <div class="border rounded p-3 bg-light" id="milestones-list">
                                 <div class="text-muted fs-13 text-center py-2" id="milestones-loading">
                                     <i class="ri-loader-2-line ri-spin me-1"></i> Cargando hitos…
                                 </div>
                             </div>
-                            <div class="form-text">Selecciona los hitos que cubre esta factura (opcional).</div>
+                            <div class="form-text">Selecciona un hito disponible para esta factura (opcional al cargar, obligatorio al aceptar).</div>
                         </div>
 
                     </div>
@@ -288,11 +288,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 html += `
                     <div class="col-md-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox"
+                            <input class="form-check-input" type="radio"
                                    name="milestone_ids[]" value="${m.id}"
-                                   id="alta_milestone_${m.id}">
+                                   id="alta_milestone_${m.id}" ${m.invoice_linked ? 'disabled' : ''}>
                             <label class="form-check-label fs-13" for="alta_milestone_${m.id}">
                                 <strong>${hitoLabel}</strong>
+                                ${m.invoice_linked ? '(ya tiene factura)' : ''}
                                 <span class="text-muted">— ${conceptLabel} · ${currency} ${parseFloat(m.effective_amount).toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
                             </label>
                         </div>

@@ -47,9 +47,25 @@ Al crear un hito se genera un pago inicial con:
 
 Al editar un hito:
 
+- Las condiciones, descripcion y plazo de un hito existente se editan solo por Direccion (`admin`). El formulario general no permite cambiar el importe: se debe usar **Modificar monto**.
 - Si ya tiene pagos pendientes, se ajustan sus montos y la fecha de esos pagos conforme a la fecha del hito.
 - Si es un hito legado sin pagos, se crea su pago inicial durante la actualizacion.
 - Antes de crear o modificar un pago inicial, se valida que su fecha conserve el orden de fechas dentro de la OC.
+
+### Modificar monto y generar una parcialidad
+
+- Disponible para `admin` o el comprador asignado a la OC (`Orden de compra` y `buyer_id` igual al usuario), tambien en OCs autorizadas. Una OC cerrada no admite ajustes.
+- El hito no puede tener ningun pago `autorizado` o `pagado`. El nuevo monto debe ser positivo, no menor que lo facturado aceptado vinculado (`net_scope`, o `amount` si no existe alcance liquido), ni que `covered_amount`.
+- La suma de los hitos no puede superar el total neto de la OC. El importe se guarda como `fijo`, incluso si antes era un porcentaje. Si la conversion alteraria por redondeo el importe de otro hito porcentual, se rechaza para que Direccion revise la distribucion, sin cambios parciales.
+- La descripcion, modalidad, dias de credito y origen del plazo del hito editado no cambian.
+- Si disminuye el importe, se genera siempre una parcialidad por la diferencia, con su pago inicial `por_autorizar`; la suma de hitos se conserva. El comprador puede definir las condiciones del **nuevo** hito, precargadas con las del origen. No se copian facturas, cumplimiento ni fechas base.
+- Los pagos pendientes y pospuestos del hito original se redistribuyen proporcionalmente; los rechazados permanecen como historial y no consumen saldo.
+- Cada ajuste deja una bitacora persistente: usuario, fecha, monto anterior/nuevo, tipo/valor anterior y motivo obligatorio. `split_from_milestone_id` identifica el origen de la parcialidad.
+- El despliegue requiere la migracion `2026_10_27_000000_add_milestone_amount_adjustments.php`; no modifica automaticamente las vinculaciones historicas de facturas.
+
+### Una factura por hito
+
+Las nuevas vinculaciones permiten una sola factura por hito y un solo hito por factura, tanto al cargar como al aceptar la factura. Un hito ocupado no se ofrece para otra factura, incluso si la vinculada esta rechazada. Aceptar otra vez la misma factura con su mismo hito es valido. Los datos historicos multi-hito no se borran ni se redistribuyen automaticamente.
 
 ### Flujo de pagos
 
@@ -66,6 +82,10 @@ por_autorizar / pospuesto -> autorizado -> pagado
 - `rechazado`: pago que requiere revision. Se permite para conservar el flujo de solicitud de reactivacion, pero el reporte lo informa como alerta.
 
 Los pagos se pueden crear desde un hito autorizado, dividir cuando el pago inicial aun esta por autorizar, autorizar individualmente o en bloque, pagar con comprobante SPEI individual o multiple, posponer, rechazar y solicitar su reactivacion.
+
+**Limite de pagos por hito**: la suma de `amount` de todos sus pagos `por_autorizar`, `autorizado`, `pagado` y `pospuesto` debe ser menor o igual a `effective_amount`. Los rechazados se excluyen para poder reemplazarlos. Al reactivarlos (solicitud, cambio por admin o deshacer mediante swipe) se vuelve a validar el saldo. No se suma `covered_amount` nuevamente: los pagos pagados ya estan incluidos. El total exacto esta permitido y un exceso de $0.01 se rechaza sin guardar cambios parciales.
+
+Las altas y reactivaciones se validan en servidor bajo transaccion, bloqueando OC, hito y pagos en ese orden. El formulario muestra el mismo saldo. Los excesos historicos no se corrigen ni se eliminan automaticamente; no se permiten nuevas altas/reactivaciones que mantengan el exceso.
 
 ## Checklist de comprobacion por hito
 
@@ -105,7 +125,7 @@ Los hitos a credito (no anticipo) definen `credit_start` (`invoice_validation` |
 - Base `invoice_validation`: la primera fecha de aceptacion (`purchase_order_invoices.accepted_at`) de una factura aceptada ligada al hito.
 - Base `fulfillment_validated`: `delivery_confirmed_at` del hito.
 - Se recalcula al aceptar una factura (`PurchaseOrderInvoiceController::updateStatus`), al confirmar la entrega (`confirmMilestoneDelivery`) y al editar el hito. Actualiza `due_date` y la fecha de los pagos `por_autorizar` / `pospuesto`.
-- Si la nueva fecha rompe la secuencia de fechas entre hitos, no se aplica y se muestra un aviso (`session('warning')`).
+- Cada hito calcula su vencimiento desde su propia base, aun si resulta anterior al de un hito previo; el recalculo automatico no se bloquea por la secuencia de fechas de otros hitos.
 - Antes de que exista la fecha base, `due_date` es la fecha estimada capturada. Los hitos a credito existentes quedaron con `invoice_validation` y sin dias, por lo que conservan su fecha manual.
 
 ## Cierre de la OC
@@ -153,7 +173,7 @@ La regla se evalua antes de guardar cambios de estatus. En operaciones masivas, 
 
 ### 2. Secuencia de fechas
 
-La fecha del pago inicial debe ser no decreciente conforme al orden de los hitos.
+Las fechas manuales/provisionales de los pagos iniciales deben ser no decrecientes conforme al orden de los hitos. El vencimiento automatico de credito es independiente: fecha base propia + dias pactados. El reporte de salud excluye de la comparacion de fechas los hitos con plazo de credito propio.
 
 Ejemplo invalido:
 

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderMilestone extends Model
 {
@@ -27,6 +28,7 @@ class PurchaseOrderMilestone extends Model
         'delivery_confirmed_by',
         'credit_start',
         'credit_days',
+        'split_from_milestone_id',
     ];
 
     protected $casts = [
@@ -41,6 +43,37 @@ class PurchaseOrderMilestone extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function splitFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'split_from_milestone_id');
+    }
+
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderMilestoneAdjustment::class, 'milestone_id')->latest('id');
+    }
+
+    public function ensurePaymentTotalWithinAmount(float $total, string $errorKey = 'amount'): void
+    {
+        if (round($total * 100) > round($this->effective_amount * 100)) {
+            throw ValidationException::withMessages([
+                $errorKey => 'El total de pagos no rechazados no puede exceder el monto del hito ('
+                    . number_format($this->effective_amount, 2) . ').',
+            ]);
+        }
+    }
+
+    public function ensureReactivationFits(Payment $payment): void
+    {
+        if ($payment->status === 'rechazado') {
+            $this->ensurePaymentTotalWithinAmount(
+                (float) $this->payments()->whereIn('status', Payment::COMMITTED_STATUSES)->sum('amount')
+                    + (float) $payment->amount,
+                'status',
+            );
+        }
     }
 
     public function payments(): HasMany

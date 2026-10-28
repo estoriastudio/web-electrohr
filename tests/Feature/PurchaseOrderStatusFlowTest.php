@@ -201,7 +201,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
     }
 
-    public function test_purchase_order_role_can_update_pending_payments_of_an_authorized_destajo_milestone(): void
+    public function test_purchase_order_role_cannot_use_legacy_update_to_change_milestone_conditions_or_amount(): void
     {
         $user = User::factory()->create();
         $user->assignRole('Orden de compra');
@@ -237,7 +237,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
                 'value' => 1200,
                 'due_date' => '2026-09-15',
             ])
-            ->assertRedirect(route('purchase_orders.show', $purchaseOrder));
+            ->assertForbidden();
 
         $this->assertDatabaseHas('payments', [
             'id' => $authorizedPayment->id,
@@ -247,8 +247,8 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
         $this->assertDatabaseHas('payments', [
             'id' => $pendingPayment->id,
-            'amount' => 900,
-            'payment_date' => '2026-09-15',
+            'amount' => 700,
+            'payment_date' => '2026-09-01',
             'status' => 'por_autorizar',
         ]);
     }

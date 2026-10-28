@@ -2,19 +2,17 @@
 
 namespace App\Services;
 
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Plazo de crédito de un hito: fecha base (validación de factura o cumplimiento validado) + días pactados.
  */
 class MilestoneCreditTerms
 {
-    public function __construct(private PurchaseOrderPaymentSequenceValidator $sequenceValidator) {}
-
     public function hasTerms(PurchaseOrderMilestone $milestone): bool
     {
         return ($milestone->payment_condition ?? 'credito') === 'credito'
@@ -55,34 +53,19 @@ class MilestoneCreditTerms
 
     /**
      * Recalcula el vencimiento cuando ya existe la fecha base y lo propaga a los pagos aún no autorizados.
-     * Devuelve un aviso si no se pudo aplicar por romper la secuencia de fechas entre hitos.
+     * Cada hito tiene su propio vencimiento, independiente del orden de los otros hitos.
      */
     public function apply(PurchaseOrderMilestone $milestone): ?string
     {
-        $due = $this->computedDueDate($milestone);
-
-        if (!$due || ($milestone->due_date && $milestone->due_date->isSameDay($due))) {
-            return null;
-        }
-
-        $payments = $milestone->payments()->orderBy('id')->get();
-        $first = $payments->first();
-
-        try {
-            if ($first?->status === 'por_autorizar') {
-                $this->sequenceValidator->ensurePaymentDateSequence(
-                    $milestone->purchaseOrder,
-                    [$first->id => $due->toDateString()],
-                    'due_date',
-                );
+        DB::transaction(function () use ($milestone) {
+            PurchaseOrder::query()->lockForUpdate()->findOrFail($milestone->purchase_order_id);
+            $lockedMilestone = PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($milestone->id);
+            $due = $this->computedDueDate($lockedMilestone);
+            if (!$due) {
+                return;
             }
-        } catch (ValidationException $e) {
-            return 'No se actualizó el vencimiento del hito #' . $milestone->id . ' a ' . $due->format('d/m/Y')
-                . ': ' . collect($e->errors())->flatten()->first();
-        }
-
-        DB::transaction(function () use ($milestone, $payments, $due) {
-            $milestone->update(['due_date' => $due->toDateString()]);
+            $payments = $lockedMilestone->payments()->lockForUpdate()->orderBy('id')->get();
+            $lockedMilestone->update(['due_date' => $due->toDateString()]);
             $payments->whereIn('status', ['por_autorizar', 'pospuesto'])
                 ->each(fn ($payment) => $payment->update(['payment_date' => $due->toDateString()]));
         });

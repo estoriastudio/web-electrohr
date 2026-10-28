@@ -118,7 +118,7 @@
 					</div>
 
 					<div class="mb-3 d-none" id="invoiceMilestonesBlock">
-						<label class="form-label fw-medium">Hitos relacionados (obligatorio si Aceptada)</label>
+						<label class="form-label fw-medium">Hito relacionado (uno solo, obligatorio si Aceptada)</label>
 						<div class="border rounded p-3 bg-light">
 							<div class="row g-2" id="invoiceMilestonesList">
 								@forelse(($po?->milestones ?? collect())->values() as $index => $milestone)
@@ -130,14 +130,16 @@
 									@endphp
 									<div class="col-md-12">
 										<div class="form-check border rounded p-2 bg-white">
-											<input class="form-check-input" type="checkbox"
+											<input class="form-check-input" type="radio"
 												name="milestone_ids[]"
 												value="{{ $milestone->id }}"
 												data-amount="{{ number_format($paymentAmount, 2, '.', '') }}"
 												id="show_milestone_{{ $milestone->id }}"
+												@disabled($milestone->invoices->where('id', '!=', $invoice->id)->isNotEmpty())
 												{{ in_array((int) $milestone->id, $currentMilestoneIds, true) ? 'checked' : '' }}>
 											<label class="form-check-label fs-13" for="show_milestone_{{ $milestone->id }}">
 												Hito #{{ $index + 1 }} - {{ $concept }} . {{ $invoice->currency }} {{ number_format($paymentAmount, 2) }}
+												@if ($milestone->invoices->where('id', '!=', $invoice->id)->isNotEmpty()) (ya tiene factura) @endif
 											</label>
 										</div>
 									</div>
@@ -321,7 +323,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			const checkedMilestones = form.querySelectorAll('input[name="milestone_ids[]"]:checked');
 			if (!checkedMilestones.length) {
 				e.preventDefault();
-				alert('Para aprobar la factura debes seleccionar al menos un hito.');
+				alert('Para aprobar la factura debes seleccionar un solo hito disponible.');
 				const firstMilestone = form.querySelector('input[name="milestone_ids[]"]');
 				if (firstMilestone) firstMilestone.focus();
 			}
@@ -330,4 +332,3 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
-

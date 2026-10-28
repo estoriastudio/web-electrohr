@@ -250,6 +250,31 @@ class MilestoneChecklistTest extends TestCase
         $this->assertNull($milestone->fresh()->delivery_confirmed_at);
     }
 
+    public function test_advance_milestone_shows_delivery_fulfillment_button(): void
+    {
+        $admin = $this->admin();
+        $order = $this->purchaseOrder('autorizada');
+        $milestone = $this->milestone(['is_advance' => true], $order);
+        $item = $this->item($order);
+        PurchaseOrderItemDelivery::create([
+            'purchase_order_item_id' => $item->id,
+            'milestone_id' => $milestone->id,
+            'quantity' => 1,
+            'delivered_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('purchase_orders.show', $order))
+            ->assertOk()
+            ->assertSee('Confirmar entrega completa del hito');
+
+        $this->actingAs($admin)
+            ->post(route('purchase_orders.milestones.confirm_delivery', [$order, $milestone]))
+            ->assertRedirect(route('purchase_orders.show', $order));
+
+        $this->assertNotNull($milestone->fresh()->delivery_confirmed_at);
+    }
+
     public function test_cannot_confirm_delivery_without_linked_deliveries(): void
     {
         $admin = $this->admin();

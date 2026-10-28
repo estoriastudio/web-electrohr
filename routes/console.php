@@ -94,17 +94,24 @@ Artisan::command('payments:backfill-from-milestones {--dry-run : Simula sin guar
                 continue;
             }
 
-            Payment::create([
-                'milestone_id'     => $milestone->id,
-                'folio'            => generateUniquePaymentFolio(),
-                'amount'           => $milestone->effective_amount,
-                'payment_date'     => $milestone->due_date,
-                'invoice_date'     => null,
-                'status'           => 'por_autorizar',
-                'reference_number' => null,
-            ]);
+            $created += DB::transaction(function () use ($milestone): int {
+                PurchaseOrder::query()->lockForUpdate()->findOrFail($milestone->purchase_order_id)->ensureOpen();
+                $lockedMilestone = PurchaseOrderMilestone::query()->lockForUpdate()->findOrFail($milestone->id);
+                if ($lockedMilestone->payments()->exists()) {
+                    return 0;
+                }
+                Payment::create([
+                    'milestone_id' => $lockedMilestone->id,
+                    'folio' => generateUniquePaymentFolio(),
+                    'amount' => $lockedMilestone->effective_amount,
+                    'payment_date' => $lockedMilestone->due_date,
+                    'invoice_date' => null,
+                    'status' => 'por_autorizar',
+                    'reference_number' => null,
+                ]);
 
-            $created++;
+                return 1;
+            });
         }
     });
 
@@ -150,7 +157,7 @@ Artisan::command('purchase-orders:health', function () {
     $this->line('- Orden de comparación: hitos y pagos por ID ascendente; se usa el pago de menor ID de cada hito.');
     $this->line('- Alertas de estatus: un pago inicial de un hito posterior está más avanzado que el de un hito anterior.');
     $this->line('- Pagos rechazados: el primer pago de un hito está rechazado y requiere revisión.');
-    $this->line('- Alertas de fechas: la fecha de pago inicial de un hito posterior es anterior a una fecha previa.');
+    $this->line('- Alertas de fechas: la fecha de pago inicial de un hito posterior es anterior a una fecha previa; se excluyen hitos con plazo de crédito propio.');
     $this->line('- Hitos omitidos sin pagos: no tienen pago inicial para comparar y no generan alerta en esta revisión.');
     $this->newLine();
 
@@ -221,7 +228,7 @@ Artisan::command('purchase-orders:health', function () {
         foreach ($firstPayments as $current) {
             $currentPayment = $current['payment'];
 
-            if (!$currentPayment->payment_date) {
+            if (!$currentPayment->payment_date || app(\App\Services\MilestoneCreditTerms::class)->hasTerms($current['milestone'])) {
                 continue;
             }
 
