@@ -758,9 +758,9 @@
                         <div class="alert alert-info py-2 fs-13">Esta OC ya estaba en entrega parcial sin detalle de conceptos. Marca los conceptos entregados para regularizarla.</div>
                     @endif
                     @if ($orderedMilestones->isNotEmpty())
-                        <label for="delivery_milestone_id" class="form-label fw-medium">Hito que cubre esta entrega</label>
-                        <select id="delivery_milestone_id" name="milestone_id" class="form-select mb-3 @error('milestone_id') is-invalid @enderror">
-                            <option value="">Sin hito</option>
+                        <label for="delivery_milestone_id" class="form-label fw-medium">Hito que cubre esta entrega <span class="text-danger">*</span></label>
+                        <select id="delivery_milestone_id" name="milestone_id" required class="form-select mb-3 @error('milestone_id') is-invalid @enderror">
+                            <option value="" disabled @selected(old('milestone_id') === null)>Selecciona un hito</option>
                             @foreach ($orderedMilestones as $deliveryMilestone)
                                 <option value="{{ $deliveryMilestone->id }}" @selected((string) old('milestone_id') === (string) $deliveryMilestone->id)>
                                     Hito #{{ $milestonePositionMap[$deliveryMilestone->id] ?? $deliveryMilestone->id }}{{ $deliveryMilestone->concept ? ' · ' . $deliveryMilestone->concept : '' }}

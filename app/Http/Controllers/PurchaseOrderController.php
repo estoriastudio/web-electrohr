@@ -1057,7 +1057,7 @@ class PurchaseOrderController extends Controller
                     ->whereNull('delivered_at'),
             ],
             'milestone_id' => [
-                'nullable',
+                $purchaseOrder->milestones()->exists() ? 'required' : 'nullable',
                 'integer',
                 Rule::exists('purchase_order_milestones', 'id')->where('purchase_order_id', $purchaseOrder->id),
             ],
@@ -1067,6 +1067,7 @@ class PurchaseOrderController extends Controller
         ], [
             'item_ids.required' => 'Selecciona al menos un concepto entregado.',
             'item_ids.min' => 'Selecciona al menos un concepto entregado.',
+            'milestone_id.required' => 'Selecciona el hito que cubre esta entrega.',
             'milestone_id.exists' => 'El hito seleccionado no pertenece a la OC.',
             'item_ids.*.exists' => 'Alguno de los conceptos no pertenece a la OC o ya fue entregado.',
             'quantities.*.min' => 'La cantidad entregada debe ser mayor a cero.',
