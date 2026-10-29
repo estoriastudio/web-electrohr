@@ -1,5 +1,5 @@
 {
-  "project": "Mi proyecto",
+  "project": "ElectroHR",
   "laravel": "13",
   "php": "8.3",
   "livewire": "3.x",
@@ -14,6 +14,11 @@
     "info"
   ],
   "packages": [
+    "barryvdh/laravel-dompdf",
+    "fpdf/fpdf",
+    "league/flysystem-aws-s3-v3",
+    "setasign/fpdi",
+    "stevebauman/location",
     "livewire/livewire",
     "spatie/laravel-permission",
     "maatwebsite/excel"
