@@ -118,28 +118,23 @@
 					</div>
 
 					<div class="mb-3 d-none" id="invoiceMilestonesBlock">
-						<label class="form-label fw-medium">Hito relacionado (uno solo, obligatorio si Aceptada)</label>
+						<label class="form-label fw-medium">Hitos relacionados (obligatorio si Aceptada)</label>
+						<div class="form-text mb-2">Puedes vincular varios hitos; la suma de sus montos debe ser igual al importe de la factura y cada hito admite una sola factura.</div>
 						<div class="border rounded p-3 bg-light">
 							<div class="row g-2" id="invoiceMilestonesList">
-								@forelse(($po?->milestones ?? collect())->values() as $index => $milestone)
-									@php
-										$concept = $milestone->concept ?: ($milestone->payment_condition === 'contado' ? 'Contado' : 'Crédito');
-										$paymentAmount = (float) $milestone->payments
-											->reject(fn ($payment) => $payment->status === 'rechazado')
-											->sum('amount');
-									@endphp
+								@forelse($milestoneOptions as $option)
 									<div class="col-md-12">
 										<div class="form-check border rounded p-2 bg-white">
-											<input class="form-check-input" type="radio"
+											<input class="form-check-input" type="checkbox"
 												name="milestone_ids[]"
-												value="{{ $milestone->id }}"
-												data-amount="{{ number_format($paymentAmount, 2, '.', '') }}"
-												id="show_milestone_{{ $milestone->id }}"
-												@disabled($milestone->invoices->where('id', '!=', $invoice->id)->isNotEmpty())
-												{{ in_array((int) $milestone->id, $currentMilestoneIds, true) ? 'checked' : '' }}>
-											<label class="form-check-label fs-13" for="show_milestone_{{ $milestone->id }}">
-												Hito #{{ $index + 1 }} - {{ $concept }} . {{ $invoice->currency }} {{ number_format($paymentAmount, 2) }}
-												@if ($milestone->invoices->where('id', '!=', $invoice->id)->isNotEmpty()) (ya tiene factura) @endif
+												value="{{ $option['id'] }}"
+												data-amount="{{ number_format($option['amount'], 2, '.', '') }}"
+												id="show_milestone_{{ $option['id'] }}"
+												@disabled($option['blocked'])
+												{{ !$option['blocked'] && in_array((int) $option['id'], $currentMilestoneIds, true) ? 'checked' : '' }}>
+											<label class="form-check-label fs-13" for="show_milestone_{{ $option['id'] }}">
+												{{ $option['label'] }}
+												@if ($option['blocked']) (ya tiene factura) @endif
 											</label>
 										</div>
 									</div>
@@ -150,19 +145,15 @@
 						</div>
 						<div class="border rounded p-3 bg-white mt-3" id="invoiceMilestoneSummary">
 							<div class="d-flex justify-content-between align-items-center gap-2">
-								<span class="text-muted fs-13">Pagos de los hitos seleccionados</span>
+								<span class="text-muted fs-13">Suma de los hitos seleccionados</span>
 								<span class="fw-semibold" id="invoiceMilestoneSelectedTotal">—</span>
-							</div>
-							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
-								<span class="text-muted fs-13">Otras facturas aceptadas en esos hitos</span>
-								<span class="fw-semibold" id="invoiceMilestoneOtherTotal">—</span>
 							</div>
 							<div class="d-flex justify-content-between align-items-center gap-2 mt-2">
 								<span class="text-muted fs-13">Importe de esta factura</span>
 								<span class="fw-semibold" id="invoiceMilestoneInvoiceAmount">{{ $invoice->currency }} {{ number_format((float) $invoice->amount, 2) }}</span>
 							</div>
 							<div class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
-								<span class="text-muted fs-13">Diferencia (facturado - pagos)</span>
+								<span class="text-muted fs-13">Diferencia (factura - hitos)</span>
 								<span class="fw-semibold" id="invoiceMilestoneDifference">—</span>
 							</div>
 							<div class="fs-12 mt-2" id="invoiceMilestoneMatchStatus"></div>
@@ -241,12 +232,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	const milestonesBlock = document.getElementById('invoiceMilestonesBlock');
 	const milestoneChecks = form ? form.querySelectorAll('input[name="milestone_ids[]"]') : [];
 	const milestoneSelectedTotalEl = document.getElementById('invoiceMilestoneSelectedTotal');
-	const milestoneOtherTotalEl = document.getElementById('invoiceMilestoneOtherTotal');
 	const milestoneDifferenceEl = document.getElementById('invoiceMilestoneDifference');
 	const milestoneMatchStatusEl = document.getElementById('invoiceMilestoneMatchStatus');
 	const invoiceAmount = {{ number_format((float) $invoice->amount, 2, '.', '') }};
 	const invoiceCurrency = @json($invoice->currency);
-	const milestoneInvoices = @json($milestoneInvoices);
 	const amountTolerance = 0.5;
 
 	function syncMilestonesBlock() {
@@ -270,33 +259,35 @@ document.addEventListener('DOMContentLoaded', function () {
 		return `${invoiceCurrency} ${formattedAmount}`;
 	}
 
+	function selectedMilestonesTotal() {
+		return Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked')).reduce(function (total, checkbox) {
+			return total + (Number(checkbox.dataset.amount) || 0);
+		}, 0);
+	}
+
+	function milestonesMatchInvoice() {
+		return Math.abs(invoiceAmount - selectedMilestonesTotal()) <= amountTolerance;
+	}
+
 	function syncMilestoneSummary() {
 		if (!form || !milestoneSelectedTotalEl || !milestoneDifferenceEl || !milestoneMatchStatusEl) return;
 
 		const selectedChecks = Array.from(form.querySelectorAll('input[name="milestone_ids[]"]:checked'));
-		const selectedTotal = selectedChecks.reduce(function (total, checkbox) {
-			return total + (Number(checkbox.dataset.amount) || 0);
-		}, 0);
-		const otherInvoices = {};
-		selectedChecks.forEach(function (checkbox) {
-			(milestoneInvoices[checkbox.value] || []).forEach(function (other) {
-				otherInvoices[other.id] = other.amount;
-			});
-		});
-		const otherTotal = Object.values(otherInvoices).reduce(function (total, amount) { return total + amount; }, 0);
-		const difference = otherTotal + invoiceAmount - selectedTotal;
-		const matchesInvoice = Math.abs(difference) <= amountTolerance;
+		const selectedTotal = selectedMilestonesTotal();
+		const difference = Math.round((invoiceAmount - selectedTotal) * 100) / 100;
+		const matchesInvoice = selectedChecks.length > 0 && Math.abs(difference) <= amountTolerance;
 
 		milestoneSelectedTotalEl.textContent = formatMilestoneAmount(selectedTotal);
-		if (milestoneOtherTotalEl) milestoneOtherTotalEl.textContent = formatMilestoneAmount(otherTotal);
 		milestoneDifferenceEl.textContent = `${difference > 0 ? '+' : difference < 0 ? '-' : ''}${formatMilestoneAmount(Math.abs(difference))}`;
 		milestoneDifferenceEl.classList.toggle('text-success', matchesInvoice);
 		milestoneDifferenceEl.classList.toggle('text-warning', !matchesInvoice);
-		milestoneMatchStatusEl.textContent = matchesInvoice
-			? 'Las facturas del hito coinciden con el importe de sus pagos.'
-			: (difference > 0
-				? 'Las facturas exceden el importe de los pagos del hito; el estado de cuenta lo marcara Por revisar.'
-				: 'Aun falta facturar parte del importe de los pagos del hito.');
+		milestoneMatchStatusEl.textContent = !selectedChecks.length
+			? 'Selecciona los hitos que cubre esta factura.'
+			: (matchesInvoice
+				? 'La suma de los hitos coincide con el importe de la factura.'
+				: (difference > 0
+					? 'La factura excede la suma de los hitos seleccionados; agrega hitos o corrige la selección.'
+					: 'Los hitos seleccionados exceden el importe de la factura; quita hitos o corrige la selección.'));
 		milestoneMatchStatusEl.className = `fs-12 mt-2 ${matchesInvoice ? 'text-success' : 'text-warning'}`;
 	}
 
@@ -323,9 +314,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			const checkedMilestones = form.querySelectorAll('input[name="milestone_ids[]"]:checked');
 			if (!checkedMilestones.length) {
 				e.preventDefault();
-				alert('Para aprobar la factura debes seleccionar un solo hito disponible.');
-				const firstMilestone = form.querySelector('input[name="milestone_ids[]"]');
+				alert('Para aprobar la factura debes seleccionar al menos un hito disponible.');
+				const firstMilestone = form.querySelector('input[name="milestone_ids[]"]:not(:disabled)');
 				if (firstMilestone) firstMilestone.focus();
+				return;
+			}
+			if (!milestonesMatchInvoice()) {
+				e.preventDefault();
+				alert('La suma de los hitos seleccionados debe ser igual al importe de la factura.');
 			}
 		});
 	}

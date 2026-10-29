@@ -1,0 +1,240 @@
+{
+  "version": 2,
+  "type": "new",
+  "variant": "crud",
+  "meta": {
+    "id": "PRJ-001",
+    "module": "Projects",
+    "author": "Noé",
+    "reviewers": "Jorge, Mariam",
+    "status": "revision",
+    "branch": "feature/prj-001-projects",
+    "created": "2026-10-07"
+  },
+  "v": {
+    "goal": "Registrar proyectos internos, asignarlos a un usuario responsable y llevar el control de sus tareas.",
+    "flow": "El usuario entra a Proyectos y da clic en \"Nuevo proyecto\". Se abre un modal con nombre, descripción, usuario asignado y estado activo. Al guardar, se redirige al detalle del proyecto, donde ve la tabla de tareas y puede agregar, editar o eliminar tareas sin recargar la página.",
+    "prefix": "",
+    "middleware": "",
+    "search": "por nombre; filtro activo/inactivo; filtro por usuario asignado",
+    "uploads": true,
+    "disk": "local",
+    "uploads_notes": "Adjuntos del proyecto: pdf, jpg, png · máx 5 MB · carpeta projects/{id} · hasta 5 archivos por proyecto",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target": "",
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "Project",
+      "table": "",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "nullable": false,
+          "extra": "máx 255"
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → users.id, restrict on delete"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default: true"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "assigned_user_id"
+        },
+        {
+          "kind": "hasMany",
+          "model": "ProjectTask",
+          "key": "project_id"
+        }
+      ]
+    },
+    {
+      "name": "ProjectTask",
+      "table": "",
+      "expose": "none",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "project_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → projects.id, cascade on delete"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "nullable": false,
+          "extra": "máx 255"
+        },
+        {
+          "name": "status",
+          "type": "enum()",
+          "nullable": false,
+          "extra": "pending, in_progress, done · default: pending"
+        },
+        {
+          "name": "due_date",
+          "type": "date",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Project",
+          "key": "project_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Listado con búsqueda y filtros, badge activo/inactivo. Crear vía modal."
+    },
+    {
+      "name": "show",
+      "render": "livewire",
+      "behavior": "Datos del proyecto + tabla de tareas (componente ProjectTasksTable): crear, editar estatus y eliminar tareas sin recargar."
+    },
+    {
+      "name": "edit",
+      "render": "blade",
+      "behavior": "Formulario de edición del proyecto."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Un proyecto inactivo no permite registrar tareas nuevas.",
+    "Solo se puede asignar a usuarios existentes.",
+    "Eliminar un proyecto elimina sus tareas."
+  ],
+  "validations": [
+    {
+      "field": "name",
+      "rule": "requerido, string, máx 255"
+    },
+    {
+      "field": "assigned_user_id",
+      "rule": "requerido, exists:users,id"
+    },
+    {
+      "field": "tasks.title",
+      "rule": "requerido, máx 255"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Las rutas requieren auth?",
+      "a": "Sí, middleware auth (el spec original decía \"sin auth\", pero la notificación necesita Auth::id())."
+    }
+  ],
+  "exceptions": [
+    ""
+  ],
+  "oosOff": [],
+  "oosCustom": [],
+  "docsOff": []
+}

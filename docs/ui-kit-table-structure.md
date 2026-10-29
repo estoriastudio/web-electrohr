@@ -169,23 +169,24 @@
 ```html
 <td>
   <div class="d-flex gap-2">
-    <!-- Ver -->
-    <a href="#!" class="btn btn-light btn-sm">
-      <iconify-icon icon="solar:eye-broken" class="align-middle fs-18"></iconify-icon>
+    <a href="{{ route('items.show', $item) }}" class="btn btn-light btn-sm">
+      <i class="ri-eye-line align-middle fs-18"></i>
     </a>
-    <!-- Editar -->
-    <a href="#!" class="btn btn-soft-primary btn-sm">
-      <iconify-icon icon="solar:pen-2-broken" class="align-middle fs-18"></iconify-icon>
+    <a href="{{ route('items.edit', $item) }}" class="btn btn-soft-primary btn-sm">
+      <i class="ri-edit-line align-middle fs-18"></i>
     </a>
-    <!-- Eliminar -->
-    <a href="#!" class="btn btn-soft-danger btn-sm">
-      <iconify-icon icon="solar:trash-bin-minimalistic-2-broken" class="align-middle fs-18"></iconify-icon>
-    </a>
+    <form method="POST" action="{{ route('items.destroy', $item) }}" class="d-inline"
+          onsubmit="return confirm('¿Eliminar este registro?')">
+      @csrf @method('DELETE')
+      <button type="submit" class="btn btn-soft-danger btn-sm">
+        <i class="ri-delete-bin-line align-middle fs-18"></i>
+      </button>
+    </form>
   </div>
 </td>
 ```
 
-> **Nota:** El UI Kit usa `iconify-icon`. En el proyecto ElectroHR se pueden usar los íconos equivalentes de **Remix Icon** (`ri-*`) que ya están cargados vía `icons.min.css`.
+> **Nota:** En acciones de tabla se usa siempre Remix Icon (`ri-*`). Iconify (`solar:*`) queda para elementos decorativos (KPIs, dropdown de usuario).
 
 ---
 

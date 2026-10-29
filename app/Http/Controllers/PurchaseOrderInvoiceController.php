@@ -6,6 +6,7 @@ use App\Exports\PurchaseOrderInvoiceExport;
 use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
+use App\Models\PurchaseOrderMilestone;
 use App\Services\MilestoneCreditTerms;
 use App\Services\NotificationService;
 use Carbon\Carbon;
@@ -68,10 +69,6 @@ class PurchaseOrderInvoiceController extends Controller
                 'purchaseOrder.buyer:id,name',
                 'purchaseOrder.supplier:id,rfc_name,commercial_name',
                 'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
-                'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
-                'purchaseOrder.milestones.invoices:id',
-                'purchaseOrder.invoices:id,purchase_order_id,folio,amount,status',
-                'purchaseOrder.invoices.milestones:id',
                 'milestones:id,concept,payment_condition',
             ])
             ->when($search !== '', function ($q) use ($search) {
@@ -116,8 +113,11 @@ class PurchaseOrderInvoiceController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $milestoneOptions = $this->milestoneOptionsFor($invoices->getCollection());
+
         return view('invoices.index', compact(
             'invoices',
+            'milestoneOptions',
             'search',
             'section',
             'paymentCondition',
@@ -134,30 +134,48 @@ class PurchaseOrderInvoiceController extends Controller
             'purchaseOrder.buyer:id,name',
             'purchaseOrder.supplier:id,rfc_name,commercial_name',
             'purchaseOrder.milestones:id,purchase_order_id,concept,payment_condition,value_type,value',
-            'purchaseOrder.milestones.payments:id,milestone_id,amount,status',
-            'purchaseOrder.milestones.invoices:id',
             'milestones:id,concept,payment_condition',
         ]);
 
-        $milestoneInvoices = [];
-        if ($invoice->purchaseOrder) {
-            $invoice->purchaseOrder->invoices()
-                ->with('milestones:id')
-                ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
-                ->whereKeyNot($invoice->id)
-                ->get(['id', 'folio', 'amount'])
-                ->each(function ($other) use (&$milestoneInvoices) {
-                    foreach ($other->milestones as $milestone) {
-                        $milestoneInvoices[$milestone->id][] = [
-                            'id' => $other->id,
-                            'folio' => $other->folio ?: ('FACT-' . $other->id),
-                            'amount' => (float) $other->amount,
-                        ];
-                    }
-                });
-        }
+        $milestoneOptions = $this->milestoneOptionsFor(collect([$invoice]))[$invoice->id] ?? [];
 
-        return view('invoices.show', compact('invoice', 'milestoneInvoices'));
+        return view('invoices.show', compact('invoice', 'milestoneOptions'));
+    }
+
+    /**
+     * Hitos de la OC de cada factura con su monto (effective_amount) y si ya tienen otra factura vigente.
+     *
+     * @return array<int, array<int, array{id:int, label:string, amount:float, blocked:bool}>>
+     */
+    private function milestoneOptionsFor(\Illuminate\Support\Collection $invoices): array
+    {
+        $orders = PurchaseOrder::query()
+            ->whereIn('id', $invoices->pluck('purchase_order_id')->unique())
+            ->with(['items', 'milestones.invoices:id,status'])
+            ->get()
+            ->keyBy('id');
+
+        return $invoices->mapWithKeys(function (PurchaseOrderInvoice $invoice) use ($orders) {
+            $order = $orders->get($invoice->purchase_order_id);
+            $milestones = $order
+                ? $order->milestones->sortBy('id')->values()->each(fn ($milestone) => $milestone->setRelation('purchaseOrder', $order))
+                : collect();
+
+            return [$invoice->id => $milestones->map(function ($milestone, $index) use ($invoice) {
+                $concept = $milestone->concept ?: ($milestone->payment_condition === 'contado' ? 'Contado' : 'Crédito');
+                $amount = $milestone->effective_amount;
+
+                return [
+                    'id' => $milestone->id,
+                    'label' => 'Hito #' . ($index + 1) . ' - ' . $concept . ' . ' . $invoice->currency . ' ' . number_format($amount, 2),
+                    'amount' => round($amount, 2),
+                    'blocked' => $milestone->invoices
+                        ->where('id', '!=', $invoice->id)
+                        ->where('status', '!=', PurchaseOrderInvoice::STATUS_RECHAZADA)
+                        ->isNotEmpty(),
+                ];
+            })->all()];
+        })->all();
     }
 
     public function export(Request $request)
@@ -208,14 +226,14 @@ class PurchaseOrderInvoiceController extends Controller
             'folio'             => 'nullable|string|max:100',
             'amount'            => ['required', 'numeric', 'min:0.01'],
             'currency'          => 'required|in:MXN,USD,EUR',
-            'milestone_ids'     => 'nullable|array|max:1',
+            'milestone_ids'     => 'nullable|array',
             'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
             'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
             'xml_file'          => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
 
-        $this->ensureSingleMilestoneAvailable($purchaseOrder, $validated['milestone_ids'] ?? []);
         $validated['amount'] = round((float) $validated['amount'], 2);
+        $this->ensureMilestonesMatchInvoice($purchaseOrder, $validated['milestone_ids'] ?? [], $validated['amount']);
         $pendingAmount = $this->resolvePendingAmount($purchaseOrder, $this->resolveInvoicedAmount($purchaseOrder));
 
         if ($validated['amount'] > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
@@ -409,7 +427,7 @@ class PurchaseOrderInvoiceController extends Controller
         $validated = $request->validate([
             'status' => 'required|in:' . implode(',', PurchaseOrderInvoice::STATUSES),
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
-            'milestone_ids' => 'nullable|array|max:1',
+            'milestone_ids' => 'nullable|array',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
         ]);
 
@@ -431,19 +449,8 @@ class PurchaseOrderInvoiceController extends Controller
                 ]);
             }
 
-            $this->ensureSingleMilestoneAvailable($invoice->purchaseOrder, $selectedMilestoneIds->all(), $invoice);
-            $validIds = $invoice->purchaseOrder
-                ->milestones()
-                ->whereIn('id', $selectedMilestoneIds)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->values();
-
-            if ($validIds->count() !== $selectedMilestoneIds->count()) {
-                return redirect()->back()->withInput()->withErrors([
-                    'milestone_ids' => 'Uno o más hitos seleccionados no pertenecen a la orden de compra de esta factura.',
-                ]);
-            }
+            $this->ensureMilestonesMatchInvoice($invoice->purchaseOrder, $selectedMilestoneIds->all(), (float) $invoice->amount, $invoice);
+            $validIds = $selectedMilestoneIds;
 
             DB::transaction(function () use ($invoice, $validIds) {
                 PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id);
@@ -467,6 +474,9 @@ class PurchaseOrderInvoiceController extends Controller
         if ($validated['status'] !== PurchaseOrderInvoice::STATUS_ACEPTADA) {
             $invoice->update(['status' => $validated['status'], 'accepted_at' => null]);
             $this->releaseRegularizations($invoice);
+            if ($validated['status'] === PurchaseOrderInvoice::STATUS_RECHAZADA) {
+                $invoice->milestones()->detach();
+            }
         }
 
         $statusLabel = match ($validated['status']) {
@@ -489,21 +499,49 @@ class PurchaseOrderInvoiceController extends Controller
             ->with('warning', $creditWarnings ?? null);
     }
 
-    private function ensureSingleMilestoneAvailable(PurchaseOrder $order, array $ids, ?PurchaseOrderInvoice $invoice = null): void
+    /**
+     * Una factura puede cubrir varios hitos, pero cada hito admite una sola factura vigente
+     * y la suma de los hitos debe igualar el importe de la factura.
+     */
+    private function ensureMilestonesMatchInvoice(PurchaseOrder $order, array $ids, float $invoiceAmount, ?PurchaseOrderInvoice $invoice = null): void
     {
         if ($ids === []) {
             return;
         }
-        $milestone = count($ids) === 1 ? $order->milestones()->find($ids[0]) : null;
-        if (!$milestone) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'milestone_ids' => 'Selecciona un solo hito que pertenezca a esta OC.',
-            ]);
+
+        $fail = fn (string $message) => throw \Illuminate\Validation\ValidationException::withMessages([
+            'milestone_ids' => $message,
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $order->loadMissing('items');
+        $order->setRelation('milestones', $order->milestones()->get()->each(fn ($milestone) => $milestone->setRelation('purchaseOrder', $order)));
+        $milestones = $order->milestones->whereIn('id', $ids);
+
+        if ($milestones->count() !== count($ids)) {
+            $fail('Uno o más hitos seleccionados no pertenecen a la orden de compra de esta factura.');
         }
-        if ($milestone->invoices()->when($invoice, fn ($query) => $query->where('purchase_order_invoices.id', '!=', $invoice->id))->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'milestone_ids' => 'El hito ya tiene una factura vinculada. No se puede asignar otra.',
-            ]);
+
+        $occupied = PurchaseOrderMilestone::query()
+            ->whereIn('id', $ids)
+            ->whereHas('invoices', function ($query) use ($invoice) {
+                $query->where('purchase_order_invoices.status', '!=', PurchaseOrderInvoice::STATUS_RECHAZADA)
+                    ->when($invoice, fn ($q) => $q->where('purchase_order_invoices.id', '!=', $invoice->id));
+            })
+            ->exists();
+        if ($occupied) {
+            $fail('Uno de los hitos ya tiene una factura vinculada. No se puede asignar otra.');
+        }
+
+        $milestonesTotal = round((float) $milestones->sum(fn ($milestone) => $milestone->effective_amount), 2);
+        $difference = round($invoiceAmount - $milestonesTotal, 2);
+        if (abs($difference) > self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
+            $currency = $order->currency;
+            $fail($difference > 0
+                ? 'El importe de la factura (' . number_format($invoiceAmount, 2) . ' ' . $currency . ') excede en ' . number_format($difference, 2)
+                    . ' ' . $currency . ' la suma de los hitos seleccionados (' . number_format($milestonesTotal, 2) . ' ' . $currency . ').'
+                : 'La factura (' . number_format($invoiceAmount, 2) . ' ' . $currency . ') no cubre los hitos seleccionados ('
+                    . number_format($milestonesTotal, 2) . ' ' . $currency . '): faltan ' . number_format(abs($difference), 2) . ' ' . $currency . '.');
         }
     }
 

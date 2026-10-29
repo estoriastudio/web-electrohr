@@ -199,13 +199,14 @@
 
                         {{-- Hitos relacionados --}}
                         <div class="col-12" id="milestones-wrapper">
-                            <label class="form-label fw-medium">Hito relacionado (uno solo)</label>
+                            <label class="form-label fw-medium">Hitos relacionados</label>
                             <div class="border rounded p-3 bg-light" id="milestones-list">
                                 <div class="text-muted fs-13 text-center py-2" id="milestones-loading">
                                     <i class="ri-loader-2-line ri-spin me-1"></i> Cargando hitos…
                                 </div>
                             </div>
-                            <div class="form-text">Selecciona un hito disponible para esta factura (opcional al cargar, obligatorio al aceptar).</div>
+                            <div class="form-text">Selecciona uno o varios hitos disponibles (opcional al cargar, obligatorio al aceptar). Si eliges hitos, la suma de sus montos debe ser igual al importe de la factura. Cada hito admite una sola factura.</div>
+                            <div class="fs-12 mt-1 d-none" id="milestones-summary"></div>
                         </div>
 
                     </div>
@@ -243,6 +244,40 @@ document.addEventListener('DOMContentLoaded', function () {
     const formAmtInput  = document.getElementById('form-amount');
     const milestonesList = document.getElementById('milestones-list');
     const cancelBtn     = document.getElementById('btn-cancel-form');
+    const milestonesSummary = document.getElementById('milestones-summary');
+    let currentCurrency = '';
+
+    function milestonesTotalsMatch() {
+        const checked = Array.from(milestonesList.querySelectorAll('input[name="milestone_ids[]"]:checked'));
+        if (!checked.length) return { empty: true, matches: true };
+        const total = checked.reduce((sum, c) => sum + (Number(c.dataset.amount) || 0), 0);
+        const amount = parseFloat(formAmtInput.value) || 0;
+        const difference = Math.round((amount - total) * 100) / 100;
+        return { empty: false, matches: Math.abs(difference) <= 0.5, total, difference };
+    }
+
+    function updateMilestonesSummary() {
+        const state = milestonesTotalsMatch();
+        milestonesSummary.classList.toggle('d-none', state.empty);
+        if (state.empty) return;
+        const fmt = n => currentCurrency + ' ' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        milestonesSummary.textContent = state.matches
+            ? 'Suma de hitos: ' + fmt(state.total) + '. Coincide con el importe de la factura.'
+            : 'Suma de hitos: ' + fmt(state.total) + '. ' + (state.difference > 0
+                ? 'La factura excede los hitos seleccionados en ' + fmt(state.difference) + '.'
+                : 'Los hitos exceden la factura en ' + fmt(Math.abs(state.difference)) + '.');
+        milestonesSummary.className = 'fs-12 mt-1 ' + (state.matches ? 'text-success' : 'text-danger');
+    }
+
+    milestonesList.addEventListener('change', updateMilestonesSummary);
+    formAmtInput.addEventListener('input', updateMilestonesSummary);
+    form.addEventListener('submit', function (e) {
+        if (!milestonesTotalsMatch().matches) {
+            e.preventDefault();
+            updateMilestonesSummary();
+            alert('La suma de los hitos seleccionados debe ser igual al importe de la factura.');
+        }
+    });
 
     function selectOc(btn) {
         // Highlight selected
@@ -256,6 +291,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const invCount = btn.dataset.ocInvoiceCount;
 
         // Populate hidden inputs
+        currentCurrency      = currency;
         formOcId.value       = id;
         formCurrency.value   = currency;
         formCurrDisp.value   = currency;
@@ -267,6 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Show form
         placeholder.classList.add('d-none');
         form.classList.remove('d-none');
+
+        milestonesSummary.classList.add('d-none');
 
         // Load milestones via AJAX
         milestonesList.innerHTML = '<div class="text-muted fs-13 text-center py-2"><i class="ri-loader-2-line me-1"></i> Cargando hitos…</div>';
@@ -288,8 +326,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 html += `
                     <div class="col-md-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="radio"
+                            <input class="form-check-input" type="checkbox"
                                    name="milestone_ids[]" value="${m.id}"
+                                   data-amount="${parseFloat(m.effective_amount) || 0}"
                                    id="alta_milestone_${m.id}" ${m.invoice_linked ? 'disabled' : ''}>
                             <label class="form-check-label fs-13" for="alta_milestone_${m.id}">
                                 <strong>${hitoLabel}</strong>

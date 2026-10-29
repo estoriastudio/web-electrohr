@@ -1,0 +1,66 @@
+{
+  "project": "Mi proyecto",
+  "laravel": "13",
+  "php": "8.3",
+  "livewire": "3.x",
+  "layout_app": "layouts.app",
+  "layout_public": "layouts.public",
+  "default_middleware": "auth",
+  "nav_partial": "",
+  "pagination": 25,
+  "flash_keys": [
+    "success",
+    "error",
+    "info"
+  ],
+  "packages": [
+    "livewire/livewire",
+    "spatie/laravel-permission",
+    "maatwebsite/excel"
+  ],
+  "protected": [
+    "app/Http/Controllers/UserController.php",
+    "app/Http/Controllers/NotificationController.php",
+    "app/Services/NotificationService.php",
+    "database/migrations/*_create_users_table.php",
+    "resources/views/layouts/app.blade.php",
+    "resources/views/layouts/auth.blade.php",
+    "app/Console/Commands/DocsMap.php"
+  ],
+  "docs": [
+    {
+      "path": "docs/controller-structure-and-notifications.md",
+      "tags": "controllers"
+    },
+    {
+      "path": "docs/ui-kit-design-system.md",
+      "tags": "views"
+    },
+    {
+      "path": "docs/ui-kit-table-structure.md",
+      "tags": "views"
+    },
+    {
+      "path": "docs/livewire-conventions.md",
+      "tags": "livewire"
+    },
+    {
+      "path": "docs/public-views.md",
+      "tags": "public"
+    }
+  ],
+  "oos": [
+    "Rutas API (routes/api.php)",
+    "Unit / Feature tests",
+    "Factories y seeders",
+    "Form Requests",
+    "Observers / Event listeners",
+    "Jobs y colas",
+    "Artisan commands",
+    "Policies / Gates",
+    "Clases Mail / Notification de Laravel",
+    "API Resources / Transformers",
+    "Instalar paquetes no listados en el perfil",
+    "Cambios a vite.config.js / package.json"
+  ]
+}

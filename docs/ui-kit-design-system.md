@@ -945,13 +945,23 @@ gray-900: #323a46    ←  texto headings
 
 ### Mensajes flash de Laravel
 
+Todas las vistas incluyen el parcial al inicio de `@section('content')`:
+
 ```blade
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
+@include('partials.flash')
+```
+
+`resources/views/partials/flash.blade.php`:
+
+```blade
+@foreach (['success' => 'success', 'error' => 'danger', 'info' => 'info'] as $key => $class)
+    @if (session($key))
+        <div class="alert alert-{{ $class }} alert-dismissible fade show" role="alert">
+            {{ session($key) }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+@endforeach
 
 @if ($errors->any())
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -963,6 +973,21 @@ gray-900: #323a46    ←  texto headings
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
+
+{{-- Flash emitido por componentes Livewire --}}
+<div id="flash-live"></div>
+@push('scripts')
+<script>
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('flash', ({ type, message }) => {
+            const cls = { success: 'success', error: 'danger', info: 'info' }[type] || 'info';
+            const box = document.getElementById('flash-live');
+            box.innerHTML = `<div class="alert alert-${cls} alert-dismissible fade show" role="alert">
+                ${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+        });
+    });
+</script>
+@endpush
 ```
 
 ---
@@ -1772,12 +1797,7 @@ El archivo `assets/js/config.min.js` debe cargarse en el `<head>` antes que cual
 @section('content')
 
     {{-- Alertas flash (siempre al inicio del content) --}}
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+    @include('partials.flash')
 
     {{-- Contenido principal --}}
     <div class="row">

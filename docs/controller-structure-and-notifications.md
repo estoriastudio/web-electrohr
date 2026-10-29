@@ -241,14 +241,20 @@ La cadena de `data` sigue el patrón: **verbo en pasado + descripción del objet
 
 ## 5. Mensajes flash de sesión
 
-Todos los redirects de éxito usan `->with('success', '...')`.  
-Los errores de negocio (no validación) usan `->with('error', '...')`.
+| Llave | Uso |
+|---|---|
+| `success` | La acción se completó. Todos los redirects de éxito. |
+| `error` | Error de negocio (no de validación). |
+| `info` | Aviso neutro: no hubo cambios, se omitieron filas en una importación, la acción ya estaba aplicada. |
 
 ```php
 return redirect()->route('suppliers.index')->with('success', 'Proveedor eliminado correctamente.');
 return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
     ->with('error', 'El hito ya está completamente cubierto.');
+return redirect()->route('suppliers.index')->with('info', 'Se importaron 40 filas; 3 se omitieron por RFC duplicado.');
 ```
+
+En componentes Livewire que no redirigen, el equivalente es `$this->dispatch('flash', type: ..., message: ...)` (ver `docs/livewire-conventions.md`).
 
 ---
 
@@ -259,6 +265,6 @@ return redirect()->route('purchase_orders.show', $milestone->purchase_order_id)
 - [ ] Toda acción mutante (`store`, `update`, `destroy`) envía notificación antes del redirect.
 - [ ] `action_by` siempre usa `Auth::id()`.
 - [ ] `type` usa el nombre de la clase del modelo en PascalCase.
-- [ ] Los redirects de éxito usan `->with('success', ...)`.
+- [ ] Los redirects usan `->with('success'|'error'|'info', ...)` según §5.
 - [ ] El listado usa `paginate(25)`.
 - [ ] Los campos `nullable` se declaran explícitamente como `nullable` en la validación.

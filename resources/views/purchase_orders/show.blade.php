@@ -688,7 +688,9 @@
 <div class="modal fade" id="modalDeliveryStatus" tabindex="-1" aria-labelledby="modalDeliveryStatusLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <form action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}" method="POST" enctype="multipart/form-data">
+            {{-- El form envuelve header/body/footer: debe ser flex y poder encogerse para que .modal-body haga scroll --}}
+            <form action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}" method="POST" enctype="multipart/form-data"
+                  class="d-flex flex-column" style="min-height:0;max-height:100%;">
                 @csrf
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalDeliveryStatusLabel">
@@ -2382,14 +2384,15 @@
                         {{-- Hitos relacionados --}}
                         @if ($purchaseOrder->milestones->count() > 0)
                             <div class="col-12">
-                                <label class="form-label fw-medium">Hito relacionado (uno solo)</label>
+                                <label class="form-label fw-medium">Hitos relacionados</label>
                                 <div class="border rounded p-3 bg-light">
                                     <div class="row g-2">
                                         @foreach ($orderedMilestones as $m)
                                             <div class="col-md-6">
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="radio"
+                                                    <input class="form-check-input" type="checkbox"
                                                            name="milestone_ids[]" value="{{ $m->id }}"
+                                                           data-amount="{{ number_format($m->effective_amount, 2, '.', '') }}"
                                                            @disabled($m->invoices->isNotEmpty())
                                                            id="inv_milestone_{{ $m->id }}">
                                                     <label class="form-check-label fs-13" for="inv_milestone_{{ $m->id }}">
@@ -2405,7 +2408,8 @@
                                         @endforeach
                                     </div>
                                 </div>
-                                <div class="form-text">Selecciona un hito disponible para esta factura (opcional al cargar, obligatorio al aceptar). Un hito solo puede tener una factura.</div>
+                                <div class="form-text">Selecciona uno o varios hitos disponibles (opcional al cargar, obligatorio al aceptar). Si eliges hitos, la suma de sus montos debe ser igual al importe de la factura. Un hito solo puede tener una factura.</div>
+                                <div class="fs-12 mt-1 d-none" id="adminInvoiceMilestonesSummary"></div>
                                 @error('milestone_ids')<div class="text-danger fs-12 mt-1">{{ $message }}</div>@enderror
                             </div>
                         @endif
@@ -3484,6 +3488,57 @@ $(function () {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('adminInvoiceForm');
+    var summary = document.getElementById('adminInvoiceMilestonesSummary');
+    var amountField = document.getElementById('adminInvoiceAmount');
+    if (!form || !summary || !amountField) return;
+
+    var currency = @json($purchaseOrder->currency);
+
+    function fmt(n) {
+        return currency + ' ' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function milestonesState() {
+        var checked = form.querySelectorAll('input[name="milestone_ids[]"]:checked');
+        if (!checked.length) return { empty: true, matches: true };
+        var total = 0;
+        checked.forEach(function (c) { total += Number(c.dataset.amount) || 0; });
+        var difference = Math.round(((parseFloat(amountField.value) || 0) - total) * 100) / 100;
+        return { empty: false, matches: Math.abs(difference) <= 0.5, total: total, difference: difference };
+    }
+
+    function updateSummary() {
+        var state = milestonesState();
+        summary.classList.toggle('d-none', state.empty);
+        if (state.empty) return;
+        summary.textContent = state.matches
+            ? 'Suma de hitos: ' + fmt(state.total) + '. Coincide con el importe de la factura.'
+            : 'Suma de hitos: ' + fmt(state.total) + '. ' + (state.difference > 0
+                ? 'La factura excede los hitos seleccionados en ' + fmt(state.difference) + '.'
+                : 'Los hitos exceden la factura en ' + fmt(Math.abs(state.difference)) + '.');
+        summary.className = 'fs-12 mt-1 ' + (state.matches ? 'text-success' : 'text-danger');
+    }
+
+    form.addEventListener('change', function (e) {
+        if (e.target.matches('input[name="milestone_ids[]"]')) updateSummary();
+    });
+    amountField.addEventListener('input', updateSummary);
+    amountField.addEventListener('change', updateSummary);
+    form.addEventListener('submit', function (e) {
+        if (!milestonesState().matches) {
+            e.preventDefault();
+            updateSummary();
+            alert('La suma de los hitos seleccionados debe ser igual al importe de la factura.');
+        }
+    });
+});
+</script>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('adminInvoiceForm');
     if (!form) return;
 
     var xmlInput = document.getElementById('adminInvoiceXmlFile');
@@ -3501,6 +3556,7 @@ document.addEventListener('DOMContentLoaded', function () {
             amountInput.value = '';
         }
         amountInput.readOnly = fromXml;
+        amountInput.dispatchEvent(new Event('input'));
         amountInput.classList.toggle('bg-light', fromXml);
         if (amountStatus) {
             amountStatus.textContent = fromXml ? 'Detectado desde XML' : 'Captura manual';
