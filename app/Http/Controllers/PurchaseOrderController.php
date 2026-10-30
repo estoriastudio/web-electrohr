@@ -15,6 +15,7 @@ use App\Models\PurchaseOrderItemDelivery;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseOrderMilestone;
+use App\Models\PurchaseOrderMilestoneFulfillment;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Models\ProjectWork;
@@ -569,6 +570,8 @@ class PurchaseOrderController extends Controller
             'milestones.payments',
             'milestones.invoices',
             'milestones.adjustments.user',
+            'milestones.deliveries',
+            'milestones.fulfillments.evidence',
             'invoices.milestones',
             'evidences.milestone',
             'evidences.uploader',
@@ -1077,6 +1080,14 @@ class PurchaseOrderController extends Controller
         ]);
 
         $itemIds = array_values(array_unique($validated['item_ids']));
+
+        if (!empty($validated['milestone_id'])
+            && PurchaseOrderMilestoneFulfillment::where('purchase_order_milestone_id', $validated['milestone_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'milestone_id' => 'El hito ya se cumplió por registro de cumplimiento; no admite entregas físicas.',
+            ]);
+        }
+
         $evidenceFileName = null;
 
         DB::transaction(function () use ($request, $purchaseOrder, $itemIds, $validated, &$evidenceFileName) {
@@ -1159,7 +1170,9 @@ class PurchaseOrderController extends Controller
         $milestoneId = $delivery->milestone_id;
         $delivery->delete();
 
-        if ($milestoneId && !PurchaseOrderItemDelivery::where('milestone_id', $milestoneId)->exists()) {
+        if ($milestoneId
+            && !PurchaseOrderItemDelivery::where('milestone_id', $milestoneId)->exists()
+            && !PurchaseOrderMilestoneFulfillment::where('purchase_order_milestone_id', $milestoneId)->exists()) {
             PurchaseOrderMilestone::whereKey($milestoneId)->update([
                 'delivery_confirmed_at' => null,
                 'delivery_confirmed_by' => null,
@@ -1192,10 +1205,20 @@ class PurchaseOrderController extends Controller
         }
 
         $confirmed = $milestone->delivery_confirmed_at === null;
-        $milestone->update([
-            'delivery_confirmed_at' => $confirmed ? now() : null,
-            'delivery_confirmed_by' => $confirmed ? Auth::id() : null,
-        ]);
+        $revokedFulfillment = null;
+
+        DB::transaction(function () use ($milestone, $confirmed, &$revokedFulfillment) {
+            if (!$confirmed) {
+                // Revocar un cumplimiento por registro elimina el registro; la evidencia se conserva.
+                $revokedFulfillment = $milestone->fulfillments()->first();
+                $milestone->fulfillments()->delete();
+            }
+
+            $milestone->update([
+                'delivery_confirmed_at' => $confirmed ? now() : null,
+                'delivery_confirmed_by' => $confirmed ? Auth::id() : null,
+            ]);
+        });
         $creditWarning = $confirmed ? $this->creditTerms->apply($milestone->load('purchaseOrder')) : null;
 
         $this->notification->send([
@@ -1204,7 +1227,9 @@ class PurchaseOrderController extends Controller
             'model_action' => 'update',
             'model_id'     => $purchaseOrder->id,
             'data'         => ($confirmed ? 'confirmó' : 'revocó la confirmación de')
-                . ' la entrega del hito #' . $milestone->id . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
+                . ' la entrega del hito #' . $milestone->id
+                . ($revokedFulfillment ? ' (cumplimiento ' . $revokedFulfillment->type_label . ')' : '')
+                . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)

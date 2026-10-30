@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderEvidence;
+use App\Models\PurchaseOrderMilestoneFulfillment;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -90,6 +91,11 @@ class PurchaseOrderEvidenceController extends Controller
     {
         $purchaseOrder = $evidence->purchaseOrder;
         $fileName = $evidence->file_name;
+
+        if (PurchaseOrderMilestoneFulfillment::where('evidence_id', $evidence->id)->exists()) {
+            return redirect()->route('purchase_orders.show', $purchaseOrder)
+                ->with('error', 'La evidencia respalda el cumplimiento de un hito. Revoca la confirmación del hito para poder eliminarla.');
+        }
 
         if ($evidence->file_path && Storage::exists($evidence->file_path)) {
             Storage::delete($evidence->file_path);

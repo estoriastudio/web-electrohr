@@ -25,7 +25,7 @@ Lo que se pide depende del tipo de hito:
 | **Crédito**, plazo inicia con *validación de factura* | Requerida | Requerida |
 | **Crédito**, plazo inicia con *cumplimiento validado* | Requerida | No requerida para autorizar (se regulariza después) |
 
-- **Entrega confirmada:** el hito tiene al menos una entrega registrada con evidencia y un usuario la confirmó como "entrega completa para este hito".
+- **Entrega confirmada:** el hito está **verificado** (cumplimiento). Según el tipo de cumplimiento, es una recepción física que un usuario confirmó como "entrega completa para este hito", o un cumplimiento por Estimación o avance, Documental o Anticipo validado con su evidencia.
 - **Factura aceptada:** hay al menos una factura **ligada al hito** cuyo estatus es **Aceptada**. Una factura *En proceso* o *Rechazada* **no cumple**.
 - Un hito **completo** muestra "Listo para autorizar". Mientras falte algo muestra **Pendiente** y el detalle de lo que falta.
 
@@ -65,14 +65,35 @@ El **vencimiento se calcula solo**: fecha de inicio + días de plazo.
 
 ### 1. Entrega confirmada
 
-1. En el detalle de la OC, abre **Entregas** y selecciona los conceptos que se entregan.
+En el detalle de la OC, abre **Entregas**. El primer paso es elegir el **tipo de cumplimiento** (el tipo no es un dato del hito; se elige aquí cada vez):
+
+| Tipo | Qué se pide | Evidencia | Cómo queda verificado el hito |
+|---|---|---|---|
+| **Recepción física** | Conceptos con cantidades, hito y evidencia | Evidencia de entrega | Se registra la entrega y después se pulsa **"Confirmar entrega completa del hito"** |
+| **Estimación o avance** | Hito, evidencia y comentario opcional | Estimación firmada o visto bueno de la obra | **"Validar cumplimiento"** lo verifica en el mismo paso |
+| **Documental** | Hito, evidencia y comentario opcional | Acta o documento aprobado | **"Validar cumplimiento"** |
+| **Anticipo** | Hito y evidencia (sin comentario) | Hoja de autorización firmada por Dirección | **"Validar cumplimiento"** |
+
+**Recepción física**
+
+1. Selecciona los conceptos que se entregan.
 2. Elige el **hito que cubre esa entrega** (campo "Hito que cubre esta entrega") y adjunta la evidencia (PDF o imagen).
    - Una entrega se liga a **un solo hito**. Si cubre varios hitos, regístrala por separado para cada uno.
    - Si no eliges hito, la entrega se registra normalmente pero **no cuenta** para ningún checklist.
 3. Cuando lo recibido corresponde por completo al hito, pulsa **"Confirmar entrega completa del hito"** en el panel de checklist de ese hito.
-4. Si te equivocaste, puedes **"Revocar confirmación de entrega"**.
 
-Quién puede: Admin, Solmat y Orden de compra (en OCs donde es el comprador). Revertir una entrega registrada solo lo puede hacer Admin; si el hito se queda sin entregas ligadas, su confirmación se limpia automáticamente.
+**Estimación o avance, Documental y Anticipo**
+
+1. Elige el tipo, el hito y adjunta la evidencia que corresponde. El botón **"Validar cumplimiento"** se habilita cuando hay hito y evidencia (el comentario no condiciona el botón).
+2. Al validar se guarda la evidencia (queda en la sección Evidencias de la OC) y el hito queda verificado. El panel del hito muestra el tipo de cumplimiento.
+3. Todos los tipos cuentan como "Entrega confirmada" en el checklist y habilitan la dimensión *Cumplimiento* del evento. Los anticipos (`is_advance`) siguen sin requisitos bloqueantes para autorizar su pago; no se valida la hoja de Dirección.
+
+**Reglas**
+
+- Un hito se cumple por **un solo tipo**: no se puede registrar un cumplimiento no físico en un hito con entregas, con otro registro o ya verificado, ni una entrega física en un hito cumplido por registro.
+- Si te equivocaste, usa **"Revocar confirmación de entrega"**. Si el hito se cumplió por registro, también se elimina el registro de cumplimiento; el archivo se conserva en las evidencias de la OC. Mientras el registro esté vigente, su evidencia no se puede eliminar desde Evidencias.
+
+Quién puede: en **Recepción física**, Admin, Solmat y Orden de compra (en OCs donde es el comprador). En **Estimación, Documental y Anticipo**, el comprador de la OC (rol Orden de compra) y Admin; los demás roles no ven esos tipos. Revertir una entrega registrada solo lo puede hacer Admin; si el hito se queda sin entregas ni registros, su confirmación se limpia automáticamente.
 
 ### 2. Factura aceptada (hitos a crédito)
 
@@ -107,7 +128,7 @@ Cuando todo el ciclo termina, la OC se **cierra** y pasa a estatus **Cerrada**. 
 Para poder cerrar una OC deben cumplirse **todos** estos puntos (el panel "Cierre de la OC" en su detalle los muestra con ✔ / ✖):
 
 1. La OC está **autorizada**.
-2. **Entrega completa** (todos los conceptos entregados).
+2. **Entrega completa** (todos los conceptos entregados; o, si la OC no tiene entregas físicas, todos sus hitos cumplidos por registro de cumplimiento).
 3. **Todos los eventos cerrados**: cada hito tiene cumplimiento, facturación y pago completos. Esto incluye los anticipos, que también deben tener su entrega confirmada y su factura aceptada.
 4. **Pagos completos**: todos los pagos están pagados y no queda saldo pendiente.
 5. **Importe facturado completo**: las facturas aceptadas (netas de notas de crédito) cubren el total de la OC, con una tolerancia de $0.50.

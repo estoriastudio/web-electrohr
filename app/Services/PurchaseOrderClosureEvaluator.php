@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
+use App\Models\PurchaseOrderItemDelivery;
+use App\Models\PurchaseOrderMilestoneFulfillment;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -62,7 +64,9 @@ class PurchaseOrderClosureEvaluator
     {
         $total = $order->items->count();
         $delivered = $order->items->whereNotNull('delivered_at')->count();
-        $met = $total === 0 || $order->delivery_status === 'entregado';
+        $conceptsDelivered = $total === 0 || $order->delivery_status === 'entregado';
+        $fulfilledByRecords = !$conceptsDelivered && $this->allMilestonesFulfilledByRecord($order);
+        $met = $conceptsDelivered || $fulfilledByRecords;
 
         return [
             'key' => 'delivery',
@@ -70,8 +74,27 @@ class PurchaseOrderClosureEvaluator
             'met' => $met,
             'detail' => $total === 0
                 ? 'La OC no tiene conceptos por entregar'
-                : ($met ? 'Todos los conceptos entregados' : $delivered . ' de ' . $total . ' concepto(s) entregados'),
+                : ($fulfilledByRecords
+                    ? 'Todos los hitos cumplidos por registro de cumplimiento'
+                    : ($met ? 'Todos los conceptos entregados' : $delivered . ' de ' . $total . ' concepto(s) entregados')),
         ];
+    }
+
+    /** Sin entregas físicas en la OC y con un registro de cumplimiento en cada hito. */
+    private function allMilestonesFulfilledByRecord(PurchaseOrder $order): bool
+    {
+        if ($order->milestones->isEmpty()) {
+            return false;
+        }
+
+        $hasPhysicalDeliveries = PurchaseOrderItemDelivery::whereIn('purchase_order_item_id', $order->items->pluck('id'))->exists();
+        if ($hasPhysicalDeliveries) {
+            return false;
+        }
+
+        return PurchaseOrderMilestoneFulfillment::whereIn('purchase_order_milestone_id', $order->milestones->pluck('id'))
+            ->distinct()
+            ->count('purchase_order_milestone_id') === $order->milestones->count();
     }
 
     private function events($milestones): array

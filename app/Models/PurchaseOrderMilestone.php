@@ -101,6 +101,39 @@ class PurchaseOrderMilestone extends Model
         return $this->hasMany(PurchaseOrderEvidence::class, 'purchase_order_milestone_id');
     }
 
+    public function fulfillments(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderMilestoneFulfillment::class, 'purchase_order_milestone_id');
+    }
+
+    /**
+     * Tipo con el que se cumplió el hito: entregas ligadas = recepción física;
+     * con registro = el tipo del registro; si no, null (sin tipo).
+     */
+    public function getFulfillmentTypeAttribute(): ?string
+    {
+        $hasDeliveries = $this->relationLoaded('deliveries')
+            ? $this->deliveries->isNotEmpty()
+            : $this->deliveries()->exists();
+
+        if ($hasDeliveries) {
+            return PurchaseOrderMilestoneFulfillment::TYPE_PHYSICAL;
+        }
+
+        $fulfillment = $this->relationLoaded('fulfillments')
+            ? $this->fulfillments->first()
+            : $this->fulfillments()->first();
+
+        return $fulfillment?->fulfillment_type;
+    }
+
+    public function getFulfillmentTypeLabelAttribute(): ?string
+    {
+        $type = $this->fulfillment_type;
+
+        return $type ? PurchaseOrderMilestoneFulfillment::TYPE_LABELS[$type] : null;
+    }
+
     /**
      * Monto objetivo real del hito en la moneda de la OC.
      * - value_type = 'fijo':       devuelve value directamente.

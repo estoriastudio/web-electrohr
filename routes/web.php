@@ -26,6 +26,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderEvidenceController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
+use App\Http\Controllers\PurchaseOrderMilestoneFulfillmentController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierContactController;
 use App\Http\Controllers\SupplierController;
@@ -660,6 +661,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('purchase_orders.deliveries.store');
         });
         Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+            Route::post('/ordenes-de-compra/{purchase_order}/cumplimientos', [PurchaseOrderMilestoneFulfillmentController::class, 'store'])
+                ->name('purchase_orders.fulfillments.store');
             Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
                 ->name('purchase_orders.milestones.confirm_delivery');
         });

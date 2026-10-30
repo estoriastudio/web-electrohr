@@ -64,6 +64,14 @@
 
     $isAdmin = auth()->user()?->hasRole('admin') ?? false;
     $canManageOrder = $isAdmin || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canRecordFulfillment = $canManageOrder;
+    $fulfillmentLabels = \App\Models\PurchaseOrderMilestoneFulfillment::TYPE_LABELS;
+    $fulfillmentEvidenceHints = \App\Models\PurchaseOrderMilestoneFulfillment::EVIDENCE_HINTS;
+    $reopenFulfillmentModal = (old('_fulfillment_form') !== null && $errors->any())
+        || $errors->has('item_ids') || $errors->has('item_ids.*') || $errors->has('delivery_evidence')
+        || $errors->has('fulfillment_type') || $errors->has('fulfillment_evidence')
+        || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'quantities'));
+    $fulfillmentOldType = old('fulfillment_type') ?: ($reopenFulfillmentModal ? 'physical' : null);
     $canRequestPaymentReactivation = auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
@@ -689,9 +697,13 @@
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             {{-- El form envuelve header/body/footer: debe ser flex y poder encogerse para que .modal-body haga scroll --}}
-            <form action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}" method="POST" enctype="multipart/form-data"
+            <form id="fulfillmentForm" action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}" method="POST" enctype="multipart/form-data"
+                  data-delivery-action="{{ route('purchase_orders.deliveries.store', $purchaseOrder) }}"
+                  data-fulfillment-action="{{ route('purchase_orders.fulfillments.store', $purchaseOrder) }}"
                   class="d-flex flex-column" style="min-height:0;max-height:100%;">
                 @csrf
+                <input type="hidden" name="_fulfillment_form" value="1">
+                <input type="hidden" name="fulfillment_type" id="fulfillment_type" value="" disabled>
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalDeliveryStatusLabel">
                         <i class="ri-truck-line me-1 text-success"></i> Entregas
@@ -699,6 +711,45 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <div id="fulfillmentTypePicker">
+                        <p class="text-muted mb-3">Seleccione el tipo de cumplimiento para continuar.</p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-success w-100 py-4 fulfillment-type-choice" data-fulfillment-type="physical">
+                                    <i class="ri-truck-line fs-24 d-block mb-2"></i>Recepción física
+                                </button>
+                            </div>
+                            @if ($canRecordFulfillment)
+                                <div class="col-md-6">
+                                    <button type="button" class="btn btn-outline-primary w-100 py-4 fulfillment-type-choice" data-fulfillment-type="estimation">
+                                        <i class="ri-file-chart-line fs-24 d-block mb-2"></i>Estimación o avance
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="button" class="btn btn-outline-info w-100 py-4 fulfillment-type-choice" data-fulfillment-type="documentary">
+                                        <i class="ri-file-text-line fs-24 d-block mb-2"></i>Documental
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="button" class="btn btn-outline-warning w-100 py-4 fulfillment-type-choice" data-fulfillment-type="advance">
+                                        <i class="ri-money-dollar-circle-line fs-24 d-block mb-2"></i>Anticipo
+                                    </button>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div id="fulfillmentDetails" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <h6 class="mb-0" id="fulfillmentTypeTitle"></h6>
+                        @if ($canRecordFulfillment)
+                            <button type="button" class="btn btn-light btn-sm" id="changeFulfillmentType"><i class="ri-arrow-left-line me-1"></i>Cambiar tipo</button>
+                        @endif
+                    </div>
+                    @if ($errors->has('fulfillment_type'))
+                        <div class="alert alert-danger py-2 fs-13">{{ $errors->first('fulfillment_type') }}</div>
+                    @endif
+                    <div data-fulfillment-scope="physical">
                     <p class="text-muted fs-13 mb-3">
                         Selecciona los conceptos que se están entregando de la OC #{{ $purchaseOrder->folio ?? $purchaseOrder->id }} y adjunta la evidencia.
                     </p>
@@ -732,7 +783,7 @@
                                         <td>
                                             <input type="checkbox" class="form-check-input delivery-item-checkbox"
                                                    name="item_ids[]" value="{{ $item->id }}" id="delivery_item_{{ $item->id }}"
-                                                   {{ $isItemDelivered ? 'checked disabled' : '' }}
+                                                   {{ $isItemDelivered ? 'checked disabled data-delivered=1' : '' }}
                                                    {{ !$isItemDelivered && in_array($item->id, (array) old('item_ids', [])) ? 'checked' : '' }}>
                                         </td>
                                         <td><label for="delivery_item_{{ $item->id }}" class="mb-0">{{ $item->description }}</label></td>
@@ -759,8 +810,14 @@
                     @if ($deliveryStatus === 'parcial' && !$hasItemDeliveries)
                         <div class="alert alert-info py-2 fs-13">Esta OC ya estaba en entrega parcial sin detalle de conceptos. Marca los conceptos entregados para regularizarla.</div>
                     @endif
+                    @endif
+                    </div>
                     @if ($orderedMilestones->isNotEmpty())
-                        <label for="delivery_milestone_id" class="form-label fw-medium">Hito que cubre esta entrega <span class="text-danger">*</span></label>
+                        <label for="delivery_milestone_id" class="form-label fw-medium">
+                            <span data-fulfillment-scope="physical">Hito que cubre esta entrega</span>
+                            <span data-fulfillment-scope="recorded" class="d-none">Hito que se cumple</span>
+                            <span class="text-danger">*</span>
+                        </label>
                         <select id="delivery_milestone_id" name="milestone_id" required class="form-select mb-3 @error('milestone_id') is-invalid @enderror">
                             <option value="" disabled @selected(old('milestone_id') === null)>Selecciona un hito</option>
                             @foreach ($orderedMilestones as $deliveryMilestone)
@@ -770,13 +827,28 @@
                             @endforeach
                         </select>
                         @error('milestone_id')<div class="invalid-feedback d-block mb-2">{{ $message }}</div>@enderror
+                    @else
+                        <div class="alert alert-warning py-2 fs-13 d-none" data-fulfillment-scope="recorded">Esta OC no tiene hitos; no se puede registrar un cumplimiento.</div>
                     @endif
-                    <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
-                    <input id="delivery_evidence" name="delivery_evidence" type="file" required class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
-                    <div class="form-text">PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
-                    @error('delivery_evidence')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                    @endif
+                    <div data-fulfillment-scope="physical">
+                        <label for="delivery_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
+                        <input id="delivery_evidence" name="delivery_evidence" type="file" required class="form-control @error('delivery_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                        <div class="form-text">PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
+                        @error('delivery_evidence')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+                    <div data-fulfillment-scope="recorded" class="d-none">
+                        <label for="fulfillment_evidence" class="form-label fw-medium">Evidencia <span class="text-danger">*</span></label>
+                        <input id="fulfillment_evidence" name="fulfillment_evidence" type="file" required class="form-control @error('fulfillment_evidence') is-invalid @enderror" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                        <div class="form-text"><span id="fulfillmentEvidenceHint"></span>. PDF, JPG, PNG o WEBP. Máximo 10 MB. Se agregará a la sección Evidencias de esta OC.</div>
+                        @error('fulfillment_evidence')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+                    <div id="fulfillmentCommentField" class="mt-3 d-none">
+                        <label for="fulfillment_comment" class="form-label fw-medium">Comentario</label>
+                        <textarea id="fulfillment_comment" name="comment" rows="3" maxlength="1000" class="form-control @error('comment') is-invalid @enderror" placeholder="Opcional">{{ old('comment') }}</textarea>
+                        @error('comment')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
 
+                    <div data-fulfillment-scope="physical">
                     @php $deliveryHistory = $purchaseOrder->items->flatMap(fn ($i) => $i->deliveries->each->setRelation('item', $i))->sortByDesc('delivered_at')->values(); @endphp
                     @if ($deliveryHistory->isNotEmpty())
                         <hr>
@@ -821,11 +893,13 @@
                             </table>
                         </div>
                     @endif
+                    </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success" @disabled($pendingDeliveryItems->isEmpty())>
-                        <i class="ri-save-line me-1"></i> Registrar entrega
+                    <button type="submit" class="btn btn-success d-none" id="fulfillmentSubmit" data-pending-empty="{{ $pendingDeliveryItems->isEmpty() ? 1 : 0 }}" data-has-milestones="{{ $orderedMilestones->isNotEmpty() ? 1 : 0 }}">
+                        <i class="ri-save-line me-1"></i> <span id="fulfillmentSubmitLabel">Registrar entrega</span>
                     </button>
                 </div>
             </form>
@@ -1400,7 +1474,26 @@
                     @endif
 
                     {{-- Checklist de comprobación previo a la autorización del pago --}}
-                    @php $milestoneChecklist = $milestoneChecklists[$milestone->id]; @endphp
+                    @php
+                        $milestoneChecklist = $milestoneChecklists[$milestone->id];
+                        $milestoneFulfillment = $milestone->fulfillments->first();
+                    @endphp
+                    @if ($milestone->delivery_confirmed_at)
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted fs-12">Cumplimiento:</span>
+                            <span class="fs-12 text-end">
+                                <span class="fw-medium">{{ $milestone->fulfillment_type_label ?? 'Sin tipo' }}</span>
+                                @if ($milestoneFulfillment?->comment)
+                                    <span class="d-block fs-11 text-muted">{{ $milestoneFulfillment->comment }}</span>
+                                @endif
+                                @if ($milestoneFulfillment?->evidence)
+                                    <a class="d-block fs-11" href="{{ route('evidences.download', ['evidence' => $milestoneFulfillment->evidence, 'disposition' => 'inline']) }}" target="_blank">
+                                        <i class="ri-attachment-2"></i> Ver evidencia
+                                    </a>
+                                @endif
+                            </span>
+                        </div>
+                    @endif
                     <div class="border rounded p-2 mt-2">
                         @include('purchase_orders.partials._event_status', ['eventStatus' => $eventStatuses[$milestone->id]])
                     </div>
@@ -1415,7 +1508,7 @@
                         @if ($canManageOrder || auth()->user()->hasAnyRole(['admin', 'Solmat']))
                             @if ($milestone->delivery_confirmed_at)
                                 <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
-                                      onsubmit="return confirm('¿Revocar la confirmación de entrega de este hito?')">
+                                      onsubmit="return confirm('{{ $milestoneFulfillment ? '¿Revocar la confirmación de entrega de este hito? Se eliminará el registro de cumplimiento (' . $milestoneFulfillment->type_label . '); el archivo se conserva en las evidencias de la OC.' : '¿Revocar la confirmación de entrega de este hito?' }}')">
                                     @csrf
                                     <button type="submit" class="btn btn-xs btn-soft-secondary btn-sm">Revocar confirmación de entrega</button>
                                 </form>
@@ -2767,7 +2860,7 @@
 @push('scripts')
 <script>
 (function () {
-    @if ($errors->has('item_ids') || $errors->has('item_ids.*') || $errors->has('delivery_evidence') || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'quantities')))
+    @if ($reopenFulfillmentModal)
     var deliveryModalEl = document.getElementById('modalDeliveryStatus');
     if (deliveryModalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(deliveryModalEl).show();
     @endif
@@ -2800,6 +2893,97 @@
     syncSelectAll();
 })();
 
+(function () {
+    var form = document.getElementById('fulfillmentForm');
+    if (!form) return;
+
+    var picker = document.getElementById('fulfillmentTypePicker');
+    var details = document.getElementById('fulfillmentDetails');
+    var title = document.getElementById('fulfillmentTypeTitle');
+    var typeInput = document.getElementById('fulfillment_type');
+    var submit = document.getElementById('fulfillmentSubmit');
+    var submitLabel = document.getElementById('fulfillmentSubmitLabel');
+    var changeButton = document.getElementById('changeFulfillmentType');
+    var commentField = document.getElementById('fulfillmentCommentField');
+    var commentInput = document.getElementById('fulfillment_comment');
+    var hint = document.getElementById('fulfillmentEvidenceHint');
+    var milestoneSelect = document.getElementById('delivery_milestone_id');
+    var deliveryEvidence = document.getElementById('delivery_evidence');
+    var fulfillmentEvidence = document.getElementById('fulfillment_evidence');
+    var choices = picker.querySelectorAll('.fulfillment-type-choice');
+    var labels = @json($fulfillmentLabels);
+    var hints = @json($fulfillmentEvidenceHints);
+    var currentType = null;
+
+    function updateSubmit() {
+        if (!currentType) { submit.disabled = true; return; }
+        if (currentType === 'physical') {
+            submitLabel.textContent = 'Registrar entrega';
+            submit.disabled = submit.dataset.pendingEmpty === '1';
+            return;
+        }
+        submitLabel.textContent = 'Validar cumplimiento';
+        submit.disabled = !(submit.dataset.hasMilestones === '1'
+            && milestoneSelect && milestoneSelect.value
+            && fulfillmentEvidence.files.length);
+    }
+
+    function chooseType(type) {
+        var isPhysical = type === 'physical';
+        var hasComment = type === 'estimation' || type === 'documentary';
+        currentType = type;
+
+        form.action = isPhysical ? form.dataset.deliveryAction : form.dataset.fulfillmentAction;
+        typeInput.value = type;
+        typeInput.disabled = isPhysical;
+        picker.classList.add('d-none');
+        details.classList.remove('d-none');
+        submit.classList.remove('d-none');
+        title.textContent = labels[type];
+
+        form.querySelectorAll('[data-fulfillment-scope="physical"]').forEach(function (el) { el.classList.toggle('d-none', !isPhysical); });
+        form.querySelectorAll('[data-fulfillment-scope="recorded"]').forEach(function (el) { el.classList.toggle('d-none', isPhysical); });
+
+        // Los inputs de la otra acción se deshabilitan para no enviarlos ni validarlos.
+        form.querySelectorAll('.delivery-item-checkbox:not([data-delivered])').forEach(function (box) { box.disabled = !isPhysical; });
+        form.querySelectorAll('.delivery-qty-input').forEach(function (input) {
+            var box = document.getElementById('delivery_item_' + input.dataset.itemId);
+            input.disabled = !isPhysical || !(box && box.checked);
+        });
+        if (deliveryEvidence) deliveryEvidence.disabled = !isPhysical;
+        fulfillmentEvidence.disabled = isPhysical;
+        commentField.classList.toggle('d-none', !hasComment);
+        commentInput.disabled = !hasComment;
+        hint.textContent = hints[type] || '';
+        updateSubmit();
+    }
+
+    function showPicker() {
+        currentType = null;
+        typeInput.disabled = true;
+        details.classList.add('d-none');
+        picker.classList.remove('d-none');
+        submit.classList.add('d-none');
+        updateSubmit();
+        if (choices.length === 1) chooseType(choices[0].dataset.fulfillmentType);
+    }
+
+    choices.forEach(function (choice) {
+        choice.addEventListener('click', function () { chooseType(choice.dataset.fulfillmentType); });
+    });
+    if (changeButton) changeButton.addEventListener('click', showPicker);
+    if (milestoneSelect) milestoneSelect.addEventListener('change', updateSubmit);
+    fulfillmentEvidence.addEventListener('change', updateSubmit);
+    document.getElementById('modalDeliveryStatus').addEventListener('hidden.bs.modal', showPicker);
+
+    var oldType = @json($fulfillmentOldType);
+    var allowed = Array.prototype.map.call(choices, function (c) { return c.dataset.fulfillmentType; });
+    if (oldType && allowed.indexOf(oldType) !== -1) {
+        chooseType(oldType);
+    } else {
+        showPicker();
+    }
+})();
 (function () {
     var csrf     = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var tbody    = document.getElementById('oc_items_tbody');
