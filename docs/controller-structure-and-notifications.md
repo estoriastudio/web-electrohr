@@ -111,6 +111,12 @@ vendor/bin/phpunit tests/Feature/PurchaseOrderBuyerTest.php
 - Verifica que el hito (`milestone`) no esté completamente cubierto (`is_complete`) antes de registrar el pago.
 - Genera un folio automático (`PAY-XXXXX`) si el campo llega vacío.
 
+### SupplierAccountStatementController
+
+- La exportación de documentos utiliza los estatus calculados por `SupplierAccountStatementService`, no el estatus de la OC.
+- El modal descarga el ZIP mediante una solicitud asíncrona con indicador de carga y bloqueo de envíos duplicados. Incluye los PDFs disponibles y reporta las facturas sin PDF registrado o con un archivo inexistente.
+- El reporte de faltantes se consulta una sola vez desde la misma sesión, mediante el UUID de la exportación, y muestra OC, factura, motivo y enlace al detalle en un modal con scroll interno. El resultado se abre al terminar y puede volver a consultarse desde el botón de resultado de exportación. Si todos los PDFs faltan, se devuelve el reporte sin generar un ZIP vacío.
+
 ### UserController
 
 - **No** inyecta `NotificationService` (operación interna de administración).

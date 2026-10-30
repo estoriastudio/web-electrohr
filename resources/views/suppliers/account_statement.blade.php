@@ -47,6 +47,9 @@
 @endpush
 
 @section('content')
+@if(session('error'))
+    <div class="alert alert-danger" role="alert">{{ session('error') }}</div>
+@endif
 @if($errors->any())
     <div class="alert alert-danger" role="alert">
         @foreach($errors->all() as $error)<div>{{ $error }}</div>@endforeach
@@ -226,7 +229,10 @@
             <h4 class="card-title mb-0">Facturas y pagos</h4>
             <span class="badge bg-secondary-subtle text-secondary">{{ $rows->total() }} registros</span>
         </div>
-        <a class="btn btn-sm btn-outline-primary" href="{{ route('suppliers.account_statement.export', $filters) }}"><i class="ri-download-2-line me-1"></i>Exportar Excel</a>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{{ route('suppliers.account_statement.export', $filters) }}"><i class="ri-download-2-line me-1"></i>Exportar Excel</a>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#statementDocumentsModal"><i class="ri-file-zip-line me-1"></i>Exportar Documentos</button>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -314,6 +320,66 @@
 </div>
 @endif
 
+<button type="button" id="statementDocumentsReportButton" class="btn btn-outline-secondary btn-sm d-none mt-3" data-bs-toggle="modal" data-bs-target="#statementDocumentsResult">Ver resultado de exportación</button>
+
+<div id="statementDocumentsResult" class="modal fade" tabindex="-1" aria-labelledby="statementDocumentsResultTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statementDocumentsResultTitle">Resultado de exportación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="statementDocumentsMessage" class="alert" role="status"></div>
+                <div id="statementDocumentsMissing" class="card d-none">
+                    <div class="card-header border-bottom"><h5 class="card-title mb-0">PDFs faltantes para seguimiento</h5></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                                <thead class="bg-light-subtle"><tr><th>OC</th><th>Factura</th><th>Motivo</th></tr></thead>
+                                <tbody id="statementDocumentsMissingRows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="statementDocumentsModal" tabindex="-1" aria-labelledby="statementDocumentsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="GET" action="{{ route('suppliers.account_statement.export_documents') }}" id="statementDocumentsForm"
+                  data-report-url="{{ route('suppliers.account_statement.export_documents.report', ['export' => '00000000-0000-4000-8000-000000000000']) }}">
+                <input type="hidden" name="export_id" value="{{ \Illuminate\Support\Str::uuid() }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statementDocumentsTitle">Exportar documentos de facturas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="statementDocumentsStatus" class="form-label">Estatus del estado de cuenta</label>
+                    <select name="status" id="statementDocumentsStatus" class="form-select" required>
+                        <option value="" selected disabled>Selecciona un estatus</option>
+                        @foreach($statuses as $status => $label)
+                            <option value="{{ $status }}">{{ ['sin_factura' => 'Pagado sin factura', 'conciliacion' => 'Por revisar'][$status] ?? $label }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Se descargará un ZIP con los PDFs disponibles del estatus seleccionado. Los documentos faltantes se reportarán en esta vista.</div>
+                    <div id="statementDocumentsLoader" class="d-none mt-3 text-primary" role="status">
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Preparando documentos, espera un momento...
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="ri-download-2-line me-1"></i>Descargar ZIP</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="statementOrderModal" tabindex="-1" aria-labelledby="statementOrderTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
@@ -331,6 +397,95 @@
 document.addEventListener('DOMContentLoaded', function () {
     const filters = document.getElementById('statementFilters');
     filters.querySelectorAll('select').forEach(select => select.addEventListener('change', () => filters.requestSubmit()));
+
+    const documentsForm = document.getElementById('statementDocumentsForm');
+    const documentsModal = document.getElementById('statementDocumentsModal');
+    let exportingDocuments = false;
+    documentsModal.addEventListener('hide.bs.modal', event => {
+        if (exportingDocuments) event.preventDefault();
+    });
+    documentsForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (exportingDocuments) return;
+        const url = new URL(documentsForm.action);
+        url.search = new URLSearchParams(new FormData(documentsForm)).toString();
+        const exportId = url.searchParams.get('export_id');
+        const result = document.getElementById('statementDocumentsResult');
+        const message = document.getElementById('statementDocumentsMessage');
+        const missingTable = document.getElementById('statementDocumentsMissing');
+        const missingRows = document.getElementById('statementDocumentsMissingRows');
+        exportingDocuments = true;
+        documentsForm.setAttribute('aria-busy', 'true');
+        documentsForm.querySelectorAll('button, select').forEach(control => control.disabled = true);
+        document.getElementById('statementDocumentsLoader').classList.remove('d-none');
+        document.getElementById('statementDocumentsReportButton').classList.add('d-none');
+        missingRows.replaceChildren();
+        missingTable.classList.add('d-none');
+
+        function showMissing(missing) {
+            missing.forEach(item => {
+                const row = document.createElement('tr');
+                const order = document.createElement('td');
+                order.textContent = '#' + item.order;
+                const invoice = document.createElement('td');
+                const link = document.createElement('a');
+                link.href = item.url;
+                link.textContent = item.invoice;
+                invoice.append(link);
+                const reason = document.createElement('td');
+                reason.textContent = item.reason;
+                row.append(order, invoice, reason);
+                missingRows.append(row);
+            });
+            missingTable.classList.toggle('d-none', missing.length === 0);
+        }
+
+        try {
+            const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+            if (!response.ok) {
+                if (!(response.headers.get('Content-Type') || '').includes('application/json')) {
+                    throw new Error('No se pudo preparar la exportación. Vuelve a intentarlo.');
+                }
+                const error = await response.json();
+                showMissing(error.missing || []);
+                throw new Error(error.message || 'No se pudo preparar la exportación.');
+            }
+            if (!(response.headers.get('Content-Type') || '').includes('application/zip')) {
+                throw new Error('La respuesta no contiene un ZIP válido. Verifica tu sesión e intenta de nuevo.');
+            }
+            const blob = await response.blob();
+            const reportUrl = documentsForm.dataset.reportUrl.replace('00000000-0000-4000-8000-000000000000', exportId);
+            const reportResponse = await fetch(reportUrl, { cache: 'no-store', headers: { Accept: 'application/json' } });
+            if (!reportResponse.ok || reportResponse.redirected) {
+                throw new Error('Se preparó el ZIP, pero no se pudo obtener el reporte de faltantes. Reintenta la exportación.');
+            }
+            const report = await reportResponse.json();
+            showMissing(report.missing);
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = 'documentos-' + url.searchParams.get('status') + '.zip';
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+            message.className = 'alert ' + (report.missing.length ? 'alert-warning' : 'alert-success');
+            message.textContent = 'ZIP preparado con ' + report.included + ' PDF(s). Documentos faltantes: ' + report.missing.length + '.';
+        } catch (error) {
+            message.className = 'alert alert-danger';
+            message.textContent = error.message || 'No se pudo completar la exportación. Vuelve a intentarlo.';
+        } finally {
+            exportingDocuments = false;
+            documentsForm.removeAttribute('aria-busy');
+            documentsForm.querySelectorAll('button, select').forEach(control => control.disabled = false);
+            document.getElementById('statementDocumentsLoader').classList.add('d-none');
+            document.getElementById('statementDocumentsReportButton').classList.remove('d-none');
+            documentsModal.addEventListener('hidden.bs.modal', () => {
+                bootstrap.Modal.getOrCreateInstance(result).show();
+            }, { once: true });
+            bootstrap.Modal.getOrCreateInstance(documentsModal).hide();
+        }
+    });
 
     function setupSearch(selectId, placeholder) {
         if (!window.jQuery || !window.jQuery.fn.typeahead) return;

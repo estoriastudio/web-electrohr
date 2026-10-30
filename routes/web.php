@@ -121,6 +121,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::middleware('role:admin|Pagos|Orden de compra')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
             Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
             Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
+            Route::get('/exportar-documentos', [SupplierAccountStatementController::class, 'exportDocuments'])->name('export_documents');
+            Route::get('/exportar-documentos/{export}/faltantes', [SupplierAccountStatementController::class, 'documentExportReport'])
+                ->whereUuid('export')->name('export_documents.report');
             Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
                 ->whereNumber('purchaseOrder')->name('order');
         });
