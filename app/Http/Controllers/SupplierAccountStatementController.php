@@ -13,7 +13,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
@@ -105,7 +104,10 @@ class SupplierAccountStatementController extends Controller
 
                 $contents = $disk->get($invoice->file_path);
                 $purchaseOrder = $invoice->purchaseOrder;
-                $orderName = Str::slug((string) ($purchaseOrder->folio ?: 'OC')).'-'.$purchaseOrder->id;
+                $orderName = str_replace(['/', '\\'], '-', (string) ($purchaseOrder->folio ?: $purchaseOrder->id));
+                if (in_array($orderName, ['.', '..'], true)) {
+                    $orderName = (string) $purchaseOrder->id;
+                }
                 $fileName = basename($invoice->file_name ?: $invoice->file_path);
                 $archivePath = $orderName.'/Factura-'.$invoice->id.'-'.$fileName;
 
@@ -131,7 +133,7 @@ class SupplierAccountStatementController extends Controller
                 'missing' => $missing,
                 'included' => $included,
             ]);
-            $downloadName = 'documentos-ocs-'.Str::slug($validated['status']).'-'.now()->format('Ymd_His').'.zip';
+            $downloadName = 'Facturas-SAHR2.0.zip';
             $response = response()->download($zipPath, $downloadName, ['Content-Type' => 'application/zip'])->deleteFileAfterSend(true);
             $downloadReady = true;
 

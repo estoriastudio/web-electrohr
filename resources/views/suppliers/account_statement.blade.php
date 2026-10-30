@@ -464,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = 'documentos-' + url.searchParams.get('status') + '.zip';
+            link.download = 'Facturas-SAHR2.0.zip';
             document.body.append(link);
             link.click();
             link.remove();
