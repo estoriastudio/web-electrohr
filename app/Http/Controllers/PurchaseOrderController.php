@@ -1114,7 +1114,7 @@ class PurchaseOrderController extends Controller
             $nextNumber = $purchaseOrder->evidences()->count() + 1;
             $extension = strtolower($file->getClientOriginalExtension());
             $evidenceFileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
-            $filePath = $file->storeAs('evidences/' . $purchaseOrder->id, $evidenceFileName);
+            $filePath = PurchaseOrderEvidence::storeUpload($file, $purchaseOrder->id, $evidenceFileName);
 
             $evidence = PurchaseOrderEvidence::create([
                 'purchase_order_id' => $purchaseOrder->id,

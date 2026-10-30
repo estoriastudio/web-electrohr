@@ -9,7 +9,6 @@ use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class PurchaseOrderEvidenceController extends Controller
 {
@@ -41,8 +40,7 @@ class PurchaseOrderEvidenceController extends Controller
 
         $nextNumber = $purchaseOrder->evidences()->count() + 1;
         $fileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
-        $directory = 'evidences/' . $purchaseOrder->id;
-        $filePath = $file->storeAs($directory, $fileName);
+        $filePath = PurchaseOrderEvidence::storeUpload($file, $purchaseOrder->id, $fileName);
 
         $evidence = PurchaseOrderEvidence::create([
             'purchase_order_id' => $purchaseOrder->id,
@@ -70,21 +68,12 @@ class PurchaseOrderEvidenceController extends Controller
 
     public function download(Request $request, PurchaseOrderEvidence $evidence)
     {
-        if (!$evidence->file_path || !Storage::exists($evidence->file_path)) {
-            abort(404, 'Archivo de evidencia no encontrado.');
-        }
-
-        $downloadName = str_replace('"', '', (string) ($evidence->file_name ?: basename($evidence->file_path)));
-        $mime = $evidence->mime_type ?: 'application/octet-stream';
         $disposition = $request->query('disposition') === 'inline' ? 'inline' : 'attachment';
+        $response = $evidence->streamFile($disposition);
 
-        return response()->file(
-            Storage::path($evidence->file_path),
-            [
-                'Content-Type' => $mime,
-                'Content-Disposition' => $disposition . '; filename="' . $downloadName . '"',
-            ]
-        );
+        abort_unless($response, 404, 'Archivo de evidencia no encontrado.');
+
+        return $response;
     }
 
     public function destroy(PurchaseOrderEvidence $evidence): RedirectResponse
@@ -97,9 +86,7 @@ class PurchaseOrderEvidenceController extends Controller
                 ->with('error', 'La evidencia respalda el cumplimiento de un hito. Revoca la confirmación del hito para poder eliminarla.');
         }
 
-        if ($evidence->file_path && Storage::exists($evidence->file_path)) {
-            Storage::delete($evidence->file_path);
-        }
+        $evidence->deleteFile();
 
         $evidence->delete();
 

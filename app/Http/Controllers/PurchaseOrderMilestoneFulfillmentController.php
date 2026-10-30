@@ -87,7 +87,7 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
                 $nextNumber = $purchaseOrder->evidences()->count() + 1;
                 $extension = strtolower($file->getClientOriginalExtension());
                 $evidenceFileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
-                $storedPath = $file->storeAs('evidences/' . $purchaseOrder->id, $evidenceFileName);
+                $storedPath = PurchaseOrderEvidence::storeUpload($file, $purchaseOrder->id, $evidenceFileName);
 
                 $evidence = PurchaseOrderEvidence::create([
                     'purchase_order_id' => $purchaseOrder->id,
@@ -119,8 +119,8 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
                 return $milestone;
             });
         } catch (\Throwable $e) {
-            if ($storedPath && Storage::exists($storedPath)) {
-                Storage::delete($storedPath);
+            if ($storedPath) {
+                Storage::disk(PurchaseOrderEvidence::STORAGE_DISK)->delete($storedPath);
             }
 
             throw $e;
