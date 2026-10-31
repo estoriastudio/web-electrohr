@@ -82,8 +82,8 @@ return [
         'string'  => 'El campo :attribute no debe contener más de :max caracteres.',
         'array'   => 'El campo :attribute no debe contener más de :max elementos.',
     ],
-    'mimes'                => 'El campo :attribute debe ser un archivo de tipo: :values.',
-    'mimetypes'            => 'El campo :attribute debe ser un archivo de tipo: :values.',
+    'mimes'                => 'El archivo del campo :attribute está mal formado o no es de un tipo válido (:values). Verifica que el documento se abra correctamente y vuelve a generarlo o descargarlo.',
+    'mimetypes'            => 'El archivo del campo :attribute está mal formado o no es de un tipo válido (:values). Verifica que el documento se abra correctamente y vuelve a generarlo o descargarlo.',
     'min'                  => [
         'numeric' => 'El campo :attribute debe ser al menos :min.',
         'file'    => 'El archivo :attribute debe pesar al menos :min kilobytes.',
@@ -147,6 +147,13 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'pdf_file' => 'PDF de la factura',
+        'xml_file' => 'XML',
+        'credit_note_pdf_file' => 'PDF de la nota de crédito',
+        'credit_note_xml_file' => 'XML de la nota de crédito',
+        'evidence_file' => 'evidencia',
+        'spei_receipt_file' => 'comprobante SPEI',
+    ],
 
 ];

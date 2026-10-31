@@ -859,6 +859,7 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Concepto</th>
+                                        <th>Hito</th>
                                         <th class="text-end">Cantidad</th>
                                         <th>Registró</th>
                                         <th class="text-center">Evidencia</th>
@@ -868,8 +869,18 @@
                                 <tbody>
                                     @foreach ($deliveryHistory as $delivery)
                                         <tr>
-                                            <td>{{ $delivery->delivered_at?->format('d/m/Y H:i') }}</td>
+                                            <td>
+                                                {{ $delivery->delivered_at?->format('d/m/Y H:i') }}
+                                                <span class="d-block fs-11 text-muted" title="ID del movimiento en la base de datos">ID {{ $delivery->id }}</span>
+                                            </td>
                                             <td>{{ $delivery->item->description }}</td>
+                                            <td>
+                                                @if ($delivery->milestone_id && isset($milestonePositionMap[$delivery->milestone_id]))
+                                                    Hito #{{ $milestonePositionMap[$delivery->milestone_id] }}
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
                                             <td class="text-end">{{ $fmtQty($delivery->quantity) }} {{ $delivery->item->unit }}</td>
                                             <td>{{ $delivery->deliveredByUser?->name ?? '—' }}</td>
                                             <td class="text-center">
@@ -1345,6 +1356,7 @@
                         {{-- Indicador semáforo --}}
                         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ $semDotColor }};flex-shrink:0;"></span>
                         <span class="fw-semibold fs-14">Hito #{{ $milestonePosition }}</span>
+                        <i class="ri-information-line text-muted fs-14" data-bs-toggle="tooltip" data-bs-placement="top" title="ID en base de datos: {{ $milestone->id }}"></i>
                         <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-11">
                             {{ $tipoCondicionMap[$milestone->payment_condition ?? 'credito'] ?? ($tipoHitoMap[$milestone->type] ?? $milestone->type) }}
                         </span>

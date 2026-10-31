@@ -151,7 +151,12 @@
     {
       "name": "purchase_orders/show (modal Entregas, historial)",
       "render": "blade",
-      "behavior": "Además del historial de entregas físicas, lista los cumplimientos registrados (fecha, tipo, hito, usuario, comentario si lo hay y enlace a la evidencia)."
+      "behavior": "El historial de entregas físicas indica en una columna \"Hito\" a qué hito (Hito #N) está ligada cada entrega y muestra bajo la fecha un pequeño indicador \"ID {id}\" con el ID en base de datos del movimiento, para ubicarlo con facilidad. Además, lista los cumplimientos registrados (fecha, tipo, hito, usuario, comentario si lo hay y enlace a la evidencia)."
+    },
+    {
+      "name": "purchase_orders/show (tarjeta del hito)",
+      "render": "blade",
+      "behavior": "Junto al nombre del hito (Hito #N) se agrega un ícono con tooltip que muestra el ID del hito en base de datos."
     },
     {
       "name": "purchase_orders/show (panel Checklist del hito)",
