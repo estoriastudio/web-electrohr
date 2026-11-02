@@ -338,7 +338,7 @@
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-					<button type="submit" class="btn btn-primary">Guardar validación</button>
+					<button type="submit" class="btn btn-primary" id="modalSubmitButton">Guardar validación</button>
 				</div>
 			</form>
 		</div>
@@ -398,8 +398,16 @@ document.addEventListener('DOMContentLoaded', function () {
 	const milestoneInvoiceAmountEl = document.getElementById('modalMilestoneInvoiceAmount');
 	const milestoneDifferenceEl = document.getElementById('modalMilestoneDifference');
 	const milestoneMatchStatusEl = document.getElementById('modalMilestoneMatchStatus');
+	const modalSubmitButton = document.getElementById('modalSubmitButton');
 	const exportForm = document.getElementById('invoiceExportForm');
 	const exportSubmit = document.getElementById('invoiceExportSubmit');
+
+	function syncSubmitButton() {
+		if (!form || !statusSelect || !modalSubmitButton) return;
+		const requiresMilestone = statusSelect.value === 'aceptada';
+		const hasMilestone = form.querySelectorAll('input[name="milestone_ids[]"]:checked').length > 0;
+		modalSubmitButton.disabled = requiresMilestone && !hasMilestone;
+	}
 
 	function syncMilestoneBlock() {
 		if (!statusSelect || !milestonesBlock) return;
@@ -411,6 +419,8 @@ document.addEventListener('DOMContentLoaded', function () {
 				checkbox.required = false;
 			});
 		}
+
+		syncSubmitButton();
 	}
 
 	function formatMilestoneAmount(amount) {
@@ -531,7 +541,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	if (milestonesList) {
-		milestonesList.addEventListener('change', syncMilestoneSummary);
+		milestonesList.addEventListener('change', function () {
+			syncMilestoneSummary();
+			syncSubmitButton();
+		});
 	}
 
 	if (form) {

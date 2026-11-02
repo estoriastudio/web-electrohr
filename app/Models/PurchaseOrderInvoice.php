@@ -19,6 +19,8 @@ class PurchaseOrderInvoice extends Model
         self::STATUS_RECHAZADA,
     ];
 
+    public const DUPLICATE_FOLIO_MESSAGE = 'Ya existe una factura registrada con este folio fiscal (UUID). No se permiten XML repetidos.';
+
     protected $fillable = [
         'purchase_order_id',
         'folio',
@@ -56,6 +58,13 @@ class PurchaseOrderInvoice extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public static function folioExists(string $folio): bool
+    {
+        return static::query()
+            ->whereRaw('UPPER(TRIM(folio)) = ?', [strtoupper(trim($folio))])
+            ->exists();
     }
 
     public function scopeOwnedBy($query, int $userId)

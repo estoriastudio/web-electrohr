@@ -103,6 +103,12 @@ class SupplierPortalInvoiceController extends Controller
             ]);
         }
 
+        if (PurchaseOrderInvoice::folioExists($xmlFiscalFolio)) {
+            return redirect()->back()->withInput()->withErrors([
+                'xml_file' => PurchaseOrderInvoice::DUPLICATE_FOLIO_MESSAGE,
+            ]);
+        }
+
         $resolvedAmount = round((float) $validated['amount'], 2);
         $resolvedCreditNoteAmount = $hasCreditNote ? $creditNoteAmount : null;
         $netScope = round($resolvedAmount - (float) ($resolvedCreditNoteAmount ?? 0), 2);
@@ -166,6 +172,12 @@ class SupplierPortalInvoiceController extends Controller
             if ($netScope > $lockedPendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE || $lockedPendingAmount <= 0) {
                 throw ValidationException::withMessages([
                     'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($lockedPendingAmount, 2) . ' ' . $lockedPurchaseOrder->currency . ').',
+                ]);
+            }
+
+            if (PurchaseOrderInvoice::folioExists($xmlFiscalFolio)) {
+                throw ValidationException::withMessages([
+                    'xml_file' => PurchaseOrderInvoice::DUPLICATE_FOLIO_MESSAGE,
                 ]);
             }
 

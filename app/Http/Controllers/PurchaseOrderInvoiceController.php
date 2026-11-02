@@ -265,6 +265,13 @@ class PurchaseOrderInvoiceController extends Controller
             $validated['folio'] = $xmlFiscalFolio;
         }
 
+        $folioToCheck = trim((string) ($validated['folio'] ?? ''));
+        if ($folioToCheck !== '' && PurchaseOrderInvoice::folioExists($folioToCheck)) {
+            return redirect()->back()->withInput()->withErrors([
+                $request->hasFile('xml_file') ? 'xml_file' : 'folio' => PurchaseOrderInvoice::DUPLICATE_FOLIO_MESSAGE,
+            ]);
+        }
+
         $fileName    = null;
         $storagePath = null;
         $xmlFileName = null;

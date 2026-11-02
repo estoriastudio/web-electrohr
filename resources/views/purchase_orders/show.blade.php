@@ -2433,9 +2433,9 @@
                         <div class="col-12">
                             <label class="form-label fw-medium">
                                 Archivo PDF
-                                <small class="text-muted fw-normal">(opcional, máx. 10 MB)</small>
+                                <small class="text-muted fw-normal">(máx. 10 MB)</small>
                             </label>
-                            <input type="file" class="form-control @error('pdf_file') is-invalid @enderror"
+                            <input id="adminInvoicePdfFile" type="file" class="form-control @error('pdf_file') is-invalid @enderror"
                                    name="pdf_file" accept=".pdf">
                             @error('pdf_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
@@ -2513,7 +2513,7 @@
                                         @endforeach
                                     </div>
                                 </div>
-                                <div class="form-text">Selecciona uno o varios hitos disponibles (opcional al cargar, obligatorio al aceptar). Si eliges hitos, la suma de sus montos debe ser igual al importe de la factura. Un hito solo puede tener una factura.</div>
+                                <div class="form-text">Selecciona uno o varios hitos disponibles (obligatorio para subir la factura). Si eliges hitos, la suma de sus montos debe ser igual al importe de la factura. Un hito solo puede tener una factura.</div>
                                 <div class="fs-12 mt-1 d-none" id="adminInvoiceMilestonesSummary"></div>
                                 @error('milestone_ids')<div class="text-danger fs-12 mt-1">{{ $message }}</div>@enderror
                             </div>
@@ -2522,7 +2522,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="adminInvoiceSubmit" disabled>
                         <i class="ri-upload-2-line me-1"></i> Subir factura
                     </button>
                 </div>
@@ -3686,7 +3686,26 @@ document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('adminInvoiceForm');
     var summary = document.getElementById('adminInvoiceMilestonesSummary');
     var amountField = document.getElementById('adminInvoiceAmount');
-    if (!form || !summary || !amountField) return;
+    var submitButton = document.getElementById('adminInvoiceSubmit');
+    var pdfField = document.getElementById('adminInvoicePdfFile');
+    var xmlField = document.getElementById('adminInvoiceXmlFile');
+    if (!form) return;
+
+    // Habilita el botón solo con PDF, XML y, si la OC tiene hitos disponibles, al menos uno seleccionado
+    function syncSubmitButton() {
+        if (!submitButton) return;
+        var hasFiles = !!(pdfField && pdfField.files.length && xmlField && xmlField.files.length);
+        var hasAvailableMilestones = form.querySelectorAll('input[name="milestone_ids[]"]:not(:disabled)').length > 0;
+        var hasMilestone = form.querySelectorAll('input[name="milestone_ids[]"]:checked').length > 0;
+        submitButton.disabled = !hasFiles || (hasAvailableMilestones && !hasMilestone);
+    }
+
+    form.addEventListener('change', syncSubmitButton);
+    var invoiceModal = document.getElementById('modalCreateInvoice');
+    if (invoiceModal) invoiceModal.addEventListener('show.bs.modal', syncSubmitButton);
+    syncSubmitButton();
+
+    if (!summary || !amountField) return;
 
     var currency = @json($purchaseOrder->currency);
 
