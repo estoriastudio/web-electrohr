@@ -109,7 +109,8 @@ class SupplierPortalInvoiceController extends Controller
             ]);
         }
 
-        $resolvedAmount = round((float) $validated['amount'], 2);
+        // El importe del XML es la fuente de verdad; se guarda tal cual viene en el CFDI.
+        $resolvedAmount = $invoiceMetadata['total'] ?? round((float) $validated['amount'], 2);
         $resolvedCreditNoteAmount = $hasCreditNote ? $creditNoteAmount : null;
         $netScope = round($resolvedAmount - (float) ($resolvedCreditNoteAmount ?? 0), 2);
 
@@ -308,13 +309,13 @@ class SupplierPortalInvoiceController extends Controller
     {
         $raw = @file_get_contents($xmlPath);
         if ($raw === false || trim($raw) === '') {
-            return ['uuid' => null, 'issue_date' => null];
+            return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
         $dom = new \DOMDocument();
         $loaded = @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS);
         if (!$loaded) {
-            return ['uuid' => null, 'issue_date' => null];
+            return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
         $xpath = new \DOMXPath($dom);
@@ -360,9 +361,23 @@ class SupplierPortalInvoiceController extends Controller
             }
         }
 
+        $total = null;
+        if ($comprobanteNodes && $comprobanteNodes->length > 0) {
+            $totalRaw = str_replace(',', '', trim((string) (
+                $comprobanteNodes->item(0)?->attributes?->getNamedItem('Total')?->nodeValue
+                ?? $comprobanteNodes->item(0)?->attributes?->getNamedItem('total')?->nodeValue
+                ?? ''
+            )));
+
+            if (preg_match('/^\d+(\.\d+)?$/', $totalRaw)) {
+                $total = round((float) $totalRaw, 2);
+            }
+        }
+
         return [
             'uuid' => $uuid,
             'issue_date' => $issueDate,
+            'total' => $total,
         ];
     }
 
