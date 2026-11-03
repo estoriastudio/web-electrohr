@@ -21,6 +21,8 @@ use App\Http\Controllers\ProjectAgreementController;
 use App\Http\Controllers\EngineerProjectController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectEstimateController;
+use App\Http\Controllers\ProjectEstimateFileController;
+use App\Http\Controllers\ProjectEstimateInvoiceController;
 use App\Http\Controllers\ProjectWorkController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderEvidenceController;
@@ -288,14 +290,20 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('projects.estimates.store');
             Route::put('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
                 ->name('projects.estimates.update');
-            Route::put('/proyectos/estimaciones/{estimate}/documentos', [ProjectEstimateController::class, 'updateDocuments'])
-                ->name('projects.estimates.documents.update');
-            Route::delete('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'destroyDocument'])
-                ->name('projects.estimates.documents.destroy');
+            Route::post('/proyectos/estimaciones/{estimate}/facturas', [ProjectEstimateInvoiceController::class, 'store'])
+                ->whereNumber('estimate')->name('projects.estimates.invoices.store');
+            Route::get('/proyectos/estimaciones/facturas/{invoice}/{format}', [ProjectEstimateInvoiceController::class, 'download'])
+                ->whereNumber('invoice')->whereIn('format', ['pdf', 'xml'])->name('projects.estimates.invoices.download');
+            Route::delete('/proyectos/estimaciones/facturas/{invoice}', [ProjectEstimateInvoiceController::class, 'destroy'])
+                ->whereNumber('invoice')->name('projects.estimates.invoices.destroy');
+            Route::post('/proyectos/estimaciones/{estimate}/archivos', [ProjectEstimateFileController::class, 'store'])
+                ->whereNumber('estimate')->name('projects.estimates.files.store');
+            Route::get('/proyectos/estimaciones/archivos/{estimateFile}', [ProjectEstimateFileController::class, 'download'])
+                ->whereNumber('estimateFile')->name('projects.estimates.files.download');
+            Route::delete('/proyectos/estimaciones/archivos/{estimateFile}', [ProjectEstimateFileController::class, 'destroy'])
+                ->whereNumber('estimateFile')->name('projects.estimates.files.destroy');
             Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
                 ->name('projects.estimates.destroy');
-            Route::get('/proyectos/estimaciones/{estimate}/documentos/{document}', [ProjectEstimateController::class, 'download'])
-                ->name('projects.estimates.documents.download');
 
             Route::post('/proyectos/import', [ProjectController::class, 'import'])
                 ->name('projects.import');

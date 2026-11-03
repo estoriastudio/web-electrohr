@@ -25,15 +25,8 @@
         - $paidEstimates->where('type', 'nota_credito')->sum(fn ($estimate) => $estimate->total_payments_amount);
     $remainingToCollect = $contractValue - $paidAmount;
     $physicalProgress = $contractValue > 0 ? ($estimatedWorkAmount / $contractValue) * 100 : 0;
-    $estimateDocuments = [
-        'invoice_pdf' => ['label' => 'Factura PDF', 'path' => 'invoice_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
-        'invoice_xml' => ['label' => 'Factura XML', 'path' => 'invoice_xml_path', 'icon' => 'ri-file-code-line'],
-        'credit_note_pdf' => ['label' => 'Nota de crédito PDF', 'path' => 'credit_note_pdf_path', 'icon' => 'ri-file-pdf-2-line'],
-        'credit_note_xml' => ['label' => 'Nota de crédito XML', 'path' => 'credit_note_xml_path', 'icon' => 'ri-file-code-line'],
-        'spei_receipt' => ['label' => 'Comprobante SPEI', 'path' => 'spei_receipt_path', 'icon' => 'ri-bank-card-line'],
-        'liquidation_slip' => ['label' => 'Boleta de liquidación', 'path' => 'liquidation_slip_path', 'icon' => 'ri-file-list-3-line'],
-    ];
-    $documentErrorModalId = old('estimate_document_form') ? 'modalEstimateDocuments' . old('estimate_document_form') : null;
+    $estimateDocuments = ['invoice' => ['label' => 'Factura', 'icon' => 'ri-file-text-line']] + \App\Models\ProjectEstimateFile::TYPES;
+    $documentErrorModalId = ($estimateFormId = old('estimate_file_form') ?: old('estimate_invoice_form')) ? 'modalEstimateDocuments' . $estimateFormId : null;
 @endphp
 
 <div class="card mb-3">
@@ -77,41 +70,70 @@
                             <td class="text-nowrap">
                                 <div class="d-flex gap-1">
                                     @foreach ($estimateDocuments as $document => $definition)
-                                        @php($hasDocument = (bool) $estimate->{$definition['path']})
+                                        @php($typeFiles = $document === 'invoice' ? $estimate->invoices : $estimate->files->where('file_type', $document))
                                         <div class="dropdown">
-                                            <button type="button" class="btn btn-sm btn-soft-secondary py-0 px-1 {{ $hasDocument ? 'text-success' : 'text-muted' }}"
+                                            <button type="button" class="btn btn-sm btn-soft-secondary py-0 px-1 position-relative js-estimate-file-toggle {{ $typeFiles->isNotEmpty() ? 'text-success' : 'text-muted' }}"
                                                     data-bs-toggle="dropdown" aria-expanded="false"
-                                                    title="{{ $definition['label'] }}: {{ $hasDocument ? 'disponible' : 'pendiente' }}"
-                                                    aria-label="Acciones de {{ $definition['label'] }}">
+                                                    title="{{ $definition['label'] }}: {{ $typeFiles->isNotEmpty() ? $typeFiles->count() . ' archivo(s)' : 'sin archivos' }}"
+                                                    aria-label="Archivos de {{ $definition['label'] }}">
                                                 <i class="{{ $definition['icon'] }}"></i>
+                                                @if ($typeFiles->isNotEmpty())
+                                                    <span class="badge bg-success-subtle text-success fs-10 px-1">{{ $typeFiles->count() }}</span>
+                                                @endif
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
                                                 <li><h6 class="dropdown-header">{{ $definition['label'] }}</h6></li>
-                                                @if ($hasDocument)
-                                                    <li>
-                                                        <a href="{{ route('projects.estimates.documents.download', [$estimate, $document]) }}"
-                                                           class="dropdown-item" target="_blank">
-                                                            <i class="ri-download-2-line me-1"></i> Descargar
+                                                @foreach ($typeFiles as $file)
+                                                    @if ($document === 'invoice')
+                                                        <li class="px-3 py-1 d-flex align-items-center justify-content-between gap-2">
+                                                            <div class="text-truncate" style="max-width: 200px;" title="{{ $file->folio }}">
+                                                                <div class="text-truncate fs-13">{{ $file->folio ?: 'Sin folio' }}</div>
+                                                                <div class="fs-12">
+                                                                    @if ($file->pdf_path)
+                                                                        <a href="{{ route('projects.estimates.invoices.download', [$file, 'pdf']) }}" target="_blank" class="me-2">PDF</a>
+                                                                    @endif
+                                                                    @if ($file->xml_path)
+                                                                        <a href="{{ route('projects.estimates.invoices.download', [$file, 'xml']) }}" target="_blank">XML</a>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                            <form action="{{ route('projects.estimates.invoices.destroy', $file) }}" method="POST">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Eliminar"
+                                                                        onclick="return confirm('¿Eliminar la factura {{ e($file->folio) }}?')">
+                                                                    <i class="ri-delete-bin-line"></i>
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                    @else
+                                                    <li class="px-3 py-1 d-flex align-items-center justify-content-between gap-2">
+                                                        <a href="{{ route('projects.estimates.files.download', $file) }}"
+                                                           class="text-truncate text-body" style="max-width: 200px;" target="_blank"
+                                                           title="Descargar {{ $file->original_name }}">
+                                                            <i class="ri-download-2-line me-1"></i>{{ $file->original_name }}
                                                         </a>
-                                                    </li>
-                                                    <li>
-                                                        <form action="{{ route('projects.estimates.documents.destroy', [$estimate, $document]) }}" method="POST">
+                                                        <form action="{{ route('projects.estimates.files.destroy', $file) }}" method="POST">
                                                             @csrf
                                                             @method('DELETE')
-                                                            <button type="submit" class="dropdown-item text-danger"
-                                                                    onclick="return confirm('¿Eliminar {{ $definition['label'] }}?')">
-                                                                <i class="ri-delete-bin-line me-1"></i> Eliminar
+                                                            <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Eliminar"
+                                                                    onclick="return confirm('¿Eliminar {{ e($file->original_name) }}?')">
+                                                                <i class="ri-delete-bin-line"></i>
                                                             </button>
                                                         </form>
                                                     </li>
-                                                @else
-                                                    <li>
-                                                        <button type="button" class="dropdown-item" data-bs-toggle="modal"
-                                                                data-bs-target="#modalEstimateDocuments{{ $estimate->id }}">
-                                                            <i class="ri-upload-2-line me-1"></i> Cargar
-                                                        </button>
-                                                    </li>
+                                                    @endif
+                                                @endforeach
+                                                @if ($typeFiles->isNotEmpty())
+                                                    <li><hr class="dropdown-divider"></li>
                                                 @endif
+                                                <li>
+                                                    <button type="button" class="dropdown-item js-open-estimate-files" data-bs-toggle="modal"
+                                                            data-bs-target="#modalEstimateDocuments{{ $estimate->id }}"
+                                                            data-file-type="{{ $document }}">
+                                                        <i class="ri-upload-2-line me-1"></i> Cargar
+                                                    </button>
+                                                </li>
                                             </ul>
                                         </div>
                                     @endforeach
@@ -152,9 +174,7 @@
                                             data-advance-amortization-vat-amount="{{ $estimate->advance_amortization_vat_amount }}"
                                             data-funeral-expense-amount="{{ $estimate->funeral_expense_amount }}"
                                             data-delay-penalty-amount="{{ $estimate->delay_penalty_amount }}"
-                                            data-notes="{{ $estimate->notes }}"
-                                            data-liquidation-slip-url="{{ $estimate->liquidation_slip_path && ! $engineerView ? route('projects.estimates.documents.download', [$estimate, 'liquidation_slip']) : '' }}"
-                                            data-has-liquidation-slip="{{ $estimate->liquidation_slip_path ? 1 : 0 }}">
+                                            data-notes="{{ $estimate->notes }}">
                                         <i class="ri-edit-line"></i>
                                     </button>
                                     @unless ($engineerView)
@@ -205,7 +225,7 @@
 
 <div class="modal fade" id="modalEditEstimate" tabindex="-1" aria-labelledby="modalEditEstimateLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-        <form id="formEditEstimate" action="" method="POST" enctype="multipart/form-data" class="h-100">
+        <form id="formEditEstimate" action="" method="POST" class="h-100">
             <div class="modal-content">
             @csrf
             @method('PUT')
@@ -224,6 +244,22 @@
 @endforeach
 @endunless
 
+@push('styles')
+<style>
+    /* El tema fuerza top/right con !important y anima transform; se anula para que Popper posicione el menú. */
+    .dropdown-menu.estimate-menu-floating.show {
+        z-index: 1085;
+        position: fixed;
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: auto !important;
+        margin: 0 !important;
+        animation: none !important;
+    }
+</style>
+@endpush
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -238,6 +274,46 @@ document.addEventListener('DOMContentLoaded', function () {
     if (documentErrorModal && typeof bootstrap !== 'undefined') {
         new bootstrap.Modal(documentErrorModal).show();
     }
+
+    // El contenedor con scroll recorta los menús; al abrirlos se mueven al <body> con posición fija
+    // y se regresan a su lugar al cerrarse (mismo patrón que la tabla de SOLMAT).
+    if (typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+        document.querySelectorAll('.js-estimate-file-toggle').forEach(function (toggle) {
+            var parent = toggle.parentElement;
+            var menu = parent.querySelector('.dropdown-menu');
+            if (!menu) return;
+
+            bootstrap.Dropdown.getOrCreateInstance(toggle, {
+                popperConfig: function (defaultConfig) {
+                    var modifiers = (defaultConfig.modifiers || []).concat([
+                        { name: 'computeStyles', options: { adaptive: false } }
+                    ]);
+                    return Object.assign({}, defaultConfig, { strategy: 'fixed', modifiers: modifiers });
+                }
+            });
+
+            toggle.addEventListener('show.bs.dropdown', function () {
+                menu.classList.add('estimate-menu-floating');
+                document.body.appendChild(menu);
+            });
+
+            toggle.addEventListener('hidden.bs.dropdown', function () {
+                menu.classList.remove('estimate-menu-floating');
+                parent.appendChild(menu);
+            });
+        });
+    }
+
+    document.querySelectorAll('.js-open-estimate-files').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var modal = document.querySelector(this.dataset.bsTarget);
+            var select = modal && modal.querySelector('.js-estimate-file-type');
+            if (select) {
+                select.value = this.dataset.fileType;
+                select.dispatchEvent(new Event('change'));
+            }
+        });
+    });
 
     function amount(value) {
         return Number.parseFloat(String(value).replaceAll(',', '')) || 0;
@@ -317,12 +393,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 ['funeral_expense_amount', 'funeralExpenseAmount'], ['delay_penalty_amount', 'delayPenaltyAmount'],
             ].forEach(function (field) { setMoneyValue(document.getElementById('edit_' + field[0]), this.dataset[field[1]] || 0); }, this);
             document.getElementById('edit_notes').value = this.dataset.notes || '';
-            var slipToggle = document.getElementById('edit_attach_liquidation_slip');
-            slipToggle.checked = this.dataset.hasLiquidationSlip === '1';
-            slipToggle.dispatchEvent(new Event('change'));
-            var slipCurrent = modal.querySelector('.js-liquidation-slip-current');
-            slipCurrent.hidden = !this.dataset.liquidationSlipUrl;
-            modal.querySelector('.js-liquidation-slip-link').href = this.dataset.liquidationSlipUrl || '#';
             recalculateEstimate('edit');
         });
     });

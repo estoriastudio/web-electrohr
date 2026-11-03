@@ -1,10 +1,13 @@
 {
-  "version": 2,
+  "version": 3,
   "type": "new",
   "variant": "crud",
   "meta": {
     "id": "HR-003",
-    "module": "Documentación de proyectos: Aplica / No aplica y búsqueda por contrato",
+    "title": "",
+    "module": "Proyectos",
+    "module_key": "proyectos_{project}_documentos_{docType}",
+    "extends": "",
     "author": "Jorge Peña",
     "reviewers": "Mariam",
     "status": "aprobado",
@@ -29,7 +32,6 @@
     "cache_ttl": "",
     "seo": false,
     "seo_notes": "",
-    "target": "Proyectos → detalle (checklist \"Documentación del Proyecto\") y listado (columna Docs): tabla project_documents, modelos ProjectDocument y Project",
     "target_ref": null,
     "current": "Hoy el checklist documental usa ProjectDocument::CATEGORIES (3 categorías, 17 documentos fijos: Licitación 2, Contratación 8, Entrega-Recepción 7). Cada documento tiene un semáforo binario (gris sin archivo, verde subido; ProjectDocument::getStatusAttribute). El listado (projects/index.blade.php) muestra por categoría un badge {subidos}/{count(docs)} verde/amarillo/gris, y el detalle (projects/show.blade.php) lo repite en el encabezado de cada categoría. Project::hasAllDocuments() exige los 17 documentos subidos. No existe forma de indicar que un documento no es requerido en un proyecto concreto, por lo que esos proyectos nunca llegan a verde y el listado queda con ruido visual.",
     "uses_livewire": false,

@@ -1,15 +1,19 @@
 {
-  "version": 2,
+  "version": 3,
   "type": "ext-action",
   "variant": "crud",
   "meta": {
     "id": "HR-001",
-    "module": "Estado de cuenta de proveedores",
+    "title": "Estado de cuenta de proveedores",
+    "module": "Proveedores",
+    "module_key": "suppliers",
+    "extends": "",
     "author": "Jorge Peña",
     "reviewers": "Mariam",
     "status": "implementado",
     "branch": "master",
-    "created": "2026-10-30"
+    "created": "2026-10-30",
+    "implemented": ""
   },
   "v": {
     "goal": "Descargar los PDFs de facturas del estado de cuenta en Facturas-SAHR2.0.zip, seleccionando su estatus financiero y reportando faltantes sin impedir la descarga de los disponibles.",
@@ -28,7 +32,26 @@
     "cache_ttl": "",
     "seo": false,
     "seo_notes": "",
-    "target": "Estado de cuenta de proveedores: exportación de PDFs de facturas y seguimiento de faltantes.",
+    "target_ref": {
+      "key": "suppliers",
+      "name": "Proveedores",
+      "controllers": [
+        "SupplierAccountStatementController",
+        "SupplierController"
+      ],
+      "models": [
+        {
+          "name": "PurchaseOrder",
+          "table": "purchase_orders",
+          "file": "app/Models/PurchaseOrder.php"
+        },
+        {
+          "name": "Supplier",
+          "table": "suppliers",
+          "file": "app/Models/Supplier.php"
+        }
+      ]
+    },
     "current": "El estado de cuenta ya dispone de exportación a Excel y de estatus financieros calculados por SupplierAccountStatementService.",
     "uses_livewire": false,
     "table": "",

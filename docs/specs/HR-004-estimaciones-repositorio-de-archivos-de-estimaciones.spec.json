@@ -1,0 +1,403 @@
+{
+  "version": 3,
+  "type": "ext-sub",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-004",
+    "title": "Repositorio de archivos de estimaciones",
+    "module": "Estimaciones",
+    "module_key": "estimaciones",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "master",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Convertir los archivos de las estimaciones de un proyecto en un repositorio: en lugar de un espacio fijo por documento (un solo archivo por tipo), una estimación puede tener varios archivos de cada tipo (varias facturas, varias notas de crédito, etc.), cargándolos en lote y clasificándolos solo por tipo.",
+    "flow": "En el detalle del proyecto, bloque Estimaciones, el usuario (admin, Proyectos o quien hoy gestiona archivos, no Engineer) abre \"Gestionar archivos\" de una estimación. El modal muestra el repositorio de la estimación: los archivos ya cargados agrupados por tipo (nombre original, fecha, quién lo cargó, descargar y eliminar) y un formulario de carga con un selector de tipo y un campo de archivos con selección múltiple. Elige el tipo, selecciona uno o varios archivos y guarda; todos quedan clasificados con ese tipo y el modal se recarga con la lista actualizada. Para cargar otro tipo repite el paso. En la tabla de estimaciones, la columna de archivos muestra un ícono por tipo con el número de archivos; su menú lista los archivos del tipo para descargar o eliminar y la opción \"Cargar\" abre el modal con ese tipo preseleccionado.",
+    "prefix": "/proyectos/estimaciones/{estimate}/archivos",
+    "middleware": "grupo actual de rutas de estimaciones de proyectos (el mismo de projects.estimates.documents.*); el rol Engineer no tiene acceso a archivos",
+    "search": "",
+    "uploads": true,
+    "disk": "s3",
+    "uploads_notes": "Archivos del repositorio de la estimación: pdf, xml, jpg, jpeg, png · máx 10 MB por archivo · sin límite de cantidad · se guardan en projects/{project_id}/estimates/{estimate_id}/{uuid}.{ext} (mismo disco y carpeta que hoy) · el nombre original se conserva en la base de datos para la descarga",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": false,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "Hoy project_estimates tiene 6 columnas de ruta (invoice_pdf_path, invoice_xml_path, credit_note_pdf_path, credit_note_xml_path, spei_receipt_path, liquidation_slip_path), por lo que cada estimación admite un solo archivo por tipo. El modal \"Archivos de estimación\" (estimates/_documents_modal.blade.php) tiene un campo de archivo por columna; cargar de nuevo reemplaza y borra el anterior de S3 (ProjectEstimateController::updateDocuments/storeDocuments con DOCUMENTS). La tabla de estimaciones muestra 6 íconos fijos con descarga y eliminación por columna. El formulario de editar estimación (estimates/_form.blade.php) tiene el checkbox \"Adjuntar boleta de liquidación\" que guarda liquidation_slip_path. Eliminar una estimación borra de S3 las rutas de las 6 columnas. Rutas: projects.estimates.documents.update (PUT), .destroy (DELETE por tipo) y .download (GET por tipo).",
+    "uses_livewire": false,
+    "table": "project_estimate_files",
+    "strategy": "nullable",
+    "backfill": "Sí: la migración copia cada ruta no nula de las 6 columnas como una fila de project_estimate_files (mismo file_path, file_type equivalente, original_name derivado del nombre del archivo almacenado, uploaded_by = null) y después elimina las 6 columnas de project_estimates en la misma migración. Los archivos en S3 no se mueven ni se renombran.",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": false,
+      "import_export": false
+    },
+    "controller": "ProjectEstimateFileController",
+    "method": "store",
+    "verb": "POST",
+    "action_uri": "/proyectos/estimaciones/{estimate}/archivos",
+    "action_route": "projects.estimates.files.store",
+    "who": "los mismos roles que hoy gestionan archivos de estimaciones (no Engineer)",
+    "input": "file_type (string), files[] (archivos)",
+    "response": "redirect",
+    "trigger": "Botón \"Guardar archivos\" del modal de archivos de la estimación",
+    "notify": true,
+    "notify_data": "Notificación ProjectEstimate (action update) con el número de estimación, el proyecto y la cantidad de archivos cargados, igual que updateDocuments hoy",
+    "rule_current": "Un archivo por tipo y estimación; cargar otro lo reemplaza.",
+    "rule_new": "Cualquier cantidad de archivos por tipo y estimación; cargar nunca reemplaza, solo agrega. Quitar un archivo es una acción explícita por archivo.",
+    "historic": "Los archivos existentes quedan como una fila del repositorio en su tipo correspondiente; nada se pierde ni cambia de ubicación en S3.",
+    "enforce": "controller",
+    "parent": "ProjectEstimate",
+    "nesting": "shallow",
+    "placement": "section",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": false,
+      "delete": true,
+      "show": true
+    }
+  },
+  "models": [
+    {
+      "name": "ProjectEstimateFile",
+      "table": "project_estimate_files",
+      "expose": "nested",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "project_estimate_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_estimates.id, cascade on delete"
+        },
+        {
+          "name": "file_type",
+          "type": "string",
+          "nullable": false,
+          "extra": "credit_note_pdf, credit_note_xml, spei_receipt, liquidation_slip, other · catálogo en constantes del modelo (TYPES con etiqueta, ícono y extensiones permitidas; Factura vive en ProjectEstimateInvoice) · indexado junto con project_estimate_id"
+        },
+        {
+          "name": "file_path",
+          "type": "string",
+          "nullable": false,
+          "extra": "ruta en el disco s3"
+        },
+        {
+          "name": "original_name",
+          "type": "string",
+          "nullable": false,
+          "extra": "nombre original del archivo, usado como nombre de descarga y para mostrarlo en el repositorio"
+        },
+        {
+          "name": "uploaded_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete (null en archivos migrados)"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "ProjectEstimate",
+          "key": "project_estimate_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "uploaded_by"
+        }
+      ]
+    },
+    {
+      "name": "ProjectEstimateInvoice",
+      "table": "project_estimate_invoices",
+      "expose": "nested",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "project_estimate_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_estimates.id, cascade on delete"
+        },
+        {
+          "name": "folio",
+          "type": "string",
+          "nullable": true,
+          "extra": "folio fiscal (UUID) leído del XML · máx 100 · indexado junto con project_estimate_id · null solo en facturas migradas sin folio"
+        },
+        {
+          "name": "invoice_date",
+          "type": "date",
+          "nullable": true,
+          "extra": "fecha de emisión de la factura (precargada del XML, editable) · obligatoria al capturar; null solo en migradas"
+        },
+        {
+          "name": "payment_date",
+          "type": "date",
+          "nullable": true,
+          "extra": "fecha esperada de pago · obligatoria al capturar; null en migradas"
+        },
+        {
+          "name": "pdf_path",
+          "type": "string",
+          "nullable": true,
+          "extra": "ruta del PDF en s3"
+        },
+        {
+          "name": "pdf_original_name",
+          "type": "string",
+          "nullable": true,
+          "extra": "nombre original del PDF"
+        },
+        {
+          "name": "xml_path",
+          "type": "string",
+          "nullable": true,
+          "extra": "ruta del XML en s3"
+        },
+        {
+          "name": "xml_original_name",
+          "type": "string",
+          "nullable": true,
+          "extra": "nombre original del XML"
+        },
+        {
+          "name": "uploaded_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "ProjectEstimate",
+          "key": "project_estimate_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "uploaded_by"
+        }
+      ]
+    },
+    {
+      "name": "ProjectEstimate",
+      "table": "project_estimates",
+      "expose": "existing",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "hasMany",
+          "model": "ProjectEstimateFile",
+          "key": "project_estimate_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "estimates/_documents_modal (Gestionar archivos de la estimación)",
+      "render": "blade",
+      "behavior": "Reemplaza el formulario de 6 campos. Parte superior: un select \"Tipo\" (Factura (PDF + XML), Nota de crédito PDF, Nota de crédito XML, Comprobante SPEI, Boleta de liquidación, Otro) que muestra el formulario correspondiente. Tipos normales: formulario POST multipart con un input file con multiple; el atributo accept cambia según el tipo y se muestra \"PDF, XML, JPG y PNG de hasta 10 MB por archivo\"; \"Guardar archivos\" se deshabilita hasta elegir tipo y al menos un archivo. Factura: formulario con bloques repetibles (\"Agregar otra factura\", y botón para quitar un bloque), cada uno con PDF, XML, Folio fiscal (UUID, solo lectura, autocompletado al leer el XML en el navegador), Fecha (precargada del XML, editable) y Fecha de pago; si el XML no tiene UUID válido se marca inválido; \"Guardar facturas\" se habilita solo con todos los bloques completos. El modal no lista los archivos ya cargados: solo sirve para cargar; la consulta, descarga y eliminación de archivos se hace desde el menú de cada ícono en la tabla de estimaciones. Los errores de validación se muestran dentro del formulario (bolsas estimateFiles y estimateInvoices) y el modal se reabre solo si hubo errores (estimate_file_form o estimate_invoice_form)."
+    },
+    {
+      "name": "projects/_estimates (columna de archivos de la tabla)",
+      "render": "blade",
+      "behavior": "Se conserva un ícono por tipo: Factura primero y después los tipos del catálogo (con \"Otro\" al final); verde con un pequeño contador cuando el tipo tiene uno o más archivos (para Factura, el número de facturas), gris cuando no tiene. El menú del ícono lista cada archivo del tipo (nombre original) con Descargar y Eliminar (con confirmación); para Factura lista cada factura con su folio, enlaces PDF y XML y Eliminar. La opción \"Cargar\" abre el modal de la estimación con el tipo preseleccionado. Los menús de los íconos se mueven al body con posición fija al abrirse (mismo patrón que la tabla de SOLMAT, anulando el top/right forzado por el tema) para que no los recorte el contenedor de la tabla y puedan exceder su borde. El botón \"Gestionar archivos\" de la fila sigue abriendo el modal. Los archivos se leen con la relación files precargada (with('files')) para no hacer consultas por fila."
+    },
+    {
+      "name": "estimates/_form (editar estimación)",
+      "render": "blade",
+      "behavior": "Se elimina el bloque \"Adjuntar boleta de liquidación\" (checkbox, campo de archivo, enlace \"ver boleta\" y su JS en _form y _estimates). La boleta se carga desde el modal de archivos con el tipo \"Boleta de liquidación\"."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "ProjectEstimateFile",
+      "filter": "project_estimate_id = estimación",
+      "fields": "file_type, file_path, original_name, uploaded_by, created_at"
+    }
+  ],
+  "files": [
+    "database/migrations/2026_11_03_000000_create_project_estimate_files_table.php (nueva, vía make:model -mc: crea project_estimate_files y project_estimate_invoices, copia las rutas de las columnas viejas (PDF y XML de factura como una sola factura; el resto como archivos) y elimina esas 6 columnas de project_estimates; down recrea las columnas y restaura una ruta por tipo)",
+    "app/Models/ProjectEstimateInvoice.php (nuevo: factura = PDF + XML con folio, fecha y fecha de pago)",
+    "app/Http/Controllers/ProjectEstimateInvoiceController.php (nuevo: store con lectura del UUID del XML, download por formato y destroy)",
+    "routes/web.php (projects.estimates.invoices.store, .download y .destroy)",
+    "app/Models/ProjectEstimateFile.php (nuevo: TYPES con etiqueta, ícono y extensiones; relaciones)",
+    "app/Models/ProjectEstimate.php (relación files; se quitan las 6 rutas de $fillable)",
+    "app/Http/Controllers/ProjectEstimateFileController.php (nuevo: store, download, destroy)",
+    "app/Http/Controllers/ProjectEstimateController.php (se eliminan DOCUMENTS, updateDocuments, destroyDocument, download, storeDocuments, documentValidationRules y el manejo de liquidation_slip en validatedData; destroy borra de S3 los archivos del repositorio; store deja de aceptar archivos)",
+    "app/Http/Controllers/ProjectController.php (with('estimates.files') en show; solo la carga de la relación)",
+    "routes/web.php (projects.estimates.files.store, .download, .destroy; se retiran projects.estimates.documents.*)",
+    "resources/views/estimates/_documents_modal.blade.php (modal de repositorio)",
+    "resources/views/projects/_estimates.blade.php (columna de archivos, preselección de tipo, se quita el JS de la boleta)",
+    "resources/views/estimates/_form.blade.php (se quita el bloque de la boleta de liquidación)"
+  ],
+  "keep": [
+    "El flujo de crear y editar una estimación (montos, deducciones, retenciones, fechas, tipo, estatus, notas) y el cálculo de importes del modelo.",
+    "El acceso del rol Engineer (Mis proyectos): sigue sin ver ni gestionar archivos de estimaciones.",
+    "El disco s3 y la carpeta projects/{project_id}/estimates/{estimate_id} para los archivos nuevos; los archivos ya almacenados no se mueven.",
+    "Las notificaciones de ProjectEstimate al cargar y eliminar archivos y al eliminar la estimación.",
+    "Los documentos del checklist del proyecto (HR-003), convenios y los archivos de pagos (payments.spei_receipt_path), que son independientes de estas columnas."
+  ],
+  "risks": [
+    "La migración elimina columnas con datos: debe copiar primero y dejar down que restaure al menos un archivo por tipo; conviene probarla en una copia de la base antes de correrla en producción.",
+    "Antes de quitar las columnas hay que confirmar con grep que ningún otro código lee invoice_*_path, credit_note_*_path, spei_receipt_path o liquidation_slip_path de project_estimates (hoy solo ProjectEstimateController, ProjectEstimate y las vistas de estimaciones; payments.spei_receipt_path es otra tabla).",
+    "Si falla el guardado de uno de varios archivos en S3, no deben quedar archivos huérfanos ni filas a medias: se guarda dentro de una transacción y, ante error, se borran de S3 los ya subidos (mismo patrón que deleteStoredPaths).",
+    "post_max_size y upload_max_filesize del servidor limitan el lote: un lote grande puede exceder el límite y llegar vacío; el controller debe responder con un error claro en lugar de fallar en silencio.",
+    "Eliminar la estimación debe borrar de S3 todos los archivos del repositorio antes de perder las filas (las filas se eliminan en cascada)."
+  ],
+  "cases": [
+    "Cargar 3 notas de crédito PDF a la vez con el tipo Nota de crédito PDF: quedan 3 archivos en el repositorio y el ícono muestra 3.",
+    "Cargar otra nota de crédito PDF después: se agrega; las 3 anteriores se conservan (ya no reemplaza).",
+    "Cargar 2 notas de crédito XML en una estimación y 1 en otra: cada estimación solo ve los suyos.",
+    "Elegir tipo Nota de crédito XML y seleccionar un PDF: se rechaza con mensaje de formato no permitido y no se guarda ningún archivo del lote.",
+    "Elegir tipo Factura: el modal pide PDF, XML, Folio, Fecha y Fecha de pago; al elegir el XML se llenan Folio (UUID) y Fecha; el botón \"Guardar facturas\" se habilita solo con todo completo.",
+    "Factura con un XML sin UUID de TimbreFiscalDigital o que no es XML: se marca el campo XML como inválido y no se puede guardar; si se fuerza por petición directa, el servidor lo rechaza.",
+    "Cargar 2 facturas en la misma operación con \"Agregar otra factura\": quedan 2 facturas, cada una con su folio y fechas; si la segunda es inválida no se guarda ninguna.",
+    "Cargar una factura con un folio que ya existe en la misma estimación: se rechaza con mensaje de duplicado.",
+    "Eliminar una factura: se borran su PDF y su XML de S3 y desaparece del repositorio.",
+    "Seleccionar un archivo de más de 10 MB entre varios: se rechaza el lote completo con el mensaje del archivo que excede.",
+    "Descargar un archivo: se descarga con su nombre original.",
+    "Eliminar un archivo: se borra de S3 y del repositorio; los demás del mismo tipo permanecen.",
+    "Eliminar la estimación: desaparecen todos sus archivos de S3.",
+    "Estimación con archivos de antes del cambio: tras migrar, cada archivo aparece en su tipo y se descarga igual.",
+    "Usuario Engineer o sin el rol requerido que envía la petición directa de carga, descarga o eliminación: 403.",
+    "Editar una estimación: ya no aparece el checkbox \"Adjuntar boleta de liquidación\"; la boleta se carga desde el modal con el tipo Boleta de liquidación."
+  ],
+  "rules": [
+    "Los archivos de una estimación son un repositorio: la relación estimación → archivos es 1:N y cada archivo se clasifica con un solo tipo del catálogo ProjectEstimateFile::TYPES.",
+    "Tipos de archivo (ProjectEstimateFile::TYPES): credit_note_pdf (Nota de crédito PDF), credit_note_xml (Nota de crédito XML), spei_receipt (Comprobante SPEI), liquidation_slip (Boleta de liquidación) y other (Otro). \"Factura\" es un tipo aparte que une PDF + XML en una sola factura con datos propios (ver reglas de Factura) y se guarda en ProjectEstimateInvoice.",
+    "Formatos permitidos por tipo: credit_note_pdf solo pdf; credit_note_xml solo xml; spei_receipt y liquidation_slip pdf, jpg, jpeg y png; other pdf, xml, jpg, jpeg y png. Máximo 10 MB por archivo, sin límite de cantidad.",
+    "Factura: cada factura exige su PDF y su XML (CFDI timbrado), Folio, Fecha y Fecha de pago, todos obligatorios. El Folio es el folio fiscal (UUID) del nodo TimbreFiscalDigital del XML, como en \"Subir factura\" de la orden de compra: se autocompleta al elegir el XML, no se captura a mano y el servidor lo vuelve a leer del XML (si el XML no tiene UUID válido o difiere del enviado, se rechaza). Fecha es la fecha de emisión (se precarga del atributo Fecha del Comprobante y es editable) y Fecha de pago es la fecha esperada de pago (captura manual).",
+    "Factura: se pueden cargar varias facturas en una misma operación con \"Agregar otra factura\" (un bloque PDF + XML + fechas por factura). Si cualquiera falla, no se guarda ninguna. No se permite repetir un folio dentro de la misma estimación.",
+    "Factura: eliminar una factura borra su fila y sus dos archivos de S3; el menú del ícono de la tabla muestra folio y enlaces PDF y XML. El modal de archivos no lista lo ya cargado.",
+    "Cargar siempre agrega. No existe reemplazo: para cambiar un archivo se elimina y se carga el nuevo.",
+    "Una carga lleva un solo tipo y uno o varios archivos; si cualquier archivo falla la validación, no se guarda ninguno (todo o nada).",
+    "El archivo se guarda en S3 con un nombre único (uuid) y su nombre original se conserva en original_name para mostrarlo y descargarlo.",
+    "Eliminar un archivo borra su fila y su objeto en S3 tras confirmar en el navegador; eliminar la estimación borra todos sus archivos de S3.",
+    "La boleta de liquidación deja de ser un adjunto del formulario de edición y pasa a ser un tipo más del repositorio.",
+    "El ícono de cada tipo en la tabla indica cuántos archivos hay (verde con contador) y el menú permite descargar o eliminar cada uno.",
+    "Solo los roles que hoy gestionan archivos de estimaciones pueden cargar, descargar y eliminar; el controller lo valida (403), no solo se ocultan botones.",
+    "Notificación ProjectEstimate al cargar (con la cantidad de archivos) y al eliminar un archivo, con el mismo formato que las actuales."
+  ],
+  "validations": [
+    {
+      "field": "file_type",
+      "rule": "requerido, in: credit_note_pdf, credit_note_xml, spei_receipt, liquidation_slip, other (Factura usa su propia acción projects.estimates.invoices.store)"
+    },
+    {
+      "field": "invoices.*.pdf_file",
+      "rule": "requerido, file, mimes:pdf, máx 10240 KB"
+    },
+    {
+      "field": "invoices.*.xml_file",
+      "rule": "requerido, file, extensión .xml, máx 10240 KB; debe contener un UUID válido en TimbreFiscalDigital"
+    },
+    {
+      "field": "invoices.*.folio",
+      "rule": "opcional en el envío (readonly, autocompletado); el servidor usa el UUID del XML y rechaza si el enviado difiere; único dentro de la estimación y del lote"
+    },
+    {
+      "field": "invoices.*.invoice_date / payment_date",
+      "rule": "requeridos, date"
+    },
+    {
+      "field": "files",
+      "rule": "requerido, array, mínimo 1"
+    },
+    {
+      "field": "files.*",
+      "rule": "file, máx 10240 KB, mimes según file_type (ver regla de formatos por tipo)"
+    },
+    {
+      "field": "estimate / estimateFile (ruta)",
+      "rule": "el archivo de las rutas download y destroy debe pertenecer a la estimación de la ruta; de lo contrario 404"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué pasará con los elementos ya registrados en el sistema (archivos ya cargados en estimaciones)?",
+      "a": "Decidido por el equipo: se migran a la nueva tabla project_estimate_files, uno por cada ruta existente, en su tipo equivalente, y las 6 columnas viejas se eliminan en la misma migración. Los archivos en S3 no se mueven."
+    },
+    {
+      "q": "¿Qué tipos tiene el repositorio?",
+      "a": "Los actuales sin Factura PDF/XML (Nota de crédito PDF, Nota de crédito XML, Comprobante SPEI, Boleta de liquidación) más \"Otro\"; \"Factura\" pasa a ser un tipo unificado que exige PDF + XML y captura Folio, Fecha y Fecha de pago (decidido por el equipo). Las notas de crédito conservan PDF y XML por separado; por confirmar si también deben unificarse."
+    },
+    {
+      "q": "¿Cómo se capturan los datos de la factura?",
+      "a": "Decidido por el equipo: Folio, Fecha y Fecha de pago, todos obligatorios. Fecha = fecha de emisión de la factura; Fecha de pago = fecha esperada de pago. El Folio se obtiene del XML (folio fiscal UUID), como en el modal \"Subir factura\" de la orden de compra. Una fila por factura (PDF + XML) y se pueden agregar varias en la misma carga."
+    },
+    {
+      "q": "¿Qué pasa con las facturas ya cargadas (PDF y XML de las columnas viejas)?",
+      "a": "Se migran como una sola factura por estimación (PDF + XML) con folio = invoice_number y fecha = invoice_date de la estimación; la fecha de pago queda vacía (null) hasta que se edite. Por confirmar."
+    },
+    {
+      "q": "¿Qué formatos y límites se permiten?",
+      "a": "PDF, XML, JPG y PNG, máx. 10 MB por archivo, sin límite de cantidad. Se asumió que los tipos \"PDF\" aceptan solo pdf y los \"XML\" solo xml, y que SPEI, Boleta y Otro aceptan imágenes; por confirmar."
+    },
+    {
+      "q": "¿Qué pasa con el checkbox \"Adjuntar boleta de liquidación\" del formulario de edición?",
+      "a": "Decidido por el equipo: se quita del formulario; la boleta se carga solo desde el repositorio."
+    },
+    {
+      "q": "¿Cómo es la carga?",
+      "a": "Decidido por el equipo: modal con selector de tipo y selección múltiple de archivos (varios del mismo tipo a la vez), con recarga de página al terminar (sin AJAX)."
+    }
+  ],
+  "exceptions": [
+    "Las rutas del repositorio cuelgan de la estimación sin anidarse bajo el proyecto (projects.estimates.files.*), igual que las rutas actuales de documentos de estimaciones."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Carga por chunks o barra de progreso para archivos grandes.",
+    "Vista previa de PDF o XML dentro del sistema.",
+    "Descarga de todos los archivos de una estimación en ZIP.",
+    "Subcategorías, etiquetas o notas por archivo.",
+    "Archivos de estimaciones para el rol Engineer (Mis proyectos)."
+  ],
+  "docsOff": []
+}

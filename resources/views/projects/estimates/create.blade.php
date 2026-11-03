@@ -38,7 +38,7 @@
 @endif
 
 <div class="card">
-    <form id="createEstimateForm" action="{{ $engineerView ? route('my-projects.estimates.store', $project) : route('projects.estimates.store', $project) }}" method="POST" enctype="multipart/form-data">
+    <form id="createEstimateForm" action="{{ $engineerView ? route('my-projects.estimates.store', $project) : route('projects.estimates.store', $project) }}" method="POST">
         @csrf
         <div class="card-body">
             @include('estimates._form', ['prefix' => 'create', 'estimate' => null])

@@ -1,10 +1,13 @@
 {
-  "version": 2,
+  "version": 3,
   "type": "ext-sub",
   "variant": "crud",
   "meta": {
     "id": "HR-002",
-    "module": "Cumplimiento de hitos",
+    "title": "Cumplimiento de hitos",
+    "module": "Ordenes de Compra",
+    "module_key": "ordenes_de_compra",
+    "extends": "",
     "author": "Jorge Peña",
     "reviewers": "Mariam",
     "status": "implementado",
@@ -29,7 +32,6 @@
     "cache_ttl": "",
     "seo": true,
     "seo_notes": "",
-    "target": "Órdenes de compra → Entregas y panel Checklist del hito (purchase_order_milestones): checklist de autorización de pagos, estado del evento y cierre de la OC",
     "target_ref": null,
     "current": "Hoy solo existe el cumplimiento por recepción física: el modal Entregas pide siempre los conceptos con cantidades, el hito y la evidencia (purchase_order_item_deliveries, ligada a un hito) y después un usuario confirma \"entrega completa del hito\" (purchase_order_milestones.delivery_confirmed_at / delivery_confirmed_by). Esa confirmación alimenta: el checklist de autorización de pagos (PurchaseOrderMilestoneChecklist, requisito \"Entrega confirmada\" para todo hito que no sea anticipo), la dimensión \"Cumplimiento\" del estado del evento (MilestoneEventStatus, que exige confirmación incluso en anticipos), el inicio del plazo de crédito \"cumplimiento validado\" (MilestoneCreditTerms) y el cierre de la OC (PurchaseOrderClosureEvaluator: eventos cerrados + entrega completa de conceptos). Un hito sin entrega física posible (anticipo, estimación, entregable documental) no tiene cómo cumplirse salvo registrando una entrega ficticia de conceptos.",
     "uses_livewire": false,

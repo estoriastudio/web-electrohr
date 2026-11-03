@@ -2,7 +2,9 @@
 spec_id: HR-003
 type: new-module
 variant: crud
-module: Documentación de proyectos: Aplica / No aplica y búsqueda por contrato
+title: 
+module: Proyectos
+module_key: proyectos_{project}_documentos_{docType}
 status: aprobado
 author: Jorge Peña
 reviewers: [Mariam]
@@ -16,7 +18,9 @@ docs:
 open_questions: 0
 ---
 
-# HR-003 · Documentación de proyectos: Aplica / No aplica y búsqueda por contrato — Módulo nuevo (CRUD)
+# HR-003 · Proyectos — Módulo nuevo (CRUD)
+
+**Módulo:** Proyectos (`proyectos_{project}_documentos_{docType}`) · **Tipo:** Módulo nuevo (CRUD)
 
 ## 0. Contexto obligatorio
 
@@ -140,13 +144,19 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 
 - [ ] `php artisan migrate` corre sin errores; las migraciones se crean en orden de dependencia de FKs.
 - [ ] `ProjectDocument` declara `$fillable`, `$casts`.
+- [ ] `Route::resource('proyectos.{project}.documentos.{docType}', ProjectDocumentController::class)` bajo middleware `role:admin|Proyectos|Solmat (grupo existente de proyectos); la acción exige admin o Proyectos en el controller, igual que los botones de subida en la vista`; `create()` redirige a `proyectos.{project}.documentos.{docType}.index`.
+- [ ] Existe `resources/views/proyectos/{project}/documentos/{docType}/projects/show (checklist Documentación del Proyecto, fila de documento).blade.php` que extiende `layouts.app`.
+- [ ] Existe `resources/views/proyectos/{project}/documentos/{docType}/projects/show (checklist, encabezado de categoría).blade.php` que extiende `layouts.app`.
+- [ ] Existe `resources/views/proyectos/{project}/documentos/{docType}/projects/index (barra de búsqueda).blade.php` que extiende `layouts.app`.
+- [ ] Existe `resources/views/proyectos/{project}/documentos/{docType}/projects/index (columna Docs).blade.php` que extiende `layouts.app`.
 - [ ] El index pagina con `paginate(25)`; búsqueda/filtros: En el listado de Proyectos, el buscador existente (parámetro search) también busca por número de contrato (project_works.contract_number) de las obras del proyecto, además de nombre y cliente.
 - [ ] Los errores de validación se muestran en el formulario y el modal de creación se reabre si hay errores.
 - [ ] Eliminar pide confirmación previa.
 - [ ] Los mensajes flash usan las llaves success / error / info.
 - [ ] No se modificó ningún archivo protegido del perfil del proyecto.
 - [ ] No se generó nada listado en Fuera de alcance ni se instalaron paquetes nuevos.
+- [ ] Los commits incluyen `[HR-003]` en el mensaje.
 
 ---
 
-_Generado con Estoria Spec Tool v2 · Estoria Studio_
+_Generado con Estoria Spec Tool v3 · Estoria Studio_

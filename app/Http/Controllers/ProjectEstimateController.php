@@ -8,23 +8,12 @@ use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProjectEstimateController extends Controller
 {
-    private const DOCUMENTS = [
-        'invoice_pdf' => ['column' => 'invoice_pdf_path', 'extension' => 'pdf'],
-        'invoice_xml' => ['column' => 'invoice_xml_path', 'extension' => 'xml'],
-        'credit_note_pdf' => ['column' => 'credit_note_pdf_path', 'extension' => 'pdf'],
-        'credit_note_xml' => ['column' => 'credit_note_xml_path', 'extension' => 'xml'],
-        'spei_receipt' => ['column' => 'spei_receipt_path', 'extension' => 'pdf'],
-        'liquidation_slip' => ['column' => 'liquidation_slip_path', 'extension' => 'pdf'],
-    ];
-
     public function __construct(private NotificationService $notification) {}
 
     public function create(Project $project): View
@@ -40,30 +29,9 @@ class ProjectEstimateController extends Controller
         $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project);
 
-        $uploadedPaths = [];
-
-        try {
-            $estimate = DB::transaction(function () use ($request, $project, $data, &$uploadedPaths) {
-                $estimate = $project->estimates()->create(array_merge($data, [
-                    'created_by' => Auth::id(),
-                ]));
-
-                [$documentData, $uploadedPaths] = $this->storeDocuments($request, $estimate);
-
-                if ($documentData) {
-                    $estimate->update($documentData);
-                }
-
-                return $estimate;
-            });
-        } catch (\Throwable $exception) {
-            $this->deleteStoredPaths($uploadedPaths);
-            report($exception);
-
-            return back()->withInput()->withErrors([
-                'liquidation_slip' => 'No se pudo almacenar el archivo en S3. Intenta nuevamente.',
-            ]);
-        }
+        $estimate = $project->estimates()->create(array_merge($data, [
+            'created_by' => Auth::id(),
+        ]));
 
         $this->notification->send([
             'type' => 'ProjectEstimate',
@@ -83,24 +51,7 @@ class ProjectEstimateController extends Controller
         $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project, $estimate);
 
-        $uploadedPaths = [];
-        $replacedPaths = [];
-
-        try {
-            DB::transaction(function () use ($request, $estimate, $data, &$uploadedPaths, &$replacedPaths) {
-                [$documentData, $uploadedPaths, $replacedPaths] = $this->storeDocuments($request, $estimate, true);
-                $estimate->update(array_merge($data, $documentData));
-            });
-        } catch (\Throwable $exception) {
-            $this->deleteStoredPaths($uploadedPaths);
-            report($exception);
-
-            return back()->withInput()->withErrors([
-                'liquidation_slip' => 'No se pudo almacenar el archivo en S3. Intenta nuevamente.',
-            ]);
-        }
-
-        $this->deleteStoredPaths($replacedPaths);
+        $estimate->update($data);
 
         $this->notification->send([
             'type' => 'ProjectEstimate',
@@ -114,44 +65,14 @@ class ProjectEstimateController extends Controller
             ->with('success', 'Estimación actualizada correctamente.');
     }
 
-    public function updateDocuments(Request $request, ProjectEstimate $estimate): RedirectResponse
-    {
-        $request->validateWithBag('estimateDocuments', $this->documentValidationRules());
-
-        $uploadedPaths = [];
-        $replacedPaths = [];
-
-        try {
-            [$documentData, $uploadedPaths, $replacedPaths] = $this->storeDocuments($request, $estimate, true);
-            $estimate->update($documentData);
-        } catch (\Throwable $exception) {
-            $this->deleteStoredPaths($uploadedPaths);
-            report($exception);
-
-            return back()->withInput()->withErrors([
-                'attachments' => 'No se pudo almacenar uno de los archivos en S3. Intenta nuevamente.',
-            ], 'estimateDocuments');
-        }
-
-        $this->deleteStoredPaths($replacedPaths);
-
-        $this->notification->send([
-            'type' => 'ProjectEstimate',
-            'action_by' => Auth::id(),
-            'model_action' => 'update',
-            'model_id' => $estimate->id,
-            'data' => 'actualizó los archivos de la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
-        ]);
-
-        return redirect()->route('projects.show', $estimate->project)
-            ->with('success', 'Archivos de la estimación actualizados correctamente.');
-    }
-
     public function destroy(ProjectEstimate $estimate): RedirectResponse
     {
         $project = $estimate->project;
         $estimateNumber = $estimate->estimate_number;
-        $documentPaths = $this->documentPaths($estimate);
+        $documentPaths = array_merge(
+            $estimate->files()->pluck('file_path')->all(),
+            $estimate->invoices->flatMap->storedPaths()->all()
+        );
         $estimate->delete();
         $this->deleteStoredPaths($documentPaths);
 
@@ -165,45 +86,6 @@ class ProjectEstimateController extends Controller
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Estimación eliminada correctamente.');
-    }
-
-    public function download(ProjectEstimate $estimate, string $document): mixed
-    {
-        abort_unless(array_key_exists($document, self::DOCUMENTS), 404);
-
-        $definition = self::DOCUMENTS[$document];
-        $path = $estimate->{$definition['column']};
-
-        abort_unless($path && Storage::disk('s3')->exists($path), 404);
-
-        return Storage::disk('s3')->download(
-            $path,
-            $estimate->estimate_number . '-' . $document . '.' . $definition['extension']
-        );
-    }
-
-    public function destroyDocument(ProjectEstimate $estimate, string $document): RedirectResponse
-    {
-        abort_unless(array_key_exists($document, self::DOCUMENTS), 404);
-
-        $definition = self::DOCUMENTS[$document];
-        $path = $estimate->{$definition['column']};
-
-        abort_unless($path, 404);
-
-        $estimate->update([$definition['column'] => null]);
-        $this->deleteStoredPaths([$path]);
-
-        $this->notification->send([
-            'type' => 'ProjectEstimate',
-            'action_by' => Auth::id(),
-            'model_action' => 'update',
-            'model_id' => $estimate->id,
-            'data' => 'eliminó el archivo ' . $document . ' de la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
-        ]);
-
-        return redirect()->route('projects.show', $estimate->project)
-            ->with('success', 'Archivo de la estimación eliminado correctamente.');
     }
 
     private function isEngineerRoute(): bool
@@ -276,14 +158,7 @@ class ProjectEstimateController extends Controller
             'funeral_expense_amount' => ['nullable', 'numeric', 'min:0'],
             'delay_penalty_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'attach_liquidation_slip' => ['nullable', 'boolean'],
-            'liquidation_slip' => [
-                Rule::requiredIf(fn () => $request->boolean('attach_liquidation_slip') && ! $estimate?->liquidation_slip_path),
-                'nullable', 'file', 'mimes:pdf', 'max:10240',
-            ],
         ]);
-
-        unset($validated['attach_liquidation_slip'], $validated['liquidation_slip']);
 
         foreach ([
             'returned_retention_amount',
@@ -300,59 +175,6 @@ class ProjectEstimateController extends Controller
         }
 
         return $validated;
-    }
-
-    private function documentValidationRules(): array
-    {
-        return [
-            'invoice_pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
-            'invoice_xml' => ['nullable', 'file', 'mimes:xml', 'max:10240'],
-            'credit_note_pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
-            'credit_note_xml' => ['nullable', 'file', 'mimes:xml', 'max:10240'],
-            'spei_receipt' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
-            'liquidation_slip' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
-        ];
-    }
-
-    private function storeDocuments(Request $request, ProjectEstimate $estimate, bool $replace = false): array
-    {
-        $documentData = [];
-        $uploadedPaths = [];
-        $replacedPaths = [];
-
-        foreach (self::DOCUMENTS as $input => $definition) {
-            if (! $request->hasFile($input)) {
-                continue;
-            }
-
-            $fileName = $input . '-' . Str::uuid() . '.' . $definition['extension'];
-            $path = Storage::disk('s3')->putFileAs(
-                "projects/{$estimate->project_id}/estimates/{$estimate->id}",
-                $request->file($input),
-                $fileName
-            );
-
-            if (! $path) {
-                throw new \RuntimeException("No se pudo guardar el archivo {$input}.");
-            }
-
-            $documentData[$definition['column']] = $path;
-            $uploadedPaths[] = $path;
-
-            if ($replace && $estimate->{$definition['column']}) {
-                $replacedPaths[] = $estimate->{$definition['column']};
-            }
-        }
-
-        return [$documentData, $uploadedPaths, $replacedPaths];
-    }
-
-    private function documentPaths(ProjectEstimate $estimate): array
-    {
-        return collect(self::DOCUMENTS)
-            ->map(fn ($definition) => $estimate->{$definition['column']})
-            ->filter()
-            ->all();
     }
 
     private function deleteStoredPaths(array $paths): void

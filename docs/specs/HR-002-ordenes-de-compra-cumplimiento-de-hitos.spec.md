@@ -1,9 +1,11 @@
 ---
 spec_id: HR-002
 type: ext-subresource
-module: Cumplimiento de hitos
-target: Órdenes de compra → Entregas y panel Checklist del hito (purchase_order_milestones): checklist de autorización de pagos, estado del evento y cierre de la OC
+title: Cumplimiento de hitos
+module: Ordenes de Compra
+module_key: ordenes_de_compra
 status: implementado
+implemented: 2026-10-30
 author: Jorge Peña
 reviewers: [Mariam]
 branch: master
@@ -16,7 +18,11 @@ docs:
 open_questions: 0
 ---
 
-# HR-002 · Cumplimiento de hitos — Sub-recurso
+# HR-002 · Ordenes de Compra — Cumplimiento de hitos
+
+**Módulo:** Ordenes de Compra (`ordenes_de_compra`) · **Tipo:** C4 · Sub-recurso
+
+> ✓ Estado: **Implementado** (2026-10-30). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 
@@ -38,7 +44,7 @@ En el detalle de la OC, el usuario abre Entregas y el primer paso es elegir el t
 
 ## 2. Módulo afectado
 
-- **Módulo:** Órdenes de compra → Entregas y panel Checklist del hito (purchase_order_milestones): checklist de autorización de pagos, estado del evento y cierre de la OC
+- **Módulo:** Ordenes de Compra
 - **Usa Livewire:** no
 
 **Comportamiento actual**
@@ -189,7 +195,7 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 - [ ] Rutas anidadas shallow: index/store bajo el padre; show/edit/update/destroy por ID del hijo.
 - [ ] El hijo se muestra como sección/tabla dentro de show del padre.
 - [ ] Operaciones disponibles sobre el hijo: create.
-- [ ] Las mutaciones del hijo registran NotificationService con `type` = PurchaseOrder (notificación sobre la OC, `model_action` = update).
+- [ ] Las mutaciones del hijo registran NotificationService con `type` = PurchaseOrderMilestoneFulfillment.
 - [ ] Permanece igual: Los formularios de crear, editar y Modificar monto de hitos: el tipo de cumplimiento NO es un campo del hito y no se agregan columnas a purchase_order_milestones.
 - [ ] Permanece igual: El flujo de Recepción física: tabla de conceptos con cantidades, evidencia, purchase_orders.deliveries.store, "Confirmar entrega completa del hito" (requiere al menos una entrega ligada) y revertir entrega (solo Admin).
 - [ ] Permanece igual: Las columnas delivery_confirmed_at y delivery_confirmed_by: pasan a significar "cumplimiento verificado" para cualquier tipo, sin renombrarse; la ruta purchase_orders.milestones.confirm_delivery no cambia.
@@ -204,4 +210,4 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 
 ---
 
-_Generado con Estoria Spec Tool v2 · Estoria Studio_
+_Generado con Estoria Spec Tool v3 · Estoria Studio_

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjectEstimate extends Model
 {
@@ -37,15 +38,9 @@ class ProjectEstimate extends Model
         'funeral_expense_amount',
         'delay_penalty_amount',
         'invoice_number',
-        'invoice_pdf_path',
-        'invoice_xml_path',
-        'credit_note_pdf_path',
-        'credit_note_xml_path',
         'invoice_date',
         'invoice_amount',
         'spei_reference',
-        'spei_receipt_path',
-        'liquidation_slip_path',
         'spei_amount',
         'payment_date',
         'status',
@@ -80,6 +75,16 @@ class ProjectEstimate extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(ProjectEstimateFile::class);
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(ProjectEstimateInvoice::class);
     }
 
     public function getVatAmountAttribute(): float

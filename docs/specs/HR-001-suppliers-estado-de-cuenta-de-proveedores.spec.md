@@ -1,9 +1,11 @@
 ---
 spec_id: HR-001
 type: ext-action
-module: Estado de cuenta de proveedores
-target: Estado de cuenta de proveedores: exportación de PDFs de facturas y seguimiento de faltantes.
+title: Estado de cuenta de proveedores
+module: Proveedores
+module_key: suppliers
 status: implementado
+implemented: 
 author: Jorge Peña
 reviewers: [Mariam]
 branch: master
@@ -16,9 +18,11 @@ docs:
 open_questions: 0
 ---
 
-# HR-001 · Estado de cuenta de proveedores — Nueva acción
+# HR-001 · Proveedores — Estado de cuenta de proveedores
 
-> ⚠ Estado: **Borrador**. No implementar hasta que el estado sea "aprobado".
+**Módulo:** Proveedores (`suppliers`) · **Tipo:** C2 · Nueva acción
+
+> ✓ Estado: **Implementado**. Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 
@@ -40,7 +44,9 @@ Desde Exportar Documentos, junto a Exportar Excel, seleccionar el estatus del es
 
 ## 2. Módulo afectado
 
-- **Módulo:** Estado de cuenta de proveedores: exportación de PDFs de facturas y seguimiento de faltantes.
+- **Módulo:** Proveedores
+- **Controllers:** `SupplierAccountStatementController`, `SupplierController`
+- **Modelos:** `PurchaseOrder` (`purchase_orders`), `Supplier` (`suppliers`)
 - **Usa Livewire:** no
 
 **Comportamiento actual**
@@ -169,4 +175,4 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 
 ---
 
-_Generado con Estoria Spec Tool v2 · Estoria Studio_
+_Generado con Estoria Spec Tool v3 · Estoria Studio_

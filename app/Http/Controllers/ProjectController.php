@@ -104,7 +104,7 @@ class ProjectController extends Controller
             'documents',
             'manager:id,name',
             'agreements' => fn ($q) => $q->with('works')->latest(),
-            'estimates' => fn ($q) => $q->with('creator')->latest('estimate_date'),
+            'estimates' => fn ($q) => $q->with(['creator', 'files', 'invoices'])->latest('estimate_date'),
         ]);
 
         $docCategories = ProjectDocument::CATEGORIES;
