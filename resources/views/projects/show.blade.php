@@ -136,17 +136,29 @@
                             @include('projects._document_row', ['project' => $project, 'catKey' => $catKey, 'dt' => $dt, 'dtLabel' => $dtLabel])
                         @endforeach
                     @endforeach
-                </tbody>
-            </table>
-        </div>
-        <div class="border-top">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 bg-light-subtle">
-                <div class="d-flex align-items-center gap-2">
-                    <h6 class="fw-semibold text-uppercase fs-12 text-muted mb-0">
-                        <i class="ri-file-edit-line me-1"></i>Convenios
-                    </h6>
-                    <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
-                </div>
+                    {{-- Convenios (colapsable, misma estructura que las categorías) --}}
+                    <tr class="table-light"
+                        style="cursor: pointer;"
+                        data-bs-toggle="collapse"
+                        data-bs-target=".doc-group-agreements"
+                        aria-expanded="false">
+                        @role('admin|Proyectos')
+                        <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
+                        @else
+                        <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
+                        @endrole
+                            <i class="ri-file-edit-line me-1"></i>Convenios
+                            <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
+                            <i class="ri-arrow-down-s-line float-end me-2 category-chevron"></i>
+                        </td>
+                    </tr>
+                    <tr class="collapse doc-group-agreements">
+                        @role('admin|Proyectos')
+                        <td colspan="5" class="p-0">
+                        @else
+                        <td colspan="4" class="p-0">
+                        @endrole
+            <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 px-3 py-2">
                 @role('admin|Proyectos')
                     @if ($project->works->isNotEmpty())
                         <button type="button" class="btn btn-sm btn-primary"
@@ -207,6 +219,10 @@
                     </tbody>
                 </table>
             </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
