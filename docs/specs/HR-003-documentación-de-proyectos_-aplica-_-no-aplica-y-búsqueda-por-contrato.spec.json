@@ -1,0 +1,258 @@
+{
+  "version": 2,
+  "type": "new",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-003",
+    "module": "Documentación de proyectos: Aplica / No aplica y búsqueda por contrato",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "master",
+    "created": "2026-11-02",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Permitir marcar cada documento del checklist documental de un proyecto como \"No aplica\" para que el contador de documentos del listado de Proyectos (y el de cada categoría en el detalle) solo cuente los documentos que sí aplican, eliminando el ruido visual del semáforo causado por documentos que ese proyecto nunca va a tener. Además, permitir buscar proyectos por número de contrato desde el buscador del listado.",
+    "flow": "En el detalle del proyecto, tabla \"Documentación del Proyecto\", un usuario admin o Proyectos ve en cada documento sin archivo el botón \"No aplica\" junto a \"Subir\". Al pulsarlo se envía una petición AJAX, sin recargar la página, y el documento queda marcado como No aplica: la fila se actualiza en el lugar (conservando la categoría expandida) con el badge gris \"No aplica\", el punto del semáforo en estilo neutro, sin el botón \"Subir\" y con \"Marcar como aplica\" para revertirlo; el contador de la categoría se actualiza en el mismo momento y se muestra un aviso en la tarjeta del checklist. El contador de la categoría pasa de {subidos}/{total} a {subidos}/{total que aplican}. En el listado de Proyectos, la columna Docs muestra un badge por categoría con ese mismo conteo; si todos los documentos de una categoría son No aplica, el badge de esa categoría no se muestra. En el buscador del listado el usuario puede escribir un número de contrato (completo o parcial) y ver los proyectos que tengan una obra con ese contrato.",
+    "prefix": "/proyectos/{project}/documentos/{docType}",
+    "middleware": "role:admin|Proyectos|Solmat (grupo existente de proyectos); la acción exige admin o Proyectos en el controller, igual que los botones de subida en la vista",
+    "search": "En el listado de Proyectos, el buscador existente (parámetro search) también busca por número de contrato (project_works.contract_number) de las obras del proyecto, además de nombre y cliente",
+    "uploads": false,
+    "disk": "s3",
+    "uploads_notes": "No se suben archivos nuevos. Las subidas existentes (uploadDocument y carga por chunks, disco s3) solo se bloquean cuando el documento está marcado como No aplica.",
+    "import_cfg": "",
+    "uri": "/proyectos/{project}/documentos/{docType}/aplicabilidad",
+    "route_name": "projects.document.applicability",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": false,
+    "seo_notes": "",
+    "target": "Proyectos → detalle (checklist \"Documentación del Proyecto\") y listado (columna Docs): tabla project_documents, modelos ProjectDocument y Project",
+    "target_ref": null,
+    "current": "Hoy el checklist documental usa ProjectDocument::CATEGORIES (3 categorías, 17 documentos fijos: Licitación 2, Contratación 8, Entrega-Recepción 7). Cada documento tiene un semáforo binario (gris sin archivo, verde subido; ProjectDocument::getStatusAttribute). El listado (projects/index.blade.php) muestra por categoría un badge {subidos}/{count(docs)} verde/amarillo/gris, y el detalle (projects/show.blade.php) lo repite en el encabezado de cada categoría. Project::hasAllDocuments() exige los 17 documentos subidos. No existe forma de indicar que un documento no es requerido en un proyecto concreto, por lo que esos proyectos nunca llegan a verde y el listado queda con ruido visual.",
+    "uses_livewire": false,
+    "table": "project_documents",
+    "strategy": "default",
+    "backfill": "No requiere: la columna nueva tiene default false, por lo que todos los registros existentes quedan como \"Aplica\" y el conteo actual no cambia.",
+    "impact": {
+      "validation": true,
+      "forms": false,
+      "index": true,
+      "filters": true,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "ProjectController",
+    "method": "updateDocumentApplicability",
+    "verb": "PATCH",
+    "action_uri": "/proyectos/{project}/documentos/{docType}/aplicabilidad",
+    "action_route": "projects.document.applicability",
+    "who": "admin, Proyectos",
+    "input": "not_applicable (boolean)",
+    "response": "json",
+    "trigger": "Botones \"No aplica\" / \"Marcar como aplica\" en cada fila del checklist de projects/show.blade.php",
+    "notify": false,
+    "notify_data": "",
+    "rule_current": "Todos los documentos de ProjectDocument::allDocTypes() cuentan siempre en el total de su categoría y en Project::hasAllDocuments().",
+    "rule_new": "Los documentos con not_applicable = true se excluyen del total (denominador) de su categoría y de Project::hasAllDocuments(); nunca cuentan como subidos ni como pendientes.",
+    "historic": "Los proyectos existentes conservan su conteo actual porque ningún documento está marcado como No aplica hasta que un usuario lo haga.",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "",
+    "placement": "",
+    "child_render": "",
+    "child_ops": {
+      "create": false,
+      "edit": false,
+      "delete": false,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "ProjectDocument",
+      "table": "project_documents",
+      "expose": "existing",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "not_applicable",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default false · true = el documento \"No aplica\" para ese proyecto · se agrega con migración nueva ALTER (no se edita 2026_06_15_220000_create_project_documents_table) · incluir en $fillable y en $casts como boolean"
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "newFields": [
+    {
+      "name": "not_applicable",
+      "type": "boolean",
+      "nullable": false,
+      "extra": "project_documents.not_applicable, default false, después de file_path"
+    }
+  ],
+  "views": [
+    {
+      "name": "projects/show (checklist Documentación del Proyecto, fila de documento)",
+      "render": "blade",
+      "behavior": "Documento Aplica sin archivo: punto gris, \"Sin archivo\", botones \"Subir\" y \"No aplica\" (este último solo admin|Proyectos, en un form PATCH enviado por AJAX (fetch) con not_applicable=1, sin confirmación). Documento Aplica con archivo: igual que hoy (punto verde, ver, \"Reemplazar\"); NO se muestra el botón \"No aplica\". Documento No aplica: punto neutro (borde gris, sin relleno) con title \"{documento}: No aplica\", badge gris \"No aplica\" en la columna Archivo, fecha \"—\", sin botón \"Subir\" y con botón \"Marcar como aplica\" (form PATCH con not_applicable=0). Los modales de subida se generan para todos los documentos (también los No aplica) para que \"Subir\" funcione tras marcar como Aplica sin recargar; el botón \"Subir\" solo aparece en documentos Aplica. La fila y el badge de categoría se renderizan con parciales (projects/_document_row y projects/_document_category_badge) que usan tanto la vista como la respuesta AJAX."
+    },
+    {
+      "name": "projects/show (checklist, encabezado de categoría)",
+      "render": "blade",
+      "behavior": "El badge de la categoría muestra {subidos}/{aplican}. Es verde cuando subidos = aplican y aplican > 0; secundario en otro caso. Si aplican = 0 (todos No aplica) el badge no se muestra. El contador se obtiene del helper del modelo Project, no se recalcula en la vista."
+    },
+    {
+      "name": "projects/index (barra de búsqueda)",
+      "render": "blade",
+      "behavior": "El input search existente conserva su comportamiento y cambia el placeholder a \"Buscar por nombre, cliente o número de contrato…\". Al buscar un número de contrato se listan los proyectos que tengan al menos una obra con ese contrato (coincidencia parcial). El botón de limpiar y la paginación con withQueryString no cambian."
+    },
+    {
+      "name": "projects/index (columna Docs)",
+      "render": "blade",
+      "behavior": "Por cada categoría se muestra el badge con {subidos}/{aplican} y el color actual (verde completo, amarillo parcial, gris en 0). Si aplican = 0 el badge de la categoría no se renderiza. El tooltip indica \"{Categoría}: {subidos}/{aplican} documentos\" y, si hay alguno, \" · {n} no aplican\". Usa la relación documents ya cargada con ->with('documents'), sin consultas adicionales por proyecto."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "aplica",
+      "label": "Aplica",
+      "to": "no_aplica (solo si el documento no tiene archivo)"
+    },
+    {
+      "value": "no_aplica",
+      "label": "No aplica",
+      "to": "aplica (\"Marcar como aplica\")"
+    }
+  ],
+  "sources": [
+    {
+      "model": "ProjectDocument",
+      "filter": "project_id = proyecto, document_type = docType",
+      "fields": "file_path, not_applicable, uploaded_at"
+    }
+  ],
+  "files": [
+    "database/migrations/2026_11_02_000000_add_not_applicable_to_project_documents_table.php (nueva; add boolean not_applicable default false; down elimina la columna)",
+    "app/Models/ProjectDocument.php (not_applicable en $fillable y $casts; getStatusAttribute devuelve 'na' cuando not_applicable)",
+    "app/Models/Project.php (helper documentCategoryProgress(string $catKey): ['uploaded', 'applicable', 'not_applicable']; hasAllDocuments() excluye No aplica)",
+    "app/Http/Controllers/ProjectController.php (index: búsqueda también por project_works.contract_number con orWhereHas('works'); nuevo updateDocumentApplicability; uploadDocument, initChunkUpload y finalizeChunkUpload rechazan documentos No aplica)",
+    "routes/web.php (PATCH projects.document.applicability dentro del grupo role:admin|Proyectos|Solmat existente)",
+    "resources/views/projects/_document_row.blade.php y _document_category_badge.blade.php (nuevos parciales compartidos por la vista y la respuesta AJAX)",
+    "resources/views/projects/show.blade.php (solo el checklist documental: filas, encabezado de categoría y botones)",
+    "resources/views/projects/index.blade.php (solo el placeholder del buscador y el bloque de badges de la columna Docs)"
+  ],
+  "keep": [
+    "ProjectDocument::CATEGORIES y allDocTypes(): la lista de documentos y categorías no cambia; No aplica es por proyecto, no del catálogo.",
+    "El flujo de subida, reemplazo y carga por chunks a S3 (rutas projects.document.upload y projects.document.chunk.*) para documentos que Aplican.",
+    "Los colores actuales de los badges del listado (verde completo, amarillo parcial, gris en 0) y la columna Estatus del proyecto.",
+    "Convenios, estimaciones y sus documentos (ProjectEstimateController::DOCUMENTS) y la sección de obras del detalle.",
+    "Las migraciones ya corridas: no se edita la tabla project_documents existente, solo se agrega una migración nueva.",
+    "Los archivos protegidos de _project.json."
+  ],
+  "risks": [
+    "Un registro ProjectDocument no existe hasta que se sube un archivo: marcar No aplica debe usar $project->documents()->firstOrNew(['document_type' => $docType]) y guardar con file_path null; el helper de conteo debe contar por registros con not_applicable = true y no asumir filas para todos los documentos.",
+    "Sin el bloqueo en uploadDocument, initChunkUpload y finalizeChunkUpload, un documento No aplica podría recibir un archivo y quedar con file_path y not_applicable a la vez, contando mal. El bloqueo se aplica en el backend, no solo ocultando el botón.",
+    "Project::hasAllDocuments() cambia de semántica: una categoría o un proyecto con todos los documentos No aplica se considera completo. Hoy ningún código fuera del modelo lo consume (verificado con grep), pero cualquier uso futuro debe saberlo.",
+    "La ruta vive en el grupo role:admin|Proyectos|Solmat, que incluye Solmat. La vista solo muestra los botones a admin|Proyectos, por lo que el controller debe exigir el mismo rol (403) para que Solmat no pueda marcarlo por petición directa.",
+    "La búsqueda por contrato debe agruparse con where(fn ...) junto a nombre y cliente (como hoy) para no romper otros filtros; usar whereHas/orWhereHas y no join, igual que la búsqueda actual.",
+    "El conteo se calcula en el listado sobre la colección documents ya eager loaded: no introducir consultas por fila (N+1) al reutilizar el helper."
+  ],
+  "cases": [
+    "Proyecto con Fianza Anticipo, Fianza Calidad y Sindicato sin subir y marcados No aplica: Contratación pasa de 5/8 a 5/5 en verde en el listado y en el detalle.",
+    "Documento sin archivo: el botón \"No aplica\" lo marca; la fila muestra badge \"No aplica\" y el botón \"Marcar como aplica\"; el botón \"Subir\" desaparece.",
+    "Documento No aplica que se revierte con \"Marcar como aplica\": vuelve a contar en el total de su categoría como pendiente y reaparece \"Subir\".",
+    "Documento con archivo subido: no muestra el botón \"No aplica\"; una petición directa PATCH con not_applicable=1 se rechaza con mensaje de error.",
+    "Categoría con todos sus documentos No aplica (p. ej. Licitación 0/0): el badge de esa categoría no aparece en el listado.",
+    "Proyecto con los 17 documentos subidos o No aplica: Project::hasAllDocuments() devuelve true.",
+    "Intento de subir archivo (formulario o chunks) a un documento No aplica por petición directa: se rechaza (redirect con error o 422 JSON en chunks) sin tocar S3.",
+    "Usuario Solmat o sin rol admin|Proyectos que envía el PATCH: 403.",
+    "docType inexistente en la ruta: 404, igual que las rutas de subida actuales.",
+    "Buscar en el listado un número de contrato (completo o parcial) de una obra: aparece el proyecto al que pertenece; si el proyecto tiene varias obras y solo una coincide, igual aparece una sola vez.",
+    "Buscar un texto que coincide con el nombre del proyecto, el cliente o un contrato: se muestran todos los proyectos que cumplan cualquiera de las tres condiciones.",
+    "Búsqueda por contrato que no existe: el listado queda vacío con el estado vacío actual."
+  ],
+  "rules": [
+    "La condición No aplica se guarda por proyecto y documento en project_documents.not_applicable (boolean, default false). El catálogo de documentos no cambia.",
+    "Solo un documento sin archivo (file_path nulo) puede marcarse como No aplica. Un documento con archivo no se puede marcar y el botón no se muestra.",
+    "Un documento No aplica no admite subida de archivos: el backend rechaza uploadDocument, initChunkUpload y finalizeChunkUpload. Para subir, primero se debe usar \"Marcar como aplica\"; no se reactiva automáticamente.",
+    "Los documentos No aplica no cuentan en el denominador ni en el numerador del conteo de su categoría: el conteo es {subidos}/{que aplican}, con subidos = documentos Aplica con file_path.",
+    "Color del badge de categoría: verde si subidos = aplican (y aplican > 0), amarillo si subidos > 0 y menor a aplican, gris si subidos = 0. Con aplican = 0 el badge se oculta.",
+    "El mismo cálculo alimenta el listado, el encabezado de categoría del detalle y Project::hasAllDocuments(); vive en un helper de Project (documentCategoryProgress) para no duplicar lógica en las vistas.",
+    "No se captura motivo ni se registra quién lo marcó: la acción solo cambia el flag.",
+    "Solo admin y Proyectos pueden marcar o revertir. La acción valida el rol en el controller (403) además del ocultamiento de botones en la vista.",
+    "Búsqueda por contrato: el número de contrato vive en project_works.contract_number (no en projects). El filtro search del listado agrega, con OR dentro del mismo grupo que nombre y cliente, una condición orWhereHas('works', contract_number like %search%). Sin join para no duplicar proyectos ni romper la paginación ni el addSelect de project_value.",
+    "La acción projects.document.applicability es AJAX: el controller responde JSON {message, not_applicable, category_key, row_html, badge_html} con la fila y el badge ya renderizados desde los parciales; el JS reemplaza la fila (conservando su estado expandido), actualiza el badge de la categoría y muestra un alert en la tarjeta, sin recargar. Errores: 422 con message (documento con archivo, validación) y 403/404; el JS los muestra como alert de error y rehabilita el botón. Se evitan doble clics mientras la petición está en curso.",
+    "Mensajes (alert en la tarjeta del checklist, no flash de sesión): éxito \"Documento marcado como No aplica.\" / \"Documento marcado como Aplica.\"; error \"No se puede marcar como No aplica un documento que ya tiene archivo.\" y \"Este documento está marcado como No aplica. Márcalo como Aplica para subir un archivo.\""
+  ],
+  "validations": [
+    {
+      "field": "not_applicable",
+      "rule": "requerido, boolean"
+    },
+    {
+      "field": "search (listado)",
+      "rule": "opcional, string; se aplica trim; coincidencia parcial (like) contra projects.name, projects.client_name y project_works.contract_number"
+    },
+    {
+      "field": "docType (ruta)",
+      "rule": "debe existir en ProjectDocument::allDocTypes(), de lo contrario abort(404)"
+    },
+    {
+      "field": "estado del documento (not_applicable = 1)",
+      "rule": "el registro no debe tener file_path; si lo tiene, 422 JSON con message y sin cambios"
+    },
+    {
+      "field": "estado del documento (subida)",
+      "rule": "uploadDocument, initChunkUpload y finalizeChunkUpload rechazan si el registro existe con not_applicable = true"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué pasará con los elementos ya registrados en el sistema (proyectos, documentos ya subidos, contadores actuales)?",
+      "a": "Nada cambia. La columna nueva tiene default false, así que todos los documentos existentes quedan como Aplica y los contadores actuales siguen iguales; no hay backfill. Los proyectos solo cambian su conteo cuando un usuario marca un documento como No aplica. Por confirmar."
+    },
+    {
+      "q": "¿Qué pasa si se intenta marcar No aplica un documento que ya tiene archivo?",
+      "a": "No se permite: el botón no aparece y el backend lo rechaza. Decidido por el equipo."
+    },
+    {
+      "q": "¿Se pide motivo al marcar No aplica?",
+      "a": "No. Decidido por el equipo: solo cambia el flag, sin motivo ni auditoría."
+    },
+    {
+      "q": "¿Qué se muestra cuando una categoría completa es No aplica?",
+      "a": "El badge de esa categoría se oculta en el listado y en el detalle. Decidido por el equipo."
+    },
+    {
+      "q": "¿Qué pasa al subir un archivo a un documento No aplica?",
+      "a": "Se bloquea la subida hasta que se marque manualmente como Aplica. Decidido por el equipo."
+    },
+    {
+      "q": "¿Dónde está el número de contrato y qué significa buscarlo en el listado de proyectos?",
+      "a": "El número de contrato es un campo de cada obra (project_works.contract_number), no del proyecto. Un proyecto puede tener varias obras, por lo que el proyecto aparece si alguna de sus obras coincide. No se busca en convenios (no tienen número de contrato). Decidido por el equipo: basta con el número de contrato de las obras."
+    },
+    {
+      "q": "¿Quién puede marcar Aplica / No aplica?",
+      "a": "admin y Proyectos, igual que subir documentos. Decidido por el equipo."
+    }
+  ],
+  "exceptions": [
+    "El spec es de extensión sobre ProjectController y solo la acción nueva usa PATCH; el resto de rutas de documentos siguen en POST como hasta hoy.",
+    "La acción projects.document.applicability responde JSON (AJAX) en lugar de redirect con flash, porque el checklist se actualiza sin recargar la página."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Historial o auditoría de quién y cuándo marcó No aplica.",
+    "Marcar No aplica desde el listado de Proyectos (solo se hace en el detalle).",
+    "Marcar categorías completas como No aplica en una sola acción.",
+    "Cambios al catálogo de documentos (ProjectDocument::CATEGORIES).",
+    "Búsqueda por contrato en otras vistas (obras, órdenes de compra) o filtros adicionales en el listado."
+  ],
+  "docsOff": []
+}

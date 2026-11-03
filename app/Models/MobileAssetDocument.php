@@ -27,6 +27,14 @@ class MobileAssetDocument extends Model
         'manual',
         'placas',
         'inspeccion_fisico_mecanica',
+        'factura',
+        'pedimento',
+    ];
+
+    // Documentos opcionales para cualquier tipo de bien (no afectan el semáforo)
+    public const OPTIONAL_DOCS = [
+        'factura',
+        'pedimento',
     ];
 
     // Documentos requeridos por tipo de bien
@@ -61,6 +69,8 @@ class MobileAssetDocument extends Model
             'licencia_conducir'       => 'Licencia de Conducir',
             'placas'                  => 'Placas',
             'inspeccion_fisico_mecanica' => 'Inspección Físico Mecánica',
+            'factura'                 => 'Factura',
+            'pedimento'               => 'Pedimento',
         ];
     }
 

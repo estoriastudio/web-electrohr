@@ -122,6 +122,12 @@ class PurchaseRequest extends Model
         return $this->hasMany(PurchaseRequestItem::class);
     }
 
+    // Con la SOLCOM en "Cambios Solicitados" se permite corregir la cantidad de conceptos ya fincados a una OC.
+    public function allowsLockedItemQuantityEdit(): bool
+    {
+        return $this->status === 'changes_requested';
+    }
+
     public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class);

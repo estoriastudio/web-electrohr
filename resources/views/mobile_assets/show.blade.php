@@ -231,17 +231,23 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($applicableDocTypes as $dt)
+                            @forelse (array_merge($applicableDocTypes, $optionalDocTypes) as $dt)
                                 @php
                                     $docRecord  = $mobileAsset->documents->firstWhere('document_type', $dt);
                                     $ds         = $docRecord ? $docRecord->status : 'gray';
                                     $hasExpiry  = ! in_array($dt, $noExpiryDocs);
+                                    $isOptional = in_array($dt, $optionalDocTypes);
                                 @endphp
                                 <tr>
                                     <td>
                                         <span class="traffic-dot traffic-{{ $ds }}" title="{{ ucfirst($ds) }}"></span>
                                     </td>
-                                    <td class="fw-medium fs-14">{{ $docLabels[$dt] ?? $dt }}</td>
+                                    <td class="fw-medium fs-14">
+                                        {{ $docLabels[$dt] ?? $dt }}
+                                        @if ($isOptional)
+                                            <span class="badge bg-light text-muted fw-normal ms-1">Opcional</span>
+                                        @endif
+                                    </td>
                                     <td class="fs-13 text-muted">
                                         @if (! $hasExpiry)
                                             <span class="text-muted fst-italic">Sin vencimiento</span>
@@ -558,7 +564,7 @@
      MODALES — Documentos (uno por tipo)
 ══════════════════════════════════════════════════════════════════ --}}
 @role('admin|Moviles')
-@foreach ($applicableDocTypes as $dt)
+@foreach (array_merge($applicableDocTypes, $optionalDocTypes) as $dt)
     @php
         $docRecord = $mobileAsset->documents->firstWhere('document_type', $dt);
         $hasExpiry = ! in_array($dt, $noExpiryDocs);

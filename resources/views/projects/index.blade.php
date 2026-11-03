@@ -56,7 +56,7 @@
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light"><i class="ri-search-line text-muted"></i></span>
                         <input type="text" name="search" value="{{ $search }}"
-                               class="form-control" placeholder="Buscar por nombre o cliente…"
+                               class="form-control" placeholder="Buscar por nombre, cliente o número de contrato…"
                                autocomplete="off">
                         @if ($search)
                             <a href="{{ route('projects.index') }}" class="btn btn-outline-secondary" title="Limpiar">
@@ -125,26 +125,26 @@
                                     <td>
                                         @php
                                             $categories = \App\Models\ProjectDocument::CATEGORIES;
+                                            $docProgress = $project->documentCategoryProgress();
                                         @endphp
                                         <div class="d-flex gap-1 flex-wrap">
                                             @foreach ($categories as $catKey => $category)
                                                 @php
-                                                    $catKeys     = array_keys($category['docs']);
-                                                    $catTotal    = count($catKeys);
-                                                    $catUploaded = $project->documents
-                                                        ->whereIn('document_type', $catKeys)
-                                                        ->whereNotNull('file_path')
-                                                        ->count();
+                                                    $catTotal    = $docProgress[$catKey]['applicable'];
+                                                    $catUploaded = $docProgress[$catKey]['uploaded'];
+                                                    $catNa       = $docProgress[$catKey]['not_applicable'];
                                                     $badgeClass  = $catUploaded === $catTotal
                                                         ? 'bg-success-subtle text-success'
                                                         : ($catUploaded > 0 ? 'bg-warning-subtle text-warning' : 'bg-secondary-subtle text-secondary');
                                                 @endphp
-                                                <span class="badge {{ $badgeClass }} py-1 px-2 fs-11"
-                                                      data-bs-toggle="tooltip"
-                                                      data-bs-placement="top"
-                                                      title="{{ $category['label'] }}: {{ $catUploaded }}/{{ $catTotal }} documentos">
-                                                    {{ $catUploaded }}/{{ $catTotal }}
-                                                </span>
+                                                @if ($catTotal > 0)
+                                                    <span class="badge {{ $badgeClass }} py-1 px-2 fs-11"
+                                                          data-bs-toggle="tooltip"
+                                                          data-bs-placement="top"
+                                                          title="{{ $category['label'] }}: {{ $catUploaded }}/{{ $catTotal }} documentos{{ $catNa > 0 ? ' · ' . $catNa . ' no aplican' : '' }}">
+                                                        {{ $catUploaded }}/{{ $catTotal }}
+                                                    </span>
+                                                @endif
                                             @endforeach
                                         </div>
                                     </td>

@@ -54,6 +54,14 @@ class MobileAsset extends Model
     }
 
     /**
+     * Documentos opcionales (factura, pedimento): aplican a todos los tipos y no afectan el semáforo.
+     */
+    public function getOptionalDocumentTypes(): array
+    {
+        return MobileAssetDocument::OPTIONAL_DOCS;
+    }
+
+    /**
      * Estado global del semáforo: el peor estado entre todos los documentos aplicables.
      * Orden de severidad: red > yellow > gray > green
      */

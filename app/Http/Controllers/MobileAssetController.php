@@ -202,11 +202,12 @@ class MobileAssetController extends Controller
         $mobileAsset->loadCount('maintenanceOrders');
 
         $applicableDocTypes = $mobileAsset->getApplicableDocumentTypes();
+        $optionalDocTypes   = $mobileAsset->getOptionalDocumentTypes();
         $docLabels          = MobileAssetDocument::labelsEs();
         $noExpiryDocs       = MobileAssetDocument::NO_EXPIRY_DOCS;
         $nextMaintenanceFolio = $this->previewNextMaintenanceFolio($mobileAsset);
         $hasDownloadableDocuments = $mobileAsset->documents
-            ->whereIn('document_type', $applicableDocTypes)
+            ->whereIn('document_type', array_merge($applicableDocTypes, $optionalDocTypes))
             ->whereNotNull('file_path')
             ->isNotEmpty()
             || $mobileAsset->maintenanceLogs->whereNotNull('inspection_file')->isNotEmpty();
@@ -215,6 +216,7 @@ class MobileAssetController extends Controller
         return view('mobile_assets.show', compact(
             'mobileAsset',
             'applicableDocTypes',
+            'optionalDocTypes',
             'docLabels',
             'noExpiryDocs',
             'nextMaintenanceFolio',
@@ -269,7 +271,10 @@ class MobileAssetController extends Controller
      */
     public function downloadDocumentsZip(MobileAsset $mobileAsset): RedirectResponse|BinaryFileResponse
     {
-        $applicableTypes = $mobileAsset->getApplicableDocumentTypes();
+        $applicableTypes = array_merge(
+            $mobileAsset->getApplicableDocumentTypes(),
+            $mobileAsset->getOptionalDocumentTypes()
+        );
         $docLabels = MobileAssetDocument::labelsEs();
 
         $documents = $mobileAsset->documents()

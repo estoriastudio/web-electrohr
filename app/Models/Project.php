@@ -67,10 +67,32 @@ class Project extends Model
      */
     public function hasAllDocuments(): bool
     {
-        $uploaded = $this->documents->whereNotNull('file_path')->pluck('document_type')->toArray();
-        $required = array_keys(ProjectDocument::allDocTypes());
+        return collect($this->documentCategoryProgress())
+            ->every(fn (array $progress) => $progress['uploaded'] === $progress['applicable']);
+    }
 
-        return count(array_diff($required, $uploaded)) === 0;
+    /**
+     * Avance documental por categoría, excluyendo los documentos "No aplica".
+     * Retorna [ category_key => ['uploaded', 'applicable', 'not_applicable', 'total'] ].
+     */
+    public function documentCategoryProgress(): array
+    {
+        $progress = [];
+
+        foreach (ProjectDocument::CATEGORIES as $catKey => $category) {
+            $catDocs = $this->documents->whereIn('document_type', array_keys($category['docs']));
+            $notApplicable = $catDocs->where('not_applicable', true)->count();
+            $total = count($category['docs']);
+
+            $progress[$catKey] = [
+                'uploaded' => $catDocs->where('not_applicable', false)->whereNotNull('file_path')->count(),
+                'applicable' => $total - $notApplicable,
+                'not_applicable' => $notApplicable,
+                'total' => $total,
+            ];
+        }
+
+        return $progress;
     }
 
     /**

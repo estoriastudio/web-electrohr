@@ -92,6 +92,7 @@
         </h5>
     </div>
     <div class="card-body p-0">
+        <div id="docApplicabilityAlert"></div>
         <div class="table-responsive">
             <table class="table align-middle mb-0 table-centered">
                 <thead class="bg-light-subtle">
@@ -106,10 +107,11 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @php $docProgress = $project->documentCategoryProgress(); @endphp
                     @foreach ($docCategories as $catKey => $category)
                         @php
-                            $docsUploaded = $project->documents->whereIn('document_type', array_keys($category['docs']))->whereNotNull('file_path')->count();
-                            $docsTotal    = count($category['docs']);
+                            $docsUploaded = $docProgress[$catKey]['uploaded'];
+                            $docsTotal    = $docProgress[$catKey]['applicable'];
                         @endphp
                         {{-- Fila de encabezado de categoría (colapsable) --}}
                         <tr class="table-light"
@@ -123,51 +125,15 @@
                             <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                             @endrole
                                 <i class="ri-folder-2-line me-1"></i>{{ $category['label'] }}
-                                <span class="badge bg-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }}-subtle text-{{ $docsUploaded === $docsTotal ? 'success' : 'secondary' }} ms-2 fw-normal">
-                                    {{ $docsUploaded }}/{{ $docsTotal }}
+                                <span id="docCatBadge_{{ $catKey }}">
+                                    @include('projects._document_category_badge', ['uploaded' => $docsUploaded, 'applicable' => $docsTotal])
                                 </span>
                                 <i class="ri-arrow-down-s-line float-end me-2 category-chevron"></i>
                             </td>
                         </tr>
                         {{-- Filas de documentos dentro de la categoría --}}
                         @foreach ($category['docs'] as $dt => $dtLabel)
-                            @php
-                                $docRecord = $project->documents->firstWhere('document_type', $dt);
-                                $hasFile   = $docRecord && $docRecord->file_path;
-                            @endphp
-                            <tr class="collapse doc-group-{{ $catKey }}">
-                                <td class="ps-4">
-                                    <span class="rounded-circle d-inline-block"
-                                          style="width: 12px; height: 12px; background: {{ $hasFile ? '#28a745' : '#adb5bd' }};"
-                                          title="{{ $dtLabel }}: {{ $hasFile ? 'Subido' : 'Pendiente' }}">
-                                    </span>
-                                </td>
-                                <td class="fw-medium fs-14">{{ $dtLabel }}</td>
-                                <td class="text-muted fs-12">
-                                    {{ $docRecord && $docRecord->uploaded_at ? $docRecord->uploaded_at->format('d/m/Y') : '—' }}
-                                </td>
-                                <td>
-                                    @if ($hasFile)
-                                        <a href="{{ \Illuminate\Support\Facades\Storage::disk('s3')->url($docRecord->file_path) }}"
-                                           target="_blank" class="btn btn-light btn-sm" title="Ver documento">
-                                            <i class="ri-file-download-line"></i>
-                                        </a>
-                                    @else
-                                        <span class="text-muted fs-12">Sin archivo</span>
-                                    @endif
-                                </td>
-                                @role('admin|Proyectos')
-                                <td>
-                                    <button type="button"
-                                            class="btn btn-soft-primary btn-sm"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#modalProjectDoc_{{ $dt }}">
-                                        <i class="ri-upload-2-line me-1"></i>
-                                        {{ $hasFile ? 'Reemplazar' : 'Subir' }}
-                                    </button>
-                                </td>
-                                @endrole
-                            </tr>
+                            @include('projects._document_row', ['project' => $project, 'catKey' => $catKey, 'dt' => $dt, 'dtLabel' => $dtLabel])
                         @endforeach
                     @endforeach
                 </tbody>
@@ -746,6 +712,73 @@
 
                 return data || {};
             }
+
+            function showApplicabilityAlert(message, isError) {
+                var container = document.getElementById('docApplicabilityAlert');
+                if (!container) return;
+                container.innerHTML = '';
+                var alert = document.createElement('div');
+                alert.className = 'alert alert-' + (isError ? 'danger' : 'success') + ' alert-dismissible fade show m-3 mb-0';
+                alert.setAttribute('role', 'alert');
+                alert.textContent = message;
+                var close = document.createElement('button');
+                close.type = 'button';
+                close.className = 'btn-close';
+                close.setAttribute('data-bs-dismiss', 'alert');
+                alert.appendChild(close);
+                container.appendChild(alert);
+            }
+
+            function htmlToElement(html) {
+                var template = document.createElement('template');
+                template.innerHTML = html.trim();
+                return template.content.firstElementChild;
+            }
+
+            document.getElementById('docApplicabilityAlert')?.closest('.card')?.addEventListener('submit', async function (event) {
+                var form = event.target.closest('.js-applicability-form');
+                if (!form) return;
+                event.preventDefault();
+
+                if (form.dataset.busy === '1') return;
+
+                form.dataset.busy = '1';
+                var button = form.querySelector('button[type="submit"]');
+                if (button) button.disabled = true;
+
+                try {
+                    var response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(form),
+                        credentials: 'same-origin',
+                    });
+                    var data = await response.json().catch(function () { return null; });
+
+                    if (!response.ok) {
+                        throw new Error(data?.message || 'No se pudo actualizar el documento.');
+                    }
+
+                    var oldRow = form.closest('tr');
+                    var newRow = htmlToElement(data.row_html);
+                    if (oldRow.classList.contains('show')) newRow.classList.add('show');
+                    oldRow.replaceWith(newRow);
+
+                    var badge = document.getElementById('docCatBadge_' + data.category_key);
+                    if (badge) badge.innerHTML = data.badge_html;
+
+                    showApplicabilityAlert(data.message, false);
+                } catch (error) {
+                    showApplicabilityAlert(error.message || 'No se pudo actualizar el documento.', true);
+                    if (button) button.disabled = false;
+                } finally {
+                    form.dataset.busy = '0';
+                }
+            });
 
             document.querySelectorAll('.js-multipart-upload-form').forEach(function (form) {
                 form.addEventListener('submit', async function (event) {

@@ -37,7 +37,8 @@ class ProjectController extends Controller
             ])
             ->when($search, fn ($q) => $q->where(fn ($searchQuery) => $searchQuery
                 ->where('name', 'like', "%{$search}%")
-                ->orWhere('client_name', 'like', "%{$search}%")))
+                ->orWhere('client_name', 'like', "%{$search}%")
+                ->orWhereHas('works', fn ($works) => $works->where('contract_number', 'like', "%{$search}%"))))
             ->latest()
             ->paginate(25)
             ->withQueryString();
@@ -219,6 +220,11 @@ class ProjectController extends Controller
             abort(404);
         }
 
+        if ($project->documents()->where('document_type', $docType)->where('not_applicable', true)->exists()) {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Este documento está marcado como No aplica. Márcalo como Aplica para subir un archivo.');
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:102400',
         ]);
@@ -243,10 +249,65 @@ class ProjectController extends Controller
             ->with('success', 'Documento actualizado correctamente.');
     }
 
+    public function updateDocumentApplicability(Request $request, Project $project, string $docType): JsonResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(['admin', 'Proyectos']), 403);
+
+        $docTypes = ProjectDocument::allDocTypes();
+        if (! array_key_exists($docType, $docTypes)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'not_applicable' => 'required|boolean',
+        ]);
+
+        $doc = $project->documents()->firstOrNew(['document_type' => $docType]);
+
+        if ($validated['not_applicable'] && $doc->file_path) {
+            return response()->json([
+                'message' => 'No se puede marcar como No aplica un documento que ya tiene archivo.',
+            ], 422);
+        }
+
+        $doc->not_applicable = (bool) $validated['not_applicable'];
+        $doc->save();
+
+        $project->load('documents');
+
+        $catKey = collect(ProjectDocument::CATEGORIES)
+            ->search(fn (array $category) => array_key_exists($docType, $category['docs']));
+        $progress = $project->documentCategoryProgress()[$catKey];
+
+        return response()->json([
+            'message' => $doc->not_applicable
+                ? 'Documento marcado como No aplica.'
+                : 'Documento marcado como Aplica.',
+            'not_applicable' => $doc->not_applicable,
+            'category_key' => $catKey,
+            'row_html' => view('projects._document_row', [
+                'project' => $project,
+                'catKey' => $catKey,
+                'dt' => $docType,
+                'dtLabel' => $docTypes[$docType],
+            ])->render(),
+            'badge_html' => view('projects._document_category_badge', [
+                'uploaded' => $progress['uploaded'],
+                'applicable' => $progress['applicable'],
+            ])->render(),
+        ]);
+    }
+
     public function initChunkUpload(Request $request, Project $project, string $docType): JsonResponse
     {
         if (! array_key_exists($docType, ProjectDocument::allDocTypes())) {
             abort(404);
+        }
+
+        if ($project->documents()->where('document_type', $docType)->where('not_applicable', true)->exists()) {
+            return response()->json([
+                'message' => 'Este documento está marcado como No aplica. Márcalo como Aplica para subir un archivo.',
+            ], 422);
         }
 
         $validated = $request->validate([
@@ -341,6 +402,12 @@ class ProjectController extends Controller
     {
         if (! array_key_exists($docType, ProjectDocument::allDocTypes())) {
             abort(404);
+        }
+
+        if ($project->documents()->where('document_type', $docType)->where('not_applicable', true)->exists()) {
+            return response()->json([
+                'message' => 'Este documento está marcado como No aplica. Márcalo como Aplica para subir un archivo.',
+            ], 422);
         }
 
         $validated = $request->validate([

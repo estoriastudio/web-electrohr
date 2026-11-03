@@ -232,6 +232,7 @@
                                     $purchaseQuantity = rtrim(rtrim(number_format((float) $item->purchase_quantity, 4, '.', ''), '0'), '.');
                                     $inheritedOrders = $item->inheritedOrders();
                                     $lockingOrder = $item->lockingOrder();
+                                    $canEditLockedQty = $lockingOrder && $purchaseRequest->allowsLockedItemQuantityEdit();
                                 @endphp
                                 <tr class="solcom-item-row">
                                     <td class="solcom-row-num text-muted fs-12">{{ $index + 1 }}</td>
@@ -295,7 +296,7 @@
                                     </td>
                                     <td style="min-width:170px">
                                         @hasanyrole('admin|Solcom')
-                                        @if ($lockingOrder)
+                                        @if ($lockingOrder && ! $canEditLockedQty)
                                             <span class="fw-bold fs-15" title="Bloqueado: fincado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
                                                 <i class="ri-lock-line text-muted me-1"></i>{{ $purchaseQuantity }}
                                             </span>
@@ -316,6 +317,11 @@
                                                 <i class="ri-add-line"></i>
                                             </button>
                                         </div>
+                                        @if ($canEditLockedQty)
+                                            <small class="text-warning d-block mt-1">
+                                                <i class="ri-alert-line me-1"></i>Fincado a OC #{{ $lockingOrder->folio }}: actualiza la compra manualmente
+                                            </small>
+                                        @endif
                                         @endif
                                         @else
                                         <span class="fw-bold fs-15">{{ $purchaseQuantity }}</span>

@@ -603,9 +603,14 @@ class PurchaseRequestController extends Controller
     }
 
     // Un concepto fincado en una OC Emitida o Autorizada no se puede modificar ni eliminar desde la SOLCOM.
-    private function rejectIfItemLocked(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
+    // Excepción: la cantidad sí se puede editar cuando la SOLCOM está en "Cambios Solicitados".
+    private function rejectIfItemLocked(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item, bool $quantityEdit = false)
     {
         abort_if($item->purchase_request_id !== $purchaseRequest->id, 404);
+
+        if ($quantityEdit && $purchaseRequest->allowsLockedItemQuantityEdit()) {
+            return null;
+        }
 
         $order = $item->lockingOrder();
 
@@ -629,13 +634,17 @@ class PurchaseRequestController extends Controller
             'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
         ]);
 
-        if ($response = $this->rejectIfItemLocked($request, $purchaseRequest, $item)) {
+        if ($response = $this->rejectIfItemLocked($request, $purchaseRequest, $item, true)) {
             return $response;
         }
 
-        // La cantidad a comprar no puede ser menor a la que ya se heredó a OC vigentes.
+        $lockingOrder     = $item->lockingOrder();
+        $previousQuantity = (float) $item->purchase_quantity;
+
+        // La cantidad a comprar no puede ser menor a la que ya se heredó a OC vigentes,
+        // salvo al corregir un concepto bloqueado con la SOLCOM en "Cambios Solicitados".
         $inheritedQuantity = $item->inherited_quantity;
-        if (round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
+        if (!$lockingOrder && round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
             $message = 'La cantidad a comprar no puede ser menor a la ya fincada a OC (' . rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.') . ').';
 
             return $request->wantsJson()
@@ -644,6 +653,21 @@ class PurchaseRequestController extends Controller
         }
 
         $item->update($data);
+
+        // Trazabilidad: el cambio sobre un concepto ya fincado queda registrado en las observaciones de la SOLCOM.
+        if ($lockingOrder && round($previousQuantity, 4) !== round((float) $item->purchase_quantity, 4)) {
+            $format = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
+
+            $observations   = $purchaseRequest->observations ?? [];
+            $observations[] = [
+                'user_id'    => Auth::id(),
+                'user_name'  => Auth::user()->name,
+                'text'       => "Cantidad a comprar del concepto {$item->code} ({$item->description}) modificada de {$format($previousQuantity)} a {$format($item->purchase_quantity)} {$item->unit}. Concepto fincado a la OC #{$lockingOrder->folio}.",
+                'created_at' => now()->toDateTimeString(),
+            ];
+
+            $purchaseRequest->update(['observations' => $observations]);
+        }
 
         if ($request->wantsJson()) {
             return response()->json([

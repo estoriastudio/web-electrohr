@@ -12,10 +12,12 @@ class ProjectDocument extends Model
         'document_type',
         'file_path',
         'uploaded_at',
+        'not_applicable',
     ];
 
     protected $casts = [
         'uploaded_at' => 'date',
+        'not_applicable' => 'boolean',
     ];
 
     /**

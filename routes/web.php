@@ -257,6 +257,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
                 ->name('projects.document.upload');
 
+            Route::patch('/proyectos/{project}/documentos/{docType}/aplicabilidad', [ProjectController::class, 'updateDocumentApplicability'])
+                ->name('projects.document.applicability');
+
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/init', [ProjectController::class, 'initChunkUpload'])
                 ->name('projects.document.chunk.init');
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/upload', [ProjectController::class, 'uploadChunk'])
