@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Supplier extends Model
@@ -145,27 +147,27 @@ class Supplier extends Model
         ]));
     }
 
-    public function purchaseOrders()
+    public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class);
     }
 
-    public function materialVouchers()
+    public function materialVouchers(): HasMany
     {
         return $this->hasMany(MaterialVoucher::class);
     }
 
-    public function contacts()
+    public function contacts(): HasMany
     {
         return $this->hasMany(SupplierContact::class);
     }
 
-    public function primaryContact()
+    public function primaryContact(): HasOne
     {
         return $this->hasOne(SupplierContact::class)->where('is_primary', true);
     }
 
-    public function locations()
+    public function locations(): HasMany
     {
         return $this->hasMany(SupplierLocation::class);
     }

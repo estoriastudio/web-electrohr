@@ -30,13 +30,14 @@ use Throwable;
  */
 class DocsMap extends Command
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.2.0';
 
     protected $signature = 'docs:map
         {--check : Compara el código contra los specs y termina con error si hay diferencias}
         {--strict : Con --check, también falla por modelos que no tienen spec}
         {--output=docs/architecture/_code.json : Ruta del JSON de salida}
-        {--no-write : No escribe el JSON (útil junto con --check)}';
+        {--no-write : No escribe el JSON (útil junto con --check)}
+        {--suggest-architecture : Imprime una sección `architecture` sugerida para docs/specs/_project.json (no escribe nada)}';
 
     protected $description = 'Exporta la arquitectura real del proyecto (modelos, relaciones, rutas y módulos) para el visor de Estoria SDD';
 
@@ -45,7 +46,16 @@ class DocsMap extends Command
 
     private const RELATION_CALL = '/\$this->(hasOne|hasMany|belongsTo|belongsToMany|hasOneThrough|hasManyThrough|morphOne|morphMany|morphTo|morphToMany|morphedByMany)\s*\(/';
 
+    /** Clave de módulo funcional: snake_case en minúsculas, sin acentos. */
+    private const ARCH_KEY = '/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/';
+
     private array $warnings = [];
+
+    /** Cómo se asignó el módulo técnico de cada modelo: controller, spec o parent. */
+    private array $technicalVia = [];
+
+    /** Motivo por el que un modelo quedó sin módulo funcional. */
+    private array $unresolved = [];
 
     public function handle(): int
     {
@@ -58,6 +68,22 @@ class DocsMap extends Command
         $controllers = $this->inspectControllers($routes);
         $modules = $this->buildModules($models, $routes, $controllers, $nav, $specs);
 
+        [$architecture, $errors] = $this->buildArchitecture($project['architecture'] ?? null, $models, $modules);
+        if ($errors) {
+            foreach ($errors as $error) {
+                $this->components->error($error);
+            }
+            $this->components->error('Corrige la sección `architecture` de docs/specs/_project.json. No se escribió el mapa.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('suggest-architecture')) {
+            $this->printSuggestion($project['architecture'] ?? null, $models, $modules, $architecture);
+
+            return self::SUCCESS;
+        }
+
         $map = [
             'generator' => 'estoria/docs:map '.self::VERSION,
             'generated_at' => now()->toIso8601String(),
@@ -66,11 +92,15 @@ class DocsMap extends Command
             'packages' => $this->installedPackages(),
             'modules' => array_values($modules),
             'models' => array_values($models),
+            'architecture' => $architecture,
             'services' => $this->services($models, $controllers),
             'specs' => array_map(fn ($s) => [
                 'id' => $s['meta']['id'] ?? null,
                 'type' => $s['type'] ?? null,
+                'title' => $s['meta']['title'] ?? null,
                 'module' => $s['meta']['module'] ?? null,
+                'module_key' => $s['meta']['module_key'] ?? null,
+                'extends' => ($s['meta']['extends'] ?? '') ?: null,
                 'status' => $s['meta']['status'] ?? null,
                 'file' => $s['_file'],
             ], $specs),
@@ -84,7 +114,7 @@ class DocsMap extends Command
             $this->components->info('Arquitectura exportada a '.$this->option('output'));
         }
 
-        $this->printSummary($modules, $models);
+        $this->printSummary($modules, $models, $architecture);
 
         return $this->option('check') ? $this->check($specs, $models) : self::SUCCESS;
     }
@@ -459,7 +489,10 @@ class DocsMap extends Command
             $model = $this->modelForController($controller, $info, $models);
             if ($model && ! in_array(class_basename($model), $module['models'], true)) {
                 $module['models'][] = class_basename($model);
-                $models[$model]['module'] ??= $prefix;
+                if ($models[$model]['module'] === null) {
+                    $models[$model]['module'] = $prefix;
+                    $this->technicalVia[$model] = 'controller';
+                }
             }
 
             foreach ($nav['items'] as $routeName => $item) {
@@ -476,8 +509,10 @@ class DocsMap extends Command
         foreach ($specs as $spec) {
             $id = $spec['meta']['id'] ?? null;
             $specModels = collect($spec['models'] ?? [])->pluck('name')->filter()->all();
-            $target = $spec['v']['target'] ?? null;
-            $key = collect($modules)->first(fn ($m) => array_intersect($m['models'], $specModels) || ($target && in_array($target, $m['models'], true)))['key'] ?? null;
+            $target = $this->extFieldsModel($spec, $models) ?? ($spec['v']['target'] ?? null);
+            $moduleKey = $spec['meta']['module_key'] ?? null;
+            $key = ($moduleKey && isset($modules[$moduleKey]) ? $moduleKey : null)
+                ?? collect($modules)->first(fn ($m) => array_intersect($m['models'], $specModels) || ($target && in_array($target, $m['models'], true)))['key'] ?? null;
             if (! $key) {
                 continue;
             }
@@ -489,12 +524,15 @@ class DocsMap extends Command
                 $class = 'App\\Models\\'.$name;
                 if (isset($models[$class]) && $models[$class]['module'] === null) {
                     $models[$class]['module'] = $key;
+                    $this->technicalVia[$class] = 'spec';
                     $modules[$key]['models'][] = $name;
                 }
             }
         }
 
-        // Modelos sin módulo: se asignan al módulo de su padre (belongsTo) si es único
+        // Modelos sin módulo: se asignan al módulo de su padre (belongsTo) si es único.
+        // Los que no se resuelven aquí lo intentan en la vista funcional (buildArchitecture),
+        // que es la que emite el aviso model_without_module.
         foreach ($models as $class => $model) {
             if ($model['module'] !== null) {
                 continue;
@@ -503,9 +541,8 @@ class DocsMap extends Command
                 ->map(fn ($name) => $models['App\\Models\\'.$name]['module'] ?? null)->filter()->unique();
             if ($parents->count() === 1) {
                 $models[$class]['module'] = $parents->first();
+                $this->technicalVia[$class] = 'parent';
                 $modules[$parents->first()]['models'][] = $model['name'];
-            } else {
-                $this->warning('model_without_module', $model['name'], 'No se pudo asignar a un módulo (sin controller con rutas ni spec).');
             }
         }
 
@@ -554,6 +591,308 @@ class DocsMap extends Command
         }
 
         return collect($deps)->map(fn ($via, $key) => ['module' => $key, 'via' => array_values(array_unique($via))])->values()->all();
+    }
+
+    /* ───────────────────────── Pertenencia funcional ───────────────────────── */
+
+    /**
+     * Agrupa los modelos en módulos de negocio. Orden de resolución por modelo:
+     *   1. declared   → listado en `architecture.modules.*.models` de _project.json
+     *   2. technical  → su módulo técnico (controller o spec), traducido por `from`
+     *   3. prefix     → hereda del padre belongsTo cuyo nombre es prefijo del suyo
+     *      inherited  → hereda si sus padres belongsTo (sin `shared`) están en un solo módulo
+     *   4. unresolved → module null y aviso model_without_module con el motivo
+     * `area` (opcional) agrupa el módulo en el visor; si falta, el visor usa la de sus módulos técnicos.
+     * El paso 3 se repite por rondas hasta que no cambia nada, así que el orden de
+     * descubrimiento no influye y nunca se elige entre módulos distintos.
+     *
+     * @return array{0: ?array, 1: list<string>} [bloque architecture, errores de configuración]
+     */
+    private function buildArchitecture(mixed $config, array $models, array $modules): array
+    {
+        $errors = [];
+        $hasConfig = $config !== null;
+        if ($hasConfig && (! is_array($config) || ($config !== [] && array_is_list($config)))) {
+            return [null, ['`architecture` debe ser un objeto con `shared` y `modules`.']];
+        }
+        $config ??= [];
+        foreach (array_diff(array_keys($config), ['shared', 'modules']) as $field) {
+            $errors[] = "`architecture.{$field}` no es un campo conocido (usa `shared` y `modules`).";
+        }
+
+        $byName = [];
+        foreach ($models as $class => $model) {
+            if (isset($byName[$model['name']])) {
+                $errors[] = "Hay dos modelos llamados {$model['name']} ({$byName[$model['name']]} y {$class}); el mapa los identifica por nombre.";
+            }
+            $byName[$model['name']] ??= $class;
+        }
+        ksort($byName);
+
+        $strings = function (mixed $value, string $where) use (&$errors): array {
+            if ($value === null) {
+                return [];
+            }
+            if (! is_array($value) || ! array_is_list($value) || array_filter($value, fn ($v) => ! is_string($v) || trim($v) === '')) {
+                $errors[] = "{$where} debe ser una lista de textos.";
+
+                return [];
+            }
+
+            return array_values(array_unique(array_map('trim', $value)));
+        };
+
+        $shared = $strings($config['shared'] ?? null, '`architecture.shared`');
+        foreach ($shared as $name) {
+            if (! isset($byName[$name])) {
+                $errors[] = "`architecture.shared`: el modelo {$name} no existe en app/Models.";
+            }
+        }
+        sort($shared);
+
+        $declared = $config['modules'] ?? [];
+        if (! is_array($declared) || ($declared !== [] && array_is_list($declared))) {
+            $errors[] = '`architecture.modules` debe ser un objeto { "clave": { "name", "from", "models" } }.';
+            $declared = [];
+        }
+
+        $functional = []; // clave funcional => módulo
+        $claims = [];     // módulo técnico => clave funcional que lo agrupa
+        $explicit = [];   // modelo => clave funcional declarada
+        foreach ($declared as $key => $def) {
+            $where = "architecture.modules.{$key}";
+            if (! is_string($key) || ! preg_match(self::ARCH_KEY, $key)) {
+                $errors[] = "`{$where}`: la clave debe ir en snake_case, minúsculas y sin acentos (ej. ordenes_de_compra).";
+
+                continue;
+            }
+            if (! is_array($def) || ($def !== [] && array_is_list($def))) {
+                $errors[] = "`{$where}` debe ser un objeto.";
+
+                continue;
+            }
+            foreach (array_diff(array_keys($def), ['name', 'area', 'from', 'models']) as $field) {
+                $errors[] = "`{$where}.{$field}` no es un campo conocido (usa `name`, `area`, `from` y `models`).";
+            }
+            [$name, $area] = [$def['name'] ?? null, $def['area'] ?? null];
+            if ($name !== null && (! is_string($name) || trim($name) === '')) {
+                $errors[] = "`{$where}.name` debe ser un texto no vacío.";
+                $name = null;
+            }
+            if ($area !== null && (! is_string($area) || trim($area) === '')) {
+                $errors[] = "`{$where}.area` debe ser un texto no vacío.";
+                $area = null;
+            }
+
+            $from = $strings($def['from'] ?? null, "`{$where}.from`");
+            foreach ($from as $technical) {
+                if (! isset($modules[$technical])) {
+                    $errors[] = "`{$where}.from`: el módulo técnico `{$technical}` no existe (ver `modules[].key` en _code.json).";
+                }
+            }
+            if (isset($modules[$key]) && ! in_array($key, $from, true)) {
+                $from[] = $key; // un módulo funcional con la misma clave que uno técnico lo agrupa
+            }
+            sort($from);
+            foreach ($from as $technical) {
+                if (isset($claims[$technical]) && $claims[$technical] !== $key) {
+                    $errors[] = "El módulo técnico `{$technical}` lo agrupan `{$claims[$technical]}` y `{$key}`; debe estar en uno solo.";
+                }
+                $claims[$technical] ??= $key;
+            }
+
+            foreach ($strings($def['models'] ?? null, "`{$where}.models`") as $model) {
+                if (! isset($byName[$model])) {
+                    $errors[] = "`{$where}.models`: el modelo {$model} no existe en app/Models.";
+
+                    continue;
+                }
+                if (isset($explicit[$model]) && $explicit[$model] !== $key) {
+                    $errors[] = "El modelo {$model} está declarado en `{$explicit[$model]}` y en `{$key}`.";
+                }
+                $explicit[$model] ??= $key;
+            }
+
+            $functional[$key] = [
+                'key' => $key,
+                'name' => $name !== null ? trim($name) : $this->defaultModuleName($key, $from, $modules),
+                'area' => $area !== null ? trim($area) : null,
+                'declared' => true,
+                'from' => $from,
+                'models' => [],
+            ];
+        }
+        if ($errors) {
+            return [null, $errors];
+        }
+
+        // Los módulos técnicos que nadie agrupa pasan tal cual, marcados como no declarados
+        foreach ($modules as $technical => $module) {
+            if (! isset($claims[$technical])) {
+                $claims[$technical] = $technical;
+                $functional[$technical] = ['key' => $technical, 'name' => $module['name'], 'area' => $module['area'] ?? null, 'declared' => false, 'from' => [$technical], 'models' => []];
+            }
+        }
+
+        $assign = [];
+        foreach ($byName as $name => $class) {
+            if (isset($explicit[$name])) {
+                $assign[$name] = ['module' => $explicit[$name], 'source' => 'declared'];
+            } elseif ($models[$class]['module'] !== null && ($this->technicalVia[$class] ?? null) !== 'parent') {
+                // la herencia técnica se recalcula sobre los módulos funcionales
+                $assign[$name] = ['module' => $claims[$models[$class]['module']], 'source' => 'technical'];
+            }
+        }
+
+        $parentsOf = [];
+        foreach ($byName as $name => $class) {
+            $parentsOf[$name] = collect($models[$class]['relations'])
+                ->filter(fn ($r) => $r['type'] === 'BelongsTo' && ! $r['external'] && $r['related'] && $r['related'] !== $name && isset($byName[$r['related']]))
+                ->pluck('related')->unique()->sort()->values()->all();
+        }
+
+        $sharedSet = array_flip($shared);
+        $pending = array_values(array_diff(array_keys($byName), array_keys($assign)));
+        do {
+            // cada ronda decide con lo resuelto en las anteriores: el resultado no depende del orden
+            $round = [];
+            foreach ($pending as $name) {
+                [$result, $this->unresolved[$name]] = $this->inheritModule($name, $parentsOf[$name], $assign, $sharedSet);
+                if ($result) {
+                    $round[$name] = $result;
+                    unset($this->unresolved[$name]);
+                }
+            }
+            $assign += $round;
+            $pending = array_values(array_diff($pending, array_keys($round)));
+        } while ($round);
+
+        foreach ($pending as $name) {
+            $assign[$name] = ['module' => null, 'source' => 'unresolved'];
+            $hint = str_starts_with($this->unresolved[$name], 'padres en módulos distintos')
+                ? 'Marca los catálogos en `architecture.shared` o declara el modelo en `architecture.modules.*.models` de _project.json.'
+                : 'Decláralo en `architecture.modules.*.models` de docs/specs/_project.json.';
+            $this->warning('model_without_module', $name, "No se pudo asignar a un módulo: {$this->unresolved[$name]}. {$hint}");
+        }
+        ksort($assign);
+
+        foreach ($assign as $name => $a) {
+            if ($a['module'] !== null) {
+                $functional[$a['module']]['models'][] = $name;
+            }
+        }
+        foreach ($functional as $key => &$module) {
+            $deps = [];
+            foreach ($module['models'] as $name) {
+                foreach ($models[$byName[$name]]['relations'] as $r) {
+                    if ($r['type'] !== 'BelongsTo' || $r['external'] || ! $r['related']) {
+                        continue;
+                    }
+                    $target = $assign[$r['related']]['module'] ?? null;
+                    if ($target !== null && $target !== $key) {
+                        $deps[$target][] = $name.'.'.$r['name'].' ('.$r['type'].')';
+                    }
+                }
+            }
+            ksort($deps);
+            $module['depends_on'] = collect($deps)->map(fn ($via, $m) => ['module' => $m, 'via' => array_values(array_unique($via))])->values()->all();
+        }
+        unset($module);
+        ksort($functional);
+
+        return [[
+            'version' => 1,
+            'declared' => $hasConfig,
+            'shared' => $shared,
+            'modules' => array_values($functional),
+            'models' => collect($assign)->map(fn ($a, $name) => ['class' => $byName[$name]] + $a)->all(),
+        ], []];
+    }
+
+    /** @return array{0: ?array, 1: ?string} [asignación, motivo si no se pudo] */
+    private function inheritModule(string $name, array $parents, array $assign, array $shared): array
+    {
+        if (! $parents) {
+            return [null, 'no tiene relaciones belongsTo'];
+        }
+
+        // Prefijo en límite de palabra: PurchaseOrderItem → PurchaseOrder (Workers no → Worker)
+        $prefix = collect($parents)
+            ->filter(fn ($p) => strlen($name) > strlen($p) && str_starts_with($name, $p) && ctype_upper($name[strlen($p)]))
+            ->sortByDesc(fn ($p) => strlen($p))->first();
+        if ($prefix !== null) {
+            return isset($assign[$prefix])
+                ? [['module' => $assign[$prefix]['module'], 'source' => 'prefix', 'via' => $prefix], null]
+                : [null, "su padre {$prefix} no tiene módulo"];
+        }
+
+        $voters = array_values(array_filter($parents, fn ($p) => ! isset($shared[$p])));
+        if (! $voters) {
+            return [null, 'solo tiene padres compartidos ('.implode(', ', $parents).')'];
+        }
+        $missing = array_values(array_filter($voters, fn ($p) => ! isset($assign[$p])));
+        if ($missing) {
+            return [null, 'sus padres '.implode(', ', $missing).' no tienen módulo'];
+        }
+        $byModule = collect($voters)->groupBy(fn ($p) => $assign[$p]['module'])->sortKeys();
+        if ($byModule->count() === 1) {
+            return [['module' => $byModule->keys()->first(), 'source' => 'inherited', 'via' => implode(', ', $voters)], null];
+        }
+
+        return [null, 'padres en módulos distintos: '.$byModule->map(fn ($ps, $m) => $m.' ('.$ps->implode(', ').')')->implode(', ')];
+    }
+
+    private function defaultModuleName(string $key, array $from, array $modules): string
+    {
+        if (isset($modules[$key])) {
+            return $modules[$key]['name'];
+        }
+
+        return count($from) === 1 ? $modules[$from[0]]['name'] : Str::headline($key);
+    }
+
+    /** --suggest-architecture: borrador de la sección para revisar y pegar en _project.json */
+    private function printSuggestion(mixed $config, array $models, array $modules, array $architecture): void
+    {
+        $config = is_array($config) ? $config : [];
+
+        // Candidatos a catálogo: modelos a los que apuntan muchos otros por belongsTo
+        $referrers = [];
+        foreach ($models as $model) {
+            foreach ($model['relations'] as $r) {
+                if ($r['type'] === 'BelongsTo' && ! $r['external'] && $r['related'] && $r['related'] !== $model['name']) {
+                    $referrers[$r['related']][$model['name']] = true;
+                }
+            }
+        }
+        $candidates = collect($referrers)->map(fn ($by) => count($by))->filter(fn ($n) => $n >= 5)->sortDesc();
+
+        $suggested = $config['modules'] ?? [];
+        foreach ($architecture['modules'] as $module) {
+            if (! $module['declared'] && $module['models']) {
+                $suggested[$module['key']] = ['name' => $module['name']];
+            }
+        }
+
+        $section = ['architecture' => [
+            'shared' => $config['shared'] ?? $candidates->keys()->sort()->values()->all(),
+            'modules' => $suggested,
+        ]];
+        $this->line(json_encode($section, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $this->newLine();
+        $this->line('Borrador para docs/specs/_project.json. Revísalo antes de pegarlo:');
+        $this->line('  · Renombra claves y nombres al lenguaje del negocio; agrupa módulos técnicos con "from".');
+        $this->line('  · Cada entrada sin "from" agrupa el módulo técnico de su misma clave.');
+        if (! isset($config['shared']) && $candidates->isNotEmpty()) {
+            $this->line('  · "shared" se sugirió por número de modelos que los referencian; deja solo los catálogos:');
+            $candidates->each(fn ($n, $name) => $this->line("      {$name}: {$n} modelos"));
+        }
+        $unresolved = collect($architecture['models'])->filter(fn ($m) => $m['module'] === null);
+        if ($unresolved->isNotEmpty()) {
+            $this->line('  · Modelos sin módulo con la configuración actual (decláralos en "models"):');
+            $unresolved->each(fn ($m, $name) => $this->line("      {$name}: {$this->unresolved[$name]}"));
+        }
+        $this->line('Nada se escribió. Después de guardar _project.json corre php artisan docs:map.');
     }
 
     /* ───────────────────────── Servicios transversales ───────────────────────── */
@@ -615,8 +954,8 @@ class DocsMap extends Command
                     }
                 }
             }
-            if ($type === 'ext-fields' && ! empty($spec['v']['target'])) {
-                $declared[$spec['v']['target']] = ['name' => $spec['v']['target'], 'fields' => $spec['newFields'] ?? [], 'relations' => [], '_partial' => true];
+            if ($type === 'ext-fields' && ($target = $this->extFieldsModel($spec, $models))) {
+                $declared[$target] = ['name' => $target, 'fields' => $spec['newFields'] ?? [], 'relations' => [], '_partial' => true];
             }
 
             foreach ($declared as $name => $m) {
@@ -642,7 +981,7 @@ class DocsMap extends Command
                 }
                 if (empty($m['_partial'])) {
                     foreach ($columns->reject(fn ($c) => $c['auto'])->keys() as $column) {
-                        if (! $specFields->contains($column) && ! $impliedKeys->contains($column) && ! $this->declaredElsewhere($specs, $name, $column)) {
+                        if (! $specFields->contains($column) && ! $impliedKeys->contains($column) && ! $this->declaredElsewhere($specs, $models, $name, $column)) {
                             $issues[] = [$id, $name, "La columna `{$column}` existe en el código y ningún spec la declara."];
                         }
                     }
@@ -680,16 +1019,36 @@ class DocsMap extends Command
     }
 
     /** Una columna puede venir de un spec C1 (agregar campos) posterior. */
-    private function declaredElsewhere(array $specs, string $model, string $column): bool
+    private function declaredElsewhere(array $specs, array $models, string $model, string $column): bool
     {
         foreach ($specs as $spec) {
-            if (($spec['type'] ?? '') === 'ext-fields' && ($spec['v']['target'] ?? null) === $model
+            if (($spec['type'] ?? '') === 'ext-fields' && $this->extFieldsModel($spec, $models) === $model
                 && collect($spec['newFields'] ?? [])->pluck('name')->contains($column)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Modelo que extiende un spec C1: por su tabla (v.table) o, en specs anteriores, por v.target.
+     */
+    private function extFieldsModel(array $spec, array $models): ?string
+    {
+        if (($spec['type'] ?? '') !== 'ext-fields') {
+            return null;
+        }
+        $table = trim($spec['v']['table'] ?? '');
+        if ($table !== '') {
+            foreach ($models as $model) {
+                if (($model['table'] ?? null) === $table) {
+                    return $model['name'];
+                }
+            }
+        }
+
+        return trim($spec['v']['target'] ?? '') ?: null;
     }
 
     /* ───────────────────────── Utilidades ───────────────────────── */
@@ -734,19 +1093,22 @@ class DocsMap extends Command
         $this->warnings[] = ['code' => $code, 'subject' => $subject, 'message' => $message];
     }
 
-    private function printSummary(array $modules, array $models): void
+    private function printSummary(array $modules, array $models, array $architecture): void
     {
+        // La tabla muestra la vista funcional; la técnica sigue completa en _code.json
+        $functional = collect($architecture['modules'])->filter(fn ($m) => $m['models']);
         $this->table(
-            ['Módulo', 'Área', 'Modelos', 'Depende de', 'Specs'],
-            collect($modules)->map(fn ($m) => [
-                $m['name'].($m['public'] ? ' (público)' : ''),
-                $m['area'] ?? '—',
-                implode(', ', $m['models']) ?: '—',
+            ['Módulo', 'Agrupa', 'Modelos', 'Depende de'],
+            $functional->map(fn ($m) => [
+                $m['name'].($m['declared'] || ! $architecture['declared'] ? '' : ' (sin declarar)'),
+                implode(', ', $m['from']) ?: '—',
+                implode(', ', $m['models']),
                 implode(', ', array_column($m['depends_on'], 'module')) ?: '—',
-                implode(', ', $m['specs']) ?: '—',
             ])->values()->all()
         );
-        $this->line(count($models).' modelos · '.count($modules).' módulos · '.count($this->warnings).' advertencias');
+        $this->line(count($models).' modelos · '.$functional->count().' módulos'
+            .($architecture['declared'] ? ' ('.$functional->where('declared', true)->count().' declarados en _project.json)' : '')
+            .' · '.count($modules).' módulos técnicos · '.count($this->warnings).' advertencias');
         foreach ($this->warnings as $w) {
             $this->components->warn("{$w['subject']}: {$w['message']}");
         }

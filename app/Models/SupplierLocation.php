@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SupplierLocation extends Model
 {
@@ -16,7 +17,7 @@ class SupplierLocation extends Model
         'account_statement_path',
     ];
 
-    public function supplier()
+    public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }

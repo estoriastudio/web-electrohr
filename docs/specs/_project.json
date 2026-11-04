@@ -67,5 +67,17 @@
     "API Resources / Transformers",
     "Instalar paquetes no listados en el perfil",
     "Cambios a vite.config.js / package.json"
-  ]
+  ],
+  "architecture": {
+    "shared": ["User", "Concept", "ProjectWork"],
+    "modules": {
+      "ordenes_de_compra": { "name": "Órdenes de Compra", "area": "Compras", "from": ["supplier_portal", "purchase_orders"] },
+      "recursos_humanos":  { "name": "Recursos Humanos", "from": ["human_resources"], "models": ["OvertimeClosure"] },
+      "solmat":            { "name": "SOLMAT", "from": ["material_requests"] },
+      "solcom":            { "name": "SOLCOM", "from": ["purchase_requests"] },
+      "almacen":           { "name": "Almacén", "from": ["stocks"] },
+      "auditoria":         { "name": "Auditoría", "models": ["NotificationRecipient"] },
+      "usuarios":          { "name": "Usuarios", "models": ["UserInfo"] }
+    }
+  }
 }

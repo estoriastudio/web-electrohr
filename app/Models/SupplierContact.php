@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SupplierContact extends Model
 {
@@ -18,7 +19,7 @@ class SupplierContact extends Model
         'is_primary' => 'boolean',
     ];
 
-    public function supplier()
+    public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }

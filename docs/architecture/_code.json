@@ -1,6 +1,6 @@
 {
-    "generator": "estoria/docs:map 0.1.0",
-    "generated_at": "2026-11-03T22:29:24-06:00",
+    "generator": "estoria/docs:map 0.2.0",
+    "generated_at": "2026-11-04T10:18:23-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -1449,7 +1449,9 @@
             "disks": [
                 "s3"
             ],
-            "specs": [],
+            "specs": [
+                "HR-001"
+            ],
             "depends_on": [
                 {
                     "module": "usuarios",
@@ -7662,7 +7664,7 @@
                     "related": "User",
                     "related_class": "App\\Models\\User",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "action_by",
                     "owner_key": "id"
                 },
@@ -14662,7 +14664,7 @@
                     "related": "PurchaseOrder",
                     "related_class": "App\\Models\\PurchaseOrder",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "local_key": "id"
                 },
@@ -14672,7 +14674,7 @@
                     "related": "MaterialVoucher",
                     "related_class": "App\\Models\\MaterialVoucher",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "local_key": "id"
                 },
@@ -14682,7 +14684,7 @@
                     "related": "SupplierContact",
                     "related_class": "App\\Models\\SupplierContact",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "local_key": "id"
                 },
@@ -14692,7 +14694,7 @@
                     "related": "SupplierContact",
                     "related_class": "App\\Models\\SupplierContact",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "local_key": "id"
                 },
@@ -14702,7 +14704,7 @@
                     "related": "SupplierLocation",
                     "related_class": "App\\Models\\SupplierLocation",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "local_key": "id"
                 },
@@ -14845,7 +14847,7 @@
                     "related": "Supplier",
                     "related_class": "App\\Models\\Supplier",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "owner_key": "id"
                 }
@@ -15025,7 +15027,7 @@
                     "related": "Supplier",
                     "related_class": "App\\Models\\Supplier",
                     "external": false,
-                    "detected_by": "source_scan",
+                    "detected_by": "return_type",
                     "foreign_key": "supplier_id",
                     "owner_key": "id"
                 }
@@ -17935,6 +17937,1221 @@
             "module": "human_resources"
         }
     ],
+    "architecture": {
+        "version": 1,
+        "declared": true,
+        "shared": [
+            "Concept",
+            "ProjectWork",
+            "User"
+        ],
+        "modules": [
+            {
+                "key": "almacen",
+                "name": "Almacén",
+                "area": null,
+                "declared": true,
+                "from": [
+                    "stocks"
+                ],
+                "models": [
+                    "StockCertificate",
+                    "StockEntry",
+                    "StockEntryItem",
+                    "StockExit",
+                    "StockExitItem"
+                ],
+                "depends_on": [
+                    {
+                        "module": "concepts",
+                        "via": [
+                            "StockCertificate.concept (BelongsTo)",
+                            "StockEntry.concept (BelongsTo)",
+                            "StockEntryItem.concept (BelongsTo)",
+                            "StockExit.concept (BelongsTo)",
+                            "StockExitItem.concept (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "StockExit.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "StockExit.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "recursos_humanos",
+                        "via": [
+                            "StockExit.recipientWorker (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "tools",
+                        "via": [
+                            "StockEntry.tool (BelongsTo)",
+                            "StockExit.tool (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "StockCertificate.uploadedBy (BelongsTo)",
+                            "StockEntry.createdBy (BelongsTo)",
+                            "StockExit.createdBy (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "auditoria",
+                "name": "Auditoría",
+                "area": null,
+                "declared": true,
+                "from": [],
+                "models": [
+                    "NotificationRecipient"
+                ],
+                "depends_on": [
+                    {
+                        "module": "notifications",
+                        "via": [
+                            "NotificationRecipient.notification (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "NotificationRecipient.user (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "concept_categories",
+                "name": "Familias",
+                "area": "Configuración",
+                "declared": false,
+                "from": [
+                    "concept_categories"
+                ],
+                "models": [
+                    "ConceptCategory",
+                    "ConceptSubcategory"
+                ],
+                "depends_on": []
+            },
+            {
+                "key": "concepts",
+                "name": "Conceptos",
+                "area": "Configuración",
+                "declared": false,
+                "from": [
+                    "concepts"
+                ],
+                "models": [
+                    "Concept"
+                ],
+                "depends_on": [
+                    {
+                        "module": "concept_categories",
+                        "via": [
+                            "Concept.category (BelongsTo)",
+                            "Concept.subcategory (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "dashboard",
+                "name": "Dashboard",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "dashboard"
+                ],
+                "models": [],
+                "depends_on": []
+            },
+            {
+                "key": "evidences",
+                "name": "Evidences",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "evidences"
+                ],
+                "models": [
+                    "PurchaseOrderEvidence"
+                ],
+                "depends_on": [
+                    {
+                        "module": "invoices",
+                        "via": [
+                            "PurchaseOrderEvidence.invoice (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "milestones",
+                        "via": [
+                            "PurchaseOrderEvidence.milestone (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "ordenes_de_compra",
+                        "via": [
+                            "PurchaseOrderEvidence.purchaseOrder (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "PurchaseOrderEvidence.uploader (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "global_search",
+                "name": "Global Search",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "global_search"
+                ],
+                "models": [],
+                "depends_on": []
+            },
+            {
+                "key": "invoices",
+                "name": "Contado",
+                "area": "Compras",
+                "declared": false,
+                "from": [
+                    "invoices"
+                ],
+                "models": [
+                    "PurchaseOrderInvoice"
+                ],
+                "depends_on": [
+                    {
+                        "module": "ordenes_de_compra",
+                        "via": [
+                            "PurchaseOrderInvoice.purchaseOrder (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "maintenance_logs",
+                "name": "Maintenance Logs",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "maintenance_logs"
+                ],
+                "models": [
+                    "MaintenanceLog"
+                ],
+                "depends_on": [
+                    {
+                        "module": "mobile_assets",
+                        "via": [
+                            "MaintenanceLog.mobileAsset (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "material_vouchers",
+                "name": "Vales de Material",
+                "area": "Almacén",
+                "declared": false,
+                "from": [
+                    "material_vouchers"
+                ],
+                "models": [
+                    "MaterialVoucher",
+                    "MaterialVoucherItem"
+                ],
+                "depends_on": [
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "MaterialVoucher.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "MaterialVoucher.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "suppliers",
+                        "via": [
+                            "MaterialVoucher.supplier (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "MaterialVoucher.createdBy (BelongsTo)",
+                            "MaterialVoucher.authorizedBy (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "milestones",
+                "name": "Milestones",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "milestones"
+                ],
+                "models": [
+                    "PurchaseOrderMilestone"
+                ],
+                "depends_on": [
+                    {
+                        "module": "ordenes_de_compra",
+                        "via": [
+                            "PurchaseOrderMilestone.purchaseOrder (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "mobile_assets",
+                "name": "Bienes Móviles",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "mobile_assets"
+                ],
+                "models": [
+                    "MobileAsset",
+                    "MobileAssetDocument"
+                ],
+                "depends_on": []
+            },
+            {
+                "key": "my-projects",
+                "name": "Mis Proyectos",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "my-projects"
+                ],
+                "models": [],
+                "depends_on": []
+            },
+            {
+                "key": "notifications",
+                "name": "Notificaciones",
+                "area": "Configuración",
+                "declared": false,
+                "from": [
+                    "notifications"
+                ],
+                "models": [
+                    "Notification"
+                ],
+                "depends_on": [
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "Notification.user (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "ordenes_de_compra",
+                "name": "Órdenes de Compra",
+                "area": "Compras",
+                "declared": true,
+                "from": [
+                    "purchase_orders",
+                    "supplier_portal"
+                ],
+                "models": [
+                    "PurchaseOrder",
+                    "PurchaseOrderAnnex",
+                    "PurchaseOrderItem",
+                    "PurchaseOrderItemDelivery",
+                    "PurchaseOrderMilestoneFulfillment"
+                ],
+                "depends_on": [
+                    {
+                        "module": "concepts",
+                        "via": [
+                            "PurchaseOrderItem.concept (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "evidences",
+                        "via": [
+                            "PurchaseOrderItemDelivery.evidence (BelongsTo)",
+                            "PurchaseOrderMilestoneFulfillment.evidence (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "milestones",
+                        "via": [
+                            "PurchaseOrderItemDelivery.milestone (BelongsTo)",
+                            "PurchaseOrderMilestoneFulfillment.milestone (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "mobile_assets",
+                        "via": [
+                            "PurchaseOrder.mobileAsset (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "PurchaseOrder.workRelation (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "PurchaseOrder.projectRelation (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "solcom",
+                        "via": [
+                            "PurchaseOrder.purchaseRequest (BelongsTo)",
+                            "PurchaseOrderItem.purchaseRequestItem (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "suppliers",
+                        "via": [
+                            "PurchaseOrder.supplier (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "PurchaseOrder.closer (BelongsTo)",
+                            "PurchaseOrder.buyer (BelongsTo)",
+                            "PurchaseOrderItemDelivery.deliveredByUser (BelongsTo)",
+                            "PurchaseOrderMilestoneFulfillment.recorder (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "payments",
+                "name": "Autorizaciones",
+                "area": "Pagos",
+                "declared": false,
+                "from": [
+                    "payments"
+                ],
+                "models": [
+                    "Payment"
+                ],
+                "depends_on": [
+                    {
+                        "module": "invoices",
+                        "via": [
+                            "Payment.regularizationInvoice (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "milestones",
+                        "via": [
+                            "Payment.milestone (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "project_works",
+                "name": "Project Works",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "project_works"
+                ],
+                "models": [
+                    "ProjectWork"
+                ],
+                "depends_on": [
+                    {
+                        "module": "projects",
+                        "via": [
+                            "ProjectWork.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "ProjectWork.supervisorUser (BelongsTo)",
+                            "ProjectWork.residentUser (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "projects",
+                "name": "Proyectos",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "projects"
+                ],
+                "models": [
+                    "Project",
+                    "ProjectAgreement",
+                    "ProjectDocument",
+                    "ProjectEstimate",
+                    "ProjectEstimateFile",
+                    "ProjectEstimateInvoice"
+                ],
+                "depends_on": [
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "Project.manager (BelongsTo)",
+                            "ProjectEstimate.creator (BelongsTo)",
+                            "ProjectEstimateFile.uploader (BelongsTo)",
+                            "ProjectEstimateInvoice.uploader (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "recursos_humanos",
+                "name": "Recursos Humanos",
+                "area": null,
+                "declared": true,
+                "from": [
+                    "human_resources"
+                ],
+                "models": [
+                    "LateOvertimeRequest",
+                    "OvertimeClosure",
+                    "OvertimeEntry",
+                    "PositionCategory",
+                    "Worker",
+                    "WorkerDc3",
+                    "WorkerFile",
+                    "WorkerGroup",
+                    "WorkerTermination"
+                ],
+                "depends_on": [
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "LateOvertimeRequest.projectWork (BelongsTo)",
+                            "OvertimeClosure.projectWork (BelongsTo)",
+                            "OvertimeEntry.projectWork (BelongsTo)",
+                            "Worker.projectWork (BelongsTo)",
+                            "WorkerTermination.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "LateOvertimeRequest.requestedByUser (BelongsTo)",
+                            "LateOvertimeRequest.resolvedByUser (BelongsTo)",
+                            "Worker.registeredByUser (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "rh",
+                "name": "Asistencias",
+                "area": "Recursos Humanos",
+                "declared": false,
+                "from": [
+                    "rh"
+                ],
+                "models": [
+                    "AttendanceDayClosure",
+                    "AttendanceHistory",
+                    "CaptureUnlock",
+                    "HrAuditLog",
+                    "HrSetting",
+                    "PersonnelRequest",
+                    "PersonnelRequestLine",
+                    "WeeklyIncentiveLetter",
+                    "WorkAssignment",
+                    "WorkSupport",
+                    "WorkerAttendance"
+                ],
+                "depends_on": [
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "AttendanceDayClosure.projectWork (BelongsTo)",
+                            "CaptureUnlock.projectWork (BelongsTo)",
+                            "PersonnelRequest.projectWork (BelongsTo)",
+                            "WorkAssignment.projectWork (BelongsTo)",
+                            "WorkSupport.toProjectWork (BelongsTo)",
+                            "WorkerAttendance.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "WorkAssignment.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "recursos_humanos",
+                        "via": [
+                            "AttendanceHistory.worker (BelongsTo)",
+                            "HrAuditLog.worker (BelongsTo)",
+                            "PersonnelRequestLine.worker (BelongsTo)",
+                            "WeeklyIncentiveLetter.worker (BelongsTo)",
+                            "WorkAssignment.worker (BelongsTo)",
+                            "WorkAssignment.workerGroup (BelongsTo)",
+                            "WorkSupport.worker (BelongsTo)",
+                            "WorkerAttendance.worker (BelongsTo)",
+                            "WorkerAttendance.workerGroup (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "AttendanceHistory.user (BelongsTo)",
+                            "CaptureUnlock.grantedByUser (BelongsTo)",
+                            "HrAuditLog.user (BelongsTo)",
+                            "HrSetting.updatedByUser (BelongsTo)",
+                            "PersonnelRequest.requestedByUser (BelongsTo)",
+                            "PersonnelRequestLine.resolvedByUser (BelongsTo)",
+                            "WorkAssignment.approvedByUser (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "solcom",
+                "name": "SOLCOM",
+                "area": null,
+                "declared": true,
+                "from": [
+                    "purchase_requests"
+                ],
+                "models": [
+                    "PurchaseRequest",
+                    "PurchaseRequestChangeNote",
+                    "PurchaseRequestItem"
+                ],
+                "depends_on": [
+                    {
+                        "module": "concepts",
+                        "via": [
+                            "PurchaseRequestItem.concept (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "PurchaseRequest.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "PurchaseRequest.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "solmat",
+                        "via": [
+                            "PurchaseRequest.materialRequest (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "PurchaseRequest.requestedBy (BelongsTo)",
+                            "PurchaseRequest.assignedTo (BelongsTo)",
+                            "PurchaseRequestChangeNote.requestedBy (BelongsTo)",
+                            "PurchaseRequestChangeNote.resolvedBy (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "solmat",
+                "name": "SOLMAT",
+                "area": null,
+                "declared": true,
+                "from": [
+                    "material_requests"
+                ],
+                "models": [
+                    "MaterialRequest",
+                    "MaterialRequestChangeNote",
+                    "MaterialRequestItem",
+                    "MaterialRequestItemProjectWork"
+                ],
+                "depends_on": [
+                    {
+                        "module": "concept_categories",
+                        "via": [
+                            "MaterialRequest.conceptCategory (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "concepts",
+                        "via": [
+                            "MaterialRequestItem.concept (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "MaterialRequestItemProjectWork.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "projects",
+                        "via": [
+                            "MaterialRequest.project (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "MaterialRequest.requestedBy (BelongsTo)",
+                            "MaterialRequestChangeNote.requestedBy (BelongsTo)",
+                            "MaterialRequestChangeNote.resolvedBy (BelongsTo)",
+                            "MaterialRequestItemProjectWork.committedBy (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "supplier_contacts",
+                "name": "Supplier Contacts",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "supplier_contacts"
+                ],
+                "models": [
+                    "SupplierContact"
+                ],
+                "depends_on": [
+                    {
+                        "module": "suppliers",
+                        "via": [
+                            "SupplierContact.supplier (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "supplier_locations",
+                "name": "Supplier Locations",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "supplier_locations"
+                ],
+                "models": [
+                    "SupplierLocation"
+                ],
+                "depends_on": [
+                    {
+                        "module": "suppliers",
+                        "via": [
+                            "SupplierLocation.supplier (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "suppliers",
+                "name": "Proveedores",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "suppliers"
+                ],
+                "models": [
+                    "Supplier"
+                ],
+                "depends_on": [
+                    {
+                        "module": "usuarios",
+                        "via": [
+                            "Supplier.portalUser (BelongsTo)",
+                            "Supplier.portalAccessManager (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "tool_calibrations",
+                "name": "Tool Calibrations",
+                "area": null,
+                "declared": false,
+                "from": [
+                    "tool_calibrations"
+                ],
+                "models": [
+                    "ToolCalibration"
+                ],
+                "depends_on": [
+                    {
+                        "module": "tools",
+                        "via": [
+                            "ToolCalibration.tool (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "tool_categories",
+                "name": "Categorias",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "tool_categories"
+                ],
+                "models": [
+                    "ToolCategory"
+                ],
+                "depends_on": []
+            },
+            {
+                "key": "tool_controls",
+                "name": "Control de uso",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "tool_controls"
+                ],
+                "models": [
+                    "ToolControl"
+                ],
+                "depends_on": [
+                    {
+                        "module": "project_works",
+                        "via": [
+                            "ToolControl.projectWork (BelongsTo)"
+                        ]
+                    },
+                    {
+                        "module": "tools",
+                        "via": [
+                            "ToolControl.tool (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "tools",
+                "name": "Registro",
+                "area": "Portal Proveedor",
+                "declared": false,
+                "from": [
+                    "tools"
+                ],
+                "models": [
+                    "Tool"
+                ],
+                "depends_on": [
+                    {
+                        "module": "tool_categories",
+                        "via": [
+                            "Tool.category (BelongsTo)"
+                        ]
+                    }
+                ]
+            },
+            {
+                "key": "usuarios",
+                "name": "Usuarios",
+                "area": null,
+                "declared": true,
+                "from": [
+                    "usuarios"
+                ],
+                "models": [
+                    "User",
+                    "UserInfo"
+                ],
+                "depends_on": []
+            }
+        ],
+        "models": {
+            "AttendanceDayClosure": {
+                "class": "App\\Models\\AttendanceDayClosure",
+                "module": "rh",
+                "source": "technical"
+            },
+            "AttendanceHistory": {
+                "class": "App\\Models\\AttendanceHistory",
+                "module": "rh",
+                "source": "technical"
+            },
+            "CaptureUnlock": {
+                "class": "App\\Models\\CaptureUnlock",
+                "module": "rh",
+                "source": "technical"
+            },
+            "Concept": {
+                "class": "App\\Models\\Concept",
+                "module": "concepts",
+                "source": "technical"
+            },
+            "ConceptCategory": {
+                "class": "App\\Models\\ConceptCategory",
+                "module": "concept_categories",
+                "source": "technical"
+            },
+            "ConceptSubcategory": {
+                "class": "App\\Models\\ConceptSubcategory",
+                "module": "concept_categories",
+                "source": "inherited",
+                "via": "ConceptCategory"
+            },
+            "HrAuditLog": {
+                "class": "App\\Models\\HrAuditLog",
+                "module": "rh",
+                "source": "technical"
+            },
+            "HrSetting": {
+                "class": "App\\Models\\HrSetting",
+                "module": "rh",
+                "source": "technical"
+            },
+            "LateOvertimeRequest": {
+                "class": "App\\Models\\LateOvertimeRequest",
+                "module": "recursos_humanos",
+                "source": "inherited",
+                "via": "Worker"
+            },
+            "MaintenanceLog": {
+                "class": "App\\Models\\MaintenanceLog",
+                "module": "maintenance_logs",
+                "source": "technical"
+            },
+            "MaterialRequest": {
+                "class": "App\\Models\\MaterialRequest",
+                "module": "solmat",
+                "source": "technical"
+            },
+            "MaterialRequestChangeNote": {
+                "class": "App\\Models\\MaterialRequestChangeNote",
+                "module": "solmat",
+                "source": "prefix",
+                "via": "MaterialRequest"
+            },
+            "MaterialRequestItem": {
+                "class": "App\\Models\\MaterialRequestItem",
+                "module": "solmat",
+                "source": "prefix",
+                "via": "MaterialRequest"
+            },
+            "MaterialRequestItemProjectWork": {
+                "class": "App\\Models\\MaterialRequestItemProjectWork",
+                "module": "solmat",
+                "source": "prefix",
+                "via": "MaterialRequestItem"
+            },
+            "MaterialVoucher": {
+                "class": "App\\Models\\MaterialVoucher",
+                "module": "material_vouchers",
+                "source": "technical"
+            },
+            "MaterialVoucherItem": {
+                "class": "App\\Models\\MaterialVoucherItem",
+                "module": "material_vouchers",
+                "source": "prefix",
+                "via": "MaterialVoucher"
+            },
+            "MobileAsset": {
+                "class": "App\\Models\\MobileAsset",
+                "module": "mobile_assets",
+                "source": "technical"
+            },
+            "MobileAssetDocument": {
+                "class": "App\\Models\\MobileAssetDocument",
+                "module": "mobile_assets",
+                "source": "prefix",
+                "via": "MobileAsset"
+            },
+            "Notification": {
+                "class": "App\\Models\\Notification",
+                "module": "notifications",
+                "source": "technical"
+            },
+            "NotificationRecipient": {
+                "class": "App\\Models\\NotificationRecipient",
+                "module": "auditoria",
+                "source": "declared"
+            },
+            "OvertimeClosure": {
+                "class": "App\\Models\\OvertimeClosure",
+                "module": "recursos_humanos",
+                "source": "declared"
+            },
+            "OvertimeEntry": {
+                "class": "App\\Models\\OvertimeEntry",
+                "module": "recursos_humanos",
+                "source": "inherited",
+                "via": "Worker"
+            },
+            "Payment": {
+                "class": "App\\Models\\Payment",
+                "module": "payments",
+                "source": "technical"
+            },
+            "PersonnelRequest": {
+                "class": "App\\Models\\PersonnelRequest",
+                "module": "rh",
+                "source": "technical"
+            },
+            "PersonnelRequestLine": {
+                "class": "App\\Models\\PersonnelRequestLine",
+                "module": "rh",
+                "source": "technical"
+            },
+            "PositionCategory": {
+                "class": "App\\Models\\PositionCategory",
+                "module": "recursos_humanos",
+                "source": "technical"
+            },
+            "Project": {
+                "class": "App\\Models\\Project",
+                "module": "projects",
+                "source": "technical"
+            },
+            "ProjectAgreement": {
+                "class": "App\\Models\\ProjectAgreement",
+                "module": "projects",
+                "source": "technical"
+            },
+            "ProjectDocument": {
+                "class": "App\\Models\\ProjectDocument",
+                "module": "projects",
+                "source": "prefix",
+                "via": "Project"
+            },
+            "ProjectEstimate": {
+                "class": "App\\Models\\ProjectEstimate",
+                "module": "projects",
+                "source": "technical"
+            },
+            "ProjectEstimateFile": {
+                "class": "App\\Models\\ProjectEstimateFile",
+                "module": "projects",
+                "source": "technical"
+            },
+            "ProjectEstimateInvoice": {
+                "class": "App\\Models\\ProjectEstimateInvoice",
+                "module": "projects",
+                "source": "technical"
+            },
+            "ProjectWork": {
+                "class": "App\\Models\\ProjectWork",
+                "module": "project_works",
+                "source": "technical"
+            },
+            "PurchaseOrder": {
+                "class": "App\\Models\\PurchaseOrder",
+                "module": "ordenes_de_compra",
+                "source": "technical"
+            },
+            "PurchaseOrderAnnex": {
+                "class": "App\\Models\\PurchaseOrderAnnex",
+                "module": "ordenes_de_compra",
+                "source": "prefix",
+                "via": "PurchaseOrder"
+            },
+            "PurchaseOrderEvidence": {
+                "class": "App\\Models\\PurchaseOrderEvidence",
+                "module": "evidences",
+                "source": "technical"
+            },
+            "PurchaseOrderInvoice": {
+                "class": "App\\Models\\PurchaseOrderInvoice",
+                "module": "invoices",
+                "source": "technical"
+            },
+            "PurchaseOrderItem": {
+                "class": "App\\Models\\PurchaseOrderItem",
+                "module": "ordenes_de_compra",
+                "source": "prefix",
+                "via": "PurchaseOrder"
+            },
+            "PurchaseOrderItemDelivery": {
+                "class": "App\\Models\\PurchaseOrderItemDelivery",
+                "module": "ordenes_de_compra",
+                "source": "prefix",
+                "via": "PurchaseOrderItem"
+            },
+            "PurchaseOrderMilestone": {
+                "class": "App\\Models\\PurchaseOrderMilestone",
+                "module": "milestones",
+                "source": "technical"
+            },
+            "PurchaseOrderMilestoneAdjustment": {
+                "class": "App\\Models\\PurchaseOrderMilestoneAdjustment",
+                "module": null,
+                "source": "unresolved"
+            },
+            "PurchaseOrderMilestoneFulfillment": {
+                "class": "App\\Models\\PurchaseOrderMilestoneFulfillment",
+                "module": "ordenes_de_compra",
+                "source": "technical"
+            },
+            "PurchaseRequest": {
+                "class": "App\\Models\\PurchaseRequest",
+                "module": "solcom",
+                "source": "technical"
+            },
+            "PurchaseRequestChangeNote": {
+                "class": "App\\Models\\PurchaseRequestChangeNote",
+                "module": "solcom",
+                "source": "prefix",
+                "via": "PurchaseRequest"
+            },
+            "PurchaseRequestItem": {
+                "class": "App\\Models\\PurchaseRequestItem",
+                "module": "solcom",
+                "source": "prefix",
+                "via": "PurchaseRequest"
+            },
+            "StockCertificate": {
+                "class": "App\\Models\\StockCertificate",
+                "module": "almacen",
+                "source": "inherited",
+                "via": "StockEntry"
+            },
+            "StockEntry": {
+                "class": "App\\Models\\StockEntry",
+                "module": "almacen",
+                "source": "technical"
+            },
+            "StockEntryItem": {
+                "class": "App\\Models\\StockEntryItem",
+                "module": "almacen",
+                "source": "prefix",
+                "via": "StockEntry"
+            },
+            "StockExit": {
+                "class": "App\\Models\\StockExit",
+                "module": "almacen",
+                "source": "technical"
+            },
+            "StockExitItem": {
+                "class": "App\\Models\\StockExitItem",
+                "module": "almacen",
+                "source": "prefix",
+                "via": "StockExit"
+            },
+            "Supplier": {
+                "class": "App\\Models\\Supplier",
+                "module": "suppliers",
+                "source": "technical"
+            },
+            "SupplierContact": {
+                "class": "App\\Models\\SupplierContact",
+                "module": "supplier_contacts",
+                "source": "technical"
+            },
+            "SupplierLocation": {
+                "class": "App\\Models\\SupplierLocation",
+                "module": "supplier_locations",
+                "source": "technical"
+            },
+            "Tool": {
+                "class": "App\\Models\\Tool",
+                "module": "tools",
+                "source": "technical"
+            },
+            "ToolCalibration": {
+                "class": "App\\Models\\ToolCalibration",
+                "module": "tool_calibrations",
+                "source": "technical"
+            },
+            "ToolCategory": {
+                "class": "App\\Models\\ToolCategory",
+                "module": "tool_categories",
+                "source": "technical"
+            },
+            "ToolControl": {
+                "class": "App\\Models\\ToolControl",
+                "module": "tool_controls",
+                "source": "technical"
+            },
+            "User": {
+                "class": "App\\Models\\User",
+                "module": "usuarios",
+                "source": "technical"
+            },
+            "UserInfo": {
+                "class": "App\\Models\\UserInfo",
+                "module": "usuarios",
+                "source": "declared"
+            },
+            "WeeklyIncentiveLetter": {
+                "class": "App\\Models\\WeeklyIncentiveLetter",
+                "module": "rh",
+                "source": "technical"
+            },
+            "WorkAssignment": {
+                "class": "App\\Models\\WorkAssignment",
+                "module": "rh",
+                "source": "technical"
+            },
+            "WorkSupport": {
+                "class": "App\\Models\\WorkSupport",
+                "module": "rh",
+                "source": "technical"
+            },
+            "Worker": {
+                "class": "App\\Models\\Worker",
+                "module": "recursos_humanos",
+                "source": "technical"
+            },
+            "WorkerAttendance": {
+                "class": "App\\Models\\WorkerAttendance",
+                "module": "rh",
+                "source": "technical"
+            },
+            "WorkerDc3": {
+                "class": "App\\Models\\WorkerDc3",
+                "module": "recursos_humanos",
+                "source": "technical"
+            },
+            "WorkerFile": {
+                "class": "App\\Models\\WorkerFile",
+                "module": "recursos_humanos",
+                "source": "technical"
+            },
+            "WorkerGroup": {
+                "class": "App\\Models\\WorkerGroup",
+                "module": "recursos_humanos",
+                "source": "technical"
+            },
+            "WorkerTermination": {
+                "class": "App\\Models\\WorkerTermination",
+                "module": "recursos_humanos",
+                "source": "technical"
+            }
+        }
+    },
     "services": {
         "notifications": {
             "service": "App\\Services\\NotificationService",
@@ -18041,240 +19258,199 @@
         {
             "id": "HR-001",
             "type": "ext-action",
+            "title": "Estado de cuenta de proveedores",
             "module": "Proveedores",
+            "module_key": "suppliers",
+            "extends": null,
             "status": "implementado",
             "file": "docs/specs/HR-001-suppliers-estado-de-cuenta-de-proveedores.spec.json"
         },
         {
             "id": "HR-002",
             "type": "ext-sub",
+            "title": "Cumplimiento de hitos",
             "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": null,
             "status": "implementado",
             "file": "docs/specs/HR-002-ordenes-de-compra-cumplimiento-de-hitos.spec.json"
         },
         {
             "id": "HR-003",
             "type": "new",
+            "title": "",
             "module": "Proyectos",
+            "module_key": "proyectos_{project}_documentos_{docType}",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-003-proyectos-project-documentos-doctype.spec.json"
         },
         {
             "id": "HR-004",
             "type": "ext-sub",
+            "title": "Repositorio de archivos de estimaciones",
             "module": "Estimaciones",
+            "module_key": "estimaciones",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-004-estimaciones-repositorio-de-archivos-de-estimaciones.spec.json"
         },
         {
             "id": "HR-005",
             "type": "new",
+            "title": "Fundación por rol: roles, reloj de periodos, bitácora y configuración",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos-humanos_oficina_configuracion",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-005-recursos-humanos-oficina-configuracion-fundacion-por-rol-roles-reloj-de-periodos.spec.json"
         },
         {
             "id": "HR-006",
             "type": "new",
+            "title": "Asignaciones de personal a Obra: solicitudes, visto bueno y conflictos",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "rh_asignaciones",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-006-rh-asignaciones-asignaciones-de-personal-a-obra-solicitudes.spec.json"
         },
         {
             "id": "HR-007",
             "type": "new",
+            "title": "Captura diaria de incidencias: bloque, liberar día y habilitación 24 h",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos-humanos_oficina_habilitaciones",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-007-recursos-humanos-oficina-habilitaciones-captura-diaria-de-incidencias-bloque-liberar.spec.json"
         },
         {
             "id": "HR-008",
             "type": "new",
+            "title": "Horas extra: ventana de las 10:00 y HE fuera de plazo",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos-humanos_oficina_horas-extra",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-008-recursos-humanos-oficina-horas-extra-horas-extra-ventana-de-las-10-00-y-he-fuera-de.spec.json"
         },
         {
             "id": "HR-009",
             "type": "new",
+            "title": "Descansos, vacaciones y salidas de Obra",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_oficina_descansos",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-009-recursos-humanos-oficina-descansos-descansos-vacaciones-y-salidas-de-obra.spec.json"
         },
         {
             "id": "HR-010",
             "type": "new",
+            "title": "Correcciones, ajustes automáticos y controles semanales",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_oficina_correcciones",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-010-recursos-humanos-oficina-correcciones-correcciones-ajustes-automaticos-y-controles.spec.json"
         },
         {
             "id": "HR-011",
             "type": "new",
+            "title": "Mis trabajadores del campo: lista y perfil reducido",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos-humanos_campo_trabajadores",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-011-recursos-humanos-campo-trabajadores-mis-trabajadores-del-campo-lista-y-perfil.spec.json"
         },
         {
             "id": "HR-012",
             "type": "new",
+            "title": "Nómina etapa 1: revisión de incidencias sin montos",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_revision_nomina",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-012-recursos-humanos-revision-nomina-nomina-etapa-1-revision-de-incidencias-sin.spec.json"
         },
         {
             "id": "HR-013",
             "type": "new",
+            "title": "Nómina etapa 2: montos, cierre y pago anticipado",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_oficina_nomina",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-013-recursos-humanos-oficina-nomina-nomina-etapa-2-montos-cierre-y-pago-anticipado.spec.json"
         },
         {
             "id": "HR-014",
             "type": "new",
+            "title": "Autorización de la dispersión y vista Por persona",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_direccion_aprobacion",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-014-recursos-humanos-direccion-aprobacion-autorizacion-de-la-dispersion-y-vista-por.spec.json"
         },
         {
             "id": "HR-015",
             "type": "new",
+            "title": "Préstamos, caja de ahorro, formas de pago y descuentos fijos",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_oficina_prestamos",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-015-recursos-humanos-oficina-prestamos-prestamos-caja-de-ahorro-formas-de-pago-y.spec.json"
         },
         {
             "id": "HR-016",
             "type": "new",
+            "title": "Reportes y soporte: costos, altas y bajas e integridad",
             "module": "Recursos Humanos",
+            "module_key": "recursos-humanos_direccion_costos",
+            "extends": null,
             "status": "aprobado",
             "file": "docs/specs/HR-016-recursos-humanos-direccion-costos-reportes-y-soporte-costos-altas-y-bajas-e.spec.json"
         },
         {
             "id": "HR-017",
             "type": "ext-fields",
+            "title": "Cuadrilla, alta en obra y expediente incompleto del trabajador",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos_humanos",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-017-recursos-humanos-cuadrilla-alta-en-obra-y-expediente-incompleto.spec.json"
         },
         {
             "id": "HR-020",
             "type": "ext-rule",
+            "title": "Perfil del trabajador por rol",
             "module": "Recursos Humanos",
-            "status": "aprobado",
+            "module_key": "recursos_humanos",
+            "extends": null,
+            "status": "implementado",
             "file": "docs/specs/HR-020-recursos-humanos-perfil-del-trabajador-por-rol.spec.json"
+        },
+        {
+            "id": "ARCH-001",
+            "type": "ext-rule",
+            "title": "Tipado y pertenencia de modelos",
+            "module": "Mapa de arquitectura",
+            "module_key": "architecture",
+            "extends": null,
+            "status": "aprobado",
+            "file": "docs/specs/ARCH-001-architecture-tipado-y-pertenencia-de-modelos.spec.json"
         }
     ],
     "warnings": [
         {
-            "code": "relation_without_return_type",
-            "subject": "Notification::user",
-            "message": "Relación sin return type. Agrega `: BelongsTo` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "Supplier::purchaseOrders",
-            "message": "Relación sin return type. Agrega `: HasMany` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "Supplier::materialVouchers",
-            "message": "Relación sin return type. Agrega `: HasMany` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "Supplier::contacts",
-            "message": "Relación sin return type. Agrega `: HasMany` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "Supplier::primaryContact",
-            "message": "Relación sin return type. Agrega `: HasOne` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "Supplier::locations",
-            "message": "Relación sin return type. Agrega `: HasMany` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "SupplierContact::supplier",
-            "message": "Relación sin return type. Agrega `: BelongsTo` para que se detecte por tipo."
-        },
-        {
-            "code": "relation_without_return_type",
-            "subject": "SupplierLocation::supplier",
-            "message": "Relación sin return type. Agrega `: BelongsTo` para que se detecte por tipo."
-        },
-        {
             "code": "model_without_module",
-            "subject": "LateOvertimeRequest",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "MaterialRequestChangeNote",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "MaterialRequestItem",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "MaterialRequestItemProjectWork",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "NotificationRecipient",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "OvertimeEntry",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "PurchaseOrderItem",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "PurchaseOrderItemDelivery",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "PurchaseRequestChangeNote",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "PurchaseRequestItem",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "StockCertificate",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "StockEntryItem",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "StockExitItem",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
-        },
-        {
-            "code": "model_without_module",
-            "subject": "UserInfo",
-            "message": "No se pudo asignar a un módulo (sin controller con rutas ni spec)."
+            "subject": "PurchaseOrderMilestoneAdjustment",
+            "message": "No se pudo asignar a un módulo: solo tiene padres compartidos (User). Decláralo en `architecture.modules.*.models` de docs/specs/_project.json."
         }
     ]
 }
