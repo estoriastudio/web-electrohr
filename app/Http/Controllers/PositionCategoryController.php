@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequiresHrOffice;
 use App\Models\PositionCategory;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
@@ -12,6 +13,8 @@ use Illuminate\View\View;
 
 class PositionCategoryController extends Controller
 {
+    use RequiresHrOffice;
+
     public function __construct(private NotificationService $notification) {}
 
     public function index(): View

@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Worker;
 use App\Models\WorkerFile;
+use App\Services\Hr\HrAudit;
+use App\Services\Hr\HrFieldScope;
+use App\Services\Hr\WorkerProfileService;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,12 +35,15 @@ class WorkerFileController extends Controller
         'medical_certificate_expiration_date',
     ];
 
-    public function __construct(private NotificationService $notification) {}
+    public function __construct(
+        private NotificationService $notification,
+        private WorkerProfileService $profileService,
+    ) {}
 
     public function show(Worker $worker): View
     {
         $this->ensureWorkerAccess($worker);
-        $canManageWorkerFile = $this->canManageWorkers();
+        $canManageWorkerFile = true;
         $workerFile = WorkerFile::firstOrCreate(['worker_id' => $worker->id]);
         $worker->load('dc3s');
 
@@ -51,6 +57,7 @@ class WorkerFileController extends Controller
 
     public function update(Request $request, Worker $worker): RedirectResponse
     {
+        $this->ensureWorkerAccess($worker);
         $data = $this->validatedData($request);
         $workerFile = WorkerFile::firstOrCreate(['worker_id' => $worker->id]);
         $replacedPaths = [];
@@ -92,13 +99,17 @@ class WorkerFileController extends Controller
             'data' => "actualizó el expediente de {$worker->first_name} {$worker->last_name}.",
         ]);
 
+        if ($this->profileService->clearIncompleteMarkIfComplete($worker)) {
+            HrAudit::log('Expediente completo', 'Trabajador', $worker->id, $worker, 'Expediente incompleto', 'Expediente completo');
+        }
+
         return redirect()->route('human_resources.workers.file.show', $worker)
             ->with('success', 'Expediente actualizado correctamente.');
     }
 
     public function download(Worker $worker, string $document): mixed
     {
-        $this->ensureWorkerAccess($worker);
+        $this->ensureDownloadAccess($worker);
         abort_unless(in_array($document, self::FILE_COLUMNS, true), 404);
 
         $workerFile = $worker->file;
@@ -128,17 +139,17 @@ class WorkerFileController extends Controller
         return $request->validate($rules);
     }
 
-    private function canManageWorkers(): bool
+    /** RH descarga cualquier documento; el campo solo los de personas dentro de sus Obras (HR-011). */
+    private function ensureDownloadAccess(Worker $worker): void
     {
-        return Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
+        abort_unless(
+            HrFieldScope::isUnrestricted() || Worker::query()->inFieldScope(Auth::user())->whereKey($worker->id)->exists(),
+            403
+        );
     }
 
     private function ensureWorkerAccess(Worker $worker): void
     {
-        if ($this->canManageWorkers()) {
-            return;
-        }
-
-        abort_unless($worker->isAssignedToResponsibleWork(Auth::user()), 403);
+        abort_unless(HrFieldScope::isUnrestricted(), 403);
     }
 }

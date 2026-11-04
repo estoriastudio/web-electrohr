@@ -26,14 +26,4 @@ class PositionCategory extends Model
     {
         return $this->hasMany(WorkerTermination::class);
     }
-
-    public function payrollLines(): HasMany
-    {
-        return $this->hasMany(PayrollLine::class);
-    }
-
-    public function pieceworkWeeklyEntries(): HasMany
-    {
-        return $this->hasMany(PieceworkWeeklyEntry::class);
-    }
 }

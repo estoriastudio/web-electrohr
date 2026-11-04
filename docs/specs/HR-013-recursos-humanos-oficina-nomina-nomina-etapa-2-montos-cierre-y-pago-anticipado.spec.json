@@ -1,0 +1,374 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-013",
+    "title": "Nómina etapa 2: montos, cierre y pago anticipado",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_oficina_nomina",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Segunda etapa de la nómina: RH jefe toma los Proyectos revisados, define montos (valor de la hora extra, reembolsos), descuentos, caja de ahorro y el salario final de cada persona, y cierra el Proyecto, congelando las filas y aplicando los abonos de préstamos y de caja de ahorro. Incluye el cálculo del valor del día, los ajustes de periodos cerrados y el pago anticipado. Depende de HR-005, HR-010, HR-012 y HR-015.",
+    "flow": "RH jefe abre Nómina RH, elige el periodo y ve los Proyectos con su estado. En un Proyecto revisado captura por persona: valor de HE, reembolsos, descuentos, caja de ahorro (aportación o devolución con motivo) y salario final; puede pegar columnas desde Excel (una sola entrada en bitácora). Si el salario final difiere más de $50 del propuesto debe dar un motivo. \"Cerrar Proyecto\" congela los valores y escribe los abonos. Puede regresar el Proyecto al Revisor o reabrirlo. Con \"Pagar hasta el [día]\" define un pago anticipado: los días posteriores se pagan con el periodo siguiente.",
+    "prefix": "/recursos-humanos/oficina/nomina",
+    "middleware": "role:RH jefe|admin",
+    "search": "Filtros por periodo, Proyecto, Obra y persona",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "PayrollEntry",
+      "table": "payroll_entries",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "payroll_project_stage_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → payroll_project_stages.id, cascade on delete · único junto con worker_id"
+        },
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, restrict on delete"
+        },
+        {
+          "name": "day_amounts",
+          "type": "json",
+          "nullable": true,
+          "extra": "importes distintos al valor del día solo en Descanso, Vacaciones y Libranza (fecha → importe)"
+        },
+        {
+          "name": "ot_hourly_rate",
+          "type": "decimal(10,2)",
+          "nullable": true,
+          "extra": "valor de la hora extra; sugerido = sueldo semanal / 7 / 8 × 2"
+        },
+        {
+          "name": "reimbursement",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": "default 0"
+        },
+        {
+          "name": "deductions",
+          "type": "json",
+          "nullable": true,
+          "extra": "descuentos de la semana con concepto e importe"
+        },
+        {
+          "name": "savings_contribution",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": "default 0"
+        },
+        {
+          "name": "savings_return",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": "default 0"
+        },
+        {
+          "name": "savings_reason",
+          "type": "string",
+          "nullable": true,
+          "extra": "Devolución anual o Devolución por baja"
+        },
+        {
+          "name": "final_salary",
+          "type": "decimal(10,2)",
+          "nullable": true,
+          "extra": "salario final fijado por RH jefe"
+        },
+        {
+          "name": "difference_reason",
+          "type": "text",
+          "nullable": true,
+          "extra": "obligatorio si final_salary difiere más de 50 pesos del propuesto"
+        },
+        {
+          "name": "frozen",
+          "type": "json",
+          "nullable": true,
+          "extra": "fila congelada al cerrar el Proyecto"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "PayrollProjectStage",
+          "key": "payroll_project_stage_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "hasMany",
+          "model": "PayrollEntryAdjustment",
+          "key": "payroll_entry_id"
+        }
+      ]
+    },
+    {
+      "name": "PayrollCutoff",
+      "table": "payroll_cutoffs",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": "único"
+        },
+        {
+          "name": "last_paid_date",
+          "type": "date",
+          "nullable": false,
+          "extra": "dentro del periodo y anterior al jueves"
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "set_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "set_by"
+        }
+      ]
+    },
+    {
+      "name": "PayrollEntryAdjustment",
+      "table": "payroll_entry_adjustments",
+      "expose": "none",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "payroll_entry_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → payroll_entries.id, cascade on delete"
+        },
+        {
+          "name": "payroll_adjustment_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → payroll_adjustments.id, restrict on delete · tabla de HR-010 · único"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": "importe cobrado en esta fila (con signo)"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "PayrollEntry",
+          "key": "payroll_entry_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "PayrollAdjustment",
+          "key": "payroll_adjustment_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Nómina RH. Selector de periodo, bloque de \"Pagar hasta el…\" y tarjetas por Proyecto con estado, total y avisos. Los Proyectos aún En revisión se ven bloqueados con la razón."
+    },
+    {
+      "name": "show",
+      "render": "livewire",
+      "behavior": "Captura de RH jefe por Proyecto. Componente App\\Livewire\\Hr\\PayrollEntriesTable: tabla por persona con días (incidencia y valor), HE y valor de la hora, reembolsos, descuentos, préstamo, caja de ahorro, ajustes, salario propuesto y final. Celdas pegables desde Excel. Panel \"Cambios después de la revisión\", motivo obligatorio cuando la diferencia supera $50, indicador de datos incompletos y avisos de Libranza con % por definir. Botones Cerrar Proyecto, Regresar al Revisor y Reabrir."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (HrSetting y permisos), HR-010 (PayrollAdjustment), HR-012 (PayrollProjectStage y su estado) y HR-015 (préstamos, caja de ahorro, forma de pago y descuentos fijos que se consumen aquí).",
+    "Debe permanecer igual: nada del módulo anterior; PayrollPeriod, PayrollLine, PayrollGenerationService y WorkerIncentiveService ya fueron retirados en HR-005 y no se migra información. Las filas de este spec son la única nómina.",
+    "Valor del día = sueldo semanal ÷ 7 (plano). Asistencia en domingo = sueldo semanal ÷ divisor del domingo (6) + bono ($50), configurables en HrSetting. Libranza A/B/C = valor del día × % configurado; sin % definido paga 100 % con aviso \"por definir\". Descanso, Vacaciones y Libranza pueden tener otro importe capturado por RH jefe.",
+    "Valor sugerido de la hora extra = sueldo semanal ÷ 7 ÷ 8 × 2; RH jefe puede cambiarlo por persona. Los importes en pesos se guardan de forma consistente (decimal(10,2)) y se redondean igual en pantalla, cierre y Excel.",
+    "El salario final difiere del propuesto: si la diferencia supera $50 se exige motivo. Se puede pegar desde Excel; el pegado se valida celda por celda y registra una sola entrada de bitácora.",
+    "Cerrar Proyecto exige: estado reviewed, sin datos incompletos de personas (forma de pago, etc.) y sin correcciones pendientes de esas personas. Al cerrar, en una sola transacción (DB::transaction): congela las filas, escribe los abonos de préstamo (el más antiguo primero, hasta su saldo) y los movimientos de caja de ahorro (aportación o devolución), cobra los ajustes pendientes del periodo (PayrollEntryAdjustment), pasa a validated y deja un punto de recuperación (HR-016). Un fallo parcial no puede duplicar abonos.",
+    "Reabrir (a RH jefe o al Revisor) exige motivo; si estaba cerrado, reversa con nuevos movimientos REVERSAL los abonos de préstamo y caja de ahorro (nunca se borran), descongela y libera los ajustes cobrados.",
+    "Un cambio de datos de un periodo ya cerrado no reabre el periodo: HR-010 registra un PayrollAdjustment y aquí se calcula su importe (diferencia entre la fila viva y la congelada, más lo ya ajustado) y se cobra en el siguiente periodo abierto de la persona (que no esté cerrado ni autorizado).",
+    "Pago anticipado: \"Pagar hasta el [día]\" dentro del periodo; los días posteriores se pagan con el periodo siguiente (columnas \"se paga la semana siguiente\"). El incentivo semanal se define en el último día pagado y la revisión abre al día siguiente a las 10:00. Solo se puede cambiar mientras ningún Proyecto del periodo haya sido revisado y el periodo no esté autorizado.",
+    "Dirección (admin) puede devolver un Proyecto cerrado a RH jefe con comentario (HR-014); mientras haya un Proyecto devuelto no se autoriza el periodo.",
+    "Toda acción con importes se escribe en bitácora como sensitive y no la ven el RH ayudante ni el Revisor; el Revisor y el RH ayudante no acceden a esta ventana (403).",
+    "Riesgo: los importes en decimales deben ser coherentes entre Excel, pantalla y cierre."
+  ],
+  "validations": [
+    {
+      "field": "ot_hourly_rate",
+      "rule": "nullable, numeric, min:0"
+    },
+    {
+      "field": "reimbursement, savings_contribution, savings_return",
+      "rule": "nullable, numeric, min:0"
+    },
+    {
+      "field": "deductions.*.amount",
+      "rule": "numeric, min:0; concept requerido"
+    },
+    {
+      "field": "final_salary",
+      "rule": "nullable, numeric, min:0"
+    },
+    {
+      "field": "difference_reason",
+      "rule": "requerido si |final_salary − propuesto| > 50"
+    },
+    {
+      "field": "last_paid_date",
+      "rule": "requerido, date, dentro del periodo y menor al jueves"
+    },
+    {
+      "field": "reason (reapertura o devolución)",
+      "rule": "requerido, string"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Cómo se relacionan estas filas con la nómina del módulo anterior (PayrollLine: fiscal, complemento, Infonavit, comidas)?",
+      "a": "No se relacionan: el módulo anterior de nómina se elimina (HR-005) y no hay convivencia ni migración. Las filas de este spec son la única nómina."
+    },
+    {
+      "q": "¿Las HE nuevas (overtime_entries) son el único origen de las horas extra?",
+      "a": "Sí: el incentivo del módulo anterior se elimina y overtime_entries es el único origen de verdad."
+    },
+    {
+      "q": "¿El valor de la hora extra sugerido (doble de hora de 8 h) es la regla vigente de la empresa?",
+      "a": "Se puede determina manualmente."
+    },
+    {
+      "q": "¿Cuáles son los descuentos fijos y variables que existen (pensión alimenticia, Infonavit, material extraviado)?",
+      "a": "El prototipo usa Pensión alimenticia, Infonavit y Caja de ahorro como descuentos fijos, y son cofigurables por Worker"
+    }
+  ],
+  "exceptions": [
+    "El cierre, la reapertura y el pago anticipado son acciones POST en transacción con redirect o dispatch('flash'); la captura de celdas es de un componente Livewire.",
+    "Controllers Hr\\Office\\PayrollController y Hr\\Office\\PayrollCutoffController; nombres de ruta rh.office.payroll.*; las vistas viven en resources/views/hr/office/payroll/ en lugar de la carpeta derivada del prefijo (HR-005).",
+    "PayrollCalculator y PayrollStageService son servicios simples en App\\Services\\Hr (no Policies ni Gates)."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Timbrado fiscal, CFDI, IMSS e Infonavit reales (el prototipo no los calcula).",
+    "Autorización de Dirección y Excel de dispersión (HR-014).",
+    "Préstamos, caja de ahorro y formas de pago (HR-015): este spec solo los consume."
+  ],
+  "docsOff": []
+}

@@ -1,0 +1,374 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "workflow",
+  "meta": {
+    "id": "HR-008",
+    "title": "Horas extra: ventana de las 10:00 y HE fuera de plazo",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_oficina_horas-extra",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "implementado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Capturar las horas extra (HE) de cada día al día siguiente, hasta las 10:00 (hora America/Mexico_City), sin importes, y gestionar las que llegan tarde mediante una solicitud a RH persona por persona. Depende de HR-005 y HR-007.",
+    "flow": "Campo: en Asistencias, con el selector en Ayer, la columna HE está abierta hasta hoy a las 10:00 (las del jueves, hasta el viernes a las 10:00). Se capturan HE por persona o en bloque y \"Liberar horas extra\" cierra la captura antes de la hora. Pasadas las 10:00 la columna se cierra con el aviso del plazo y cada fila ofrece \"HE fuera de plazo…\" (horas y motivo obligatorio). RH: la pestaña \"HE fuera de plazo\" de la bandeja lista las solicitudes (sin importes); se aprueban o rechazan una o varias a la vez con una nota.",
+    "prefix": "/recursos-humanos/oficina/horas-extra",
+    "middleware": "role:RH jefe|RH ayudante|admin",
+    "search": "Filtros por estado, Obra, fecha y persona",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "LateOvertimeRequest",
+      "table": "late_overtime_requests",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete"
+        },
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "hours",
+          "type": "unsignedInteger",
+          "nullable": false,
+          "extra": "horas enteras (1 a 16)"
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "pending, approved, rejected · validado con in: · default pending"
+        },
+        {
+          "name": "requested_by",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → users.id, restrict on delete"
+        },
+        {
+          "name": "resolved_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "requested_by"
+        }
+      ]
+    },
+    {
+      "name": "OvertimeEntry",
+      "table": "overtime_entries",
+      "expose": "none",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "nullable": false,
+          "extra": "único junto con worker_id"
+        },
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete · donde trabajó"
+        },
+        {
+          "name": "charge_project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete · Obra de cargo"
+        },
+        {
+          "name": "hours",
+          "type": "unsignedInteger",
+          "nullable": false,
+          "extra": "horas enteras (1 a 16)"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "nullable": false,
+          "extra": "field, hr, late · validado con in:"
+        },
+        {
+          "name": "set_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        }
+      ]
+    },
+    {
+      "name": "OvertimeClosure",
+      "table": "overtime_closures",
+      "expose": "none",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, cascade on delete"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "nullable": false,
+          "extra": "único junto con project_work_id"
+        },
+        {
+          "name": "closed_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "field-overtime",
+      "render": "livewire",
+      "behavior": "Columna HE de Asistencias (rutas /recursos-humanos/campo/horas-extra con role:Supervisor|Gerente de proyecto|admin). Parte del componente AttendanceTable de HR-007. Con el día Ayer y la ventana abierta, celda de horas editable, captura en bloque y botón \"Liberar horas extra\" con el texto \"Hasta hoy a las 10:00\". Con la ventana cerrada, la columna muestra el aviso del plazo y cada fila el botón \"HE fuera de plazo…\" (modal con horas y motivo)."
+    },
+    {
+      "name": "index",
+      "render": "livewire",
+      "behavior": "Pestaña HE fuera de plazo de RH. Componente App\\Livewire\\Hr\\LateOvertimeInbox dentro de la bandeja de HR-006: tabla de solicitudes pendientes (persona, Obra, fecha, horas, motivo, quién pidió) con selección múltiple y acciones Aprobar / Rechazar con nota; resumen de resultados al terminar. Sin importes."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "pending",
+      "label": "Por aprobar",
+      "to": "approved | rejected"
+    },
+    {
+      "value": "approved",
+      "label": "Aprobada",
+      "to": ""
+    },
+    {
+      "value": "rejected",
+      "label": "Rechazada",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (HrClock, hr_settings.ot_deadline_hour, HrAudit) y HR-007 (la columna HE vive en la captura diaria).",
+    "Debe permanecer igual: el campo no ve ni captura importes y la habilitación 24 h de HR-007 abre incidencias, no HE. No hay convivencia con el módulo anterior: los incentivos y HE anteriores no se migran ni alimentan nada; overtime_entries es el único origen de las HE (HR-013 las valúa).",
+    "Solo se capturan las HE del día anterior, hasta ot_deadline_hour (10:00, America/Mexico_City) de hoy o hasta que alguien libere las HE de esa Obra y fecha.",
+    "Solicitud fuera de plazo: persona del alcance del usuario, horas mayores a 0 y hasta 16, fecha anterior a hoy, ventana cerrada, persona en el padrón de esa Obra ese día, motivo obligatorio y una sola solicitud pendiente por persona y día.",
+    "Aprobar registra las HE con source = late, deja en bitácora quién pidió, quién aprobó y por qué y, si el periodo ya está cerrado, crea un ajuste automático (HR-010/HR-013). Rechazar solo deja bitácora.",
+    "La aprobación en bloque procesa una por una; el resumen indica cuántas se aplicaron y por qué falló cada otra.",
+    "RH puede capturar HE directamente (source = hr) con motivo, también en bitácora.",
+    "La pestaña de RH y las solicitudes no muestran importes; el RH ayudante puede resolverlas.",
+    "Las horas son enteras (1 a 16; decisión del equipo: sin fracciones y el tope de 16 h es regla de negocio).",
+    "Los componentes Livewire validan permiso y alcance y registran NotificationService y HrAudit en cada mutación."
+  ],
+  "validations": [
+    {
+      "field": "hours",
+      "rule": "requerido, integer, min:1, max:16"
+    },
+    {
+      "field": "date",
+      "rule": "requerido, date; ayer si la ventana está abierta; anterior a hoy en la solicitud"
+    },
+    {
+      "field": "reason",
+      "rule": "requerido en la solicitud fuera de plazo, string"
+    },
+    {
+      "field": "ids (aprobar o rechazar)",
+      "rule": "requerido, array, cada elemento exists:late_overtime_requests"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Se permiten fracciones de hora (0.5)? El prototipo usa horas enteras.",
+      "a": "No"
+    },
+    {
+      "q": "¿El tope de 16 h es regla de negocio o solo del prototipo?",
+      "a": "Regla de negocio"
+    },
+    {
+      "q": "¿Quién puede liberar HE: Supervisor, Gerente o ambos?",
+      "a": "Ambos"
+    },
+    {
+      "q": "¿Cuál es la hora límite de captura de HE?",
+      "a": "Según el prototipo v6, las HE de cada día se capturan hasta las 10:00 del día siguiente y es configurable en hr_settings (HR-005). Por confirmar."
+    }
+  ],
+  "exceptions": [
+    "Las acciones masivas (liberar, aprobar en bloque) responden con dispatch('flash') y resumen según docs/livewire-conventions.md.",
+    "Los controllers del campo viven en App\\Http\\Controllers\\Hr\\Field y los componentes en App\\Livewire\\Hr (HR-005); nombres de ruta rh.field.overtime.* y rh.office.late-overtime.*.",
+    "Las vistas viven en resources/views/hr/{field,office}/... en lugar de la carpeta derivada del prefijo."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Valor monetario de la hora y su cálculo (HR-013)."
+  ],
+  "docsOff": []
+}

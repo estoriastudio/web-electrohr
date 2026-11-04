@@ -1,0 +1,231 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "listing",
+  "meta": {
+    "id": "HR-016",
+    "title": "Reportes y soporte: costos, altas y bajas e integridad",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_direccion_costos",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Completar el proceso con los reportes y herramientas de soporte: costos de mano de obra por Gerente, Proyecto, Obra y cuadrilla (con los apoyos), reporte dinámico de altas y bajas, verificación de integridad, puntos de recuperación automáticos al cerrar y autorizar. Depende de HR-005 a HR-015.",
+    "flow": "Admin (Dirección) y RH jefe abren Costos y eligen un rango de periodos y una agrupación (Gerente, Proyecto, Obra, cuadrilla); el apoyo de medio día o día completo mueve el costo de una Obra a otra. Movimientos (Altas y bajas) muestra por semana las altas (contratación o alta en obra) y bajas con totales y detalle, agrupables por Proyecto, Obra, cuadrilla, cargo o motivo. Integridad muestra las verificaciones y los puntos de recuperación guardados al cerrar Proyectos y autorizar.",
+    "prefix": "/recursos-humanos/direccion/costos",
+    "middleware": "role:RH jefe|admin",
+    "search": "Rango de periodos, agrupación y filtros por Proyecto, Obra, cuadrilla, cargo y motivo",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "recovery_points",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "RecoveryPoint",
+      "table": "recovery_points",
+      "expose": "resource",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "label",
+          "type": "string",
+          "nullable": false,
+          "extra": "p. ej. Cierre de RH: Proyecto 1805 · 11/09–17/09/2026"
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "nullable": false,
+          "extra": "close, authorize, manual · validado con in:"
+        },
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "nullable": false,
+          "extra": "instantánea de las filas congeladas, movimientos de préstamo y de caja de ahorro y autorización relacionados"
+        },
+        {
+          "name": "checksum",
+          "type": "string",
+          "nullable": false,
+          "extra": "hash del payload para detectar alteraciones"
+        },
+        {
+          "name": "created_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "created_by"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Costos de mano de obra (role:RH jefe|admin, seeAmounts). Rango de periodos con atajos (semana actual, mes, últimas N semanas cerradas), agrupación por Gerente, Proyecto, Obra o cuadrilla, totales con el apoyo ya reasignado y exportación CSV. Solo muestra periodos cerrados por RH."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Altas y bajas (role:RH jefe|RH ayudante|admin; la verificación de integridad y los puntos de recuperación son de role:RH jefe|admin con permiso backups). Reporte por semana con altas (+), bajas (−) y neto; detalle por persona con fecha, Proyecto, Obra, cuadrilla, cargo y motivo (Contratación (ERP), Alta en obra o el motivo de la baja); agrupable y filtrable; los totales cuadran con el detalle; CSV."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 a HR-015. Este es el último spec de la iniciativa y solo consulta datos de los anteriores; salvo RecoveryPoint, no crea tablas de negocio.",
+    "Es un módulo de listado: solo index y show de Costos y Altas y bajas (sin store, update ni destroy). La verificación de integridad y los puntos de recuperación se atienden con acciones de solo consulta o generación, declaradas como excepción.",
+    "Debe permanecer igual: nada del módulo anterior; el retiro de sus pantallas, rutas, controllers y tablas se hizo en HR-005 y no hay datos históricos que consultar ni migrar.",
+    "Costos solo de filas congeladas (Cerrado por RH) y autorizadas; los periodos abiertos no aparecen. Los apoyos reasignan el costo del día de la Obra de origen a la de destino en la fracción indicada (medio día o día completo). El reporte muestra la diferencia contra el total de nómina.",
+    "Costos por Gerente: suma de las Obras de los Proyectos del Gerente (Project.manager_user_id); debe cuadrar con el personal asignado a esas Obras.",
+    "Altas y bajas: alta = día de inicio (fecha de contratación o inicio del alta en obra); baja = terminación registrada y no cancelada. Cada línea guarda Proyecto, Obra, cuadrilla, cargo y motivo para poder agrupar. RH ayudante lo ve sin datos de pago.",
+    "Integridad: préstamos con saldo reconstruido desde sus movimientos (nunca negativo, reversos válidos, abonos solo en Proyectos cerrados); caja de ahorro sin saldo negativo y con movimientos solo en Proyectos cerrados; nóminas cerradas cuyas filas suman su total; periodos autorizados que coinciden con lo cerrado y con el checksum de su archivo de dispersión.",
+    "Puntos de recuperación: automáticos al cerrar Proyecto (HR-013) y al autorizar (HR-014), con checksum; se guardan los últimos 3 por tipo. Un punto alterado (checksum distinto) se marca y se rechaza. Restaurar solo lo hace admin, en transacción, con confirmación y bitácora (pregunta abierta 1).",
+    "Se modifican PayrollStageService y PayrollAuthorizationService (HR-013 y HR-014) solo para registrar los puntos de recuperación.",
+    "Toda acción de soporte (generar, verificar, restaurar) queda en bitácora; las que incluyen importes se marcan sensitive.",
+    "Riesgo: el respaldo real de la base de datos y de S3 es infraestructura y no vive en el módulo; este spec solo cubre integridad y puntos de recuperación lógicos."
+  ],
+  "validations": [
+    {
+      "field": "from_period, to_period",
+      "rule": "requeridos, date, viernes; from_period menor o igual a to_period"
+    },
+    {
+      "field": "group_by",
+      "rule": "requerido, in:manager,project,site,crew"
+    },
+    {
+      "field": "type (movimientos)",
+      "rule": "nullable, in:alta,baja"
+    },
+    {
+      "field": "recovery_point (restaurar)",
+      "rule": "exists:recovery_points y checksum válido; solo admin"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Restaurar puntos de recuperación debe existir en el sistema o basta con consultar y verificar (el respaldo de la base lo hace infraestructura)?",
+      "a": "Punto de recuperación refiere que cuando se haga una acción se pueda cancelar el movimiento."
+    },
+    {
+      "q": "¿Se conserva el destajo (PieceworkWeeklyEntry) dentro del nuevo proceso de nómina?",
+      "a": "No: el destajo y el resto del módulo anterior no se usan y se eliminan en HR-005."
+    },
+    {
+      "q": "¿El costo por apoyo se reparte en cualquier fracción o solo medio día y día completo?",
+      "a": "Según el prototipo, solo medio día y día completo. Por confirmar."
+    }
+  ],
+  "exceptions": [
+    "Controllers Hr\\Director\\CostReportController, Hr\\Shared\\MovementController y Hr\\Director\\IntegrityController; nombres de ruta rh.director.costs.*, rh.shared.movements.* y rh.director.integrity.*; las vistas viven en resources/views/hr/ en lugar de la carpeta derivada del prefijo (HR-005).",
+    "Además de index y show, la verificación de integridad (POST verify) y la generación de puntos de recuperación (POST) son acciones de soporte sin formulario de crear; los reportes exportan CSV (o .xlsx con maatwebsite/excel, ya en el perfil).",
+    "Se modifican PayrollStageService y PayrollAuthorizationService de HR-013 y HR-014 solo para registrar los puntos de recuperación."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Respaldos de infraestructura de la base de datos y de S3.",
+    "Reportes fiscales, IMSS e Infonavit."
+  ],
+  "docsOff": []
+}

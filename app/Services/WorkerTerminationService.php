@@ -12,7 +12,7 @@ class WorkerTerminationService
     {
         return DB::transaction(function () use ($worker, $data): WorkerTermination {
             $worker = Worker::query()->lockForUpdate()->findOrFail($worker->id);
-            $projectWorkId = $data['project_work_id'] ?? $worker->currentProjectWork()?->id;
+            $projectWorkId = $data['project_work_id'] ?? $worker->project_work_id;
 
             $termination = WorkerTermination::create([
                 'worker_id' => $worker->id,

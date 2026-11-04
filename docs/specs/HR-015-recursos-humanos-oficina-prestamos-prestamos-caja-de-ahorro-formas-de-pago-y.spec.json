@@ -1,0 +1,598 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-015",
+    "title": "Préstamos, caja de ahorro, formas de pago y descuentos fijos",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_oficina_prestamos",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Llevar dentro del sistema, con historial de movimientos, los préstamos, la caja de ahorro, la forma de pago de cada persona (su cuenta, otro trabajador, otra persona con cuenta registrada o efectivo) y los descuentos fijos semanales (pensión alimenticia, Infonavit y caja de ahorro). Estos datos alimentan la nómina (HR-013) y el Excel de dispersión (HR-014). Se implementa antes de HR-013. Depende de HR-005 y HR-020.",
+    "flow": "RH jefe abre Préstamos y pulsa \"+ Nuevo préstamo\": elige a la persona, concepto, importe, a quién se dispersa y el abono por periodo o el número de periodos; el dinero sale en la dispersión del periodo actual y los abonos empiezan el siguiente. En Beneficiarios registra a otras personas con titular, cuenta y banco. En el perfil de cada trabajador define su forma de pago, sus descuentos fijos y consulta su caja de ahorro. Dirección (admin) consulta Préstamos y su detalle sin editar.",
+    "prefix": "/recursos-humanos/oficina/prestamos",
+    "middleware": "role:RH jefe|admin",
+    "search": "Filtros en vivo por persona, estado y periodo; búsqueda por nombre",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "Loan",
+      "table": "loans",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, restrict on delete"
+        },
+        {
+          "name": "concept",
+          "type": "string",
+          "nullable": false,
+          "extra": "default Préstamo personal"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "installment",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": "abono por periodo"
+        },
+        {
+          "name": "periods",
+          "type": "unsignedInteger",
+          "nullable": false,
+          "extra": "número de abonos"
+        },
+        {
+          "name": "payee_type",
+          "type": "string",
+          "nullable": false,
+          "extra": "self, worker, payee · validado con in:"
+        },
+        {
+          "name": "payee_worker_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → workers.id, null on delete"
+        },
+        {
+          "name": "payee_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → payees.id, null on delete"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "nullable": false,
+          "extra": "module · validado con in:"
+        },
+        {
+          "name": "granted_period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": "periodo en que se dispersa el dinero"
+        },
+        {
+          "name": "first_period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": "primer periodo de abono; posterior al de entrega"
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "active, cancelled · validado con in: · default active; \"liquidado\" se calcula con el saldo"
+        },
+        {
+          "name": "cancelled_reason",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "created_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Payee",
+          "key": "payee_id"
+        },
+        {
+          "kind": "hasMany",
+          "model": "LoanMovement",
+          "key": "loan_id"
+        }
+      ]
+    },
+    {
+      "name": "LoanMovement",
+      "table": "loan_movements",
+      "expose": "none",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "loan_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → loans.id, cascade on delete"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "nullable": false,
+          "extra": "disbursement, installment, reversal · validado con in:"
+        },
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "project_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → projects.id, null on delete · Proyecto en cuyo cierre se aplicó el abono"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "reverses_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → loan_movements.id, null on delete"
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "created_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Loan",
+          "key": "loan_id"
+        }
+      ]
+    },
+    {
+      "name": "SavingsMovement",
+      "table": "savings_movements",
+      "expose": "none",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, restrict on delete"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "nullable": false,
+          "extra": "contribution, payout, reversal · validado con in:"
+        },
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "project_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → projects.id, null on delete"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "reverses_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → savings_movements.id, null on delete"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "nullable": true,
+          "extra": "Devolución anual o Devolución por baja"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        }
+      ]
+    },
+    {
+      "name": "Payee",
+      "table": "payees",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "nullable": false,
+          "extra": "titular de la cuenta"
+        },
+        {
+          "name": "account",
+          "type": "string",
+          "nullable": false,
+          "extra": "cuenta; sensible, solo con seeAmounts"
+        },
+        {
+          "name": "bank",
+          "type": "string",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "relation",
+          "type": "string",
+          "nullable": true,
+          "extra": "parentesco o relación"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default true"
+        },
+        {
+          "name": "created_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "WorkerPayoutMethod",
+      "table": "worker_payout_methods",
+      "expose": "none",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete · el registro vigente tiene ended_at nulo; el historial queda en filas cerradas"
+        },
+        {
+          "name": "method",
+          "type": "string",
+          "nullable": false,
+          "extra": "own, worker, payee, cash · validado con in:; \"sin definir\" se calcula si no hay cuenta"
+        },
+        {
+          "name": "payee_worker_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → workers.id, null on delete"
+        },
+        {
+          "name": "payee_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → payees.id, null on delete"
+        },
+        {
+          "name": "set_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "ended_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": "null = vigente"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Payee",
+          "key": "payee_id"
+        }
+      ]
+    },
+    {
+      "name": "StandingDeduction",
+      "table": "standing_deductions",
+      "expose": "none",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "nullable": false,
+          "extra": "alimony, infonavit, savings · validado con in:"
+        },
+        {
+          "name": "weekly_amount",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "from_period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "until_period_start",
+          "type": "date",
+          "nullable": true,
+          "extra": "null = vigente"
+        },
+        {
+          "name": "created_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "livewire",
+      "behavior": "Préstamos. Componente App\\Livewire\\Hr\\LoansTable (paginado de 25, filtros con #[Url]): persona, concepto, importe, abono, periodos, saldo, estado (Activo, Liquidado, Cancelado) y a quién se dispersa. Modal \"+ Nuevo préstamo\" (dar el abono o el número de periodos; el otro se calcula). Pestañas Beneficiarios y Caja de ahorro (acumulado por persona y personas sin forma de pago). Admin ve lo mismo sin acciones."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Detalle del préstamo. Plan del préstamo y su lista de movimientos (desembolso, abonos, reversos) con periodo y Proyecto; botón Cancelar con motivo cuando aplica."
+    },
+    {
+      "name": "worker-payment",
+      "render": "livewire",
+      "behavior": "Panel de pago del perfil. Componente App\\Livewire\\Hr\\WorkerPaymentPanel, incluido en el perfil de RH jefe (workers/show de HR-020): selector de forma de pago (Su cuenta, Otro trabajador, Otra persona con cuenta registrada, Efectivo) con historial; descuentos fijos semanales con vigencia; saldo de caja de ahorro y movimientos. RH ayudante no lo ve."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (permisos editLoans, editPayout, viewLoans, seeAmounts) y HR-020 (perfil del trabajador por rol, donde se incluye el panel de pago). HR-013 escribe los abonos y movimientos al cerrar un Proyecto; HR-014 usa la forma de pago para el Excel.",
+    "Debe permanecer igual: el campo de cuenta bancaria del trabajador en workers (base de Trabajadores, se usa para la forma de pago \"Su cuenta\"). Nada del módulo anterior: los préstamos, la caja de ahorro y los descuentos de la nómina anterior se eliminaron en HR-005 y no se migran.",
+    "Préstamo: se captura el abono por periodo o el número de periodos y el otro se calcula (abono = ceil(importe / periodos / 100) × 100; periodos = ceil(importe / abono)); el abono nunca excede el importe.",
+    "El dinero del préstamo se dispersa en el periodo actual y los abonos empiezan al menos el periodo siguiente; no se registra un préstamo en un periodo ya autorizado (HR-014).",
+    "Abono del periodo: cada préstamo activo (el más antiguo primero) descuenta hasta su abono, sin pasar de su saldo antes del periodo. Se escribe como movimiento al cerrar el Proyecto (HR-013) y se reversa con un movimiento reversal al reabrirlo. El saldo siempre se reconstruye desde los movimientos: no se guarda un saldo editable y los movimientos nunca se editan ni se borran.",
+    "Cancelar un préstamo solo es posible antes del primer abono y antes de autorizar la dispersión de su periodo; después se liquida con abonos o con un ajuste.",
+    "Forma de pago: Su cuenta (requiere cuenta registrada), Otro trabajador (con cuenta) u Otra persona con cuenta registrada (beneficiario), o Efectivo; sin elección y sin cuenta queda \"Sin definir\". Cada cambio guarda historial y bitácora sensitive. Un préstamo puede dispersarse a su beneficiario (otro trabajador o cuenta registrada) distinto del trabajador.",
+    "Descuentos fijos semanales (pensión alimenticia, Infonavit, caja de ahorro): un cambio aplica desde el periodo actual y conserva el anterior en historial.",
+    "Caja de ahorro: saldo = aportaciones − devoluciones, ignorando movimientos reversados; se devuelve completa en el periodo que contiene la fecha anual configurada (HrSetting savings_payout_date) o en el periodo de la baja (\"Devolución por baja\").",
+    "RH ayudante y Revisor no ven préstamos, formas de pago, cuentas, descuentos ni caja de ahorro; admin (Dirección) solo consulta. Las cuentas y los importes de la bitácora se marcan sensitive.",
+    "Riesgo: datos financieros y cuentas bancarias; el controller y los componentes validan permiso (403) y no envían cuentas a quien no tiene seeAmounts. Migrar préstamos previos requiere datos fuente confiables: sin importe y abonos no se debe adivinar el saldo.",
+    "Riesgo: una cuenta mal capturada manda dinero a otra persona; se pide confirmación al registrar beneficiarios y se valida el formato de la cuenta."
+  ],
+  "validations": [
+    {
+      "field": "worker_id",
+      "rule": "requerido, exists:workers, activo"
+    },
+    {
+      "field": "amount",
+      "rule": "requerido, numeric, min:0.01"
+    },
+    {
+      "field": "installment | periods",
+      "rule": "al menos uno requerido; installment numeric min:0.01, periods integer min:1"
+    },
+    {
+      "field": "payee_type",
+      "rule": "requerido, in:self,worker,payee; payee_worker_id requerido si worker (distinto del trabajador y con cuenta); payee_id requerido si payee"
+    },
+    {
+      "field": "first_period_start",
+      "rule": "nullable, date, posterior al periodo de entrega"
+    },
+    {
+      "field": "name, account (beneficiario)",
+      "rule": "requeridos, string; account con formato de cuenta válido; bank nullable"
+    },
+    {
+      "field": "method (forma de pago)",
+      "rule": "requerido, in:own,worker,payee,cash; own solo con cuenta registrada"
+    },
+    {
+      "field": "weekly_amount",
+      "rule": "requerido, numeric, min:0"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué pasará con los préstamos y la caja de ahorro ya registrados (en PayrollLine y fuera del sistema)?",
+      "a": "No esta en uso, se eliminan."
+    },
+    {
+      "q": "¿Los descuentos fijos de hoy (Infonavit, pensión) se migran desde la nómina anterior o se capturan de nuevo?",
+      "a": "Se capturan de nuevo: el módulo anterior se elimina y no se migra información (solo la base de Trabajadores)."
+    },
+    {
+      "q": "¿La fecha anual de devolución de la caja de ahorro es 15/12?",
+      "a": "El prototipo usa 15/12 configurable (hr_settings.savings_payout_date)."
+    },
+    {
+      "q": "¿Qué formato de cuenta se valida (CLABE de 18 dígitos u otro)?",
+      "a": "CLABE"
+    },
+    {
+      "q": "¿Hay un tope de préstamo por persona o de descuento semanal?",
+      "a": "No"
+    }
+  ],
+  "exceptions": [
+    "Los movimientos (préstamos y caja de ahorro) nunca se editan ni se borran; las correcciones se hacen con reversal, por lo que no hay edit ni destroy de movimientos.",
+    "Se modifica workers/show (HR-020) solo para incluir el componente WorkerPaymentPanel.",
+    "Controllers Hr\\Office\\LoanController, PayeeController, WorkerPayoutController y StandingDeductionController; nombres de ruta rh.office.loans.*; las vistas viven en resources/views/hr/office/loans/ en lugar de la carpeta derivada del prefijo (HR-005)."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Intereses, comisiones y reestructura de préstamos.",
+    "Validación de cuentas contra el banco.",
+    "Cobro de préstamos a personas dadas de baja (se liquida con ajuste o fuera del sistema).",
+    "Cálculo de la nómina y cierre de Proyecto (HR-013)."
+  ],
+  "docsOff": []
+}

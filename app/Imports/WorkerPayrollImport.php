@@ -3,10 +3,8 @@
 namespace App\Imports;
 
 use App\Models\PositionCategory;
-use App\Models\ProjectWork;
 use App\Models\Worker;
 use App\Models\WorkerGroup;
-use App\Services\WorkerGroupMembershipService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -15,19 +13,12 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class WorkerPayrollImport implements ToCollection
 {
-    private WorkerGroupMembershipService $membershipService;
-
     private array $summary = [
         'created' => 0,
         'updated' => 0,
         'skipped' => 0,
         'warnings' => 0,
     ];
-
-    public function __construct(?WorkerGroupMembershipService $membershipService = null)
-    {
-        $this->membershipService = $membershipService ?? app(WorkerGroupMembershipService::class);
-    }
 
     public function collection(Collection $rows): void
     {
@@ -109,12 +100,7 @@ class WorkerPayrollImport implements ToCollection
 
             $worker->save();
 
-            $this->assignGroup(
-                $worker,
-                $this->value($values, $headers['place']),
-                $this->value($values, $headers['group']),
-                $hireDate,
-            );
+            $this->assignGroup($worker, $this->value($values, $headers['group']));
 
             $this->summary[$isNew ? 'created' : 'updated']++;
         }
@@ -200,41 +186,17 @@ class WorkerPayrollImport implements ToCollection
         return Worker::withTrashed()->where('nss', $nss)->first();
     }
 
-    private function assignGroup(Worker $worker, string $place, string $groupName, ?string $hireDate): void
+    private function assignGroup(Worker $worker, string $groupName): void
     {
-        if ($place === '' || $groupName === '') {
+        if ($groupName === '') {
             return;
         }
 
-        $projectWork = ProjectWork::query()
-            ->whereRaw('LOWER(TRIM(name)) = ?', [Str::lower($place)])
-            ->first();
+        $workerGroup = WorkerGroup::firstOrCreate(['name' => $groupName], ['status' => 'active']);
 
-        if (! $projectWork) {
-            $this->summary['warnings']++;
-
-            return;
+        if ($worker->worker_group_id !== $workerGroup->id) {
+            $worker->update(['worker_group_id' => $workerGroup->id]);
         }
-
-        $workerGroup = WorkerGroup::firstOrCreate(
-            ['name' => $groupName, 'project_work_id' => $projectWork->id],
-            ['status' => 'active'],
-        );
-        $currentGroup = $worker->currentGroup();
-
-        if ($currentGroup?->is($workerGroup)) {
-            return;
-        }
-
-        $membershipDate = $hireDate ?? now()->toDateString();
-
-        if ($currentGroup) {
-            $currentJoinedAt = $currentGroup->pivot->joined_at?->toDateString();
-            $membershipDate = max($membershipDate, $currentJoinedAt ?? $membershipDate);
-            $this->membershipService->remove($currentGroup, $worker, $membershipDate);
-        }
-
-        $this->membershipService->add($workerGroup, $worker, $membershipDate);
     }
 
     private function date(string $value): ?string

@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Exports\WorkerExport;
+use App\Http\Controllers\Concerns\RequiresHrOffice;
 use App\Imports\WorkerPayrollImport;
 use App\Imports\WorkerTerminationImport;
-use App\Models\PayrollLine;
 use App\Models\PositionCategory;
 use App\Models\Worker;
-use App\Models\ProjectWork;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\WorkerGroup;
+use App\Services\Hr\HrAudit;
+use App\Services\Hr\HrPermissions;
+use App\Services\Hr\WorkerProfileService;
 use App\Services\NotificationService;
 use App\Services\WorkerTerminationService;
 use Illuminate\Http\RedirectResponse;
@@ -23,13 +25,18 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class WorkerController extends Controller
 {
-    public function __construct(private NotificationService $notification) {}
+    use RequiresHrOffice;
+
+    public function __construct(
+        private NotificationService $notification,
+        private WorkerProfileService $profileService,
+    ) {}
 
     public function index(Request $request): View
     {
         $search = trim($request->input('search', ''));
         $section = $request->input('section', $request->input('status', 'active'));
-        $projectWorkId = $request->input('project_work_id', '');
+        $groupId = $request->input('group', '');
         $sections = ['active', 'pre_registered', 'terminated'];
 
         if (! in_array($section, $sections, true)) {
@@ -45,15 +52,11 @@ class WorkerController extends Controller
             'active' => (int) ($statusCounts['active'] ?? 0),
             'pre_registered' => (int) ($statusCounts['pre_registered'] ?? 0),
             'terminated' => (int) ($statusCounts['terminated'] ?? 0),
-            'without_project' => Worker::whereDoesntHave('groups', fn ($query) => $query->whereNull('worker_group_members.left_at'))->count(),
+            'without_group' => Worker::whereNull('worker_group_id')->count(),
         ];
 
         $workers = Worker::query()
-            ->with([
-                'projectWork',
-                'positionCategory',
-                'groups' => fn ($query) => $query->wherePivotNull('left_at')->with('projectWork'),
-            ])
+            ->with(['positionCategory', 'workerGroup'])
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($workerQuery) use ($search) {
                     $workerQuery->where('employee_code', 'like', "%{$search}%")
@@ -61,34 +64,31 @@ class WorkerController extends Controller
                         ->orWhere('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('nickname', 'like', "%{$search}%")
-                        ->orWhereHas('positionCategory', fn ($categoryQuery) => $categoryQuery->where('name', 'like', "%{$search}%"));
-
-                    $workerQuery->orWhereHas('groups', function ($groupQuery) use ($search) {
-                        $groupQuery->whereNull('worker_group_members.left_at')
-                            ->where('worker_groups.name', 'like', "%{$search}%");
-                    });
+                        ->orWhereHas('positionCategory', fn ($categoryQuery) => $categoryQuery->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('workerGroup', fn ($groupQuery) => $groupQuery->where('name', 'like', "%{$search}%"));
                 });
             })
             ->where('status', $section)
-            ->when($projectWorkId, fn ($query) => $query->whereHas('groups', fn ($groupQuery) => $groupQuery
-                ->whereNull('worker_group_members.left_at')
-                ->where('worker_groups.project_work_id', $projectWorkId)))
+            ->when($groupId === 'none', fn ($query) => $query->whereNull('worker_group_id'))
+            ->when($groupId !== '' && $groupId !== 'none', fn ($query) => $query->where('worker_group_id', $groupId))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->paginate(25)
             ->withQueryString();
 
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $workerGroups = WorkerGroup::orderBy('name')->get();
         $positionCategories = PositionCategory::query()->where('active', true)->orderBy('name')->get();
+        $canSeeAmounts = HrPermissions::can('seeAmounts');
 
         return view('human_resources.workers.index', compact(
             'workers',
-            'projectWorks',
+            'workerGroups',
             'search',
             'section',
-            'projectWorkId',
+            'groupId',
             'workerStats',
             'positionCategories',
+            'canSeeAmounts',
         ));
     }
 
@@ -99,11 +99,13 @@ class WorkerController extends Controller
 
     public function export()
     {
-        return Excel::download(new WorkerExport, 'trabajadores.xlsx');
+        return Excel::download(new WorkerExport(HrPermissions::can('seeAmounts')), 'trabajadores.xlsx');
     }
 
     public function importPayroll(Request $request): RedirectResponse
     {
+        abort_unless(HrPermissions::can('seeAmounts'), 403);
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
@@ -161,46 +163,20 @@ class WorkerController extends Controller
 
     public function show(Worker $worker): View
     {
-        $this->ensureWorkerAccess($worker);
-        $canManageWorker = $this->canManageWorkers();
+        $profile = $this->profileService->profile($worker, Auth::user());
+        $receipts = $profile['receipts'];
+        $canManageWorker = true;
 
-        $worker->load([
-            'positionCategory',
-            'file',
-            'dc3s',
-            'groups.projectWork',
-            'terminations.projectWork',
-            'terminations.positionCategory',
-            'vacations' => fn ($query) => $query->orderByDesc('start_date'),
-            'incentives' => fn ($query) => $query->orderByDesc('incentive_date'),
-            'attendances.workerGroup.projectWork',
-            'payrollLines' => fn ($query) => $query
-                ->with('payrollPeriod')
-                ->whereHas('payrollPeriod', fn ($periodQuery) => $periodQuery->where('status', 'paid'))
-                ->orderByDesc('payroll_period_id'),
-        ]);
-
-        return view('human_resources.workers.show', compact('worker', 'canManageWorker'));
+        return view('human_resources.workers.show', compact('worker', 'profile', 'receipts', 'canManageWorker'));
     }
 
-    public function downloadPayrollReceipt(Worker $worker, PayrollLine $payrollLine)
+    public function downloadPayrollReceipt(Worker $worker, int $payrollLine): RedirectResponse
     {
-        $this->ensureWorkerAccess($worker);
+        abort_unless(HrPermissions::can('seeAmounts'), 403);
 
-        abort_unless(
-            (int) $payrollLine->worker_id === (int) $worker->id
-                && $payrollLine->payrollPeriod()->where('status', 'paid')->exists(),
-            404
-        );
-
-        $payrollLine->load(['payrollPeriod', 'worker', 'projectWork', 'workerGroup', 'positionCategory']);
-
-        $pdf = Pdf::loadView('human_resources.workers.payroll_receipt_pdf', compact('worker', 'payrollLine'))
-            ->setPaper('letter', 'portrait');
-        $period = $payrollLine->payrollPeriod;
-        $filename = sprintf('RECIBO-NOMINA-%s-SEMANA-%s-%s.pdf', $worker->nss ?: $worker->id, $period->week_number, $period->year);
-
-        return $pdf->download($filename);
+        // Los recibos se generan con las filas cerradas de la nómina nueva (HR-013).
+        return redirect()->route('human_resources.workers.show', $worker)
+            ->with('info', 'El recibo no está disponible todavía.');
     }
 
     public function edit(Worker $worker): View
@@ -209,14 +185,32 @@ class WorkerController extends Controller
             ->where(fn ($query) => $query->where('active', true)->orWhere('id', $worker->position_category_id))
             ->orderBy('name')
             ->get();
+        $workerGroups = WorkerGroup::query()
+            ->where(fn ($query) => $query->where('status', 'active')->orWhere('id', $worker->worker_group_id))
+            ->orderBy('name')
+            ->get();
+        $canSeeAmounts = HrPermissions::can('seeAmounts');
 
-        return view('human_resources.workers.edit', compact('worker', 'positionCategories'));
+        return view('human_resources.workers.edit', compact('worker', 'positionCategories', 'workerGroups', 'canSeeAmounts'));
     }
 
     public function update(Request $request, Worker $worker): RedirectResponse
     {
+        $before = $worker->only(['weekly_salary', 'payment_type']);
         $worker->update($this->validatedData($request, $worker));
         $this->syncProfilePhoto($request, $worker);
+
+        if (HrPermissions::can('seeAmounts') && $before != $worker->only(['weekly_salary', 'payment_type'])) {
+            HrAudit::log(
+                'Cambio de sueldo o esquema de pago',
+                'Trabajador',
+                $worker->id,
+                $worker,
+                $before,
+                $worker->only(['weekly_salary', 'payment_type']),
+                sensitive: true,
+            );
+        }
 
         $this->notify($worker, 'update', "actualizó la información del trabajador {$worker->first_name} {$worker->last_name}.");
 
@@ -245,29 +239,34 @@ class WorkerController extends Controller
             ->with('success', 'Trabajador marcado como pre-registrado.');
     }
 
-    public function activate(Worker $worker): RedirectResponse
+    public function activate(Request $request, Worker $worker): RedirectResponse
     {
         if ($worker->status === 'terminated') {
             return redirect()->route('human_resources.workers.show', $worker)
                 ->with('error', 'No se puede activar a un trabajador dado de baja.');
         }
 
-        $isFileComplete = $worker->file?->isComplete() ?? false;
+        $data = $request->validate([
+            'without_complete_file' => 'nullable|boolean',
+            'reason' => 'required_if:without_complete_file,1|nullable|string|max:500',
+        ]);
 
-        if (! $isFileComplete && ! Auth::user()?->hasRole('admin')) {
+        $result = $this->profileService->activate(
+            $worker,
+            $request->boolean('without_complete_file'),
+            $data['reason'] ?? null,
+        );
+
+        if (! $result['ok']) {
             return redirect()->route('human_resources.workers.show', $worker)
-                ->with('error', 'No se puede dar de alta hasta que el expediente esté completo.');
+                ->with('error', $result['message']);
         }
 
-        $worker->update(['status' => 'active']);
-
-        $action = $isFileComplete ? 'dio de alta' : 'dio de alta sin expediente completo';
+        $action = $result['complete'] ? 'dio de alta' : 'dio de alta sin expediente completo';
         $this->notify($worker, 'update', "{$action} al trabajador {$worker->first_name} {$worker->last_name}.");
 
         return redirect()->route('human_resources.workers.show', $worker)
-            ->with('success', $isFileComplete
-                ? 'Trabajador dado de alta correctamente.'
-                : 'Trabajador dado de alta sin expediente completo.');
+            ->with('success', $result['message']);
     }
 
     public function reactivate(Worker $worker): RedirectResponse
@@ -287,7 +286,6 @@ class WorkerController extends Controller
 
     public function profilePhoto(Worker $worker): mixed
     {
-        $this->ensureWorkerAccess($worker);
         $path = $worker->profile_photo_path;
 
         abort_unless($path && Storage::disk('s3')->exists($path), 404);
@@ -297,7 +295,9 @@ class WorkerController extends Controller
 
     private function validatedData(Request $request, ?Worker $worker = null): array
     {
-        $data = $request->validate([
+        $canSeeAmounts = HrPermissions::can('seeAmounts');
+
+        $rules = [
             'employee_code' => [
                 'nullable',
                 'string',
@@ -311,8 +311,7 @@ class WorkerController extends Controller
             'birth_date' => 'nullable|date',
             'hire_date' => 'required|date',
             'position_category_id' => 'nullable|exists:position_categories,id',
-            'weekly_salary' => 'required|numeric|min:0',
-            'payment_type' => 'required|in:salaried,piecework',
+            'worker_group_id' => 'nullable|exists:worker_groups,id',
             'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png|max:10240',
             'is_dc5' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
@@ -324,9 +323,21 @@ class WorkerController extends Controller
                 Rule::unique('workers', 'nss')->ignore($worker?->id),
             ],
             'notes' => 'nullable|string|max:1000',
-        ]);
+        ];
+
+        if ($canSeeAmounts) {
+            $rules['weekly_salary'] = 'required|numeric|min:0';
+            $rules['payment_type'] = 'required|in:salaried,piecework';
+        }
+
+        $data = $request->validate($rules);
 
         unset($data['profile_photo']);
+
+        // Quien no ve importes no los captura: un alta nueva arranca en 0 y la edición no los toca.
+        if (! $canSeeAmounts && ! $worker) {
+            $data += ['weekly_salary' => 0, 'payment_type' => 'salaried'];
+        }
 
         return $data + [
             'status' => $worker?->status ?? 'pre_registered',
@@ -352,20 +363,6 @@ class WorkerController extends Controller
         if ($previousPath) {
             Storage::disk('s3')->delete($previousPath);
         }
-    }
-
-    private function canManageWorkers(): bool
-    {
-        return Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
-    }
-
-    private function ensureWorkerAccess(Worker $worker): void
-    {
-        if ($this->canManageWorkers()) {
-            return;
-        }
-
-        abort_unless($worker->isAssignedToResponsibleWork(Auth::user()), 403);
     }
 
     private function notify(object $model, string $action, string $data): void

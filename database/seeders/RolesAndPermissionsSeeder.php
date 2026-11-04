@@ -34,6 +34,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'Recepción',
             'Inventario',
             'supplier_portal_access',
+            // Proceso de asistencia y nómina por rol (HR-005)
+            'Supervisor',
+            'Gerente de proyecto',
+            'RH jefe',
+            'RH ayudante',
+            'Revisor de nómina',
         ];
 
         foreach ($roles as $roleName) {

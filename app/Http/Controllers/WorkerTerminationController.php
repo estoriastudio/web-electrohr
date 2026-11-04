@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequiresHrOffice;
 use App\Models\ProjectWork;
 use App\Models\Worker;
 use App\Models\WorkerTermination;
@@ -14,6 +15,8 @@ use Illuminate\View\View;
 
 class WorkerTerminationController extends Controller
 {
+    use RequiresHrOffice;
+
     public function __construct(
         private NotificationService $notification,
         private WorkerTerminationService $terminationService,

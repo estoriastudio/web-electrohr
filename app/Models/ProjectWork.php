@@ -46,14 +46,4 @@ class ProjectWork extends Model
     {
         return $this->belongsToMany(ProjectAgreement::class, 'project_agreement_project_work');
     }
-
-    public function payrollLines(): HasMany
-    {
-        return $this->hasMany(PayrollLine::class);
-    }
-
-    public function pieceworkWeeklyEntries(): HasMany
-    {
-        return $this->hasMany(PieceworkWeeklyEntry::class);
-    }
 }

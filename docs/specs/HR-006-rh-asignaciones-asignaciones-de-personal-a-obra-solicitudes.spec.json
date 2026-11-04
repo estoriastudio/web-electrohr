@@ -1,0 +1,454 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "workflow",
+  "meta": {
+    "id": "HR-006",
+    "title": "Asignaciones de personal a Obra: solicitudes, visto bueno y conflictos",
+    "module": "Recursos Humanos",
+    "module_key": "rh_asignaciones",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "implementado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Sustituir la pertenencia a una cuadrilla por asignaciones con vigencia trabajador → Obra. El Supervisor o Gerente solicita personal para sus Obras y RH da el visto bueno o resuelve los conflictos. Incluye el alta en obra (pre-registro con NSS y CURP desde campo) y las incongruencias de asignación. Depende de HR-005 y HR-017.",
+    "flow": "Campo: en Asignación el Supervisor filtra por cuadrilla o cargo, elige personas (para operadores filtra la cuadrilla OPERADORES) y arma una solicitud por Obra con \"A partir de\"; la envía a RH. Puede dar de alta a alguien nuevo con nombre, NSS (11 dígitos) y CURP: se crea un pre-registro con asignación provisional. RH: la bandeja tiene pestañas Pendientes, Conflictos, Altas en obra e Historial (HR-008 y HR-009 agregan Salidas, Descansos, Vacaciones y HE fuera de plazo). En Pendientes, \"Visto bueno\" aprueba las líneas sin conflicto de una solicitud; las que tienen conflicto pasan a Conflictos, donde RH elige \"Asignar aquí\", \"Dejar donde está\" u \"Otra Obra…\". En Historial RH puede reasignar o anular una asignación aprobada por error.",
+    "prefix": "/recursos-humanos/oficina/asignacion",
+    "middleware": "role:RH jefe|RH ayudante|admin",
+    "search": "Filtros en vivo por Proyecto, Obra, cuadrilla, cargo y búsqueda por nombre o NSS",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "PersonnelRequest",
+      "table": "personnel_requests",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete"
+        },
+        {
+          "name": "requested_by",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → users.id, restrict on delete"
+        },
+        {
+          "name": "start_date",
+          "type": "date",
+          "nullable": true,
+          "extra": "\"A partir de\""
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "draft, sent, closed · validado con in: · default draft"
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "requested_by"
+        },
+        {
+          "kind": "hasMany",
+          "model": "PersonnelRequestLine",
+          "key": "personnel_request_id"
+        }
+      ]
+    },
+    {
+      "name": "PersonnelRequestLine",
+      "table": "personnel_request_lines",
+      "expose": "nested",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "personnel_request_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → personnel_requests.id, cascade on delete"
+        },
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete"
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "pending, approved, rejected · validado con in: · default pending"
+        },
+        {
+          "name": "resolved_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "effective_date",
+          "type": "date",
+          "nullable": true,
+          "extra": "fecha efectiva de la asignación aprobada"
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "PersonnelRequest",
+          "key": "personnel_request_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        }
+      ]
+    },
+    {
+      "name": "WorkAssignment",
+      "table": "work_assignments",
+      "expose": "none",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → workers.id, cascade on delete · índice (worker_id, start_date)"
+        },
+        {
+          "name": "project_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → projects.id, restrict on delete"
+        },
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete"
+        },
+        {
+          "name": "worker_group_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → worker_groups.id, null on delete · cuadrilla al momento, solo historial"
+        },
+        {
+          "name": "start_date",
+          "type": "date",
+          "nullable": false,
+          "extra": ""
+        },
+        {
+          "name": "end_date",
+          "type": "date",
+          "nullable": true,
+          "extra": "null = vigente"
+        },
+        {
+          "name": "personnel_request_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → personnel_requests.id, null on delete"
+        },
+        {
+          "name": "replaced_assignment_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → work_assignments.id, null on delete"
+        },
+        {
+          "name": "provisional",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default false · true en alta en obra hasta completar"
+        },
+        {
+          "name": "approved_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "approved_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "closed_reason",
+          "type": "string",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "voided_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": "anulación (no se usa softDeletes)"
+        },
+        {
+          "name": "voided_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "void_reason",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Project",
+          "key": "project_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "PersonnelRequest",
+          "key": "personnel_request_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "request",
+      "render": "livewire",
+      "behavior": "Asignación del campo (rutas /recursos-humanos/campo/asignacion con role:Supervisor|Gerente de proyecto|admin). Componente App\\Livewire\\Hr\\PersonnelRequestBuilder: lista de personal con filtros en vivo por cuadrilla y cargo, selección múltiple y panel \"Solicitud por Obra\" con \"A partir de\". Modal \"Dar de alta en obra\" (nombre, NSS, CURP) con los mensajes de duplicado. Muestra el estado de sus solicitudes."
+    },
+    {
+      "name": "index",
+      "render": "livewire",
+      "behavior": "Bandeja de RH. Componente App\\Livewire\\Hr\\AssignmentInbox con pestañas Pendientes (por solicitud con Visto bueno y rechazo), Conflictos (Asignar aquí / Dejar donde está / Otra Obra…), Altas en obra (vencidas en rojo, activar, fusionar duplicado) e Historial (Reasignar…, Anular). Paginación de 25 y filtros con #[Url]."
+    },
+    {
+      "name": "inconsistencies",
+      "render": "blade",
+      "behavior": "Incongruencias. Lista calculada de Activo sin asignación y Solicitado por más de una Obra, con la acción que corresponde (Asignar / Asignar aquí). HR-010 agrega la tercera clase (Corrección pendiente)."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "draft",
+      "label": "Borrador",
+      "to": "sent"
+    },
+    {
+      "value": "sent",
+      "label": "Enviada a RH",
+      "to": "closed (cuando todas sus líneas dejan de estar pendientes)"
+    },
+    {
+      "value": "closed",
+      "label": "Cerrada",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (roles, alcance de campo, HrClock, HrAudit) y HR-017 (workers.worker_group_id y columnas de alta en obra).",
+    "Debe permanecer igual: la base de Trabajadores (expediente, DC3, bajas) y el NSS único. No hay convivencia con el módulo anterior: las membresías de cuadrilla no se migran (HR-005 elimina worker_group_members); todo trabajador activo arranca Sin asignación y aparece en Incongruencias hasta que RH lo asigne o se apruebe una solicitud.",
+    "Livewire: HR-005 instala livewire/livewire y deja la Bitácora como primer componente; este spec monta los siguientes. Livewire 3 inyecta sus assets solos (no se edita layouts/app.blade.php, que es protegido), resources/views/partials/flash.blade.php ya existe desde HR-005 y el listener del evento modal se agrega con @push('scripts') en la vista que monta el componente.",
+    "Un trabajador tiene a lo sumo una asignación vigente (end_date nulo y sin anular). El padrón de una Obra en una fecha son las asignaciones vigentes ese día, compartido por todos los supervisores de la Obra e incluyendo las provisionales.",
+    "Fecha mínima de una asignación = el mayor entre el inicio de la semana activa (viernes) y el día siguiente al último día capturado en otra Obra.",
+    "Hay conflicto cuando el trabajador está asignado a otra Obra o lo pidió otra Obra con una línea pendiente. El visto bueno aprueba solo las líneas sin conflicto, con la mayor fecha entre \"a partir de\" y la mínima, y envía las demás a Conflictos.",
+    "Aprobar una línea activa el pre-registro, cierra la asignación previa un día antes de la efectiva y, si la persona ya estaba en esa Obra, deja la línea aprobada sin cambios. Una asignación con fecha pasada habilita captura 24 h en la Obra receptora (HR-007).",
+    "Resolver conflicto: \"Asignar aquí\" rechaza las demás solicitudes de la persona; \"Dejar donde está\" rechaza esta; \"Otra Obra…\" asigna a una tercera.",
+    "Anular una asignación aprobada por error exige motivo, anula también los registros de asistencia capturados con ella (se eliminan y quedan en el historial de HR-007) y deja a la persona Sin asignación.",
+    "Alta en obra: sin NSS o CURP no se da el alta; un NSS que no tiene 11 dígitos se rechaza con su motivo; un NSS o CURP ya registrado se bloquea diciendo de quién es; si existe un pre-registro duplicado RH puede fusionar. Se crea un Worker en estado pre_registered con registered_by_user_id, field_registered_at y profile_complete_deadline (7 días) y una asignación provisional. Vencido el plazo se ve en rojo en RH; al activar la persona queda Activa (HR-020 define la marca Expediente incompleto).",
+    "Solo existen dos incongruencias de asignación (calculadas, sin tabla): Activo sin asignación y Solicitado por más de una Obra.",
+    "Supervisor y Gerente solo solicitan personal para sus Obras y solo ven sus solicitudes; el resultado de lo resuelto les llega agrupado en su campana (NotificationService).",
+    "Toda acción se registra con HrAudit (antes, después, motivo) y con NotificationService según docs/controller-structure-and-notifications.md; el campo y RH validan permiso y alcance en el controller (403).",
+    "Riesgo: al no migrar membresías, el primer día todo el personal activo está Sin asignación; RH usa la acción Asignar de Incongruencias (asignación directa con fecha efectiva y motivo, registrada en HrAudit) o aprueba las solicitudes del campo."
+  ],
+  "validations": [
+    {
+      "field": "project_work_id",
+      "rule": "requerido, exists:project_works, dentro del alcance del usuario"
+    },
+    {
+      "field": "worker_ids",
+      "rule": "requerido, array, min:1; cada elemento exists:workers"
+    },
+    {
+      "field": "start_date",
+      "rule": "nullable, date, no anterior a la fecha mínima del trabajador"
+    },
+    {
+      "field": "nss",
+      "rule": "requerido, digits:11, unique:workers"
+    },
+    {
+      "field": "curp",
+      "rule": "requerido, string, size:18, unique:workers"
+    },
+    {
+      "field": "first_name, last_name",
+      "rule": "requeridos, string, max:255"
+    },
+    {
+      "field": "reason (rechazo o anulación)",
+      "rule": "requerido, string"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Un trabajador puede estar asignado a varias Obras el mismo día o siempre a una (los apoyos se registran aparte en HR-007)?",
+      "a": "Solo a una"
+    },
+    {
+      "q": "¿Quién define el catálogo de cargos para filtrar? Hoy es PositionCategory.",
+      "a": "Se mantiene"
+    },
+    {
+      "q": "¿El Supervisor puede solicitar personal de otro Proyecto o solo personal sin asignación y de su alcance?",
+      "a": "Puede solicitar personal de otro proyecto, cuando RH valida y aprueba se reasigna"
+    },
+    {
+      "q": "¿Cómo se modelan las asignaciones?",
+      "a": "Decidido por el equipo: tabla nueva de asignaciones trabajador → Obra con vigencia, y la cuadrilla queda como atributo del trabajador."
+    }
+  ],
+  "exceptions": [
+    "La creación se hace desde componentes Livewire y acciones de bandeja: no hay create() que redirija a index.",
+    "Los controllers viven en App\\Http\\Controllers\\Hr\\{Field,Office} y los componentes en App\\Livewire\\Hr (HR-005).",
+    "Nombres de ruta rh.field.assignments.* y rh.office.assignments.* (en lugar del derivado del prefijo), igual que my-projects.* en Mis proyectos."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Descansos, vacaciones, salidas de Obra y HE fuera de plazo (HR-008, HR-009).",
+    "Importación masiva de personal desde el ERP.",
+    "Migrar membresías de cuadrilla a asignaciones: no se migra nada del módulo anterior."
+  ],
+  "docsOff": []
+}

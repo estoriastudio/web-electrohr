@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Services\Hr\HrClock;
+use App\Services\Hr\HrFieldScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -25,6 +27,11 @@ class Worker extends Model
         'hire_date',
         'position_category_id',
         'project_work_id',
+        'worker_group_id',
+        'registered_by_user_id',
+        'field_registered_at',
+        'profile_complete_deadline',
+        'file_incomplete',
         'weekly_salary',
         'payment_type',
         'is_dc5',
@@ -42,6 +49,9 @@ class Worker extends Model
         'hire_date' => 'date',
         'weekly_salary' => 'decimal:2',
         'is_dc5' => 'boolean',
+        'field_registered_at' => 'datetime',
+        'profile_complete_deadline' => 'date',
+        'file_incomplete' => 'boolean',
         'ine_expiration_date' => 'date',
         'medical_certificate_expiration_date' => 'date',
     ];
@@ -49,6 +59,16 @@ class Worker extends Model
     public function projectWork(): BelongsTo
     {
         return $this->belongsTo(ProjectWork::class);
+    }
+
+    public function workerGroup(): BelongsTo
+    {
+        return $this->belongsTo(WorkerGroup::class);
+    }
+
+    public function registeredByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'registered_by_user_id');
     }
 
     public function positionCategory(): BelongsTo
@@ -71,9 +91,14 @@ class Worker extends Model
         return $this->hasMany(WorkerTermination::class);
     }
 
-    public function vacations(): HasMany
+    public function assignments(): HasMany
     {
-        return $this->hasMany(WorkerVacation::class);
+        return $this->hasMany(WorkAssignment::class);
+    }
+
+    public function currentAssignment(): HasOne
+    {
+        return $this->hasOne(WorkAssignment::class)->current()->latestOfMany('start_date');
     }
 
     public function attendances(): HasMany
@@ -81,52 +106,18 @@ class Worker extends Model
         return $this->hasMany(WorkerAttendance::class);
     }
 
-    public function payrollLines(): HasMany
+    /**
+     * Personas visibles para el campo (HR-011): asignación vigente en una Obra de su alcance
+     * o baja de los últimos 7 días que estuvo asignada a una de ellas.
+     */
+    public function scopeInFieldScope(Builder $query, User $user): Builder
     {
-        return $this->hasMany(PayrollLine::class);
-    }
+        $workIds = HrFieldScope::works($user)->pluck('id');
 
-    public function incentives(): HasMany
-    {
-        return $this->hasMany(Incentive::class);
-    }
-
-    public function pieceworkWeeklyEntries(): HasMany
-    {
-        return $this->hasMany(PieceworkWeeklyEntry::class);
-    }
-
-    public function foremanPieceworkWeeklyEntries(): HasMany
-    {
-        return $this->hasMany(PieceworkWeeklyEntry::class, 'foreman_worker_id');
-    }
-
-    public function groups(): BelongsToMany
-    {
-        return $this->belongsToMany(WorkerGroup::class, 'worker_group_members')
-            ->using(WorkerGroupMember::class)
-            ->withPivot(['joined_at', 'left_at'])
-            ->withTimestamps();
-    }
-
-    public function currentGroup(): ?WorkerGroup
-    {
-        return $this->groups()->wherePivotNull('left_at')->first();
-    }
-
-    public function currentProjectWork(): ?ProjectWork
-    {
-        return $this->currentGroup()?->projectWork;
-    }
-
-    public function isAssignedToResponsibleWork(User $user): bool
-    {
-        return $this->groups()
-            ->wherePivotNull('left_at')
-            ->whereHas('projectWork', function ($projectWorkQuery) use ($user) {
-                $projectWorkQuery->where('supervisor_user_id', $user->id)
-                    ->orWhere('resident_user_id', $user->id);
-            })
-            ->exists();
+        return $query->where(fn (Builder $scope) => $scope
+            ->whereHas('assignments', fn (Builder $assignment) => $assignment->current()->whereIn('project_work_id', $workIds))
+            ->orWhere(fn (Builder $recent) => $recent->where('status', 'terminated')
+                ->whereHas('terminations', fn (Builder $termination) => $termination->whereDate('termination_date', '>=', HrClock::today()->subDays(7)->toDateString()))
+                ->whereHas('assignments', fn (Builder $assignment) => $assignment->active()->whereIn('project_work_id', $workIds))));
     }
 }

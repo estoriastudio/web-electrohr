@@ -1,0 +1,171 @@
+---
+spec_id: HR-020
+type: ext-rule
+title: Perfil del trabajador por rol
+module: Recursos Humanos
+module_key: recursos_humanos
+status: implementado
+author: Jorge Peña
+reviewers: [Mariam]
+branch: moon
+created: 2026-11-03
+profile: docs/specs/_project.json
+docs:
+  - docs/controller-structure-and-notifications.md
+open_questions: 0
+---
+
+# HR-020 · Recursos Humanos — Perfil del trabajador por rol
+
+**Módulo:** Recursos Humanos (`recursos_humanos`) · **Tipo:** C3 · Cambio de regla
+
+## 0. Contexto obligatorio
+
+Antes de generar código, lee completos estos archivos. Sus reglas aplican sin repetirse aquí; este spec solo declara lo específico del cambio y sus excepciones.
+
+- `.github/copilot-instructions.md`
+- `docs/specs/_project.json` — perfil del proyecto (Laravel 13, layouts, paquetes, archivos protegidos)
+- `docs/controller-structure-and-notifications.md`
+
+## 1. Propósito
+
+Cambiar quién ve qué en el perfil del trabajador (human_resources.workers.show) según los roles nuevos: RH jefe ve el perfil completo, RH ayudante lo ve sin importes, cuentas, recibos ni incentivos, y el expediente incompleto se marca al activar sin documentos completos. Es la única pantalla del módulo anterior que se conserva (base de Trabajadores) y pasa a los roles nuevos; el Engineer deja de usarla porque el campo tiene Mis trabajadores (HR-011). Depende de HR-005 (roles y HrPermissions) y de HR-017 (columna file_incomplete).
+
+**Flujo de interacción**
+
+RH jefe abre un trabajador y ve datos generales, expediente, DC3, salario, forma de pago, descuentos, caja de ahorro, préstamos, recibos de periodos autorizados e incentivos. RH ayudante abre el mismo perfil y esas secciones no aparecen (ni llegan en la respuesta). Al activar un pre-registro, RH puede elegir "Activar sin expediente completo": la persona queda Activa con la etiqueta "Expediente incompleto" hasta que se completen los documentos obligatorios.
+
+## 2. Módulo afectado
+
+- **Módulo:** Recursos Humanos
+- **Usa Livewire:** no
+
+**Comportamiento actual**
+
+WorkerController y workers/show.blade.php (rutas human_resources.workers.*, roles admin, Recursos Humanos y Engineer) muestran el perfil completo, con weekly_salary, payment_type, cuentas y recibos de nómina (downloadPayrollReceipt, que lee PayrollLine). HR-005 elimina PayrollLine y el resto de la nómina anterior, por lo que el recibo debe reconstruirse con la nómina nueva. El Engineer ve el perfil de las personas de las cuadrillas de sus Obras (isAssignedToResponsibleWork, que HR-017 retira junto con worker_group_members). No hay perfil sin importes ni marca de expediente incompleto: activate() solo cambia el estado a active.
+
+**Archivos que se tocan**
+
+- app/Http/Controllers/WorkerController.php (show arma el perfil por permiso y no envía secciones sin permiso; activate acepta without_complete_file con motivo y marca file_incomplete; downloadPayrollReceipt se reescribe sobre PayrollEntry y exige seeAmounts; se quita ensureWorkerAccess por cuadrilla/Engineer)
+- app/Services/Hr/WorkerProfileService.php (nuevo: qué secciones ve cada rol, expediente incompleto)
+- resources/views/human_resources/workers/show.blade.php (secciones condicionadas por permiso; etiqueta Expediente incompleto)
+- resources/views/human_resources/workers/index.blade.php (etiqueta Expediente incompleto)
+- routes/web.php (los grupos human_resources.* de Trabajadores cambian a role:RH jefe|RH ayudante|admin; la ruta de recibo de nómina conserva su nombre y solo la ve RH jefe y admin)
+- resources/views/human_resources/workers/payroll_receipt_pdf.blade.php (se reescribe con los campos de la fila congelada de HR-013, dompdf ya está en el perfil)
+- app/Imports/WorkerPayrollImport.php y app/Exports/WorkerExport.php (verificar que no leen tablas ni modelos retirados en HR-005; si escribían nómina anterior, se ajustan solo a los datos del trabajador)
+
+**Debe permanecer igual**
+
+- Se retira el acceso de lectura del Engineer a human_resources.workers.*: el campo consulta con Mis trabajadores (HR-011), sin importes ni incentivos.
+- Las rutas human_resources.workers.* y sus nombres (con los roles nuevos); la importación y exportación de trabajadores.
+- El expediente (WorkerFile), los DC3 y sus descargas con su candado de acceso actual.
+- Los estados del trabajador (pre_registered, active, terminated) y el NSS como identificador único.
+
+**Riesgos**
+
+- workers/show.blade.php es una vista compartida: ocultar secciones solo en la vista no basta; el controller no debe enviar los datos con importes a quien no tiene seeAmounts.
+- El rol Engineer coexiste con Supervisor (HR-005) pero ya no entra a human_resources.workers.*: sin RH jefe, RH ayudante o admin no se accede al perfil completo.
+- downloadPayrollReceipt hoy está en el grupo human_resources para admin, Recursos Humanos y Engineer y lee PayrollLine (eliminada en HR-005): se reescribe sobre la nómina nueva y queda solo para RH jefe y admin (decisión del equipo).
+- El rol Recursos Humanos queda sustituido por RH jefe y RH ayudante (HR-005): el equipo reasigna a esos usuarios y ningún middleware conserva el rol viejo.
+
+## 3. Regla
+
+**Actual**
+
+Cualquier usuario con acceso a human_resources.workers.show (admin, Recursos Humanos o Engineer con la persona en sus Obras) ve todo el perfil: sueldo semanal, tipo de pago, cuenta y recibos de nómina. Activar un pre-registro (WorkerController::activate) solo cambia el estado a active sin considerar el expediente.
+
+**Nueva**
+
+El acceso a human_resources.workers.* (incluidos expediente, DC3, bajas y cargos) pasa de admin|Recursos Humanos|Engineer a role:RH jefe|RH ayudante|admin. El perfil se arma según HrPermissions (HR-005): con seeAmounts (RH jefe, admin) se envían sueldo, forma de pago, cuenta, descuentos, caja de ahorro, préstamos y recibos; con seeIncentives se envían los incentivos; RH ayudante recibe el perfil sin esas secciones. Los recibos se generan en PDF a partir de las filas cerradas de la nómina nueva (PayrollEntry.frozen de HR-013) de periodos autorizados y solo se sirven con seeAmounts. Activar sin expediente completo marca file_incomplete = true y registra el motivo en la bitácora; la marca se limpia cuando el expediente tiene los 9 documentos obligatorios (Título y Cédula son opcionales).
+
+**Dónde se aplica:** controller
+
+**Casos afectados**
+
+- RH jefe abre el perfil de alguien con un periodo autorizado y descarga su recibo en PDF; cambia la forma de pago y queda en la bitácora.
+- RH ayudante abre el perfil: no ve sueldo, cuenta, forma de pago, préstamos, descuentos, recibos ni incentivos, y la respuesta del servidor tampoco los incluye.
+- Un Engineer o Supervisor intenta abrir human_resources.workers.show por URL: 403; para consultar a su gente usa Mis trabajadores (HR-011), sin importes ni incentivos.
+- RH jefe activa un pre-registro sin expediente completo: queda Activo con la etiqueta "Expediente incompleto" y la bitácora guarda el motivo.
+- Al marcar entregados los 9 documentos obligatorios, la etiqueta Expediente incompleto desaparece.
+- Un usuario sin permiso intenta descargar el recibo por URL: 403.
+
+**Datos históricos**
+
+No cambia ningún dato: los trabajadores existentes conservan su estado; file_incomplete es false para todos y solo se marca a partir de este cambio.
+
+## 4. Reglas de negocio
+
+- Permisos del perfil (HrPermissions, HR-005): importes, cuenta, forma de pago, préstamos, descuentos, caja de ahorro, recibos y líneas de nómina requieren seeAmounts; incentivos requieren seeIncentives; el resto del perfil (datos generales, expediente, DC3, cuadrilla, Obra actual) lo ve cualquier rol con acceso al trabajador.
+- El controller decide qué datos envía a la vista; la vista solo pinta lo recibido.
+- Los 9 documentos obligatorios del expediente son INE, acta de nacimiento, comprobante de domicilio, comprobante NSS, licencia, constancia fiscal, certificado médico, currículum e INE del contacto de emergencia; Título y Cédula profesional son opcionales.
+- Activar sin expediente completo solo aplica a pre-registros, exige un motivo y registra la acción con HrAudit; el cambio de forma de pago o de cuenta se registra como sensitive.
+- Dirección equivale a admin (decisión de HR-005): ve el perfil completo.
+
+## 5. Validaciones
+
+| Campo | Regla |
+|---|---|
+| `without_complete_file` | nullable, boolean |
+| `reason (activar sin expediente)` | requerido si without_complete_file, string, max:500 |
+
+## 6. Excepciones a los docs
+
+Estas reglas de este spec **sustituyen** a las de docs/ solo para este cambio:
+
+- WorkerProfileService es una clase de servicio simple, no una Policy ni un Gate (se mantienen fuera de alcance).
+- Se modifica WorkerController (existente, no protegido) y su vista show para aplicar los permisos.
+
+## 7. Preguntas abiertas
+
+- [x] ¿Un usuario con el rol anterior Recursos Humanos pasa a RH jefe? → **Si**
+- [x] ¿El Engineer conserva la descarga del recibo de nómina de las personas de sus Obras o se limita a RH jefe y admin? → **Solo RH jefe y admin**
+- [x] ¿Cuál es el catálogo oficial de documentos obligatorios del expediente? → **Se toma el del prototipo (9 obligatorios y 2 opcionales). Por confirmar contra WorkerFile actual.**
+
+## 8. Fuera de alcance
+
+- Rutas API (routes/api.php)
+- Unit / Feature tests
+- Factories y seeders
+- Form Requests
+- Observers / Event listeners
+- Jobs y colas
+- Artisan commands
+- Policies / Gates
+- Clases Mail / Notification de Laravel
+- API Resources / Transformers
+- Instalar paquetes no listados en el perfil
+- Cambios a vite.config.js / package.json
+- Lista y perfil reducido del campo (Mis trabajadores) en HR-011.
+- Forma de pago, descuentos fijos y caja de ahorro (HR-015).
+- Edición de datos personales por el campo.
+- Modificar archivos protegidos del perfil del proyecto
+
+## 9. Orden de implementación
+
+1. Lógica de la regla en el punto de aplicación
+2. Tratamiento de datos históricos
+3. Ajustes en vistas/mensajes
+
+Detente al terminar cada capa y lista los archivos creados o modificados.
+
+## 10. Criterios de aceptación
+
+- [ ] La regla nueva se aplica en el controller: El acceso a human_resources.workers.* (incluidos expediente, DC3, bajas y cargos) pasa de admin|Recursos Humanos|Engineer a role:RH jefe|RH ayudante|admin. El perfil se arma según HrPermissions (HR-005): con seeAmounts (RH jefe, admin) se envían sueldo, forma de pago, cuenta, descuentos, caja de ahorro, préstamos y recibos; con seeIncentives se envían los incentivos; RH ayudante recibe el perfil sin esas secciones. Los recibos se generan en PDF a partir de las filas cerradas de la nómina nueva (PayrollEntry.frozen de HR-013) de periodos autorizados y solo se sirven con seeAmounts. Activar sin expediente completo marca file_incomplete = true y registra el motivo en la bitácora; la marca se limpia cuando el expediente tiene los 9 documentos obligatorios (Título y Cédula son opcionales).
+- [ ] Caso: RH jefe abre el perfil de alguien con un periodo autorizado y descarga su recibo en PDF; cambia la forma de pago y queda en la bitácora.
+- [ ] Caso: RH ayudante abre el perfil: no ve sueldo, cuenta, forma de pago, préstamos, descuentos, recibos ni incentivos, y la respuesta del servidor tampoco los incluye.
+- [ ] Caso: Un Engineer o Supervisor intenta abrir human_resources.workers.show por URL: 403; para consultar a su gente usa Mis trabajadores (HR-011), sin importes ni incentivos.
+- [ ] Caso: RH jefe activa un pre-registro sin expediente completo: queda Activo con la etiqueta "Expediente incompleto" y la bitácora guarda el motivo.
+- [ ] Caso: Al marcar entregados los 9 documentos obligatorios, la etiqueta Expediente incompleto desaparece.
+- [ ] Caso: Un usuario sin permiso intenta descargar el recibo por URL: 403.
+- [ ] Datos históricos: No cambia ningún dato: los trabajadores existentes conservan su estado; file_incomplete es false para todos y solo se marca a partir de este cambio.
+- [ ] Permanece igual: Se retira el acceso de lectura del Engineer a human_resources.workers.*: el campo consulta con Mis trabajadores (HR-011), sin importes ni incentivos.
+- [ ] Permanece igual: Las rutas human_resources.workers.* y sus nombres (con los roles nuevos); la importación y exportación de trabajadores.
+- [ ] Permanece igual: El expediente (WorkerFile), los DC3 y sus descargas con su candado de acceso actual.
+- [ ] Permanece igual: Los estados del trabajador (pre_registered, active, terminated) y el NSS como identificador único.
+- [ ] No se modificó ningún archivo protegido del perfil del proyecto.
+- [ ] No se generó nada listado en Fuera de alcance ni se instalaron paquetes nuevos.
+- [ ] Los commits incluyen `[HR-020]` en el mensaje.
+
+---
+
+_Generado con Estoria Spec Tool v3 · Estoria Studio_

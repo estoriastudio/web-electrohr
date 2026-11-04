@@ -23,7 +23,7 @@
         <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Bajas</span><h3 class="mb-0 mt-1 text-danger">{{ $workerStats['terminated'] }}</h3></div><i class="ri-user-unfollow-line fs-28 text-danger"></i></div></div>
     </div>
     <div class="col-sm-6 col-xl">
-        <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Sin obra asignada</span><h3 class="mb-0 mt-1 text-secondary">{{ $workerStats['without_project'] }}</h3></div><i class="ri-map-pin-line fs-28 text-secondary"></i></div></div>
+        <div class="card h-100"><div class="card-body d-flex align-items-center justify-content-between"><div><span class="text-muted fs-12">Sin cuadrilla</span><h3 class="mb-0 mt-1 text-secondary">{{ $workerStats['without_group'] }}</h3></div><i class="ri-team-line fs-28 text-secondary"></i></div></div>
     </div>
 </div>
 <div class="card">
@@ -33,7 +33,9 @@
             <span class="text-muted fs-12">{{ $workers->total() }} registro(s) en la bandeja actual</span>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importPayrollModal"><i class="ri-upload-2-line me-1"></i> Importar Trabajadores</button>
+            @if($canSeeAmounts)
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importPayrollModal"><i class="ri-upload-2-line me-1"></i> Importar Trabajadores</button>
+            @endif
             <!--<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importTerminationsModal"><i class="ri-user-unfollow-line me-1"></i> Importar bajas</button>-->
             <a href="{{ route('human_resources.workers.export') }}" class="btn btn-outline-secondary btn-sm"><i class="ri-download-2-line me-1"></i> Exportar</a>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createWorkerModal"><i class="ri-user-add-line me-1"></i> Nuevo trabajador</button>
@@ -45,19 +47,19 @@
                 <label class="form-label form-label-sm mb-2">Bandeja</label>
                 <ul class="nav nav-tabs nav-justified" role="tablist" aria-label="Bandejas de trabajadores">
                     <li class="nav-item" role="presentation">
-                        <a href="{{ route('human_resources.workers.index', ['section' => 'active', 'search' => $search ?: null, 'project_work_id' => $projectWorkId ?: null]) }}" class="nav-link {{ $section === 'active' ? 'active' : '' }}">
+                        <a href="{{ route('human_resources.workers.index', ['section' => 'active', 'search' => $search ?: null, 'group' => $groupId ?: null]) }}" class="nav-link {{ $section === 'active' ? 'active' : '' }}">
                             <i class="ri-user-follow-line me-1"></i>Activos
                             <span class="badge rounded-pill bg-success-subtle text-success ms-1">{{ $workerStats['active'] }}</span>
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a href="{{ route('human_resources.workers.index', ['section' => 'pre_registered', 'search' => $search ?: null, 'project_work_id' => $projectWorkId ?: null]) }}" class="nav-link {{ $section === 'pre_registered' ? 'active' : '' }}">
+                        <a href="{{ route('human_resources.workers.index', ['section' => 'pre_registered', 'search' => $search ?: null, 'group' => $groupId ?: null]) }}" class="nav-link {{ $section === 'pre_registered' ? 'active' : '' }}">
                             <i class="ri-user-add-line me-1"></i>Pre-registro
                             <span class="badge rounded-pill bg-warning-subtle text-warning ms-1">{{ $workerStats['pre_registered'] }}</span>
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a href="{{ route('human_resources.workers.index', ['section' => 'terminated', 'search' => $search ?: null, 'project_work_id' => $projectWorkId ?: null]) }}" class="nav-link {{ $section === 'terminated' ? 'active' : '' }}">
+                        <a href="{{ route('human_resources.workers.index', ['section' => 'terminated', 'search' => $search ?: null, 'group' => $groupId ?: null]) }}" class="nav-link {{ $section === 'terminated' ? 'active' : '' }}">
                             <i class="ri-user-unfollow-line me-1"></i>Bajas
                             <span class="badge rounded-pill bg-danger-subtle text-danger ms-1">{{ $workerStats['terminated'] }}</span>
                         </a>
@@ -72,16 +74,17 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <select name="project_work_id" class="form-select form-select-sm">
-                    <option value="">Todas las obras</option>
-                    @foreach($projectWorks as $projectWork)
-                        <option value="{{ $projectWork->id }}" @selected((string) $projectWorkId === (string) $projectWork->id)>{{ $projectWork->name }}</option>
+                <select name="group" class="form-select form-select-sm">
+                    <option value="">Todas las cuadrillas</option>
+                    <option value="none" @selected($groupId === 'none')>Sin cuadrilla</option>
+                    @foreach($workerGroups as $workerGroup)
+                        <option value="{{ $workerGroup->id }}" @selected((string) $groupId === (string) $workerGroup->id)>{{ $workerGroup->name }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-1">
                 <button class="btn btn-primary btn-sm flex-fill" type="submit">Filtrar</button>
-                @if($search || $projectWorkId)
+                @if($search || $groupId)
                     <a href="{{ route('human_resources.workers.index', ['section' => $section]) }}" class="btn btn-outline-secondary btn-sm" title="Limpiar"><i class="ri-close-line"></i></a>
                 @endif
             </div>
@@ -89,11 +92,10 @@
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Apodo</th><th>Cuadrilla actual</th><th>Puesto</th><th>Obra</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead>
+            <thead class="bg-light-subtle"><tr><th>Trabajador</th><th>Apodo</th><th>Cuadrilla</th><th>Puesto</th><th>Estatus</th><th class="text-end">Acciones</th></tr></thead>
             <tbody>
             @forelse($workers as $worker)
                 @php($badge = ['pre_registered' => ['Pre-registro', 'bg-warning-subtle text-warning'], 'active' => ['Activo', 'bg-success-subtle text-success'], 'terminated' => ['Baja', 'bg-danger-subtle text-danger']][$worker->status] ?? ['Sin definir', 'bg-secondary-subtle text-secondary'])
-                @php($currentGroup = $worker->groups->first())
                 <tr>
                     <td>
                         <div class="d-flex align-items-center gap-2">
@@ -108,14 +110,13 @@
                         </div>
                     </td>
                     <td>{{ $worker->nickname ?: '—' }}</td>
-                    <td>@if($currentGroup)<span class="fw-medium">{{ $currentGroup->name }}</span><div class="text-muted fs-12">{{ $currentGroup->projectWork?->name ?: '—' }}</div>@else<span class="text-muted">Sin cuadrilla</span>@endif</td>
+                    <td>@if($worker->workerGroup)<span class="fw-medium">{{ $worker->workerGroup->name }}</span>@else<span class="text-muted">Sin cuadrilla</span>@endif</td>
                     <td>{{ $worker->positionCategory?->name ?: '—' }}</td>
-                    <td>{{ $currentGroup?->projectWork?->name ?: 'Sin asignar' }}</td>
-                    <td><span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span></td>
+                    <td><span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span>@if($worker->file_incomplete)<span class="badge bg-danger-subtle text-danger ms-1">Expediente incompleto</span>@endif</td>
                     <td class="text-end"><a href="{{ route('human_resources.workers.show', $worker) }}" class="btn btn-light btn-sm" title="Ver trabajador"><i class="ri-eye-line"></i></a><a href="{{ route('human_resources.workers.edit', $worker) }}" class="btn btn-light btn-sm" title="Editar"><i class="ri-edit-line"></i></a></td>
                 </tr>
             @empty
-                <tr><td colspan="7" class="text-center text-muted py-4">No hay trabajadores registrados.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay trabajadores registrados.</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -159,7 +160,7 @@
                                 <tr><th>Columna</th><th>Destino</th><th>Condición</th></tr>
                             </thead>
                             <tbody>
-                                <tr><td><code>LUGAR</code></td><td>Obra para vincular la cuadrilla</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>LUGAR</code></td><td>Se ignora: la Obra sale de la asignación vigente</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>No. CUENTA</code></td><td>Número de cuenta</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>APELLDO PATERNO</code></td><td>Apellido paterno</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>APELLINO MATERNO</code></td><td>Apellido materno</td><td class="text-muted">Opcional</td></tr>
@@ -168,7 +169,7 @@
                                 <tr><td><code>SUELDO</code></td><td>Sueldo semanal</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>No. DE SEGURO SOCIAL</code></td><td>No. de empleado (NSS)</td><td class="text-danger">Requerida</td></tr>
                                 <tr><td><code>CURP</code></td><td>CURP</td><td class="text-muted">Opcional</td></tr>
-                                <tr><td><code>CUADRILLA</code></td><td>Cuadrilla vinculada a la obra</td><td class="text-muted">Opcional</td></tr>
+                                <tr><td><code>CUADRILLA</code></td><td>Cuadrilla del trabajador (se crea si no existe)</td><td class="text-muted">Opcional</td></tr>
                                 <tr><td><code>FECHA DE INGRESO</code></td><td>Fecha de ingreso</td><td class="text-muted">Opcional</td></tr>
                             </tbody>
                         </table>

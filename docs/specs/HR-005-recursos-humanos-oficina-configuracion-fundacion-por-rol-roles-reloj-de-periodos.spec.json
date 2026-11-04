@@ -1,0 +1,354 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-005",
+    "title": "Fundación por rol: roles, reloj de periodos, bitácora y configuración",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_oficina_configuracion",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "implementado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Crear la base común del nuevo proceso de asistencia y nómina (Prototipo RH v6): cinco perfiles nuevos como roles del sistema (Dirección es admin) con sus ventanas y permisos, el reloj de periodos de nómina (viernes a jueves, America/Mexico_City), la bitácora con visibilidad por rol, la configuración editable de reglas, la instalación de Livewire para las pantallas interactivas de los specs siguientes y el retiro del módulo anterior (solo se conserva la base de Trabajadores; no hay convivencia ni migración). Los specs HR-006 a HR-020 se apoyan en esta capa.",
+    "flow": "Al iniciar sesión, cada usuario ve en la navbar solo las ventanas de su rol. Las ventanas cuelgan de cuatro grupos de rutas con el patrón de \"Mis proyectos\": campo (Supervisor y Gerente de proyecto), oficina (RH jefe y RH ayudante), revisión (Revisor de nómina) y dirección (admin). Cada controller acota los datos al alcance del usuario y valida el permiso (403), no solo oculta el menú. RH jefe abre Configuración para editar los % de Libranza A/B/C, la regla del domingo, la hora límite de HE y la fecha de pago de la caja de ahorro; RH jefe, RH ayudante y admin consultan la Bitácora.",
+    "prefix": "/recursos-humanos/oficina/configuracion",
+    "middleware": "auth + role:RH jefe|admin para Configuración; la Bitácora usa role:RH jefe|RH ayudante|Revisor de nómina|admin con visibilidad filtrada",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "/recursos-humanos/oficina/configuracion",
+    "route_name": "rh.office.settings.index",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": false,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "Hay un solo rol operativo \"Recursos Humanos\" (más admin) con rutas human_resources.*, y \"Engineer\" con Mis proyectos. La asistencia es sí/no por cuadrilla; no hay reloj de periodos viernes–jueves, ni bitácora con antes/después/motivo, ni configuración de reglas. Los supervisores/residentes de una Obra se eligen entre usuarios con rol Engineer (ProjectWorkController::ensureEngineerResponsibles). Livewire está en packages del perfil pero no instalado (composer.json).",
+    "uses_livewire": true,
+    "table": "hr_settings",
+    "strategy": "default",
+    "backfill": "Las tablas son nuevas. hr_settings se inicializa con los valores del prototipo (domingo: divisor 6 y bono $50; HE hasta las 10:00; Libranza A/B/C con % por definir) en la propia migración. Los 5 roles nuevos se crean desde RolesAndPermissionsSeeder; la asignación de usuarios a roles la hace el equipo desde el panel Admin.",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": false,
+      "import_export": false
+    },
+    "controller": "Hr\\Office\\SettingController",
+    "method": "update",
+    "verb": "PUT",
+    "action_uri": "/recursos-humanos/oficina/configuracion",
+    "action_route": "rh.office.settings.update",
+    "who": "RH jefe, admin",
+    "input": "day_off_types[A|B|C][pct], sunday[divisor], sunday[bonus], ot_deadline_hour, savings_payout_date",
+    "response": "redirect",
+    "trigger": "Botón \"Guardar configuración\" de la pantalla de Configuración",
+    "notify": true,
+    "notify_data": "Notificación HrSetting (action update) con la lista de claves cambiadas",
+    "rule_current": "Las reglas de Libranza, domingo y plazo de HE no existen como configuración.",
+    "rule_new": "Las reglas viven en hr_settings; cada cambio queda en hr_audit_logs con antes/después. Un % de Libranza vacío significa \"por definir\" y paga 100 % con aviso.",
+    "historic": "Los periodos ya cerrados no se recalculan al cambiar la configuración (los valores se congelan al cierre, HR-013).",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "",
+    "placement": "",
+    "child_render": "",
+    "child_ops": {
+      "create": false,
+      "edit": false,
+      "delete": false,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "HrSetting",
+      "table": "hr_settings",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "nullable": false,
+          "extra": "único · claves: day_off_types, sunday, ot_deadline_hour, savings_payout_date"
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "nullable": false,
+          "extra": "valor de la clave; casteado a array en el modelo"
+        },
+        {
+          "name": "updated_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "updated_by"
+        }
+      ]
+    },
+    {
+      "name": "HrAuditLog",
+      "table": "hr_audit_logs",
+      "expose": "resource",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "user_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "nullable": false,
+          "extra": "rol con el que actuó el usuario"
+        },
+        {
+          "name": "action",
+          "type": "string",
+          "nullable": false,
+          "extra": "p. ej. Corrección de incidencia"
+        },
+        {
+          "name": "entity",
+          "type": "string",
+          "nullable": false,
+          "extra": "Asistencia, Asignación, Nómina…"
+        },
+        {
+          "name": "entity_id",
+          "type": "string",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "worker_id",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → workers.id, null on delete · indexado"
+        },
+        {
+          "name": "before",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "after",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "sensitive",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default false · true si incluye importes (préstamos, forma de pago, nómina)"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "user_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "Worker",
+          "key": "worker_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Configuración (solo RH jefe y admin). Formulario con la tabla de Libranza A/B/C (% o vacío = por definir), regla del domingo (divisor y bono), hora límite de HE y fecha de pago de la caja de ahorro. Usa las clases del UI kit; muestra los cambios recientes de la bitácora."
+    },
+    {
+      "name": "audit",
+      "render": "livewire",
+      "behavior": "Bitácora. Componente App\\Livewire\\Hr\\AuditLogTable (paginado de 25, filtros en vivo con #[Url] por trabajador, entidad y fechas) con quién, cuándo, acción, antes, después y motivo. Oculta las entradas sensitive a RH ayudante y Revisor. Se monta desde una vista Blade que retorna Hr\\Shared\\AuditLogController."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "HrSetting",
+      "filter": "key",
+      "fields": "key, value"
+    },
+    {
+      "model": "HrAuditLog",
+      "filter": "sensitive según rol",
+      "fields": "user_id, role, action, entity, worker_id, before, after, reason, created_at"
+    }
+  ],
+  "files": [
+    "composer.json y composer.lock (instalar livewire/livewire con composer require; ya está en packages del perfil; Livewire 3 inyecta sus assets, no se edita layouts/app.blade.php)",
+    "resources/views/partials/flash.blade.php (si aún no existe, según docs/CAMBIOS-docs-existentes.md; escucha el evento flash de Livewire)",
+    "docs/roles-permissions-matrix.md (actualizar primero: roles nuevos y ventanas por rol)",
+    "database/migrations/*_create_hr_settings_table.php y *_create_hr_audit_logs_table.php (vía make:model -m)",
+    "app/Models/HrSetting.php, app/Models/HrAuditLog.php",
+    "app/Services/Hr/HrClock.php (hora y periodos viernes–jueves, America/Mexico_City)",
+    "app/Services/Hr/HrPermissions.php (matriz de permisos del prototipo)",
+    "app/Services/Hr/HrAudit.php (escritura de bitácora)",
+    "app/Models/ProjectWork.php (scope scopeForFieldUser(User $user))",
+    "app/Http/Controllers/Hr/Office/SettingController.php y Hr/Shared/AuditLogController.php",
+    "app/Livewire/Hr/AuditLogTable.php y resources/views/livewire/hr/audit-log-table.blade.php (vía php artisan make:livewire Hr/AuditLogTable)",
+    "database/seeders/RolesAndPermissionsSeeder.php (agrega los 5 roles nuevos)",
+    "app/Http/Controllers/ProjectWorkController.php (ensureEngineerResponsibles acepta también el rol Supervisor)",
+    "routes/web.php (grupos rh.field.*, rh.office.*, rh.review.*, rh.director.*)",
+    "resources/views/layouts/partials/_navbar.blade.php (se retira el bloque del módulo anterior y se agregan las ventanas por rol)",
+    "database/migrations/*_drop_legacy_hr_tables.php (nueva: elimina payroll_periods, payroll_lines, payroll_line_extra_payments, incentives, piecework_weekly_entries, piecework_daily_amounts, worker_group_members, worker_vacations y worker_attendances; down documentado como no reversible)",
+    "Eliminar controllers, servicios, modelos, exports, rutas human_resources.* y vistas del módulo anterior listados en las reglas (se conservan los de Trabajadores); ajustar Worker, WorkerGroup, PositionCategory, ProjectWork y Notification",
+    "resources/views/hr/office/settings/index.blade.php, resources/views/hr/shared/audit/index.blade.php"
+  ],
+  "keep": [
+    "Se conserva únicamente la base de Trabajadores (workers, worker_files, worker_dc3s, worker_terminations, position_categories) y sus pantallas, que pasan a los roles nuevos. Todo lo demás del módulo anterior se retira en HR-005; no hay convivencia.",
+    "UserController, NotificationController, NotificationService, layouts/app.blade.php y la migración y modelo de users (protegidos).",
+    "El acceso del rol Engineer a Mis proyectos, a SOLMAT y a los demás módulos donde se usa: Engineer y Supervisor conviven en un mismo usuario."
+  ],
+  "risks": [
+    "Un usuario con rol Engineer que hoy es supervisor/residente no tendrá el rol Supervisor: el equipo debe asignárselo (además de Engineer) desde el panel Admin para que vea las vistas nuevas.",
+    "Borrar el módulo anterior es irreversible en la base: se eliminan tablas con datos que el equipo confirmó que no se usan; hacer un respaldo de la base antes de correr las migraciones.",
+    "Al borrar modelos, controllers y servicios hay referencias cruzadas (Worker, WorkerGroup, PositionCategory, ProjectWork, Notification, WorkerController::downloadPayrollReceipt, WorkerPayrollImport): buscar con grep antes de eliminar y verificar que Trabajadores sigue funcionando.",
+    "Primera instalación de Livewire en el proyecto: verificar que los assets se inyectan sin editar el layout protegido y que no choca con los scripts actuales."
+  ],
+  "cases": [
+    "Supervisor de la Obra A inicia sesión: la navbar muestra Asistencias, Asignación y Mis trabajadores; al escribir a mano una URL de oficina recibe 403.",
+    "Un usuario con los roles Engineer y Supervisor conserva Mis proyectos y además ve las ventanas de campo.",
+    "Gerente de proyecto solo obtiene las Obras de los Proyectos donde es manager_user_id.",
+    "RH ayudante no ve Nómina, Préstamos, Costos, Aprobación, Por persona, Respaldos ni Configuración, y su bitácora no muestra entradas con importes.",
+    "HrClock::periodOf('2026-09-17') devuelve el periodo 2026-09-11 a 2026-09-17 (viernes a jueves) con id 2026-09-11, y a las 10:00 hora America/Mexico_City cierra la ventana de HE del día anterior.",
+    "RH jefe cambia Libranza B a 50 %: queda en la bitácora con antes y después y los periodos cerrados no cambian."
+  ],
+  "rules": [
+    "Roles nuevos (Spatie, guard web), con el mismo nombre del prototipo: Supervisor, Gerente de proyecto, RH jefe, RH ayudante y Revisor de nómina. Dirección no es un rol: equivale a admin (decisión del equipo), que conserva acceso a todo y es el único que autoriza la dispersión.",
+    "Engineer y Supervisor conviven: un usuario puede tener ambos roles, y Engineer sigue dando acceso a Mis proyectos y a los demás módulos donde se usa. El alcance de campo se resuelve por las Obras del usuario (supervisor/residente o gerente), no por el rol Engineer.",
+    "Ventanas por rol (navbar, en layouts/partials/_navbar.blade.php): Supervisor y Gerente (Asistencias, Asignación, Mis trabajadores); RH jefe (Asignación, Asistencias, Incongruencias, Controles, Trabajadores, Nómina RH, Préstamos, Por persona, Costos, Aprobación en lectura, Movimientos, Respaldos, Configuración, Bitácora); RH ayudante (Asignación, Asistencias, Incongruencias, Controles, Trabajadores, Movimientos, Bitácora); Revisor de nómina (Revisión de nómina, Bitácora); admin (Aprobación, Por persona, Costos, Préstamos, Movimientos, Respaldos, Bitácora y todo lo demás).",
+    "Alcance de campo: Supervisor = Obras donde es supervisor_user_id o resident_user_id; Gerente = Obras de los Proyectos donde es manager_user_id. Solo opera personal asignado a sus Obras (mensaje \"no está asignado a una de tus Obras\").",
+    "Permisos (HrPermissions::can): seeAmounts (RH jefe, admin); seeIncentives (Supervisor, Gerente, RH jefe, Revisor, admin; RH ayudante no); hrInbox (RH jefe, RH ayudante); payrollReview (Revisor); payrollHR, editPayout, editLoans y config (RH jefe); viewLoans y backups (RH jefe, admin); authorize (solo admin). admin pasa todos.",
+    "Periodo de nómina = viernes a jueves; el id del periodo es la fecha del viernes. HrClock expone now(), today(), yesterday(), periodOf(), isThursday() y minutes() con la zona horaria America/Mexico_City (config('app.timezone') debe ser esa).",
+    "No hay simulador de fecha/hora ni Guion de demo dentro del sistema (decisión del equipo): HrClock usa la hora real y los escenarios del prototipo (D6-01 … D6-37) solo son criterios de aceptación.",
+    "Livewire se instala con composer (decisión del equipo; ya está en packages del perfil) siguiendo docs/livewire-conventions.md: componentes de clase en App\\Livewire\\Hr montados desde vistas Blade que retornan los controllers, sin componentes full-page. Livewire 3 inyecta sus assets, por lo que no se edita layouts/app.blade.php (protegido). La Bitácora es el primer componente.",
+    "Retiro del módulo anterior (sin convivencia ni migración, decisión del equipo): el único dato que se conserva es la base de Trabajadores (workers, worker_files, worker_dc3s, worker_terminations y position_categories) con WorkerController, WorkerFileController, WorkerDc3Controller, WorkerTerminationController, WorkerTerminationService, PositionCategoryController y sus vistas, que pasan a los roles nuevos (HR-020). Se eliminan en este spec, con migraciones nuevas que borran sus tablas, el resto de módulos anteriores porque no se usan: asistencias (WorkerAttendanceController, WorkerAttendanceExport y sus vistas), vacaciones (WorkerVacationController), incentivos (IncentiveController, WorkerIncentiveService), nómina (PayrollPeriodController, PayrollLineController, PayrollCostReportController, PayrollFieldReportController, PayrollCalculationService, PayrollGenerationService, PayrollCostReportService), destajo (PieceworkWeeklyEntryController, PieceworkCalculationService), miembros de cuadrilla (WorkerGroupMembershipService, WorkerGroupRelocationService y la tabla worker_group_members) y sus modelos, rutas human_resources.* correspondientes, vistas de resources/views/human_resources/{attendances,incentives,payroll-lines,payroll-periods,payroll-reports,piecework,vacations} y entradas de navbar. La pantalla de cuadrillas se simplifica en HR-017 y WorkerController, WorkerGroup, PositionCategory, ProjectWork, Notification y Worker dejan de referenciar los modelos retirados.",
+    "Las tablas que los specs nuevos vuelven a necesitar con otra estructura (worker_attendances en HR-007 y worker_vacations en HR-009) se eliminan aquí y se crean de nuevo en esos specs; no hay backfill en ningún caso. El rol Recursos Humanos queda sustituido por RH jefe y RH ayudante: el equipo reasigna usuarios desde el panel Admin y retira el rol viejo; ningún middleware nuevo lo usa.",
+    "Toda acción de HR-006 a HR-020 que el prototipo registra se escribe con HrAudit::log() (antes, después, motivo). Las entradas sensitive no se muestran a RH ayudante ni a Revisor.",
+    "La bitácora no sustituye al NotificationService: los controllers y componentes siguen notificando según docs/controller-structure-and-notifications.md y docs/livewire-conventions.md.",
+    "Cada controller y componente valida permiso y alcance (403); ocultar el botón del menú no es suficiente.",
+    "Las ventanas por rol de la navbar viven en _navbar.blade.php porque layouts/app.blade.php es un archivo protegido."
+  ],
+  "validations": [
+    {
+      "field": "day_off_types.*.pct",
+      "rule": "nullable, numeric, between:0,100"
+    },
+    {
+      "field": "sunday.divisor",
+      "rule": "requerido, integer, min:1"
+    },
+    {
+      "field": "sunday.bonus",
+      "rule": "requerido, numeric, min:0 (en pesos)"
+    },
+    {
+      "field": "ot_deadline_hour",
+      "rule": "requerido, integer, between:0,23"
+    },
+    {
+      "field": "savings_payout_date",
+      "rule": "requerido, date"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Se instala Livewire (está en packages del perfil pero no en composer.json) para la captura en bloque, o se mantiene Blade + JSON como la asistencia actual?",
+      "a": "Se instala Livewire"
+    },
+    {
+      "q": "¿Los usuarios Engineer actuales migran al rol Supervisor, o conviven ambos roles (un usuario con los dos)?",
+      "a": "Un usuario con los dos ya que el rol Engineer se usa en otros modulos."
+    },
+    {
+      "q": "¿Se replica el simulador de fecha/hora y el Guion de demo del prototipo dentro del sistema (solo admin, no producción) o los escenarios solo se usan como criterios de aceptación?",
+      "a": "Los escensarios solo se usan como criterios de aceptación"
+    },
+    {
+      "q": "¿Dirección es un rol nuevo o basta con admin?",
+      "a": "Basta con admin"
+    },
+    {
+      "q": "¿Cuál es la zona horaria oficial para los cortes de las 10:00 y del viernes?",
+      "a": "America/Mexico_City"
+    },
+    {
+      "q": "¿Qué roles tendrán los nuevos perfiles y cómo se distinguen sus vistas?",
+      "a": "Decidido por el equipo: roles nuevos con el mismo nombre del prototipo para distinguir las vistas, con el mismo enfoque estructural que Mis proyectos."
+    },
+    {
+      "q": "¿Convive el módulo anterior de RH (asistencias, vacaciones, nómina, incentivos, destajo, cuadrillas) con el nuevo y se migra su información?",
+      "a": "No: no hay convivencia ni traspaso. Solo se conserva la base de datos de Trabajadores; el resto no se usa y se elimina."
+    }
+  ],
+  "exceptions": [
+    "Se modifica RolesAndPermissionsSeeder (seeders están fuera de alcance por defecto) solo para crear los cinco roles nuevos; no se crean seeders de datos.",
+    "Se elimina código y se borran tablas del módulo anterior (migración nueva, no se edita ninguna existente): no hay backfill ni down útil porque el equipo confirmó que esos datos no se usan.",
+    "HrPermissions es una clase de servicio simple, no Policies/Gates (se mantienen fuera de alcance).",
+    "Se instala livewire/livewire con composer; está en packages del perfil, por lo que no viola \"instalar paquetes no listados\".",
+    "Los controllers de campo, oficina, revisión y dirección viven en App\\Http\\Controllers\\Hr\\{Field,Office,Review,Director,Shared}; las bandejas y vistas de captura no son CRUD completo y no tienen create().",
+    "Nombres de ruta rh.office.settings.* y rh.shared.audit.* (en lugar del derivado del prefijo), igual que my-projects.* en Mis proyectos; las vistas viven en resources/views/hr/{field,office,review,director,shared}/ en lugar de la carpeta derivada del prefijo.",
+    "Los valores iniciales de hr_settings se insertan en la migración (no en un seeder)."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Retirar el rol Recursos Humanos de la base de datos (lo hace el equipo desde el panel Admin) y migrar usuarios a los roles nuevos.",
+    "Simulador de fecha/hora y Guion de demo dentro del sistema.",
+    "Crear un rol Dirección: se usa admin."
+  ],
+  "docsOff": []
+}

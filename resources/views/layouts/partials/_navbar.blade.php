@@ -160,36 +160,68 @@
             </li>
             @endcan
 
-            <li class="menu-title">Recursos Humanos</li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-groups.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-groups.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-team-line"></i>
-                    </span>
-                    <span class="nav-text">Cuadrillas</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-calendar-check-line"></i>
-                    </span>
-                    <span class="nav-text">Asistencias</span>
-                </a>
-            </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Recursos Humanos')
+            @hasanyrole('Supervisor|Gerente de proyecto')
             <li class="menu-title">Recursos Humanos</li>
 
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.workers.*') ? 'active' : '' }}" href="{{ route('human_resources.workers.index') }}">
+                <a class="nav-link {{ request()->routeIs('rh.field.attendance.*') || request()->routeIs('rh.field.overtime.*') ? 'active' : '' }}" href="{{ route('rh.field.attendance.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-user-3-line"></i>
+                        <i class="ri-calendar-check-line"></i>
                     </span>
-                    <span class="nav-text">Trabajadores</span>
+                    <span class="nav-text">Asistencias</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('rh.field.assignments.*') ? 'active' : '' }}" href="{{ route('rh.field.assignments.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-user-location-line"></i>
+                    </span>
+                    <span class="nav-text">Asignación</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('rh.field.workers.*') ? 'active' : '' }}" href="{{ route('rh.field.workers.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-team-line"></i>
+                    </span>
+                    <span class="nav-text">Mis trabajadores</span>
+                </a>
+            </li>
+
+            @endhasanyrole
+
+            @hasanyrole('admin|RH jefe|RH ayudante|Revisor de nómina')
+            <li class="menu-title">Recursos Humanos</li>
+
+            @hasanyrole('admin|RH jefe|RH ayudante')
+            <li class="nav-item">
+                <a class="nav-link {{ (request()->routeIs('rh.office.assignments.*') && ! request()->routeIs('rh.office.assignments.inconsistencies')) || request()->routeIs('rh.office.late-overtime.*') ? 'active' : '' }}" href="{{ route('rh.office.assignments.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-user-location-line"></i>
+                    </span>
+                    <span class="nav-text">Asignación</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('rh.office.assignments.inconsistencies') ? 'active' : '' }}" href="{{ route('rh.office.assignments.inconsistencies') }}">
+                    <span class="nav-icon">
+                        <i class="ri-error-warning-line"></i>
+                    </span>
+                    <span class="nav-text">Incongruencias</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('rh.office.attendance.*') ? 'active' : '' }}" href="{{ route('rh.office.attendance.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-calendar-check-line"></i>
+                    </span>
+                    <span class="nav-text">Asistencias</span>
                 </a>
             </li>
 
@@ -202,68 +234,38 @@
                 </a>
             </li>
 
+            @endhasanyrole
+
+            @hasanyrole('admin|RH jefe')
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
+                <a class="nav-link {{ request()->routeIs('rh.office.unlocks.*') ? 'active' : '' }}" href="{{ route('rh.office.unlocks.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-calendar-check-line"></i>
+                        <i class="ri-lock-unlock-line"></i>
                     </span>
-                    <span class="nav-text">Asistencias</span>
+                    <span class="nav-text">Habilitaciones</span>
                 </a>
             </li>
 
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-vacations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-vacations.index') }}">
+                <a class="nav-link {{ request()->routeIs('rh.office.settings.*') ? 'active' : '' }}" href="{{ route('rh.office.settings.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-calendar-event-line"></i>
+                        <i class="ri-settings-3-line"></i>
                     </span>
-                    <span class="nav-text">Vacaciones</span>
+                    <span class="nav-text">Configuración</span>
                 </a>
             </li>
 
+            @endhasanyrole
+
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-terminations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-terminations.index') }}">
+                <a class="nav-link {{ request()->routeIs('rh.shared.audit.*') ? 'active' : '' }}" href="{{ route('rh.shared.audit.index') }}">
                     <span class="nav-icon">
-                        <i class="ri-user-unfollow-line"></i>
+                        <i class="ri-history-line"></i>
                     </span>
-                    <span class="nav-text">Bajas</span>
+                    <span class="nav-text">Bitácora</span>
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.position-categories.*') ? 'active' : '' }}" href="{{ route('human_resources.position-categories.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-briefcase-4-line"></i>
-                    </span>
-                    <span class="nav-text">Categorías de puesto</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.payroll-periods.*') || request()->routeIs('human_resources.payroll-lines.*') || request()->routeIs('human_resources.payroll.*') ? 'active' : '' }}" href="{{ route('human_resources.payroll-periods.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-money-dollar-circle-line"></i>
-                    </span>
-                    <span class="nav-text">Nómina</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.piecework-entries.*') ? 'active' : '' }}" href="{{ route('human_resources.piecework-entries.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-hammer-line"></i>
-                    </span>
-                    <span class="nav-text">Destajo</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.incentives.*') ? 'active' : '' }}" href="{{ route('human_resources.incentives.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-medal-line"></i>
-                    </span>
-                    <span class="nav-text">Incentivos</span>
-                </a>
-            </li>
             @endhasanyrole
 
             @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles|suministros')

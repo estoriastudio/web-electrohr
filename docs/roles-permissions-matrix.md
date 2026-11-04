@@ -70,6 +70,13 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 | Solicitudes de Material    | Solmat                          |
 | Pila SOLMAT                | Solmat, Orden de compra         |
 | Inventario                 | Inventario                      |
+| RRHH: Trabajadores, Cuadrillas, Bajas, Categorías de puesto | RH jefe, RH ayudante (RH ayudante sin importes, cuentas, recibos ni incentivos) |
+| RRHH: Asignación, Asistencias (captura general), HE fuera de plazo, Incongruencias | RH jefe, RH ayudante |
+| RRHH: Habilitaciones 24 h  | RH jefe                         |
+| RRHH campo: Asistencias, Asignación (solicitudes y alta en obra), Mis trabajadores (HR-011, solo lectura y sin importes) | Supervisor, Gerente de proyecto (solo Obras de su alcance) |
+| RRHH: Configuración        | RH jefe                         |
+| RRHH: Bitácora             | RH jefe, RH ayudante, Revisor de nómina (las entradas sensibles solo RH jefe y admin) |
+| RRHH: campo (Supervisor, Gerente de proyecto) y Revisión de nómina | Supervisor, Gerente de proyecto, Revisor de nómina (ventanas en specs HR-006 a HR-020) |
 
 ## Convenciones
 
@@ -110,3 +117,5 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.
 - 2026-10-10: Engineer pasa a Mis Proyectos (`my-projects.*`) de solo lectura acotado a sus proyectos; se retira de `projects.*` y `obras.*`.
 - 2026-10-12: Engineer crea y edita SOLMAT de sus proyectos; nuevo Gerente de Proyecto por proyecto; envío a Almacén solo para admin, Solmat y el gerente.
+- 2026-11-03: Proceso de asistencia y nómina por rol (HR-005): roles `Supervisor`, `Gerente de proyecto`, `RH jefe`, `RH ayudante` y `Revisor de nómina`; Dirección equivale a `admin`. `Recursos Humanos` queda sustituido por `RH jefe` y `RH ayudante`; `Engineer` convive con `Supervisor` y deja de acceder a `human_resources.*`. Permisos en `App\Services\Hr\HrPermissions`.
+- 2026-11-03: Asignaciones, captura diaria de incidencias y horas extra (HR-006, HR-007, HR-008). El campo opera solo las Obras donde es supervisor/residente (Supervisor) o de los Proyectos que dirige (Gerente de proyecto); la bandeja y la captura general son de `RH jefe` y `RH ayudante`; las habilitaciones de 24 h solo las otorga `RH jefe`.

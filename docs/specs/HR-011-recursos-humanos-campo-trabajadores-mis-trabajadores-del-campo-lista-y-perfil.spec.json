@@ -1,0 +1,188 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "listing",
+  "meta": {
+    "id": "HR-011",
+    "title": "Mis trabajadores del campo: lista y perfil reducido",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_campo_trabajadores",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "implementado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Dar al Supervisor y al Gerente de proyecto su propia ventana de trabajadores, \"Mis trabajadores\", con la lista de las personas asignadas a sus Obras y un perfil reducido de solo lectura (sin sueldo, cuenta, forma de pago, préstamos, descuentos ni recibos). Sigue el mismo enfoque que Mis proyectos. Depende de HR-005, HR-006 y HR-017.",
+    "flow": "El usuario de campo abre Mis trabajadores y ve a las personas con asignación vigente en alguna de sus Obras, con filtro por cuadrilla, Obra y búsqueda por nombre. Puede seleccionar personas o una cuadrilla y usar las acciones de HR-009 (Solicitar vacaciones, Proponer descanso, Ya no está en mi Obra). Al abrir una persona ve su perfil reducido: datos generales, Obra y cuadrilla actuales, documentos del expediente (PDF descargables) y DC3 con su vigencia.",
+    "prefix": "/recursos-humanos/campo/trabajadores",
+    "middleware": "role:Supervisor|Gerente de proyecto|admin",
+    "search": "Búsqueda por nombre, NSS o número de empleado; filtros en vivo por cuadrilla, Obra y estado",
+    "uploads": false,
+    "disk": "s3",
+    "uploads_notes": "Solo descarga de los documentos del expediente y DC3 ya guardados (WorkerFileController y WorkerDc3Controller, disco s3); este spec no sube ni mueve archivos.",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "Worker",
+      "table": "workers",
+      "expose": "resource",
+      "auditable": false,
+      "soft_deletes": true,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "hasMany",
+          "model": "WorkAssignment",
+          "key": "worker_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "livewire",
+      "behavior": "Componente App\\Livewire\\Hr\\MyWorkersTable (tabla del UI kit, paginada de 25): personas asignadas a las Obras del usuario, filtros con #[Url], selección múltiple y botones de las acciones de HR-009. Muestra los avisos \"Salida en RH\" y \"Vacaciones aprobadas\" cuando aplican."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Perfil reducido de solo lectura: datos generales, Obra y cuadrilla actuales, documentos del expediente con descarga y DC3 con su vigencia (\"vencida el 31/08/2026\" en rojo). No incluye sueldo, cuenta, forma de pago, préstamos, descuentos ni recibos ni los envía el controller."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (roles y alcance de campo), HR-006 (asignaciones vigentes) y HR-017 (cuadrilla del trabajador). HR-020 define el perfil por rol en el módulo existente de RH; aquí solo se crea la vista del campo.",
+    "No se crean tablas ni migraciones: el modelo Worker ya existe y este módulo solo lo consulta con un scope scopeInFieldScope(User $user) basado en work_assignments.",
+    "Debe permanecer igual: las pantallas de Trabajadores (human_resources.workers.*, expediente, DC3, bajas) y su importación y exportación, que HR-020 pasa a los roles nuevos, y el acceso del Engineer a Mis proyectos. El módulo anterior de RH ya no existe (HR-005).",
+    "Solo existen las rutas index y show, bajo role:Supervisor|Gerente de proyecto|admin; no hay store, update ni destroy. Las acciones de solicitud (vacaciones, descanso, salida) son de HR-009 y se montan sobre la selección de esta lista.",
+    "El campo solo ve a las personas con asignación vigente en alguna de sus Obras (Supervisor: supervisor_user_id o resident_user_id; Gerente: Obras de sus Proyectos). Abrir por URL a una persona fuera de su alcance responde 403.",
+    "El perfil reducido nunca recibe sueldo, tipo de pago, cuenta, forma de pago, préstamos, descuentos, caja de ahorro, recibos ni incentivos: el controller no los consulta, no solo la vista los oculta.",
+    "Los documentos del expediente y DC3 se descargan con las rutas actuales del expediente; se agrega a esas descargas el candado de alcance de campo (la persona debe estar en sus Obras).",
+    "Un usuario con los roles Engineer y Supervisor resuelve el alcance por sus Obras de supervisor/residente (HR-005); el rol Engineer no amplía lo que ve en esta ventana.",
+    "Toda consulta de perfil se limita a lo necesario; no se registra NotificationService porque es solo lectura."
+  ],
+  "validations": [
+    {
+      "field": "search",
+      "rule": "nullable, string, max:100"
+    },
+    {
+      "field": "worker (ruta)",
+      "rule": "debe tener asignación vigente en una Obra del alcance del usuario; de lo contrario 403"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿El Gerente de proyecto puede ver a personas de cualquier Obra de sus Proyectos o solo a las que tienen asignación vigente?",
+      "a": "solo con asignación vigente"
+    },
+    {
+      "q": "¿Se muestran también las personas con baja reciente (últimos días) para poder consultar su último día?",
+      "a": "Si"
+    }
+  ],
+  "exceptions": [
+    "El modelo Worker ya existe: este módulo no crea migración ni modifica el modelo salvo el scope de alcance (database.instructions.md aplica solo a ese scope).",
+    "Controller Hr\\Field\\MyWorkerController (solo index y show) y nombres de ruta rh.field.workers.* (como my-projects.*); la vista vive en resources/views/hr/field/workers/ en lugar de la carpeta derivada del prefijo.",
+    "El componente Livewire vive en App\\Livewire\\Hr (HR-005)."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Permisos y secciones del perfil completo de RH (HR-020).",
+    "Edición de datos personales por el campo.",
+    "Las acciones de solicitud sobre la selección (HR-009)."
+  ],
+  "docsOff": []
+}

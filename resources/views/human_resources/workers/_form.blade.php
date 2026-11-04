@@ -45,11 +45,13 @@
         <input id="hire_date" name="hire_date" type="date" class="form-control @error('hire_date') is-invalid @enderror" value="{{ old('hire_date', $worker?->hire_date?->format('Y-m-d')) }}" required>
         @error('hire_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
+    @if($canSeeAmounts)
     <div class="col-md-6">
         <label class="form-label" for="weekly_salary">Sueldo semanal <span class="text-danger">*</span></label>
         <input id="weekly_salary" name="weekly_salary" type="number" min="0" step="0.01" class="form-control @error('weekly_salary') is-invalid @enderror" value="{{ old('weekly_salary', $worker?->weekly_salary) }}" required>
         @error('weekly_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
+    @endif
     <div class="col-md-6">
         <label class="form-label" for="position_category_id">Puesto <span class="text-muted fw-normal">(opcional)</span></label>
         <select id="position_category_id" name="position_category_id" class="form-select @error('position_category_id') is-invalid @enderror">
@@ -60,6 +62,7 @@
         </select>
         @error('position_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
+    @if($canSeeAmounts)
     <div class="col-md-6">
         <label class="form-label" for="payment_type">Tipo de pago <span class="text-danger">*</span></label>
         <select id="payment_type" name="payment_type" class="form-select @error('payment_type') is-invalid @enderror" required>
@@ -67,6 +70,17 @@
             <option value="piecework" @selected(old('payment_type', $worker?->payment_type) === 'piecework')>Destajo</option>
         </select>
         @error('payment_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    @endif
+    <div class="col-md-6">
+        <label class="form-label" for="worker_group_id">Cuadrilla <span class="text-muted fw-normal">(opcional)</span></label>
+        <select id="worker_group_id" name="worker_group_id" class="form-select @error('worker_group_id') is-invalid @enderror">
+            <option value="">Sin cuadrilla</option>
+            @foreach ($workerGroups as $workerGroup)
+                <option value="{{ $workerGroup->id }}" @selected((string) old('worker_group_id', $worker?->worker_group_id) === (string) $workerGroup->id)>{{ $workerGroup->name }}</option>
+            @endforeach
+        </select>
+        @error('worker_group_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-6">
         <label class="form-label d-block">Perfil del trabajador</label>

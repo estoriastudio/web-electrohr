@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Worker;
 use App\Models\WorkerDc3;
+use App\Services\Hr\HrFieldScope;
 use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,8 @@ class WorkerDc3Controller extends Controller
 
     public function store(Request $request, Worker $worker): RedirectResponse
     {
+        $this->ensureWorkerAccess($worker);
+
         $data = $request->validate([
             'label' => 'required|string|max:100',
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
@@ -47,7 +50,10 @@ class WorkerDc3Controller extends Controller
 
     public function download(Worker $worker, WorkerDc3 $dc3): mixed
     {
-        $this->ensureWorkerAccess($worker);
+        abort_unless(
+            HrFieldScope::isUnrestricted() || Worker::query()->inFieldScope(Auth::user())->whereKey($worker->id)->exists(),
+            403
+        );
         $this->ensureBelongsToWorker($worker, $dc3);
 
         abort_unless(Storage::disk('s3')->exists($dc3->file_path), 404);
@@ -57,6 +63,7 @@ class WorkerDc3Controller extends Controller
 
     public function destroy(Worker $worker, WorkerDc3 $dc3): RedirectResponse
     {
+        $this->ensureWorkerAccess($worker);
         $this->ensureBelongsToWorker($worker, $dc3);
 
         Storage::disk('s3')->delete($dc3->file_path);
@@ -81,12 +88,6 @@ class WorkerDc3Controller extends Controller
 
     private function ensureWorkerAccess(Worker $worker): void
     {
-        $user = Auth::user();
-
-        if ($user->hasAnyRole(['admin', 'Recursos Humanos'])) {
-            return;
-        }
-
-        abort_unless($worker->isAssignedToResponsibleWork($user), 403);
+        abort_unless(HrFieldScope::isUnrestricted(), 403);
     }
 }

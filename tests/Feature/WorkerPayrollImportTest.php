@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Imports\WorkerPayrollImport;
 use App\Models\PositionCategory;
-use App\Models\Project;
-use App\Models\ProjectWork;
 use App\Models\Worker;
 use App\Models\WorkerGroup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,15 +14,8 @@ class WorkerPayrollImportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_imports_worker_data_and_separates_same_named_groups_by_project_work(): void
+    public function test_it_imports_worker_data_and_assigns_the_worker_group(): void
     {
-        $project = Project::create([
-            'name' => 'Proyecto de prueba',
-            'client_name' => 'Cliente de prueba',
-            'status' => 'active',
-        ]);
-        $firstWork = ProjectWork::create(['project_id' => $project->id, 'name' => 'LUGAR NORTE', 'status' => 'active']);
-        $secondWork = ProjectWork::create(['project_id' => $project->id, 'name' => 'LUGAR SUR', 'status' => 'active']);
         $rows = new Collection([
             ['', '', '', '', '', '', '', '', '', '', ''],
             ['LUGAR', 'No. CUENTA', 'APELLDO PATERNO', 'APELLINO MATERNO', 'NOMBRE', 'CATEGORIA', 'SUELDO', 'No. DE SEGURO SOCIAL', 'CURP', 'CUADRILLA', 'FECHA DE INGRESO'],
@@ -53,11 +44,8 @@ class WorkerPayrollImportTest extends TestCase
         $this->assertSame($category->id, $worker->position_category_id);
         $this->assertSame(11000.0, (float) $worker->weekly_salary);
         $this->assertSame(1, Worker::where('nss', '41-91-76-0197-7')->count());
-        $this->assertSame(2, WorkerGroup::where('name', 'ADMINISTRATIVO')->count());
-        $this->assertDatabaseHas('worker_groups', ['name' => 'ADMINISTRATIVO', 'project_work_id' => $firstWork->id]);
-        $this->assertDatabaseHas('worker_groups', ['name' => 'ADMINISTRATIVO', 'project_work_id' => $secondWork->id]);
-        $this->assertSame(2, $worker->groups()->count());
-        $this->assertSame(1, $worker->groups()->wherePivotNull('left_at')->count());
+        $this->assertSame(1, WorkerGroup::where('name', 'ADMINISTRATIVO')->count());
+        $this->assertSame(WorkerGroup::where('name', 'ADMINISTRATIVO')->value('id'), $worker->worker_group_id);
     }
 
     public function test_it_skips_rows_without_an_nss(): void

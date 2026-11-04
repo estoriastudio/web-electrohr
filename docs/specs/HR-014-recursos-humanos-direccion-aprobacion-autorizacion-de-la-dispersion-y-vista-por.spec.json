@@ -1,0 +1,234 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "workflow",
+  "meta": {
+    "id": "HR-014",
+    "title": "Autorización de la dispersión y vista Por persona",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_direccion_aprobacion",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Cerrar el proceso de nómina: Dirección (rol admin) revisa el periodo con todos sus Proyectos cerrados por RH, autoriza la dispersión o devuelve un Proyecto a RH jefe con comentario, y descarga el Excel de dispersión. Incluye la vista \"Por persona\" para consultar totales y detalle por trabajador. Depende de HR-005, HR-012, HR-013 y HR-015.",
+    "flow": "Dirección abre Aprobación, elige el periodo y ve cada Proyecto con su total, los cambios de RH posteriores al cierre, los préstamos y avisos de pago anticipado. Puede \"Devolver\" un Proyecto con un comentario obligatorio (vuelve a RH jefe) o \"Autorizar dispersión\" del periodo completo; tras autorizar descarga el Excel de dispersión (hoja con Nombre, Importe y Cuenta; hoja aparte para efectivo). En Por persona consulta, con filtros combinables, los totales y el detalle por Proyecto y día, y exporta el CSV de lo filtrado. RH jefe consulta Aprobación en solo lectura.",
+    "prefix": "/recursos-humanos/direccion/aprobacion",
+    "middleware": "role:RH jefe|admin",
+    "search": "Filtros de Por persona: Proyecto, Obra, cuadrilla, cargo, nombre y periodo",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "PayrollAuthorization",
+      "table": "payroll_authorizations",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": "único (viernes del periodo)"
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "pending, authorized · validado con in: · default pending"
+        },
+        {
+          "name": "total",
+          "type": "decimal(10,2)",
+          "nullable": true,
+          "extra": "total autorizado de todos los Proyectos; null hasta autorizar"
+        },
+        {
+          "name": "authorized_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "authorized_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "snapshot",
+          "type": "json",
+          "nullable": true,
+          "extra": "totales por Proyecto y por forma de pago al autorizar, con su checksum"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "User",
+          "key": "authorized_by"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Aprobación (lectura para RH jefe y admin; autorizar, devolver y descargar el Excel solo admin, validado en el controller). Selector de periodo. Tarjetas por Proyecto con estado y total, cambios de RH posteriores al cierre, préstamos y aviso de pago anticipado. Botones Devolver (modal con comentario obligatorio) y \"Autorizar dispersión\" (deshabilitado con su razón si falta cerrar o hay un Proyecto devuelto). Tras autorizar aparece \"Descargar Excel de dispersión\". RH jefe ve la pantalla sin botones."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Por persona. Por omisión muestra a todas las personas con sus totales; filtros combinables por Proyecto, Obra, cuadrilla, cargo, nombre y periodo; el detalle muestra cada Proyecto y cada día; botón CSV con lo filtrado."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "pending",
+      "label": "Pendiente de autorizar",
+      "to": "authorized"
+    },
+    {
+      "value": "authorized",
+      "label": "Autorizado",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (Dirección = admin, decisión del equipo), HR-012 (PayrollProjectStage y su devolución), HR-013 (filas cerradas) y HR-015 (formas de pago y préstamos para el archivo). No se crea el rol Dirección: autorizar, devolver y descargar son exclusivos de admin.",
+    "Debe permanecer igual: nada del módulo anterior (los periodos y la nómina anteriores se eliminaron en HR-005); se usa maatwebsite/excel, ya instalado (perfil del proyecto), sin paquetes nuevos.",
+    "Se puede autorizar un periodo cuando todos los Proyectos con personal están Cerrados por RH, ninguno tiene una devolución pendiente y no hay personas con pagos sin definir que impidan generar el archivo bancario (se listan como pagos sin forma de pago).",
+    "Devolver un Proyecto exige comentario; el Proyecto pasa de validated a reviewed (se reabre con los reversos de HR-013), se guarda en PayrollProjectStage.returned y queda marcado como devuelto a RH jefe hasta que se vuelva a cerrar.",
+    "Al autorizar se guarda quién, cuándo, total y snapshot, se congela el periodo (ningún cambio posterior lo modifica; todo va a ajustes en el siguiente periodo) y se deja un punto de recuperación (HR-016). La autorización es irreversible: se confirma con un diálogo.",
+    "Excel de dispersión (app/Exports/Hr/DispersionExport): hoja Banco con titular, Importe y Cuenta completa según la forma de pago resuelta (su cuenta, otro trabajador, otra persona con cuenta registrada); hoja Efectivo con los pagos en efectivo; los préstamos dispersados en el periodo se incluyen en el importe de su beneficiario. Antes de descargar se verifica que Banco + Efectivo + pagos sin forma de pago = lo autorizado + préstamos.",
+    "El Excel contiene cuentas completas: solo admin puede descargarlo, la ruta valida el rol (403) y cada descarga se registra en bitácora como sensitive.",
+    "Por persona: totales del periodo (o rango) por trabajador con detalle por Proyecto y día; respeta seeAmounts y los filtros combinados; el CSV exporta exactamente lo filtrado.",
+    "Todas las acciones (autorizar, devolver, descargar) se escriben en bitácora; las que incluyen importes se marcan sensitive; se notifica con NotificationService."
+  ],
+  "validations": [
+    {
+      "field": "periodStart (ruta)",
+      "rule": "date, viernes, con todos los Proyectos con personal en validated"
+    },
+    {
+      "field": "comment (devolver)",
+      "rule": "requerido, string"
+    },
+    {
+      "field": "project (devolver)",
+      "rule": "exists:projects, con estado validated en el periodo"
+    },
+    {
+      "field": "filtros de Por persona",
+      "rule": "nullable; project_id y project_work_id exists; periodo date"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué formato exacto debe tener el Excel de dispersión que usa el banco (columnas, orden, clave de banco)?",
+      "a": "El prototipo usa Nombre, Importe y Cuenta, con hoja aparte para efectivo. "
+    },
+    {
+      "q": "¿Dirección autoriza todo el periodo de una vez o puede autorizar por Proyecto?",
+      "a": "Según el prototipo, el periodo completo; solo la devolución es por Proyecto."
+    },
+    {
+      "q": "¿Después de autorizar, quién marca el periodo como pagado?",
+      "a": "Lo hace RH Jefe"
+    }
+  ],
+  "exceptions": [
+    "Se agrega app/Exports/Hr/DispersionExport.php con maatwebsite/excel, que está en packages del perfil; no se instalan paquetes nuevos.",
+    "Autorizar y devolver son acciones POST (transiciones del estatus) y no un update del recurso.",
+    "Controllers Hr\\Director\\ApprovalController y Hr\\Director\\PeopleController; nombres de ruta rh.director.approval.* y rh.director.people.*; las vistas viven en resources/views/hr/director/ en lugar de la carpeta derivada del prefijo (HR-005)."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Integración bancaria directa (envío del archivo).",
+    "Autorización en varios niveles o firma electrónica."
+  ],
+  "docsOff": []
+}

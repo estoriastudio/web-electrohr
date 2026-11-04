@@ -1,0 +1,294 @@
+{
+  "version": 3,
+  "type": "new",
+  "variant": "workflow",
+  "meta": {
+    "id": "HR-012",
+    "title": "Nómina etapa 1: revisión de incidencias sin montos",
+    "module": "Recursos Humanos",
+    "module_key": "recursos-humanos_revision_nomina",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "Mariam",
+    "status": "aprobado",
+    "branch": "moon",
+    "created": "2026-11-03",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Introducir la primera etapa de la nómina por periodo (viernes a jueves) y por Proyecto: el Revisor de nómina revisa Obra por Obra las incidencias, las horas extra por día y la letra de incentivo, sin ver ningún importe; al revisar, el Proyecto pasa a RH jefe. Depende de HR-005, HR-007, HR-008 y HR-010.",
+    "flow": "Desde el viernes a las 10:00 el Revisor abre Revisión de nómina, elige el periodo y el Proyecto y ve una tabla por Obra con una fila por persona y una columna por día (incidencia, HE y letra de incentivo). Marca cada Obra como revisada y, cuando todas las Obras con personal están marcadas, pulsa \"Revisar Proyecto\": el Proyecto pasa a \"Revisado: con RH jefe\". Puede exportar su vista a CSV sin importes. RH jefe puede regresar un Proyecto al Revisor (HR-013) y Dirección puede devolverlo a RH jefe (HR-014).",
+    "prefix": "/recursos-humanos/revision/nomina",
+    "middleware": "role:Revisor de nómina|admin",
+    "search": "Filtros por periodo, Proyecto y Obra",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "target_ref": null,
+    "current": "",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "",
+    "rule_new": "",
+    "historic": "",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "PayrollProjectStage",
+      "table": "payroll_project_stages",
+      "expose": "resource",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "period_start",
+          "type": "date",
+          "nullable": false,
+          "extra": "viernes del periodo · único junto con project_id"
+        },
+        {
+          "name": "project_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → projects.id, restrict on delete"
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": false,
+          "extra": "open, reviewed, validated · validado con in: · default open"
+        },
+        {
+          "name": "review_snapshot",
+          "type": "json",
+          "nullable": true,
+          "extra": "resumen de lo revisado para detectar cambios posteriores"
+        },
+        {
+          "name": "reviewed_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        },
+        {
+          "name": "returned",
+          "type": "json",
+          "nullable": true,
+          "extra": "{by, at, comment, to}: devolución de Dirección a RH jefe (HR-014)"
+        },
+        {
+          "name": "history",
+          "type": "json",
+          "nullable": true,
+          "extra": "movimientos de reapertura o devolución con motivo"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "Project",
+          "key": "project_id"
+        },
+        {
+          "kind": "hasMany",
+          "model": "PayrollSiteReview",
+          "key": "payroll_project_stage_id"
+        }
+      ]
+    },
+    {
+      "name": "PayrollSiteReview",
+      "table": "payroll_site_reviews",
+      "expose": "nested",
+      "auditable": false,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "payroll_project_stage_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → payroll_project_stages.id, cascade on delete"
+        },
+        {
+          "name": "project_work_id",
+          "type": "foreignId",
+          "nullable": false,
+          "extra": "FK → project_works.id, restrict on delete · único junto con la etapa"
+        },
+        {
+          "name": "reviewed_by",
+          "type": "foreignId",
+          "nullable": true,
+          "extra": "FK → users.id, null on delete"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp",
+          "nullable": true,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "PayrollProjectStage",
+          "key": "payroll_project_stage_id"
+        },
+        {
+          "kind": "belongsTo",
+          "model": "ProjectWork",
+          "key": "project_work_id"
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Periodos y Proyectos. Selector de periodo (viernes–jueves) y tarjetas por Proyecto con su estado (En revisión, Revisado: con RH jefe, Cerrado por RH), Obras revisadas de total y el motivo por el que aún no se puede revisar (\"el periodo no ha terminado\", \"hay Obras pendientes de revisión\")."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Revisión de un Proyecto. Por Obra, tabla de personas por día con incidencia, HE y letra de incentivo; indicadores de datos incompletos y días sin captura; botones \"Marcar Obra revisada\" y \"Revisar Proyecto\" (deshabilitado con su razón) y exportación CSV. Sin sueldo, importes, préstamos ni cuenta."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "open",
+      "label": "En revisión",
+      "to": "reviewed"
+    },
+    {
+      "value": "reviewed",
+      "label": "Revisado: con RH jefe",
+      "to": "validated | open (RH jefe regresa al Revisor)"
+    },
+    {
+      "value": "validated",
+      "label": "Cerrado por RH",
+      "to": "reviewed (reapertura o devolución de Dirección)"
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "files": [
+    ""
+  ],
+  "keep": [
+    ""
+  ],
+  "risks": [
+    ""
+  ],
+  "cases": [
+    ""
+  ],
+  "rules": [
+    "Depende de: HR-005 (HrClock y permisos), HR-007 y HR-008 (incidencias, HE y letra por día) y HR-010 (correcciones pendientes que se deben ver). Este spec crea las etapas por Proyecto; HR-013 y HR-014 las consumen.",
+    "Debe permanecer igual: nada del módulo anterior; PayrollPeriod, PayrollLine y sus pantallas ya fueron retirados en HR-005 y las etapas de este spec son la única nómina.",
+    "El periodo de nómina es viernes a jueves; la revisión del Revisor abre el viernes siguiente a las 10:00 (hora de HrClock, America/Mexico_City) o, con pago anticipado, el día siguiente al último pagado a las 10:00.",
+    "El estado se lleva por Proyecto y periodo: open → reviewed → validated. Solo el Revisor pasa de open a reviewed; solo RH jefe regresa a open (con motivo) o cierra (HR-013).",
+    "\"Revisar Proyecto\" exige: periodo terminado y todas las Obras con personal marcadas como revisadas.",
+    "El Revisor revisa por Obra: incidencias por día, HE por día (sin importes), HE aprobadas fuera de plazo y letra de incentivo; los indicadores marcan personas con datos incompletos y días sin captura.",
+    "Al revisar se guarda un snapshot de lo revisado; si después cambia algo, RH jefe lo ve en \"Cambios después de la revisión\" (HR-013).",
+    "El Revisor nunca recibe importes: el controller construye las filas sin ellos (PayrollRowBuilder), no solo la vista; su CSV tampoco los incluye, ni ve entradas de bitácora sensitive.",
+    "Cada revisión y reapertura se escribe en bitácora (HrAudit) y notifica con NotificationService.",
+    "El periodo se identifica por period_start (el viernes) y no depende de ninguna tabla de periodos: se calcula con HrClock::periodOf y las etapas se crean al primer uso."
+  ],
+  "validations": [
+    {
+      "field": "periodStart (ruta)",
+      "rule": "date y debe ser viernes; el periodo debe haber terminado para revisar"
+    },
+    {
+      "field": "project (ruta)",
+      "rule": "exists:projects con personal en el periodo"
+    },
+    {
+      "field": "reason (regresar al Revisor)",
+      "rule": "requerido, string"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿La revisión abre el viernes a las 10:00 como en el prototipo?",
+      "a": "Según el prototipo v6 sí, y con pago anticipado abre al día siguiente del último pagado a las 10:00."
+    },
+    {
+      "q": "¿El Revisor puede ver la bitácora completa o solo sus acciones y las no sensibles?",
+      "a": "Según el prototipo v6 solo las entradas sin importes (D6-36)."
+    }
+  ],
+  "exceptions": [
+    "La exportación CSV usa respuesta de streaming sin importes; maatwebsite/excel (ya en el perfil) se usa solo si el equipo prefiere .xlsx.",
+    "Controller Hr\\Review\\PayrollReviewController; nombres de ruta rh.review.payroll.*; las vistas viven en resources/views/hr/review/payroll/ en lugar de la carpeta derivada del prefijo (HR-005).",
+    "Las transiciones de estatus son acciones POST (revisar Obra, revisar Proyecto, reabrir) y no un update del recurso."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Montos, descuentos, salario final y cierre (HR-013).",
+    "Autorización y Excel de dispersión (HR-014)."
+  ],
+  "docsOff": []
+}
