@@ -185,13 +185,13 @@ class PurchaseOrderMilestone extends Model
 
         $percent = ((float) $this->covered_amount / $target) * 100;
 
-        return min(100.0, round($percent, 1));
+        return $this->is_complete ? 100.0 : min(100.0, round($percent, 1));
     }
 
     public function getIsCompleteAttribute(): bool
     {
         $target = $this->effective_amount;
 
-        return $target > 0 && (float) $this->covered_amount >= $target;
+        return $target > 0 && (float) $this->covered_amount >= $target - PurchaseOrder::AMOUNT_TOLERANCE;
     }
 }

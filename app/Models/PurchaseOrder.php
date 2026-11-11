@@ -14,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 class PurchaseOrder extends Model
 {
     use SoftDeletes;
+
+    /** Diferencia máxima (en la moneda de la OC) que se considera saldada al facturar, pagar y cerrar. */
+    public const AMOUNT_TOLERANCE = 0.50;
+
     protected $fillable = [
         'parent_id',
         'folio',

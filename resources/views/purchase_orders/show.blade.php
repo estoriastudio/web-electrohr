@@ -192,6 +192,17 @@
             @endforeach
         </div>
         <div class="form-text mt-1">Facturado considera solo facturas aceptadas, netas de notas de crédito.</div>
+        @php
+            $toleranceDifferences = collect($economicSummary['tolerance_applied'])->only(['pending_invoicing', 'pending_payment']);
+        @endphp
+        @if ($toleranceDifferences->isNotEmpty())
+            <div class="fs-12 text-success mt-1">
+                <i class="ri-checkbox-circle-line me-1"></i>Diferencia dentro de la tolerancia (±{{ number_format($economicSummary['tolerance'], 2) }}) considerada como saldada:
+                @foreach ($toleranceDifferences as $toleranceKey => $toleranceAmount)
+                    {{ $toleranceKey === 'pending_invoicing' ? 'por facturar' : 'por pagar' }} {{ $purchaseOrder->currency }} {{ number_format($toleranceAmount, 2) }}{{ !$loop->last ? ',' : '' }}
+                @endforeach
+            </div>
+        @endif
     </div>
 </div>
 
@@ -2447,9 +2458,11 @@
                                 <small class="text-muted fw-normal">(CFDI timbrado)</small>
                             </label>
                             <input id="adminInvoiceXmlFile" type="file" class="form-control @error('xml_file') is-invalid @enderror"
-                                   name="xml_file" accept=".xml,text/xml">
-                            <div class="form-text">Al cargar el XML se autocompletarán el folio fiscal (UUID) y el importe.</div>
-                            @error('xml_file')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                   name="xml_file" accept=".xml,text/xml" aria-describedby="adminInvoiceXmlHelp adminInvoiceXmlFeedback">
+                            <div id="adminInvoiceXmlHelp" class="form-text">Al cargar el XML se autocompletarán el folio fiscal (UUID) y el importe.</div>
+                            <div id="adminInvoiceXmlFeedback" class="invalid-feedback {{ $errors->has('xml_file') ? 'd-block' : 'd-none' }}" role="alert">
+                                @error('xml_file'){{ $message }}@enderror
+                            </div>
                         </div>
 
                         {{-- Folio --}}
@@ -3760,7 +3773,18 @@ document.addEventListener('DOMContentLoaded', function () {
     var folioInput = document.getElementById('adminInvoiceFolio');
     var amountInput = document.getElementById('adminInvoiceAmount');
     var amountStatus = document.getElementById('adminInvoiceAmountStatus');
-    if (!xmlInput || !folioInput || !amountInput) return;
+    var xmlFeedback = document.getElementById('adminInvoiceXmlFeedback');
+    var activeReader = null;
+    if (!xmlInput || !folioInput || !amountInput || !xmlFeedback) return;
+
+    function showXmlFeedback(message, invalid) {
+        xmlInput.classList.toggle('is-invalid', invalid);
+        xmlInput.setAttribute('aria-invalid', String(invalid));
+        xmlFeedback.textContent = message;
+        xmlFeedback.className = !message
+            ? 'invalid-feedback d-none'
+            : (invalid ? 'invalid-feedback d-block' : 'form-text text-warning d-block');
+    }
 
     function setAmountFromXml(amount) {
         var fromXml = amount !== null;
@@ -3779,81 +3803,133 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function readCfdiTotalFromXmlText(xmlText) {
-        try {
-            var xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
-            if (xmlDoc.querySelector('parsererror')) return null;
+    function describeXmlParserError(detail) {
+        var translations = [
+            [/opening and ending tag mismatch|mismatched tag/i, 'Una etiqueta de apertura no coincide con su etiqueta de cierre.'],
+            [/namespace prefix .* (?:not defined|is not defined)|unbound prefix/i, 'Se usa un prefijo de espacio de nombres que no está declarado con xmlns.'],
+            [/entity .* not defined|undefined entity/i, 'Se usa una entidad XML que no está definida.'],
+            [/entityref: expecting ';'|unterminated entity/i, 'Una referencia de entidad XML no termina con punto y coma (;).'],
+            [/xmlparseentityref: no name|invalid token|not well-formed/i, 'Hay un carácter o una referencia XML inválida. Verifica especialmente los signos & y < dentro de los valores.'],
+            [/attvalue:.*(?:expected|not started)|unclosed token/i, 'Un atributo o una etiqueta está incompleto. Revisa las comillas y los signos de cierre.'],
+            [/attribute .* redefined|duplicate attribute/i, 'Una etiqueta contiene un atributo repetido.'],
+            [/premature end|no element found/i, 'El XML terminó antes de completar todas sus etiquetas.'],
+            [/extra content at the end|junk after document element/i, 'Hay contenido adicional después de la etiqueta principal del XML.'],
+            [/start tag expected/i, 'Se esperaba una etiqueta XML de apertura. Verifica que el archivo contenga XML.'],
+            [/xml declaration allowed only|xml or text declaration not at start/i, 'La declaración XML debe estar al inicio del archivo, sin texto ni espacios antes.'],
+        ];
+        var translation = translations.find(function (entry) { return entry[0].test(detail); });
+        var location = detail.match(/line(?:\s*number)?\s*(?:[:=]\s*)?(\d+)(?:\s*(?:,|at)?\s*column(?:\s*number)?\s*(?:[:=]\s*)?(\d+))?/i);
+        var position = location
+            ? ' Ubicación: línea ' + location[1] + (location[2] ? ', columna ' + location[2] : '') + '.'
+            : '';
 
-            var nodes = xmlDoc.getElementsByTagName('*');
-            for (var i = 0; i < nodes.length; i++) {
-                if (nodes[i].localName !== 'Comprobante') continue;
-                var total = parseFloat(String(nodes[i].getAttribute('Total') || '').replace(/,/g, ''));
-                return isFinite(total) ? total : null;
-            }
-        } catch (err) {
-            return null;
-        }
-
-        return null;
+        return translation
+            ? translation[1] + position
+            : 'El lector XML detectó un error de sintaxis.' + position + (detail ? ' Detalle técnico original: ' + detail : '');
     }
 
-    function readFiscalFolioFromXmlText(xmlText) {
-        try {
-            var parser = new DOMParser();
-            var xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-            if (xmlDoc.querySelector('parsererror')) return null;
+    function describeFileReadError(error) {
+        var translations = {
+            NotReadableError: 'El archivo no se puede leer; puede estar bloqueado o haber cambiado desde su selección.',
+            NotFoundError: 'El archivo ya no se encuentra en la ubicación seleccionada.',
+            SecurityError: 'El navegador bloqueó el acceso al archivo por motivos de seguridad.',
+            AbortError: 'La lectura del archivo fue interrumpida.',
+            EncodingError: 'No se pudo interpretar la codificación del archivo.',
+        };
 
-            var nodes = xmlDoc.getElementsByTagName('*');
-            for (var i = 0; i < nodes.length; i++) {
-                var node = nodes[i];
-                if (node.localName !== 'TimbreFiscalDigital') continue;
+        return error
+            ? (translations[error.name] || 'Detalle técnico original: ' + error.name + ': ' + error.message)
+            : 'El navegador no proporcionó más detalles del error.';
+    }
 
-                var uuid = (node.getAttribute('UUID') || node.getAttribute('Uuid') || node.getAttribute('uuid') || '').trim();
-                if (!uuid) return null;
-
-                var normalized = uuid.toUpperCase();
-                var uuidRegex = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
-                return uuidRegex.test(normalized) ? normalized : null;
-            }
-        } catch (err) {
-            return null;
+    function readInvoiceFromXmlText(xmlText) {
+        if (!xmlText.trim()) {
+            throw new Error('El archivo XML está vacío.');
         }
 
-        return null;
+        var xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
+        var parserError = xmlDoc.querySelector('parsererror');
+        if (parserError) {
+            var detail = String(parserError.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+            throw new Error('El XML está mal formado. ' + describeXmlParserError(detail));
+        }
+
+        var nodes = xmlDoc.getElementsByTagName('*');
+        var stamp = null;
+        var receipt = null;
+        for (var i = 0; i < nodes.length; i++) {
+            if (!stamp && nodes[i].localName === 'TimbreFiscalDigital') stamp = nodes[i];
+            if (!receipt && nodes[i].localName === 'Comprobante') receipt = nodes[i];
+        }
+        if (!stamp) {
+            throw new Error('El XML no contiene el nodo TimbreFiscalDigital. Verifica que sea un CFDI timbrado.');
+        }
+
+        var uuid = (stamp.getAttribute('UUID') || stamp.getAttribute('Uuid') || stamp.getAttribute('uuid') || '').trim().toUpperCase();
+        if (!uuid) {
+            throw new Error('El nodo TimbreFiscalDigital no contiene el folio fiscal (atributo UUID).');
+        }
+        if (!/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(uuid)) {
+            throw new Error('El folio fiscal (UUID) del XML tiene un formato inválido. Debe contener 32 caracteres hexadecimales en grupos 8-4-4-4-12.');
+        }
+
+        var total = receipt ? parseFloat(String(receipt.getAttribute('Total') || '').replace(/,/g, '')) : NaN;
+        return {
+            uuid: uuid,
+            total: isFinite(total) ? total : null,
+            warning: !receipt
+                ? 'No se encontró el nodo Comprobante para leer el importe. Captura el importe manualmente.'
+                : (!isFinite(total) ? 'El atributo Total del nodo Comprobante está ausente o no es numérico. Captura el importe manualmente.' : ''),
+        };
     }
 
     xmlInput.addEventListener('change', function () {
+        if (activeReader) {
+            activeReader.abort();
+            activeReader = null;
+        }
+        folioInput.value = '';
+        setAmountFromXml(null);
+        showXmlFeedback('', false);
+
         var file = this.files && this.files.length ? this.files[0] : null;
-        if (!file) {
-            folioInput.value = '';
-            xmlInput.classList.remove('is-invalid');
-            setAmountFromXml(null);
+        if (!file) return;
+
+        var fileName = String(file.name || '').toLowerCase();
+        if (!fileName.endsWith('.xml')) {
+            showXmlFeedback('Selecciona un archivo con extensión .xml.', true);
             return;
         }
 
-        var fileName = String(file.name || '').toLowerCase();
-        if (!fileName.endsWith('.xml')) return;
-
         var reader = new FileReader();
+        activeReader = reader;
         reader.onload = function (e) {
+            if (reader !== activeReader) return;
+            activeReader = null;
             var xmlText = String((e.target && e.target.result) || '');
-            var uuid = readFiscalFolioFromXmlText(xmlText);
-
-            if (!uuid) {
-                xmlInput.classList.add('is-invalid');
-                setAmountFromXml(null);
+            var invoice;
+            try {
+                invoice = readInvoiceFromXmlText(xmlText);
+            } catch (err) {
+                showXmlFeedback('No se pudo leer la factura: ' + err.message, true);
                 return;
             }
 
-            xmlInput.classList.remove('is-invalid');
-            folioInput.value = uuid;
-            setAmountFromXml(readCfdiTotalFromXmlText(xmlText));
+            folioInput.value = invoice.uuid;
+            setAmountFromXml(invoice.total);
+            showXmlFeedback(invoice.warning, false);
         };
         reader.onerror = function () {
-            xmlInput.classList.add('is-invalid');
-            setAmountFromXml(null);
+            if (reader !== activeReader) return;
+            activeReader = null;
+            showXmlFeedback('No se pudo leer el archivo XML desde tu equipo. ' + describeFileReadError(reader.error) + ' Vuelve a seleccionarlo.', true);
         };
-        reader.readAsText(file);
+        try {
+            reader.readAsText(file);
+        } catch (err) {
+            activeReader = null;
+            showXmlFeedback('No se pudo abrir el archivo XML. ' + describeFileReadError(err), true);
+        }
     });
 });
 </script>

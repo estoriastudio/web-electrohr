@@ -67,6 +67,14 @@ Al editar un hito:
 
 Las nuevas vinculaciones permiten una sola factura por hito y un solo hito por factura, tanto al cargar como al aceptar la factura. Un hito ocupado no se ofrece para otra factura, incluso si la vinculada esta rechazada. Aceptar otra vez la misma factura con su mismo hito es valido. Los datos historicos multi-hito no se borran ni se redistribuyen automaticamente.
 
+### Lectura del XML en Subir factura
+
+- El modal del detalle de la OC lee el XML en el navegador antes de enviarlo al servidor. Los errores de esta lectura se muestran debajo del campo XML, no solo con el borde rojo.
+- Distingue extension incorrecta, archivo vacio, XML mal formado (con el diagnostico del parser, incluida linea/columna cuando el navegador las proporciona), nodo `TimbreFiscalDigital` ausente, atributo `UUID` ausente o invalido y errores de lectura del archivo.
+- Los diagnosticos habituales del parser y los errores de acceso al archivo se explican en espanol. Cuando el navegador devuelve un motivo no reconocido, se conserva como "Detalle tecnico original" para no perder informacion.
+- Al seleccionar otro archivo o retirar la seleccion, limpia el folio, el importe detectado y el mensaje anterior. Una lectura anterior no puede sobrescribir los datos del nuevo archivo.
+- Un UUID valido sigue autocompletando el folio. Si no se puede detectar `Comprobante/@Total`, se muestra una advertencia y se conserva la captura manual del importe. La validacion del servidor y las reglas de aceptacion no cambian.
+
 ### Flujo de pagos
 
 Los estatus operativos de pago son:
