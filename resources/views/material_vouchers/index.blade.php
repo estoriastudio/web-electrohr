@@ -37,7 +37,7 @@
 <div class="card">
 	<div class="card-header d-flex justify-content-between align-items-center border-bottom">
 		<h4 class="card-title mb-0"><i class="ri-receipt-line me-1"></i> Vales de Material</h4>
-		@can('create')
+		@can('material_vouchers.create')
 		<button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCreateVoucher">
 			<i class="ri-add-line me-1"></i> Nuevo vale
 		</button>
@@ -111,7 +111,7 @@
 							<td>
 								<div class="d-flex gap-1">
 									<a href="{{ route('material_vouchers.show', $voucher) }}" class="btn btn-light btn-sm" title="Ver detalle"><i class="ri-eye-line"></i></a>
-									@can('update')
+									@can('material_vouchers.update')
 									<a href="{{ route('material_vouchers.edit', $voucher) }}" class="btn btn-soft-primary btn-sm" title="Editar"><i class="ri-edit-line"></i></a>
 									@endcan
 								</div>
@@ -135,7 +135,7 @@
 	</div>
 </div>
 
-@can('create')
+@can('material_vouchers.create')
 <div class="modal fade" id="modalCreateVoucher" tabindex="-1" aria-labelledby="modalCreateVoucherLabel" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered modal-lg">
 		<div class="modal-content">

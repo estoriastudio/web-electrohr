@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProjectWork;
 use App\Models\Worker;
 use App\Models\WorkerVacation;
 use App\Services\NotificationService;
@@ -19,19 +18,20 @@ class WorkerVacationController extends Controller
     public function index(Request $request): View
     {
         $today = Carbon::today();
+        $visible = fn () => WorkerVacation::query()->visibleTo(Auth::user(), 'hr_vacations');
         $summary = [
-            'in_progress' => WorkerVacation::where('status', 'in_progress')->count(),
-            'approved' => WorkerVacation::where('status', 'approved')->count(),
-            'taken' => WorkerVacation::where('status', 'taken')->count(),
-            'cancelled' => WorkerVacation::where('status', 'cancelled')->count(),
-            'away_today' => WorkerVacation::query()
+            'in_progress' => $visible()->where('status', 'in_progress')->count(),
+            'approved' => $visible()->where('status', 'approved')->count(),
+            'taken' => $visible()->where('status', 'taken')->count(),
+            'cancelled' => $visible()->where('status', 'cancelled')->count(),
+            'away_today' => $visible()
                 ->where('status', 'approved')
                 ->whereDate('start_date', '<=', $today)
                 ->whereDate('end_date', '>=', $today)
                 ->distinct('worker_id')
                 ->count('worker_id'),
         ];
-        $upcomingVacations = WorkerVacation::query()
+        $upcomingVacations = $visible()
             ->with(['worker.projectWork'])
             ->whereIn('status', ['in_progress', 'approved'])
             ->whereDate('end_date', '>=', $today)
@@ -67,6 +67,7 @@ class WorkerVacationController extends Controller
 
     public function show(WorkerVacation $workerVacation): View
     {
+        $this->authorizeAccess($workerVacation, 'hr_vacations');
         $workerVacation->load('worker.projectWork');
 
         return view('human_resources.vacations.show', compact('workerVacation'));

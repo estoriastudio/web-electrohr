@@ -4,6 +4,7 @@
 @section('content')
 @include('human_resources.partials.flash')
 <div class="row g-3">
+	@can('hr_payroll.create')
 	<div class="col-lg-4">
 		<div class="card">
 			<div class="card-header"><h5 class="card-title mb-0">Nuevo periodo</h5></div>
@@ -20,6 +21,7 @@
 			</div>
 		</div>
 	</div>
+	@endcan
 	<div class="col-lg-8">
 		<div class="card">
 			<div class="card-header">
@@ -34,7 +36,7 @@
 							@php($canEditPeriod = $period->status === 'open' && $period->lines_count === 0)
 							<tr>
 								<td class="text-center">
-									@if($canEditPeriod)
+									@if($canEditPeriod && auth()->user()->can('hr_payroll.update'))
 										<div class="dropdown">
 											<button type="button" class="btn btn-light btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más acciones para el periodo {{ $period->week_number }}/{{ $period->year }}"><i class="ri-more-2-fill"></i></button>
 											<ul class="dropdown-menu">
@@ -53,10 +55,10 @@
 								<td><span class="badge {{ $period->status === 'open' ? 'bg-success-subtle text-success' : ($period->status === 'closed' ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary') }}">{{ ['open' => 'Abierto', 'closed' => 'Cerrado', 'paid' => 'Pagado'][$period->status] }}</span></td>
 								<td class="text-end">
 									<a class="btn btn-light btn-sm" href="{{ route('human_resources.payroll-lines.index', ['payroll_period_id' => $period->id]) }}" title="Ver líneas"><i class="ri-list-check-2 me-1"></i>Ver líneas</a>
-									@if($period->status === 'open')
+									@if($period->status === 'open' && auth()->user()->can('hr_payroll.create'))
 										<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.generate-lines', $period) }}">@csrf<button class="btn btn-light btn-sm" title="Generar líneas"><i class="ri-play-line me-1"></i>Generar</button></form>
-										<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.close', $period) }}">@csrf<button class="btn btn-light btn-sm text-warning" title="Cerrar periodo"><i class="ri-lock-line me-1"></i>Cerrar</button></form>
-									@elseif($period->status === 'closed')
+										@can('hr_payroll.update')<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.close', $period) }}">@csrf<button class="btn btn-light btn-sm text-warning" title="Cerrar periodo"><i class="ri-lock-line me-1"></i>Cerrar</button></form>@endcan
+									@elseif($period->status === 'closed' && auth()->user()->can('hr_payroll.update'))
 										<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.mark-paid', $period) }}">@csrf<button class="btn btn-light btn-sm text-success" title="Marcar como pagado"><i class="ri-checkbox-circle-line me-1"></i>Marcar pagado</button></form>
 									@endif
 								</td>

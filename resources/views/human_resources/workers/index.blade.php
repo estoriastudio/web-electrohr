@@ -33,10 +33,16 @@
             <span class="text-muted fs-12">{{ $workers->total() }} registro(s) en la bandeja actual</span>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            @can('hr_workers.create')
             <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importPayrollModal"><i class="ri-upload-2-line me-1"></i> Importar Trabajadores</button>
+            @endcan
             <!--<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importTerminationsModal"><i class="ri-user-unfollow-line me-1"></i> Importar bajas</button>-->
+            @if($canExport)
             <a href="{{ route('human_resources.workers.export') }}" class="btn btn-outline-secondary btn-sm"><i class="ri-download-2-line me-1"></i> Exportar</a>
+            @endif
+            @can('hr_workers.create')
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createWorkerModal"><i class="ri-user-add-line me-1"></i> Nuevo trabajador</button>
+            @endcan
         </div>
     </div>
     <div class="card-body border-bottom py-3">
@@ -112,7 +118,7 @@
                     <td>{{ $worker->positionCategory?->name ?: '—' }}</td>
                     <td>{{ $currentGroup?->projectWork?->name ?: 'Sin asignar' }}</td>
                     <td><span class="badge {{ $badge[1] }}">{{ $badge[0] }}</span></td>
-                    <td class="text-end"><a href="{{ route('human_resources.workers.show', $worker) }}" class="btn btn-light btn-sm" title="Ver trabajador"><i class="ri-eye-line"></i></a><a href="{{ route('human_resources.workers.edit', $worker) }}" class="btn btn-light btn-sm" title="Editar"><i class="ri-edit-line"></i></a></td>
+                    <td class="text-end"><a href="{{ route('human_resources.workers.show', $worker) }}" class="btn btn-light btn-sm" title="Ver trabajador"><i class="ri-eye-line"></i></a>@can('hr_workers.update')<a href="{{ route('human_resources.workers.edit', $worker) }}" class="btn btn-light btn-sm" title="Editar"><i class="ri-edit-line"></i></a>@endcan</td>
                 </tr>
             @empty
                 <tr><td colspan="7" class="text-center text-muted py-4">No hay trabajadores registrados.</td></tr>
@@ -123,6 +129,7 @@
     @if($workers->hasPages())<div class="card-footer d-flex justify-content-end">{{ $workers->links('pagination::bootstrap-5') }}</div>@endif
 </div>
 
+@can('hr_workers.create')
 <div class="modal fade" id="createWorkerModal" tabindex="-1" aria-labelledby="createWorkerModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.store') }}" class="modal-content">
@@ -141,7 +148,9 @@
         </form>
     </div>
 </div>
+@endcan
 
+@can('hr_workers.create')
 <div class="modal fade" id="importPayrollModal" tabindex="-1" aria-labelledby="importPayrollModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -185,6 +194,9 @@
         </div>
     </div>
 </div>
+@endcan
 
+@can('hr_terminations.create')
 <div class="modal fade" id="importTerminationsModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="POST" enctype="multipart/form-data" action="{{ route('human_resources.workers.import-terminations') }}">@csrf<div class="modal-header"><h5 class="modal-title">Importar bajas</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted mb-3">Solo se registran filas de descanso con un trabajador existente; los casos no identificados se omiten.</p><label class="form-label" for="terminations_file">Archivo CSV o Excel</label><input id="terminations_file" type="file" class="form-control" name="file" accept=".csv,.xls,.xlsx" required></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Importar</button></div></form></div></div></div>
+@endcan
 @endsection

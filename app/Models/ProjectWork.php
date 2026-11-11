@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -9,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProjectWork extends Model
 {
+    use HasAccessScope;
+
     protected $fillable = [
         'project_id', 'name', 'status',
         'supervisor_user_id', 'resident_user_id',
@@ -32,11 +36,6 @@ class ProjectWork extends Model
         return $this->belongsTo(User::class, 'resident_user_id');
     }
 
-    public function isAttendanceResponsible(User $user): bool
-    {
-        return in_array($user->id, [$this->supervisor_user_id, $this->resident_user_id], true);
-    }
-
     public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class, 'project_work_id');
@@ -55,5 +54,14 @@ class ProjectWork extends Model
     public function pieceworkWeeklyEntries(): HasMany
     {
         return $this->hasMany(PieceworkWeeklyEntry::class);
+    }
+
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_works' => $query->whereIn('project_works.id', $user->assignedProjectWorkIds()),
+            'assigned_projects' => $query->whereHas('project', fn (Builder $projects) => $projects->assignedTo($user)),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 }

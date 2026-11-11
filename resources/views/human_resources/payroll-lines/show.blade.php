@@ -46,7 +46,7 @@
                         <label class="form-label mt-2">{{ $label }}</label>
                         <input class="form-control" name="{{ $field }}" type="number" min="0" step="0.01" value="{{ $payrollLine->$field }}" @disabled($payrollLine->payrollPeriod->status !== 'open')>
                     @endforeach
-                    <button class="btn btn-primary w-100 mt-3" @disabled($payrollLine->payrollPeriod->status !== 'open')>Recalcular ajustes</button>
+                    <button class="btn btn-primary w-100 mt-3" @disabled($payrollLine->payrollPeriod->status !== 'open' || ! auth()->user()->can('hr_payroll.update'))>Recalcular ajustes</button>
                 </form>
             </div>
         </div>
@@ -67,7 +67,7 @@
                 @endforelse
                 @if($payrollLine->payrollPeriod->status === 'open')
                     <a class="btn btn-outline-primary btn-sm w-100 mt-2" href="{{ route('human_resources.workers.show', $payrollLine->worker) }}"><i class="ri-medal-line me-1"></i>Gestionar incentivos del trabajador</a>
-                    <form method="POST" action="{{ route('human_resources.payroll-lines.rebuild', $payrollLine) }}" class="mt-2">@csrf<button class="btn btn-outline-secondary btn-sm w-100">Sincronizar desde trabajador</button></form>
+                    @can('hr_payroll.update')<form method="POST" action="{{ route('human_resources.payroll-lines.rebuild', $payrollLine) }}" class="mt-2">@csrf<button class="btn btn-outline-secondary btn-sm w-100">Sincronizar desde trabajador</button></form>@endcan
                 @endif
             </div>
         </div>

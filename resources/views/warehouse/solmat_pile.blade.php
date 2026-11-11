@@ -56,6 +56,7 @@
                             @disabled($persistedSelectedCount === 0)>
                         <i class="ri-delete-bin-line me-1"></i>Limpiar selección
                     </button>
+                    @can('purchase_requests.create')
                     <button type="submit"
                             form="formCreateConsolidatedSolcom"
                             id="btnCreateConsolidatedSolcom"
@@ -64,6 +65,7 @@
                         <i class="ri-stack-line me-1"></i>Crear SOLCOM consolidada
                         <span class="badge bg-light text-dark ms-1" id="selectedSolmatCount">{{ $persistedSelectedCount }}</span>
                     </button>
+                    @endcan
                     <a href="{{ route('material_requests.index') }}" class="btn btn-light btn-sm">
                         <i class="ri-arrow-left-line me-1"></i>Ver todas las SOLMAT
                     </a>
@@ -246,7 +248,7 @@
                                                 <i class="ri-eye-line"></i>
                                             </a>
                                             --}}
-                                            @hasanyrole('admin|suministros')
+                                            @can('material_request_queue.update')
                                             @if ($mr->status === 'sent_to_warehouse')
                                                 <button type="button"
                                                         class="btn btn-soft-primary btn-sm"
@@ -256,7 +258,7 @@
                                                     <i class="ri-archive-stack-line me-1"></i>Revisar
                                                 </button>
                                             @endif
-                                            @endhasanyrole
+                                            @endcan
                                             @if ($isFullyCommitted)
                                                 <button type="button" class="btn btn-light btn-sm" disabled
                                                         title="Todos los conceptos de esta SOLMAT están comprometidos">
@@ -268,10 +270,12 @@
                                                     <i class="ri-file-forbid-line me-1"></i>Sin conceptos
                                                 </button>
                                             @else
+                                                @can('purchase_requests.create')
                                                 <a href="{{ route('purchase_requests.create_from_solmat', $mr) }}"
                                                    class="btn btn-warning btn-sm" title="Crear SOLCOM">
                                                     <i class="ri-shopping-cart-2-line me-1"></i>Crear SOLCOM
                                                 </a>
+                                                @endcan
                                             @endif
                                         </div>
                                     </td>
@@ -300,7 +304,7 @@
     </div>
 </div>
 
-@hasanyrole('admin|suministros')
+@can('material_request_queue.update')
 @foreach ($materialRequests as $mr)
     @if ($mr->status === 'sent_to_warehouse')
     <div class="modal fade" id="modalReviewCommitments{{ $mr->id }}" tabindex="-1" aria-hidden="true">
@@ -445,7 +449,7 @@
     </div>
     @endif
 @endforeach
-@endhasanyrole
+@endcan
 
 @endsection
 

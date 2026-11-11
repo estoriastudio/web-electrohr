@@ -3,6 +3,7 @@
 /* Controladores */
 use App\Http\Controllers\ConceptCategoryController;
 use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\EngineerProjectController;
 use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\MaintenanceLogController;
@@ -18,7 +19,6 @@ use App\Http\Controllers\PayrollPeriodController;
 use App\Http\Controllers\PieceworkWeeklyEntryController;
 use App\Http\Controllers\PositionCategoryController;
 use App\Http\Controllers\ProjectAgreementController;
-use App\Http\Controllers\EngineerProjectController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectEstimateController;
 use App\Http\Controllers\ProjectEstimateFileController;
@@ -30,15 +30,15 @@ use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderMilestoneFulfillmentController;
 use App\Http\Controllers\PurchaseRequestController;
-use App\Http\Controllers\SupplierContactController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\SupplierAccountStatementController;
-use App\Http\Controllers\SupplierLocationController;
-use App\Http\Controllers\SupplierPortalController;
-use App\Http\Controllers\SupplierPortalInvoiceController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockEntryController;
 use App\Http\Controllers\StockExitController;
+use App\Http\Controllers\SupplierAccountStatementController;
+use App\Http\Controllers\SupplierContactController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierLocationController;
+use App\Http\Controllers\SupplierPortalController;
+use App\Http\Controllers\SupplierPortalInvoiceController;
 use App\Http\Controllers\ToolCalibrationController;
 use App\Http\Controllers\ToolCategoryController;
 use App\Http\Controllers\ToolControlController;
@@ -107,6 +107,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->name('purchase_requests.show');
         Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
             ->whereNumber('materialRequest')
+            ->middleware('permission:material_requests.view')
             ->name('material_requests.show');
         Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])
             ->whereNumber('purchase_order')
@@ -116,6 +117,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->name('purchase_requests.pdf');
         Route::get('/solicitudes-material/{materialRequest}/pdf', [MaterialRequestController::class, 'downloadPdf'])
             ->whereNumber('materialRequest')
+            ->middleware('permission:material_requests.view')
             ->name('material_requests.pdf');
 
         // ── Solo admin ────────────────────────────────────────────────────────
@@ -230,38 +232,46 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/proyectos/{project}/obras-json', [ProjectController::class, 'worksJson'])->name('projects.works_json');
         Route::get('/proyectos/{project}/obras/buscar', [ProjectController::class, 'searchWorks'])->name('projects.works.search');
 
-        // Mis proyectos (Engineer): acceso de lectura limitado a sus proyectos y estimaciones sin archivos
-        Route::middleware('role:Engineer')->prefix('mis-proyectos')->name('my-projects.')->group(function () {
+        // Mis Proyectos (Gerente y Supervisor): solo consulta de los proyectos asignados al usuario.
+        Route::middleware('permission:projects.view')->prefix('mis-proyectos')->name('my-projects.')->group(function () {
             Route::get('/', [EngineerProjectController::class, 'index'])->name('index');
             Route::get('/{project}', [EngineerProjectController::class, 'show'])->whereNumber('project')->name('show');
-            Route::get('/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
-                ->whereNumber('project')->name('estimates.create');
-            Route::post('/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
-                ->whereNumber('project')->name('estimates.store');
-            Route::put('/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
-                ->whereNumber('estimate')->name('estimates.update');
         });
 
-        Route::middleware('role:admin|Proyectos|Solmat')->group(function () {
-            Route::resource('/proyectos', ProjectController::class, [
-                'names' => [
-                    'index' => 'projects.index',
-                    'create' => 'projects.create',
-                    'store' => 'projects.store',
-                    'show' => 'projects.show',
-                    'edit' => 'projects.edit',
-                    'update' => 'projects.update',
-                    'destroy' => 'projects.destroy',
-                ],
-                'parameters' => ['proyectos' => 'project'],
-            ]);
+        // Proyectos y obras: cada ruta pide el permiso de la matriz (vista `projects`). Los controladores
+        // filtran por alcance a quien solo ve sus proyectos. Documentos, convenios y archivos de
+        // estimaciones son de quien edita (decisión 2026-11-10); borrar usa el permiso de editar.
+        Route::middleware('permission:projects.view')->group(function () {
+            Route::get('/proyectos', [ProjectController::class, 'index'])->name('projects.index');
+            Route::get('/proyectos/{project}', [ProjectController::class, 'show'])->whereNumber('project')->name('projects.show');
+            Route::get('/obras', [ProjectWorkController::class, 'index'])->name('project_works.index');
+            Route::get('/obras/{project_work}', [ProjectWorkController::class, 'show'])->whereNumber('project_work')->name('project_works.show');
+        });
+
+        Route::middleware('permission:projects.create')->group(function () {
+            Route::get('/proyectos/create', [ProjectController::class, 'create'])->name('projects.create');
+            Route::post('/proyectos', [ProjectController::class, 'store'])->name('projects.store');
+            Route::post('/proyectos/import', [ProjectController::class, 'import'])->name('projects.import');
+            Route::get('/obras/create', [ProjectWorkController::class, 'create'])->name('project_works.create');
+            Route::post('/obras', [ProjectWorkController::class, 'store'])->name('project_works.store');
+            Route::get('/proyectos/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
+                ->name('projects.estimates.create');
+            Route::post('/proyectos/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
+                ->name('projects.estimates.store');
+        });
+
+        Route::middleware('permission:projects.update')->group(function () {
+            Route::get('/proyectos/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+            Route::match(['put', 'patch'], '/proyectos/{project}', [ProjectController::class, 'update'])->name('projects.update');
+            Route::delete('/proyectos/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+            Route::get('/obras/{project_work}/edit', [ProjectWorkController::class, 'edit'])->name('project_works.edit');
+            Route::match(['put', 'patch'], '/obras/{project_work}', [ProjectWorkController::class, 'update'])->name('project_works.update');
+            Route::delete('/obras/{project_work}', [ProjectWorkController::class, 'destroy'])->name('project_works.destroy');
 
             Route::post('/proyectos/{project}/documentos/{docType}', [ProjectController::class, 'uploadDocument'])
                 ->name('projects.document.upload');
-
             Route::patch('/proyectos/{project}/documentos/{docType}/aplicabilidad', [ProjectController::class, 'updateDocumentApplicability'])
                 ->name('projects.document.applicability');
-
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/init', [ProjectController::class, 'initChunkUpload'])
                 ->name('projects.document.chunk.init');
             Route::post('/proyectos/{project}/documentos/{docType}/chunk/upload', [ProjectController::class, 'uploadChunk'])
@@ -284,12 +294,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/proyectos/{project}/convenios/{projectAgreement}/nombramientos', [ProjectAgreementController::class, 'downloadAppointments'])
                 ->name('projects.agreements.appointments.download');
 
-            Route::get('/proyectos/{project}/estimaciones/nueva', [ProjectEstimateController::class, 'create'])
-                ->name('projects.estimates.create');
-            Route::post('/proyectos/{project}/estimaciones', [ProjectEstimateController::class, 'store'])
-                ->name('projects.estimates.store');
             Route::put('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'update'])
                 ->name('projects.estimates.update');
+            Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
+                ->name('projects.estimates.destroy');
             Route::post('/proyectos/estimaciones/{estimate}/facturas', [ProjectEstimateInvoiceController::class, 'store'])
                 ->whereNumber('estimate')->name('projects.estimates.invoices.store');
             Route::get('/proyectos/estimaciones/facturas/{invoice}/{format}', [ProjectEstimateInvoiceController::class, 'download'])
@@ -302,95 +310,109 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->whereNumber('estimateFile')->name('projects.estimates.files.download');
             Route::delete('/proyectos/estimaciones/archivos/{estimateFile}', [ProjectEstimateFileController::class, 'destroy'])
                 ->whereNumber('estimateFile')->name('projects.estimates.files.destroy');
-            Route::delete('/proyectos/estimaciones/{estimate}', [ProjectEstimateController::class, 'destroy'])
-                ->name('projects.estimates.destroy');
-
-            Route::post('/proyectos/import', [ProjectController::class, 'import'])
-                ->name('projects.import');
-
-            Route::resource('/obras', ProjectWorkController::class, [
-                'names' => [
-                    'index' => 'project_works.index',
-                    'create' => 'project_works.create',
-                    'store' => 'project_works.store',
-                    'show' => 'project_works.show',
-                    'edit' => 'project_works.edit',
-                    'update' => 'project_works.update',
-                    'destroy' => 'project_works.destroy',
-                ],
-                'parameters' => ['obras' => 'project_work'],
-            ]);
-
         });
 
-        Route::middleware('role:admin|Recursos Humanos|Engineer')
-            ->prefix('human_resources')
+        // Recursos Humanos: cada ruta pide el permiso de la matriz de acceso
+        // (database/data/access_matrix.php). El alcance por obra lo aplican los controladores.
+        // Las acciones de borrar/cancelar sin equivalente en la matriz usan el permiso de editar.
+        Route::prefix('human_resources')
             ->name('human_resources.')
             ->group(function () {
-                Route::resource('worker-groups', WorkerGroupController::class)->only(['index', 'show']);
-                Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
-                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark');
-                Route::post('worker-groups/{workerGroup}/attendance/{worker}/incentives', [WorkerAttendanceController::class, 'storeGroupIncentive'])->name('worker-groups.attendance.incentives.store');
-                Route::get('worker-attendances/export', [WorkerAttendanceController::class, 'export'])->name('worker-attendances.export');
-                Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['index']);
-                Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
-                Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
-                Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])->name('workers.file.download');
-                Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
-                Route::get('workers/{worker}/payroll-lines/{payrollLine}/receipt', [WorkerController::class, 'downloadPayrollReceipt'])->name('workers.payroll-receipt.download');
-                Route::get('workers/{worker}', [WorkerController::class, 'show'])->name('workers.show');
-            });
+                // Trabajadores
+                Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export')->middleware('permission:hr_workers.view');
+                Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll')->middleware('permission:hr_workers.create');
+                Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations')->middleware('permission:hr_terminations.create');
+                Route::resource('workers', WorkerController::class)->only(['create', 'store'])->middleware('permission:hr_workers.create');
+                Route::resource('workers', WorkerController::class)->only(['index', 'show'])->middleware('permission:hr_workers.view');
+                Route::resource('workers', WorkerController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_workers.update');
+                Route::middleware('permission:hr_workers.view')->group(function () {
+                    Route::get('workers/{worker}/profile-photo', [WorkerController::class, 'profilePhoto'])->name('workers.profile-photo');
+                    Route::get('workers/{worker}/file', [WorkerFileController::class, 'show'])->name('workers.file.show');
+                    Route::get('workers/{worker}/file/{document}/download', [WorkerFileController::class, 'download'])->name('workers.file.download');
+                    Route::get('workers/{worker}/file/dc3/{dc3}/download', [WorkerDc3Controller::class, 'download'])->name('workers.file.dc3.download');
+                });
+                Route::middleware('permission:hr_workers.update')->group(function () {
+                    Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
+                    Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
+                    Route::post('workers/{worker}/reactivate', [WorkerController::class, 'reactivate'])->name('workers.reactivate');
+                    Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
+                    Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
+                    Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
+                    Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
+                });
+                Route::get('workers/{worker}/payroll-lines/{payrollLine}/receipt', [WorkerController::class, 'downloadPayrollReceipt'])->name('workers.payroll-receipt.download')->middleware('permission:hr_payroll.view');
 
-        Route::middleware('role:admin|Recursos Humanos')
-            ->prefix('human_resources')
-            ->name('human_resources.')
-            ->group(function () {
-                Route::get('workers/export', [WorkerController::class, 'export'])->name('workers.export');
-                Route::post('workers/import-payroll', [WorkerController::class, 'importPayroll'])->name('workers.import-payroll');
-                Route::post('workers/import-terminations', [WorkerController::class, 'importTerminations'])->name('workers.import-terminations');
-                Route::resource('workers', WorkerController::class)->except(['show']);
-                Route::post('workers/{worker}/pre-register', [WorkerController::class, 'preRegister'])->name('workers.pre-register');
-                Route::post('workers/{worker}/activate', [WorkerController::class, 'activate'])->name('workers.activate');
-                Route::post('workers/{worker}/reactivate', [WorkerController::class, 'reactivate'])->name('workers.reactivate');
-                Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate');
+                // Bajas
+                Route::post('workers/{worker}/terminate', [WorkerTerminationController::class, 'store'])->name('workers.terminate')->middleware('permission:hr_terminations.create');
+                Route::middleware('permission:hr_terminations.view')->group(function () {
+                    Route::get('worker-terminations', [WorkerTerminationController::class, 'index'])->name('worker-terminations.index');
+                    Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
+                });
 
-                Route::get('workers/{worker}/file/edit', [WorkerFileController::class, 'edit'])->name('workers.file.edit');
-                Route::put('workers/{worker}/file', [WorkerFileController::class, 'update'])->name('workers.file.update');
-                Route::post('workers/{worker}/file/dc3', [WorkerDc3Controller::class, 'store'])->name('workers.file.dc3.store');
-                Route::delete('workers/{worker}/file/dc3/{dc3}', [WorkerDc3Controller::class, 'destroy'])->name('workers.file.dc3.destroy');
+                // Cuadrillas
+                Route::resource('worker-groups', WorkerGroupController::class)->only(['create', 'store'])->middleware('permission:hr_worker_groups.create');
+                Route::resource('worker-groups', WorkerGroupController::class)->only(['index', 'show'])->middleware('permission:hr_worker_groups.view');
+                Route::resource('worker-groups', WorkerGroupController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_worker_groups.update');
+                Route::middleware('permission:hr_worker_groups.update')->group(function () {
+                    Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
+                    Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
+                    Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
+                    Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
+                });
 
-                Route::resource('worker-groups', WorkerGroupController::class)->except(['index', 'show']);
-                Route::post('worker-groups/{workerGroup}/relocate', [WorkerGroupController::class, 'relocate'])->name('worker-groups.relocate');
-                Route::get('worker-groups/{workerGroup}/members/search', [WorkerGroupController::class, 'searchEligibleMembers'])->name('worker-groups.members.search');
-                Route::post('worker-groups/{workerGroup}/members', [WorkerGroupController::class, 'addMember'])->name('worker-groups.members.add');
-                Route::delete('worker-groups/{workerGroup}/members/{worker}', [WorkerGroupController::class, 'removeMember'])->name('worker-groups.members.remove');
+                // Asistencias
+                Route::middleware('permission:hr_attendances.view')->group(function () {
+                    Route::get('worker-attendances/export', [WorkerAttendanceController::class, 'export'])->name('worker-attendances.export');
+                    Route::get('worker-groups/{workerGroup}/attendance', [WorkerAttendanceController::class, 'groupAttendance'])->name('worker-groups.attendance');
+                    Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
+                });
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}', [WorkerAttendanceController::class, 'markGroupAttendance'])->name('worker-groups.attendance.mark')->middleware('permission:hr_attendances.create|hr_attendances.update');
+                Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['create', 'store'])->middleware('permission:hr_attendances.create|hr_attendances.update');
+                Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['index', 'show'])->middleware('permission:hr_attendances.view');
+                Route::resource('worker-attendances', WorkerAttendanceController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_attendances.update');
 
-                Route::get('worker-attendances/{workerAttendance}/absence-document', [WorkerAttendanceController::class, 'downloadAbsenceDocument'])->name('worker-attendances.absence-document');
-                Route::resource('worker-attendances', WorkerAttendanceController::class)->except(['index']);
+                // Incentivos
+                Route::post('worker-groups/{workerGroup}/attendance/{worker}/incentives', [WorkerAttendanceController::class, 'storeGroupIncentive'])->name('worker-groups.attendance.incentives.store')->middleware('permission:hr_incentives.create');
+                Route::resource('incentives', IncentiveController::class)->only(['create', 'store'])->middleware('permission:hr_incentives.create');
+                Route::resource('incentives', IncentiveController::class)->only(['index', 'show'])->middleware('permission:hr_incentives.view');
+                Route::resource('incentives', IncentiveController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_incentives.update');
 
-                Route::resource('worker-vacations', WorkerVacationController::class);
-                Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve');
-                Route::post('worker-vacations/{workerVacation}/cancel', [WorkerVacationController::class, 'cancel'])->name('worker-vacations.cancel');
+                // Vacaciones
+                Route::resource('worker-vacations', WorkerVacationController::class)->only(['create', 'store'])->middleware('permission:hr_vacations.create');
+                Route::resource('worker-vacations', WorkerVacationController::class)->only(['index', 'show'])->middleware('permission:hr_vacations.view');
+                Route::resource('worker-vacations', WorkerVacationController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_vacations.update');
+                Route::post('worker-vacations/{workerVacation}/approve', [WorkerVacationController::class, 'approve'])->name('worker-vacations.approve')->middleware('permission:hr_vacations.authorize');
+                Route::post('worker-vacations/{workerVacation}/cancel', [WorkerVacationController::class, 'cancel'])->name('worker-vacations.cancel')->middleware('permission:hr_vacations.update');
 
-                Route::resource('position-categories', PositionCategoryController::class);
+                // Categorías de puesto
+                Route::resource('position-categories', PositionCategoryController::class)->only(['create', 'store'])->middleware('permission:hr_position_categories.create');
+                Route::resource('position-categories', PositionCategoryController::class)->only(['index', 'show'])->middleware('permission:hr_position_categories.view');
+                Route::resource('position-categories', PositionCategoryController::class)->only(['edit', 'update', 'destroy'])->middleware('permission:hr_position_categories.update');
 
-                Route::resource('payroll-periods', PayrollPeriodController::class)->only(['index', 'store', 'update', 'destroy']);
-                Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
-                Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
+                // Nómina
+                Route::middleware('permission:hr_payroll.view')->group(function () {
+                    Route::get('payroll-periods', [PayrollPeriodController::class, 'index'])->name('payroll-periods.index');
+                    Route::resource('payroll-lines', PayrollLineController::class)->only(['index', 'show']);
+                    Route::get('payroll/cost-by-project', [PayrollCostReportController::class, 'byProjectWork'])->name('payroll.cost-by-project');
+                    Route::get('payroll/cost-by-worker-group', [PayrollCostReportController::class, 'byWorkerGroup'])->name('payroll.cost-by-worker-group');
+                    Route::get('payroll/field-report', [PayrollFieldReportController::class, 'index'])->name('payroll.field-report');
+                });
+                Route::middleware('permission:hr_payroll.create')->group(function () {
+                    Route::post('payroll-periods', [PayrollPeriodController::class, 'store'])->name('payroll-periods.store');
+                    Route::post('payroll-periods/{payrollPeriod}/generate-lines', [PayrollLineController::class, 'generate'])->name('payroll-periods.generate-lines');
+                });
+                Route::middleware('permission:hr_payroll.update')->group(function () {
+                    Route::resource('payroll-periods', PayrollPeriodController::class)->only(['update', 'destroy']);
+                    Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
+                    Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
+                    Route::resource('payroll-lines', PayrollLineController::class)->only(['update']);
+                    Route::post('payroll-lines/{payrollLine}/rebuild', [PayrollLineController::class, 'rebuild'])->name('payroll-lines.rebuild');
+                });
 
-                Route::resource('payroll-lines', PayrollLineController::class)->only(['index', 'show', 'update']);
-                Route::post('payroll-periods/{payrollPeriod}/generate-lines', [PayrollLineController::class, 'generate'])->name('payroll-periods.generate-lines');
-                Route::post('payroll-lines/{payrollLine}/rebuild', [PayrollLineController::class, 'rebuild'])->name('payroll-lines.rebuild');
-
-                Route::resource('incentives', IncentiveController::class);
-                Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
-
-                Route::get('payroll/cost-by-project', [PayrollCostReportController::class, 'byProjectWork'])->name('payroll.cost-by-project');
-                Route::get('payroll/cost-by-worker-group', [PayrollCostReportController::class, 'byWorkerGroup'])->name('payroll.cost-by-worker-group');
-                Route::get('payroll/field-report', [PayrollFieldReportController::class, 'index'])->name('payroll.field-report');
-
-                Route::get('worker-terminations', [WorkerTerminationController::class, 'index'])->name('worker-terminations.index');
-                Route::get('worker-terminations/{workerTermination}', [WorkerTerminationController::class, 'show'])->name('worker-terminations.show');
+                // Destajo
+                Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['store'])->middleware('permission:hr_piecework.create');
+                Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['index', 'show'])->middleware('permission:hr_piecework.view');
+                Route::resource('piecework-entries', PieceworkWeeklyEntryController::class)->only(['update', 'destroy'])->middleware('permission:hr_piecework.update');
             });
 
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
@@ -694,6 +716,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── SOLMAT (Solicitudes de Material) ──────────────────────────────────
+        // Permisos de la matriz (vista `material_requests`). Gerente y Supervisor operan solo SOLMAT de sus
+        // proyectos; el controlador aplica el alcance, limita su edición a Pendiente o con cambios, deja
+        // archivar y borrar a Almacén y admin, y el envío a Almacén al gerente del proyecto (decisión 2026-11-10).
 
         // Papelera SOLMAT — solo admin
         Route::middleware('role:admin')->group(function () {
@@ -705,143 +730,130 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('material_requests.force_destroy');
         });
 
-        Route::middleware('role:admin|Solmat')->group(function () {
-            // Rutas estáticas antes del resource para evitar conflicto con {materialRequest}
+        Route::middleware('permission:material_requests.view')->group(function () {
+            // Rutas estáticas antes de {materialRequest}
             Route::get('/solicitudes-material/archivadas', [MaterialRequestController::class, 'archived'])
                 ->name('material_requests.archived');
-
-            // AJAX lookup (debe ir antes del resource para evitar conflicto con {material_request})
             Route::get('/solicitudes-material/buscar', [MaterialRequestController::class, 'jsonByFolio'])
                 ->name('material_requests.lookup');
+            Route::get('/solicitudes-material', [MaterialRequestController::class, 'index'])
+                ->name('material_requests.index');
+        });
 
-            Route::resource('/solicitudes-material', MaterialRequestController::class, [
-                'names' => [
-                    'index' => 'material_requests.index',
-                    'create' => 'material_requests.create',
-                    'destroy' => 'material_requests.destroy',
-                ],
-                'parameters' => ['solicitudes-material' => 'materialRequest'],
-            ])->only(['index', 'create', 'destroy']);
+        Route::middleware('permission:material_requests.create')->group(function () {
+            Route::get('/solicitudes-material/create', [MaterialRequestController::class, 'create'])
+                ->name('material_requests.create');
+            Route::post('/solicitudes-material', [MaterialRequestController::class, 'store'])
+                ->name('material_requests.store');
+        });
 
+        Route::middleware('permission:material_requests.update')->group(function () {
+            Route::delete('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'destroy'])
+                ->whereNumber('materialRequest')
+                ->name('material_requests.destroy');
             Route::patch('/solicitudes-material/{materialRequest}/archivar', [MaterialRequestController::class, 'archive'])
                 ->name('material_requests.archive');
             Route::patch('/solicitudes-material/{materialRequest}/desarchivar', [MaterialRequestController::class, 'unarchive'])
                 ->name('material_requests.unarchive');
-        });
-
-        // Engineer opera SOLMAT de sus proyectos; el controlador acota por proyecto y limita el envío a Almacén.
-        Route::middleware('role:admin|Solmat|Engineer')->group(function () {
-            Route::post('/solicitudes-material', [MaterialRequestController::class, 'store'])
-                ->name('material_requests.store');
             Route::get('/solicitudes-material/{materialRequest}/edit', [MaterialRequestController::class, 'edit'])
                 ->whereNumber('materialRequest')
                 ->name('material_requests.edit');
             Route::match(['put', 'patch'], '/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'update'])
                 ->whereNumber('materialRequest')
                 ->name('material_requests.update');
-
-            Route::post('/solicitudes-material/{materialRequest}/items',
-                [MaterialRequestController::class, 'storeItem'])
+            Route::post('/solicitudes-material/{materialRequest}/items', [MaterialRequestController::class, 'storeItem'])
                 ->name('material_requests.items.store');
-
-            Route::patch('/solicitudes-material/{materialRequest}/items/{item}',
-                [MaterialRequestController::class, 'updateItem'])
+            Route::patch('/solicitudes-material/{materialRequest}/items/{item}', [MaterialRequestController::class, 'updateItem'])
                 ->name('material_requests.items.update');
-
-            Route::delete('/solicitudes-material/{materialRequest}/items/{item}',
-                [MaterialRequestController::class, 'destroyItem'])
+            Route::delete('/solicitudes-material/{materialRequest}/items/{item}', [MaterialRequestController::class, 'destroyItem'])
                 ->name('material_requests.items.destroy');
-
-            Route::post('/solicitudes-material/{materialRequest}/notes',
-                [MaterialRequestController::class, 'storeObservation'])
+            Route::post('/solicitudes-material/{materialRequest}/notes', [MaterialRequestController::class, 'storeObservation'])
                 ->name('material_requests.notes.store');
-
-            Route::patch('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
-                [MaterialRequestController::class, 'updateObservation'])
+            Route::patch('/solicitudes-material/{materialRequest}/notes/{noteIndex}', [MaterialRequestController::class, 'updateObservation'])
                 ->name('material_requests.notes.update');
-
-            Route::delete('/solicitudes-material/{materialRequest}/notes/{noteIndex}',
-                [MaterialRequestController::class, 'destroyObservation'])
+            Route::delete('/solicitudes-material/{materialRequest}/notes/{noteIndex}', [MaterialRequestController::class, 'destroyObservation'])
                 ->name('material_requests.notes.destroy');
-
-            Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse',
-                [MaterialRequestController::class, 'sendToWarehouse'])
-                ->name('material_requests.send_to_warehouse');
         });
 
-        Route::middleware('role:admin|Solmat|Solcom|suministros')->group(function () {
-            Route::get('/solicitudes-material/solicitudes-cambio',
-                [MaterialRequestController::class, 'changeRequestsPanel'])
-                ->name('material_request_changes.index');
-        });
+        Route::post('/solicitudes-material/{materialRequest}/send-to-warehouse', [MaterialRequestController::class, 'sendToWarehouse'])
+            ->middleware('permission:material_requests.authorize')
+            ->name('material_requests.send_to_warehouse');
 
-        Route::middleware('role:admin|Solmat|Solcom')->group(function () {
-            Route::post('/solicitudes-material/{materialRequest}/request-changes',
-                [MaterialRequestController::class, 'requestChanges'])
+        // Cambios SOLMAT: hoy Almacén pide y resuelve cambios. La solicitud del Supervisor con
+        // autorización del Gerente (C y A de la matriz) es flujo nuevo de la Fase 4.
+        Route::get('/solicitudes-material/solicitudes-cambio', [MaterialRequestController::class, 'changeRequestsPanel'])
+            ->middleware('permission:material_request_changes.view')
+            ->name('material_request_changes.index');
+        Route::middleware('permission:material_request_changes.update')->group(function () {
+            Route::post('/solicitudes-material/{materialRequest}/request-changes', [MaterialRequestController::class, 'requestChanges'])
                 ->name('material_requests.request_changes');
-
-            Route::post('/solicitudes-material/{materialRequest}/change-notes/{changeNote}/resolve',
-                [MaterialRequestController::class, 'resolveChangeNote'])
+            Route::post('/solicitudes-material/{materialRequest}/change-notes/{changeNote}/resolve', [MaterialRequestController::class, 'resolveChangeNote'])
                 ->name('material_requests.change_notes.resolve');
         });
 
-        // ── Vales de Material ───────────────────────────────────────────────
-        Route::middleware('role:admin|Inventario')->group(function () {
+        // ── Inventario ───────────────────────────────────────────────────────
+        // Existencias (`stocks`), Entradas (`stock_entries`) y Salidas (`stock_exits`). Corregir o borrar
+        // movimientos y ajustar existencias usa editar, que en la matriz solo tiene admin (decisión 2026-11-10).
+        Route::middleware('permission:stocks.view')->group(function () {
             Route::get('/inventario', [StockController::class, 'index'])->name('stocks.index');
             Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');
-            Route::resource('/inventario/entradas', StockEntryController::class, [
-                'names' => 'stocks.entries', 'parameters' => ['entradas' => 'stockEntry'],
-            ])->except(['show', 'edit']);
-            Route::get('/inventario/salidas/calendario', [StockExitController::class, 'calendar'])->name('stocks.exits.calendar');
-            Route::get('/inventario/salidas/calendario/eventos', [StockExitController::class, 'calendarEvents'])->name('stocks.exits.calendar.events');
-            Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])->name('stocks.exits.return');
-            Route::resource('/inventario/salidas', StockExitController::class, [
-                'names' => 'stocks.exits', 'parameters' => ['salidas' => 'stockExit'],
-            ])->except(['show', 'edit']);
             Route::get('/inventario/entradas/{stockEntry}/factura', [StockController::class, 'downloadInvoice'])->name('stocks.entries.invoice.download');
             Route::get('/inventario/certificados/{stockCertificate}/descargar', [StockController::class, 'downloadCertificate'])->name('stocks.certificates.download');
-            Route::post('/inventario/{concept}/ajuste', [StockController::class, 'adjust'])->name('stocks.adjust');
-            Route::get('/inventario/{concept}', [StockController::class, 'show'])->name('stocks.show');
         });
-
-        Route::middleware('role:admin|Solmat|Pagos|Moviles')->group(function () {
-            Route::resource('/vales-material', MaterialVoucherController::class, [
-                'names' => [
-                    'index' => 'material_vouchers.index',
-                    'create' => 'material_vouchers.create',
-                    'store' => 'material_vouchers.store',
-                    'show' => 'material_vouchers.show',
-                    'edit' => 'material_vouchers.edit',
-                    'update' => 'material_vouchers.update',
-                    'destroy' => 'material_vouchers.destroy',
-                ],
-                'parameters' => ['vales-material' => 'materialVoucher'],
-            ]);
-
-            Route::post('/vales-material/{materialVoucher}/items',
-                [MaterialVoucherController::class, 'storeItem'])
-                ->name('material_vouchers.items.store');
-
-            Route::delete('/vales-material/{materialVoucher}/items/{item}',
-                [MaterialVoucherController::class, 'destroyItem'])
-                ->name('material_vouchers.items.destroy');
-
-            Route::post('/vales-material/{materialVoucher}/notes',
-                [MaterialVoucherController::class, 'storeObservation'])
-                ->name('material_vouchers.notes.store');
-
-            Route::post('/vales-material/{materialVoucher}/authorize',
-                [MaterialVoucherController::class, 'authorizeVoucher'])
-                ->name('material_vouchers.authorize');
-
-            Route::patch('/vales-material/{materialVoucher}/status',
-                [MaterialVoucherController::class, 'updateStatus'])
-                ->name('material_vouchers.status.update');
-
-            Route::get('/vales-material/{materialVoucher}/pdf',
-                [MaterialVoucherController::class, 'downloadPdf'])
-                ->name('material_vouchers.pdf');
+        Route::get('/inventario/entradas', [StockEntryController::class, 'index'])
+            ->middleware('permission:stock_entries.view')->name('stocks.entries.index');
+        Route::middleware('permission:stock_entries.create')->group(function () {
+            Route::get('/inventario/entradas/create', [StockEntryController::class, 'create'])->name('stocks.entries.create');
+            Route::post('/inventario/entradas', [StockEntryController::class, 'store'])->name('stocks.entries.store');
         });
+        Route::middleware('permission:stock_entries.update')->group(function () {
+            Route::match(['put', 'patch'], '/inventario/entradas/{stockEntry}', [StockEntryController::class, 'update'])->name('stocks.entries.update');
+            Route::delete('/inventario/entradas/{stockEntry}', [StockEntryController::class, 'destroy'])->name('stocks.entries.destroy');
+        });
+        Route::middleware('permission:stock_exits.view')->group(function () {
+            Route::get('/inventario/salidas', [StockExitController::class, 'index'])->name('stocks.exits.index');
+            Route::get('/inventario/salidas/calendario', [StockExitController::class, 'calendar'])->name('stocks.exits.calendar');
+            Route::get('/inventario/salidas/calendario/eventos', [StockExitController::class, 'calendarEvents'])->name('stocks.exits.calendar.events');
+        });
+        Route::middleware('permission:stock_exits.create')->group(function () {
+            Route::get('/inventario/salidas/create', [StockExitController::class, 'create'])->name('stocks.exits.create');
+            Route::post('/inventario/salidas', [StockExitController::class, 'store'])->name('stocks.exits.store');
+        });
+        Route::post('/inventario/salidas/{stockExit}/retorno', [StockExitController::class, 'returnTool'])
+            ->middleware('permission:stock_exits.register')->name('stocks.exits.return');
+        Route::middleware('permission:stock_exits.update')->group(function () {
+            Route::match(['put', 'patch'], '/inventario/salidas/{stockExit}', [StockExitController::class, 'update'])->name('stocks.exits.update');
+            Route::delete('/inventario/salidas/{stockExit}', [StockExitController::class, 'destroy'])->name('stocks.exits.destroy');
+        });
+        Route::post('/inventario/{concept}/ajuste', [StockController::class, 'adjust'])
+            ->middleware('permission:stocks.update')->name('stocks.adjust');
+        Route::get('/inventario/{concept}', [StockController::class, 'show'])
+            ->middleware('permission:stocks.view')->name('stocks.show');
+
+        // ── Vales de Material ───────────────────────────────────────────────
+        // Vista `material_vouchers`; autorizar el vale es `material_voucher_authorizations.authorize` (Almacén Autoriza).
+        Route::middleware('permission:material_vouchers.view')->group(function () {
+            Route::get('/vales-material', [MaterialVoucherController::class, 'index'])->name('material_vouchers.index');
+            Route::get('/vales-material/{materialVoucher}', [MaterialVoucherController::class, 'show'])
+                ->whereNumber('materialVoucher')->name('material_vouchers.show');
+        });
+        Route::middleware('permission:material_vouchers.create')->group(function () {
+            Route::get('/vales-material/create', [MaterialVoucherController::class, 'create'])->name('material_vouchers.create');
+            Route::post('/vales-material', [MaterialVoucherController::class, 'store'])->name('material_vouchers.store');
+        });
+        Route::middleware('permission:material_vouchers.update')->group(function () {
+            Route::get('/vales-material/{materialVoucher}/edit', [MaterialVoucherController::class, 'edit'])->name('material_vouchers.edit');
+            Route::match(['put', 'patch'], '/vales-material/{materialVoucher}', [MaterialVoucherController::class, 'update'])->name('material_vouchers.update');
+            Route::delete('/vales-material/{materialVoucher}', [MaterialVoucherController::class, 'destroy'])->name('material_vouchers.destroy');
+            Route::post('/vales-material/{materialVoucher}/items', [MaterialVoucherController::class, 'storeItem'])->name('material_vouchers.items.store');
+            Route::delete('/vales-material/{materialVoucher}/items/{item}', [MaterialVoucherController::class, 'destroyItem'])->name('material_vouchers.items.destroy');
+            Route::post('/vales-material/{materialVoucher}/notes', [MaterialVoucherController::class, 'storeObservation'])->name('material_vouchers.notes.store');
+            Route::patch('/vales-material/{materialVoucher}/status', [MaterialVoucherController::class, 'updateStatus'])->name('material_vouchers.status.update');
+        });
+        Route::post('/vales-material/{materialVoucher}/authorize', [MaterialVoucherController::class, 'authorizeVoucher'])
+            ->middleware('permission:material_voucher_authorizations.authorize')->name('material_vouchers.authorize');
+        Route::get('/vales-material/{materialVoucher}/pdf', [MaterialVoucherController::class, 'downloadPdf'])
+            ->middleware('permission:material_vouchers.download')->name('material_vouchers.pdf');
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
         Route::middleware('role:admin|Solcom|Orden de compra')->group(function () {
@@ -954,31 +966,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Almacén: Pila SOLMAT + crear SOLCOM desde SOLMAT ─────────────────
-        Route::middleware('role:admin|suministros|Orden de compra')->group(function () {
-            Route::get('/almacen/pila-solmat',
-                [PurchaseRequestController::class, 'solmatPile'])
+        // Vista `material_request_queue`; crear SOLCOM desde la pila es `purchase_requests.create` (Almacén).
+        Route::middleware('permission:material_request_queue.view')->group(function () {
+            Route::get('/almacen/pila-solmat', [PurchaseRequestController::class, 'solmatPile'])
                 ->name('warehouse.solmat_pile');
-
-            Route::post('/almacen/pila-solmat/seleccion/sincronizar',
-                [PurchaseRequestController::class, 'syncSolmatPileSelection'])
+            Route::post('/almacen/pila-solmat/seleccion/sincronizar', [PurchaseRequestController::class, 'syncSolmatPileSelection'])
                 ->name('warehouse.solmat_pile.selection.sync');
-
-            Route::post('/almacen/pila-solmat/seleccion/limpiar',
-                [PurchaseRequestController::class, 'clearSolmatPileSelection'])
+            Route::post('/almacen/pila-solmat/seleccion/limpiar', [PurchaseRequestController::class, 'clearSolmatPileSelection'])
                 ->name('warehouse.solmat_pile.selection.clear');
-
-            Route::middleware('role:admin|suministros')->group(function () {
-                Route::post('/almacen/pila-solmat/{materialRequest}/compromisos',
-                    [MaterialRequestController::class, 'updateCommitments'])
-                    ->name('warehouse.solmat_pile.commitments.update');
-            });
-
-            Route::get('/almacen/pila-solmat/crear-solcom-consolidada',
-                [PurchaseRequestController::class, 'createFromSolmatMulti'])
+        });
+        Route::post('/almacen/pila-solmat/{materialRequest}/compromisos', [MaterialRequestController::class, 'updateCommitments'])
+            ->middleware('permission:material_request_queue.update')
+            ->name('warehouse.solmat_pile.commitments.update');
+        Route::middleware('permission:purchase_requests.create')->group(function () {
+            Route::get('/almacen/pila-solmat/crear-solcom-consolidada', [PurchaseRequestController::class, 'createFromSolmatMulti'])
                 ->name('purchase_requests.create_from_solmat_multi');
-
-            Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom',
-                [PurchaseRequestController::class, 'createFromSolmat'])
+            Route::get('/almacen/pila-solmat/{materialRequest}/crear-solcom', [PurchaseRequestController::class, 'createFromSolmat'])
                 ->name('purchase_requests.create_from_solmat');
         });
     });

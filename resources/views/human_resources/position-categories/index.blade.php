@@ -15,9 +15,11 @@
             <h4 class="card-title mb-0">Categorías de puesto</h4>
             <span class="text-muted fs-12">Catálogo utilizado en trabajadores, bajas y nómina.</span>
         </div>
+        @can('hr_position_categories.create')
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createPositionCategoryModal">
             <i class="ri-add-line me-1"></i>Nueva categoría
         </button>
+        @endcan
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -31,12 +33,14 @@
                         <td>{{ $positionCategory->terminations_count }}</td>
                         <td class="text-muted">{{ $positionCategory->notes ?: '—' }}</td>
                         <td class="text-end">
+                            @can('hr_position_categories.update')
                             <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#editPositionCategoryModal{{ $positionCategory->id }}" title="Editar"><i class="ri-edit-line"></i></button>
                             <form method="POST" action="{{ route('human_resources.position-categories.destroy', $positionCategory) }}" class="d-inline" onsubmit="return confirm('¿Eliminar esta categoría?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-light btn-sm text-danger" title="Eliminar" @disabled($positionCategory->workers_count || $positionCategory->terminations_count)><i class="ri-delete-bin-line"></i></button>
                             </form>
+                            @endcan
                         </td>
                     </tr>
                 @empty
@@ -48,6 +52,7 @@
     @if($positionCategories->hasPages())<div class="card-footer d-flex justify-content-end">{{ $positionCategories->links('pagination::bootstrap-5') }}</div>@endif
 </div>
 
+@can('hr_position_categories.create')
 <div class="modal fade" id="createPositionCategoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
         <form method="POST" action="{{ route('human_resources.position-categories.store') }}">
@@ -58,7 +63,9 @@
         </form>
     </div></div>
 </div>
+@endcan
 
+@can('hr_position_categories.update')
 @foreach($positionCategories as $positionCategory)
     <div class="modal fade" id="editPositionCategoryModal{{ $positionCategory->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
@@ -72,4 +79,5 @@
         </div></div>
     </div>
 @endforeach
+@endcan
 @endsection

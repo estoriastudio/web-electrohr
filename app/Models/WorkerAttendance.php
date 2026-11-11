@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkerAttendance extends Model
 {
+    use HasAccessScope;
+
     protected $fillable = [
         'worker_id',
         'worker_group_id',
@@ -41,5 +45,14 @@ class WorkerAttendance extends Model
     public function payrollLine(): BelongsTo
     {
         return $this->belongsTo(PayrollLine::class);
+    }
+
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_works' => $query->whereHas('workerGroup', fn (Builder $groups) => $groups
+                ->whereIn('worker_groups.project_work_id', $user->assignedProjectWorkIds())),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 }

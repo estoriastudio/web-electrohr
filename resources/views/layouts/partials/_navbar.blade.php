@@ -129,10 +129,9 @@
                 @endcan
             @endhasanyrole
 
-            @hasanyrole('admin|Proyectos')
-            @can('read')
+            @if($canSeeAllProjects)
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
+                <a class="nav-link {{ request()->routeIs('projects.*', 'project_works.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">
                     <span class="nav-icon">
                         <i class="ri-building-2-line"></i>
                     </span>
@@ -142,48 +141,26 @@
                     @endif
                 </a>
             </li>
-            @endcan
-            @endhasanyrole
+            @endif
 
-            @hasanyrole('Engineer')
-            @can('read')
+            @if($showMyProjects)
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('my-projects.*') ? 'active' : '' }}" href="{{ route('my-projects.index') }}">
                     <span class="nav-icon">
                         <i class="ri-building-2-line"></i>
                     </span>
                     <span class="nav-text">Mis Proyectos</span>
-                    @if($activeProjectsCount > 0)
-                        <span class="badge bg-success badge-pill">{{ $activeProjectsCount }}</span>
+                    @if($myActiveProjectsCount > 0)
+                        <span class="badge bg-success badge-pill">{{ $myActiveProjectsCount }}</span>
                     @endif
                 </a>
             </li>
-            @endcan
+            @endif
 
+            @canany(['hr_workers.view', 'hr_worker_groups.view', 'hr_attendances.view', 'hr_vacations.view', 'hr_terminations.view', 'hr_position_categories.view', 'hr_payroll.view', 'hr_piecework.view', 'hr_incentives.view'])
             <li class="menu-title">Recursos Humanos</li>
 
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-groups.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-groups.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-team-line"></i>
-                    </span>
-                    <span class="nav-text">Cuadrillas</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-calendar-check-line"></i>
-                    </span>
-                    <span class="nav-text">Asistencias</span>
-                </a>
-            </li>
-            @endhasanyrole
-
-            @hasanyrole('admin|Recursos Humanos')
-            <li class="menu-title">Recursos Humanos</li>
-
+            @can('hr_workers.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.workers.*') ? 'active' : '' }}" href="{{ route('human_resources.workers.index') }}">
                     <span class="nav-icon">
@@ -192,7 +169,9 @@
                     <span class="nav-text">Trabajadores</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_worker_groups.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.worker-groups.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-groups.index') }}">
                     <span class="nav-icon">
@@ -201,7 +180,9 @@
                     <span class="nav-text">Cuadrillas</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_attendances.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.worker-attendances.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-attendances.index') }}">
                     <span class="nav-icon">
@@ -210,7 +191,9 @@
                     <span class="nav-text">Asistencias</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_vacations.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.worker-vacations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-vacations.index') }}">
                     <span class="nav-icon">
@@ -219,7 +202,9 @@
                     <span class="nav-text">Vacaciones</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_terminations.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.worker-terminations.*') ? 'active' : '' }}" href="{{ route('human_resources.worker-terminations.index') }}">
                     <span class="nav-icon">
@@ -228,7 +213,9 @@
                     <span class="nav-text">Bajas</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_position_categories.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.position-categories.*') ? 'active' : '' }}" href="{{ route('human_resources.position-categories.index') }}">
                     <span class="nav-icon">
@@ -237,7 +224,9 @@
                     <span class="nav-text">Categorías de puesto</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_payroll.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.payroll-periods.*') || request()->routeIs('human_resources.payroll-lines.*') || request()->routeIs('human_resources.payroll.*') ? 'active' : '' }}" href="{{ route('human_resources.payroll-periods.index') }}">
                     <span class="nav-icon">
@@ -246,7 +235,9 @@
                     <span class="nav-text">Nómina</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_piecework.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.piecework-entries.*') ? 'active' : '' }}" href="{{ route('human_resources.piecework-entries.index') }}">
                     <span class="nav-icon">
@@ -255,7 +246,9 @@
                     <span class="nav-text">Destajo</span>
                 </a>
             </li>
+            @endcan
 
+            @can('hr_incentives.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('human_resources.incentives.*') ? 'active' : '' }}" href="{{ route('human_resources.incentives.index') }}">
                     <span class="nav-icon">
@@ -264,13 +257,14 @@
                     <span class="nav-text">Incentivos</span>
                 </a>
             </li>
-            @endhasanyrole
+            @endcan
+            @endcanany
 
-            @hasanyrole('admin|Solmat|Pagos|Proveedor|Moviles|suministros')
-            @can('read')
+            @canany(['material_requests.view', 'material_vouchers.view', 'material_request_changes.view', 'material_request_queue.view'])
             <li class="menu-title">Almacén</li>
 
-            @hasanyrole('admin|Solmat')
+            {{-- Gerente y Supervisor ven sus SOLMAT en Mis Proyectos. --}}
+            @if(auth()->user()->can('material_requests.view') && auth()->user()->hasFullAccessScope('material_requests'))
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_requests.*') ? 'active' : '' }}"
                    href="{{ route('material_requests.index') }}">
@@ -280,9 +274,9 @@
                     <span class="nav-text">SOLMATs</span>
                 </a>
             </li>
-            @endhasanyrole
+            @endif
 
-            @hasanyrole('admin|Solcom|Moviles')
+            @can('material_vouchers.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
                    href="{{ route('material_vouchers.index') }}">
@@ -292,9 +286,35 @@
                     <span class="nav-text">Vales de Material</span>
                 </a>
             </li>
-            @endhasanyrole
             @endcan
-            @endhasanyrole
+
+            @can('material_request_changes.view')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('material_request_changes.*') ? 'active' : '' }}"
+                   href="{{ route('material_request_changes.index') }}">
+                    <span class="nav-icon">
+                        <i class="ri-edit-circle-line"></i>
+                    </span>
+                    <span class="nav-text">Cambios SOLMAT</span>
+                    @if(($materialRequestChangesPendingCount ?? 0) > 0)
+                        <span class="badge bg-warning badge-pill">{{ $materialRequestChangesPendingCount }}</span>
+                    @endif
+                </a>
+            </li>
+            @endcan
+
+            @can('material_request_queue.view')
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
+                       href="{{ route('warehouse.solmat_pile') }}">
+                        <span class="nav-icon">
+                            <i class="ri-inbox-2-line"></i>
+                        </span>
+                        <span class="nav-text">Pila SOLMAT</span>
+                    </a>
+                </li>
+            @endcan
+            @endcanany
 
             @hasanyrole('admin|Inventario|Solmat')
             <li class="nav-item">
@@ -308,21 +328,25 @@
             </li>
             @endhasanyrole
 
-            @hasanyrole('admin|Inventario')
-            @can('read')
+            @canany(['stocks.view', 'stock_entries.view', 'stock_exits.view'])
             <li class="menu-title">Inventario</li>
+            @can('stocks.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('stocks.index') ? 'active' : '' }}" href="{{ route('stocks.index') }}">
                     <span class="nav-icon"><i class="ri-archive-line"></i></span>
                     <span class="nav-text">Consulta</span>
                 </a>
             </li>
+            @endcan
+            @can('stock_entries.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('stocks.entries.*') ? 'active' : '' }}" href="{{ route('stocks.entries.index') }}">
                     <span class="nav-icon"><i class="ri-inbox-line"></i></span>
                     <span class="nav-text">Entradas</span>
                 </a>
             </li>
+            @endcan
+            @can('stock_exits.view')
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('stocks.exits.*') ? 'active' : '' }}" href="{{ route('stocks.exits.index') }}">
                     <span class="nav-icon"><i class="ri-arrow-right-circle-line"></i></span>
@@ -330,36 +354,7 @@
                 </a>
             </li>
             @endcan
-            @endhasanyrole
-
-            @hasanyrole('admin|Solcom|Solmat|suministros|Orden de compra')
-            @can('read')
-            <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('material_request_changes.*') ? 'active' : '' }}"
-                   href="{{ route('material_request_changes.index') }}">
-                    <span class="nav-icon">
-                        <i class="ri-edit-circle-line"></i>
-                    </span>
-                    <span class="nav-text">Cambios SOLMAT</span>
-                    @if(($materialRequestChangesPendingCount ?? 0) > 0)
-                        <span class="badge bg-warning badge-pill">{{ $materialRequestChangesPendingCount }}</span>
-                    @endif
-                </a>
-            </li>
-
-            @hasanyrole('admin|suministros|Orden de compra')
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('warehouse.solmat_pile') ? 'active' : '' }}"
-                       href="{{ route('warehouse.solmat_pile') }}">
-                        <span class="nav-icon">
-                            <i class="ri-inbox-2-line"></i>
-                        </span>
-                        <span class="nav-text">Pila SOLMAT</span>
-                    </a>
-                </li>
-            @endhasanyrole
-            @endcan
-            @endhasanyrole
+            @endcanany
 
             @hasanyrole('admin|Solcom|Orden de compra')
             @can('read')

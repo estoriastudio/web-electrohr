@@ -85,10 +85,14 @@
                             </div>
                         </td>
                         <td class="text-end">
+                            @if($canRecordAttendance)
                             <div class="btn-group" role="group" aria-label="Asistencia de {{ $member->first_name }} {{ $member->last_name }}">
                                 <button type="button" class="btn btn-sm js-mark-attendance {{ $attendance?->attended ? 'btn-success' : 'btn-outline-success' }}" data-attended="1"><i class="ri-check-line me-1"></i>Show</button>
                                 <button type="button" class="btn btn-sm js-report-absence {{ $attendance && ! $attendance->attended ? 'btn-danger' : 'btn-outline-danger' }}"><i class="ri-close-line me-1"></i>No show</button>
                             </div>
+                            @else
+                                <span class="badge {{ $attendance === null ? 'bg-light text-muted' : ($attendance->attended ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger') }}">{{ $attendance === null ? 'Sin registro' : ($attendance->attended ? 'Asistió' : 'No asistió') }}</span>
+                            @endif
                             @if($attendance?->absence_document_path)<a class="btn btn-light btn-sm ms-1" href="{{ route('human_resources.worker-attendances.absence-document', $attendance) }}" title="Ver comprobante"><i class="ri-file-download-line"></i></a>@endif
                         </td>
                     </tr>

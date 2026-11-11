@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Worker extends Model
 {
+    use HasAccessScope;
     use SoftDeletes;
 
     protected $fillable = [
@@ -63,7 +66,7 @@ class Worker extends Model
 
     public function dc3s(): HasMany
     {
-        return $this->hasMany(\App\Models\WorkerDc3::class)->orderBy('label');
+        return $this->hasMany(WorkerDc3::class)->orderBy('label');
     }
 
     public function terminations(): HasMany
@@ -119,14 +122,13 @@ class Worker extends Model
         return $this->currentGroup()?->projectWork;
     }
 
-    public function isAssignedToResponsibleWork(User $user): bool
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
     {
-        return $this->groups()
-            ->wherePivotNull('left_at')
-            ->whereHas('projectWork', function ($projectWorkQuery) use ($user) {
-                $projectWorkQuery->where('supervisor_user_id', $user->id)
-                    ->orWhere('resident_user_id', $user->id);
-            })
-            ->exists();
+        match ($scope) {
+            'assigned_workers' => $query->whereHas('groups', fn (Builder $groups) => $groups
+                ->whereNull('worker_group_members.left_at')
+                ->whereIn('worker_groups.project_work_id', $user->assignedProjectWorkIds())),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 }

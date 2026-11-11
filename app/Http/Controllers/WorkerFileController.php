@@ -36,7 +36,7 @@ class WorkerFileController extends Controller
 
     public function show(Worker $worker): View
     {
-        $this->ensureWorkerAccess($worker);
+        $this->authorizeAccess($worker, 'hr_workers');
         $canManageWorkerFile = $this->canManageWorkers();
         $workerFile = WorkerFile::firstOrCreate(['worker_id' => $worker->id]);
         $worker->load('dc3s');
@@ -98,7 +98,7 @@ class WorkerFileController extends Controller
 
     public function download(Worker $worker, string $document): mixed
     {
-        $this->ensureWorkerAccess($worker);
+        $this->authorizeAccess($worker, 'hr_workers');
         abort_unless(in_array($document, self::FILE_COLUMNS, true), 404);
 
         $workerFile = $worker->file;
@@ -130,15 +130,6 @@ class WorkerFileController extends Controller
 
     private function canManageWorkers(): bool
     {
-        return Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
-    }
-
-    private function ensureWorkerAccess(Worker $worker): void
-    {
-        if ($this->canManageWorkers()) {
-            return;
-        }
-
-        abort_unless($worker->isAssignedToResponsibleWork(Auth::user()), 403);
+        return Auth::user()->can('hr_workers.update');
     }
 }

@@ -18,15 +18,11 @@ class ProjectEstimateController extends Controller
 
     public function create(Project $project): View
     {
-        $this->authorizeEngineerProject($project);
-        $engineerView = $this->isEngineerRoute();
-
-        return view('projects.estimates.create', compact('project', 'engineerView'));
+        return view('projects.estimates.create', compact('project'));
     }
 
     public function store(Request $request, Project $project): RedirectResponse
     {
-        $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project);
 
         $estimate = $project->estimates()->create(array_merge($data, [
@@ -38,17 +34,16 @@ class ProjectEstimateController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $estimate->id,
-            'data' => 'registró la estimación ' . $estimate->estimate_number . ' en el proyecto "' . $project->name . '".',
+            'data' => 'registró la estimación '.$estimate->estimate_number.' en el proyecto "'.$project->name.'".',
         ]);
 
-        return $this->redirectToProject($project)
+        return redirect()->route('projects.show', $project)
             ->with('success', 'Estimación registrada correctamente.');
     }
 
     public function update(Request $request, ProjectEstimate $estimate): RedirectResponse
     {
         $project = $estimate->project;
-        $this->authorizeEngineerProject($project);
         $data = $this->validatedData($request, $project, $estimate);
 
         $estimate->update($data);
@@ -58,10 +53,10 @@ class ProjectEstimateController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $estimate->id,
-            'data' => 'actualizó la estimación ' . $estimate->estimate_number . ' del proyecto "' . $project->name . '".',
+            'data' => 'actualizó la estimación '.$estimate->estimate_number.' del proyecto "'.$project->name.'".',
         ]);
 
-        return $this->redirectToProject($project)
+        return redirect()->route('projects.show', $project)
             ->with('success', 'Estimación actualizada correctamente.');
     }
 
@@ -81,30 +76,11 @@ class ProjectEstimateController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
             'model_id' => $estimate->id,
-            'data' => 'eliminó la estimación ' . $estimateNumber . ' del proyecto "' . $project->name . '".',
+            'data' => 'eliminó la estimación '.$estimateNumber.' del proyecto "'.$project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Estimación eliminada correctamente.');
-    }
-
-    private function isEngineerRoute(): bool
-    {
-        return request()->routeIs('my-projects.*');
-    }
-
-    private function authorizeEngineerProject(Project $project): void
-    {
-        if ($this->isEngineerRoute()) {
-            abort_unless(Project::query()->whereKey($project->id)->assignedTo(Auth::user())->exists(), 403);
-        }
-    }
-
-    private function redirectToProject(Project $project): RedirectResponse
-    {
-        return $this->isEngineerRoute()
-            ? redirect()->route('my-projects.show', [$project, 'tab' => 'estimates'])
-            : redirect()->route('projects.show', $project);
     }
 
     private function validatedData(

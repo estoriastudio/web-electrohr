@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Models\MaterialRequest;
 use App\Models\Project;
 use App\Models\ProjectEstimate;
+use App\Models\ProjectEstimateFile;
 use App\Models\ProjectWork;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +29,8 @@ class EngineerProjectAccessTest extends TestCase
 
         $this->seed(RolesAndPermissionsSeeder::class);
         Role::findOrCreate('Engineer', 'web');
+        Role::findOrCreate('Proyectos', 'web');
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_index_lists_only_projects_where_the_engineer_is_supervisor_or_resident(): void
@@ -77,15 +81,28 @@ class EngineerProjectAccessTest extends TestCase
             ->assertDontSee('9002');
     }
 
-    public function test_engineer_cannot_use_the_generic_projects_and_obras_routes(): void
+    public function test_supervisor_only_reads_own_projects_in_the_generic_routes(): void
     {
         $engineer = $this->engineer();
         $project = $this->project('Proyecto propio', supervisor: $engineer);
+        $foreign = $this->project('Proyecto ajeno', supervisor: $this->engineer());
 
-        $this->actingAs($engineer)->get(route('projects.index'))->assertForbidden();
-        $this->actingAs($engineer)->get(route('projects.show', $project))->assertForbidden();
-        $this->actingAs($engineer)->delete(route('projects.destroy', $project))->assertForbidden();
-        $this->actingAs($engineer)->get(route('project_works.show', $project->works()->first()))->assertForbidden();
+        $this->actingAs($engineer)
+            ->get(route('projects.index'))
+            ->assertOk()
+            ->assertSee('Proyecto propio')
+            ->assertDontSee('Proyecto ajeno')
+            ->assertDontSee('Nuevo Proyecto');
+        $this->get(route('projects.show', $project))
+            ->assertOk()
+            ->assertDontSee('Documentación del Proyecto')
+            ->assertDontSee('Nueva Obra');
+        $this->get(route('projects.show', $foreign))->assertForbidden();
+        $this->get(route('project_works.show', $project->works()->first()))->assertOk();
+        $this->get(route('project_works.show', $foreign->works()->first()))->assertForbidden();
+        $this->delete(route('projects.destroy', $project))->assertForbidden();
+        $this->post(route('projects.store'), [])->assertForbidden();
+        $this->post(route('project_works.store'), [])->assertForbidden();
     }
 
     public function test_record_details_are_scoped_to_the_engineers_projects(): void
@@ -148,7 +165,7 @@ class EngineerProjectAccessTest extends TestCase
 
         $this->delete(route('material_requests.destroy', $materialRequest))->assertForbidden();
         $this->patch(route('material_requests.archive', $materialRequest))->assertForbidden();
-        $this->get(route('material_requests.index'))->assertForbidden();
+        $this->get(route('material_requests.index', ['scope' => 'all']))->assertOk()->assertSee('7001');
         $this->post(route('purchase_requests.store'), [])->assertForbidden();
         $this->put(route('purchase_requests.update', $purchaseRequest), [])->assertForbidden();
         $this->delete(route('purchase_requests.destroy', $purchaseRequest))->assertForbidden();
@@ -160,37 +177,32 @@ class EngineerProjectAccessTest extends TestCase
         $this->post(route('evidences.store'), [])->assertForbidden();
     }
 
-    public function test_engineer_creates_and_updates_estimates_only_in_own_projects(): void
+    public function test_supervisor_only_consults_estimates_of_own_projects(): void
     {
         $engineer = $this->engineer();
         $own = $this->project('Proyecto propio', supervisor: $engineer);
         $foreign = $this->project('Proyecto ajeno', supervisor: $this->engineer());
-
-        $this->actingAs($engineer)
-            ->get(route('my-projects.estimates.create', $own))
-            ->assertOk();
-
-        $this->post(route('my-projects.estimates.store', $own), $this->estimateData())
-            ->assertRedirect(route('my-projects.show', [$own, 'tab' => 'estimates']));
-
-        $estimate = ProjectEstimate::firstOrFail();
-        $this->assertSame($own->id, $estimate->project_id);
-        $this->assertSame($engineer->id, $estimate->created_by);
-
-        $this->put(route('my-projects.estimates.update', $estimate), $this->estimateData(['estimate_amount' => '250.00']))
-            ->assertRedirect(route('my-projects.show', [$own, 'tab' => 'estimates']));
-        $this->assertSame(250.0, (float) $estimate->fresh()->estimate_amount);
-
-        $this->get(route('my-projects.estimates.create', $foreign))->assertForbidden();
-        $this->post(route('my-projects.estimates.store', $foreign), $this->estimateData(['estimate_number' => 'EST-002']))
-            ->assertForbidden();
-
-        $foreignEstimate = $foreign->estimates()->create(array_merge(
-            $this->estimateData(['estimate_number' => 'EST-900']),
+        $estimate = $own->estimates()->create(array_merge(
+            $this->estimateData(['estimate_number' => 'EST-777']),
             ['created_by' => $this->userWithRole('admin')->id]
         ));
-        $this->put(route('my-projects.estimates.update', $foreignEstimate), $this->estimateData(['estimate_number' => 'EST-900']))
+
+        $this->actingAs($engineer)
+            ->get(route('my-projects.show', $own))
+            ->assertOk()
+            ->assertSee('EST-777')
+            ->assertDontSee('Registrar estimación')
+            ->assertDontSee('Editar estimación');
+
+        $this->get(route('projects.estimates.create', $own))->assertForbidden();
+        $this->post(route('projects.estimates.store', $own), $this->estimateData(['estimate_number' => 'EST-002']))
             ->assertForbidden();
+        $this->put(route('projects.estimates.update', $estimate), $this->estimateData(['estimate_amount' => '250.00']))
+            ->assertForbidden();
+        $this->post(route('projects.estimates.store', $foreign), $this->estimateData(['estimate_number' => 'EST-003']))
+            ->assertForbidden();
+
+        $this->assertSame(1, ProjectEstimate::count());
     }
 
     public function test_engineer_cannot_delete_estimates_or_manage_their_files(): void
@@ -206,12 +218,18 @@ class EngineerProjectAccessTest extends TestCase
 
         $this->actingAs($engineer);
 
+        $file = $estimate->files()->create([
+            'file_type' => array_key_first(ProjectEstimateFile::TYPES),
+            'file_path' => 'estimates/soporte.pdf',
+            'original_name' => 'soporte.pdf',
+        ]);
+
         $this->delete(route('projects.estimates.destroy', $estimate))->assertForbidden();
-        $this->put(route('projects.estimates.documents.update', $estimate), [
-            'invoice_pdf' => UploadedFile::fake()->create('factura.pdf', 10, 'application/pdf'),
+        $this->post(route('projects.estimates.files.store', $estimate), [
+            'file' => UploadedFile::fake()->create('soporte.pdf', 10, 'application/pdf'),
         ])->assertForbidden();
-        $this->delete(route('projects.estimates.documents.destroy', [$estimate, 'invoice_pdf']))->assertForbidden();
-        $this->get(route('projects.estimates.documents.download', [$estimate, 'invoice_pdf']))->assertForbidden();
+        $this->get(route('projects.estimates.files.download', $file))->assertForbidden();
+        $this->delete(route('projects.estimates.files.destroy', $file))->assertForbidden();
 
         $this->assertDatabaseHas('project_estimates', ['id' => $estimate->id]);
 
@@ -253,10 +271,15 @@ class EngineerProjectAccessTest extends TestCase
         return $this->userWithRole('Engineer');
     }
 
+    /** Usuarios como quedan tras access:migrate-users: el rol anterior más su perfil de la matriz. */
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
-        $user->assignRole($role);
+        $user->assignRole(match ($role) {
+            'Engineer' => ['Engineer', 'Supervisor'],
+            'Proyectos' => ['Proyectos', 'Contratos'],
+            default => [$role],
+        });
 
         return $user;
     }
@@ -272,7 +295,7 @@ class EngineerProjectAccessTest extends TestCase
 
         ProjectWork::create([
             'project_id' => $project->id,
-            'name' => 'Obra de ' . $name,
+            'name' => 'Obra de '.$name,
             'status' => 'active',
             'supervisor_user_id' => $supervisor?->id,
             'resident_user_id' => $resident?->id,
@@ -315,7 +338,7 @@ class EngineerProjectAccessTest extends TestCase
 
     private function purchaseOrder(Project $project, int $folio): PurchaseOrder
     {
-        $supplier = Supplier::create(['rfc_name' => 'Proveedor ' . $folio]);
+        $supplier = Supplier::create(['rfc_name' => 'Proveedor '.$folio]);
 
         return PurchaseOrder::create([
             'folio' => $folio,

@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -24,6 +25,8 @@ class EngineerSolmatTest extends TestCase
 
         $this->seed(RolesAndPermissionsSeeder::class);
         Role::findOrCreate('Engineer', 'web');
+        Role::findOrCreate('Proyectos', 'web');
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_admin_assigns_an_engineer_as_project_manager_and_rejects_other_users(): void
@@ -48,7 +51,7 @@ class EngineerSolmatTest extends TestCase
 
     public function test_project_manager_can_open_the_project_without_being_supervisor_or_resident(): void
     {
-        $manager = $this->userWithRole('Engineer');
+        $manager = $this->userWithRole('Engineer Gerente');
         $project = $this->project('Proyecto gestionado', manager: $manager);
         $this->project('Proyecto ajeno');
 
@@ -193,12 +196,13 @@ class EngineerSolmatTest extends TestCase
         $this->put(route('material_requests.update', $materialRequest), $this->solmatData($own))->assertForbidden();
     }
 
-    public function test_only_admin_solmat_or_the_project_manager_can_send_to_warehouse(): void
+    /** Decisión 2026-11-10: solo admin y el gerente del proyecto envían la SOLMAT a Almacén; Almacén (antes Solmat) ya no. */
+    public function test_only_admin_or_the_project_manager_can_send_to_warehouse(): void
     {
         $supervisor = $this->userWithRole('Engineer');
-        $manager = $this->userWithRole('Engineer');
+        $manager = $this->userWithRole('Engineer Gerente');
         $project = $this->project('Proyecto propio', supervisor: $supervisor, manager: $manager);
-        $otherProject = $this->project('Otro proyecto', supervisor: $this->userWithRole('Engineer'), manager: $this->userWithRole('Engineer'));
+        $otherProject = $this->project('Otro proyecto', supervisor: $this->userWithRole('Engineer'), manager: $this->userWithRole('Engineer Gerente'));
         $unmanaged = $this->project('Sin gerente', supervisor: $supervisor);
 
         $materialRequest = $this->materialRequest($project, 7001);
@@ -229,8 +233,8 @@ class EngineerSolmatTest extends TestCase
         $solmatRequest = $this->materialRequest($unmanaged, 7003);
         $this->actingAs($this->userWithRole('Solmat'))
             ->post(route('material_requests.send_to_warehouse', $solmatRequest))
-            ->assertRedirect();
-        $this->assertSame('sent_to_warehouse', $solmatRequest->fresh()->status);
+            ->assertForbidden();
+        $this->assertSame('pending', $solmatRequest->fresh()->status);
 
         $noManager = $this->materialRequest($unmanaged, 7004);
         $this->actingAs($supervisor)
@@ -238,10 +242,17 @@ class EngineerSolmatTest extends TestCase
             ->assertForbidden();
     }
 
+    /** Usuarios como quedan tras access:migrate-users: el rol anterior más su perfil de la matriz. */
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
-        $user->assignRole($role);
+        $user->assignRole(match ($role) {
+            'Engineer' => ['Engineer', 'Supervisor'],
+            'Engineer Gerente' => ['Engineer', 'Gerente de Proyecto'],
+            'Proyectos' => ['Proyectos', 'Contratos'],
+            'Solmat' => ['Solmat', 'Almacén'],
+            default => [$role],
+        });
 
         return $user;
     }

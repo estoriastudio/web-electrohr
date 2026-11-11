@@ -2,32 +2,36 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectWork;
-use App\Models\ProjectDocument;
-use App\Models\User;
 use App\Imports\ProjectImport;
+use App\Models\Project;
+use App\Models\ProjectDocument;
+use App\Models\ProjectWork;
+use App\Models\User;
+use App\Services\AccessMatrix;
 use App\Services\NotificationService;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProjectController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
+
     public function index(Request $request): View
     {
         $search = trim($request->input('search', ''));
-        $isAdmin = Auth::user()->hasRole('admin');
+        // Gerente y Supervisor solo ven los proyectos asignados.
+        $isAdmin = app(AccessMatrix::class)->hasFullScope(Auth::user(), 'projects');
 
         $projects = Project::query()
+            ->visibleTo(Auth::user(), 'projects')
             ->withCount('works')
             ->with('documents')
             ->addSelect([
@@ -53,7 +57,7 @@ class ProjectController extends Controller
             'projects' => $projects,
             'search' => $search,
             'isAdmin' => $isAdmin,
-            'engineers' => User::role('Engineer')->orderBy('name')->get(['id', 'name']),
+            'engineers' => User::projectStaff()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -65,11 +69,11 @@ class ProjectController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'client_name' => 'required|string|max:255',
-            'city'        => 'nullable|string|max:255',
-            'state'       => 'nullable|string|max:255',
-            'currency'    => 'required|string|max:10',
+            'city' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'currency' => 'required|string|max:10',
             'manager_user_id' => 'nullable|integer|exists:users,id',
         ]);
         $this->ensureEngineerManager($validated);
@@ -77,11 +81,11 @@ class ProjectController extends Controller
         $project = Project::create(array_merge($validated, ['status' => 'active']));
 
         $this->notification->send([
-            'type'         => 'Project',
-            'action_by'    => Auth::id(),
+            'type' => 'Project',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $project->id,
-            'data'         => 'creó el proyecto "' . $project->name . '".',
+            'model_id' => $project->id,
+            'data' => 'creó el proyecto "'.$project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $project)
@@ -90,6 +94,8 @@ class ProjectController extends Controller
 
     public function show(Project $project): View
     {
+        $this->authorizeAccess($project, 'projects');
+
         $project->setAttribute(
             'project_value',
             $project->current_agreement_value !== null
@@ -100,7 +106,7 @@ class ProjectController extends Controller
         );
         $project->loadCount('works');
         $project->load([
-            'works'     => fn ($q) => $q->with(['supervisorUser', 'residentUser'])->withCount('purchaseOrders'),
+            'works' => fn ($q) => $q->with(['supervisorUser', 'residentUser'])->withCount('purchaseOrders'),
             'documents',
             'manager:id,name',
             'agreements' => fn ($q) => $q->with('works')->latest(),
@@ -108,7 +114,7 @@ class ProjectController extends Controller
         ]);
 
         $docCategories = ProjectDocument::CATEGORIES;
-        $engineers = User::role('Engineer')->orderBy('name')->get(['id', 'name']);
+        $engineers = User::projectStaff()->orderBy('name')->get(['id', 'name']);
 
         return view('projects.show', compact('project', 'docCategories', 'engineers'));
     }
@@ -121,12 +127,12 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'client_name' => 'required|string|max:255',
-            'city'        => 'nullable|string|max:255',
-            'state'       => 'nullable|string|max:255',
-            'status'      => 'required|in:active,inactive',
-            'currency'    => 'required|string|max:10',
+            'city' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'status' => 'required|in:active,inactive',
+            'currency' => 'required|string|max:10',
             'manager_user_id' => 'nullable|integer|exists:users,id',
         ]);
         $this->ensureEngineerManager($validated);
@@ -134,11 +140,11 @@ class ProjectController extends Controller
         $project->update($validated);
 
         $this->notification->send([
-            'type'         => 'Project',
-            'action_by'    => Auth::id(),
+            'type' => 'Project',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $project->id,
-            'data'         => 'actualizó el proyecto "' . $project->name . '".',
+            'model_id' => $project->id,
+            'data' => 'actualizó el proyecto "'.$project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $project)
@@ -152,11 +158,11 @@ class ProjectController extends Controller
         $project->delete();
 
         $this->notification->send([
-            'type'         => 'Project',
-            'action_by'    => Auth::id(),
+            'type' => 'Project',
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => $project->id,
-            'data'         => 'eliminó el proyecto "' . $name . '".',
+            'model_id' => $project->id,
+            'data' => 'eliminó el proyecto "'.$name.'".',
         ]);
 
         return redirect()->route('projects.index')
@@ -236,12 +242,12 @@ class ProjectController extends Controller
         }
 
         $uploadedFile = $request->file('file');
-        $extension    = $uploadedFile->getClientOriginalExtension();
-        $s3Path       = 'projects/' . $project->id . '/docs/' . $docType . '_' . time() . '.' . $extension;
+        $extension = $uploadedFile->getClientOriginalExtension();
+        $s3Path = 'projects/'.$project->id.'/docs/'.$docType.'_'.time().'.'.$extension;
 
         Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
 
-        $doc->file_path   = $s3Path;
+        $doc->file_path = $s3Path;
         $doc->uploaded_at = now()->toDateString();
         $doc->save();
 
@@ -322,9 +328,9 @@ class ProjectController extends Controller
 
         $chunkSize = 4 * 1024 * 1024; // 4 MB por chunk
         $uploadId = (string) Str::uuid();
-        $fileKey = 'projects/' . $project->id . '/docs/' . $docType . '_' . now()->timestamp . '_' . Str::lower(Str::random(8)) . '.' . $extension;
+        $fileKey = 'projects/'.$project->id.'/docs/'.$docType.'_'.now()->timestamp.'_'.Str::lower(Str::random(8)).'.'.$extension;
 
-        cache()->put('project_doc_chunk_upload_' . $uploadId, [
+        cache()->put('project_doc_chunk_upload_'.$uploadId, [
             'upload_id' => $uploadId,
             'project_id' => $project->id,
             'doc_type' => $docType,
@@ -358,7 +364,7 @@ class ProjectController extends Controller
             'chunk' => 'required|file|max:5120',
         ]);
 
-        $sessionKey = 'project_doc_chunk_upload_' . $validated['upload_id'];
+        $sessionKey = 'project_doc_chunk_upload_'.$validated['upload_id'];
         $session = cache()->get($sessionKey);
 
         if (! $session) {
@@ -375,12 +381,12 @@ class ProjectController extends Controller
             return response()->json(['message' => 'Indice de chunk fuera de rango.'], 422);
         }
 
-        $tempDir = storage_path('app/temp/project-doc-chunks/' . $validated['upload_id']);
+        $tempDir = storage_path('app/temp/project-doc-chunks/'.$validated['upload_id']);
         if (! File::exists($tempDir)) {
             File::makeDirectory($tempDir, 0755, true);
         }
 
-        $chunkName = 'chunk_' . $validated['chunk_number'] . '.part';
+        $chunkName = 'chunk_'.$validated['chunk_number'].'.part';
         $request->file('chunk')->move($tempDir, $chunkName);
 
         $session['uploaded_chunks'][(string) $validated['chunk_number']] = true;
@@ -414,7 +420,7 @@ class ProjectController extends Controller
             'upload_id' => 'required|string|max:100',
         ]);
 
-        $sessionKey = 'project_doc_chunk_upload_' . $validated['upload_id'];
+        $sessionKey = 'project_doc_chunk_upload_'.$validated['upload_id'];
         $session = cache()->get($sessionKey);
 
         if (! $session) {
@@ -428,9 +434,9 @@ class ProjectController extends Controller
         }
 
         $uploadId = $validated['upload_id'];
-        $tempDir = storage_path('app/temp/project-doc-chunks/' . $uploadId);
+        $tempDir = storage_path('app/temp/project-doc-chunks/'.$uploadId);
         $finalDir = storage_path('app/temp/project-doc-final');
-        $finalFilePath = $finalDir . '/' . $uploadId . '_' . basename($session['filename']);
+        $finalFilePath = $finalDir.'/'.$uploadId.'_'.basename($session['filename']);
 
         if (! File::exists($finalDir)) {
             File::makeDirectory($finalDir, 0755, true);
@@ -448,10 +454,11 @@ class ProjectController extends Controller
 
         try {
             for ($i = 0; $i < $expectedChunks; $i++) {
-                $chunkPath = $tempDir . '/chunk_' . $i . '.part';
+                $chunkPath = $tempDir.'/chunk_'.$i.'.part';
                 if (! File::exists($chunkPath)) {
                     fclose($finalHandle);
-                    return response()->json(['message' => 'Falta el chunk #' . $i . '.'], 422);
+
+                    return response()->json(['message' => 'Falta el chunk #'.$i.'.'], 422);
                 }
 
                 $chunkHandle = fopen($chunkPath, 'rb');
@@ -504,7 +511,7 @@ class ProjectController extends Controller
             'upload_id' => 'required|string|max:100',
         ]);
 
-        $sessionKey = 'project_doc_chunk_upload_' . $validated['upload_id'];
+        $sessionKey = 'project_doc_chunk_upload_'.$validated['upload_id'];
         $session = cache()->get($sessionKey);
 
         if ($session &&
@@ -519,7 +526,7 @@ class ProjectController extends Controller
 
     private function cleanupChunkUpload(string $uploadId, ?string $finalFilePath, string $sessionKey): void
     {
-        $tempDir = storage_path('app/temp/project-doc-chunks/' . $uploadId);
+        $tempDir = storage_path('app/temp/project-doc-chunks/'.$uploadId);
         if (File::exists($tempDir)) {
             File::deleteDirectory($tempDir);
         }
@@ -546,11 +553,10 @@ class ProjectController extends Controller
     private function ensureEngineerManager(array $data): void
     {
         if (filled($data['manager_user_id'] ?? null)
-            && ! User::role('Engineer')->whereKey($data['manager_user_id'])->exists()) {
+            && ! User::projectStaff()->whereKey($data['manager_user_id'])->exists()) {
             throw ValidationException::withMessages([
-                'manager_user_id' => 'Selecciona un usuario con rol Engineer.',
+                'manager_user_id' => 'Selecciona un usuario con rol Gerente de Proyecto o Supervisor.',
             ]);
         }
     }
 }
-

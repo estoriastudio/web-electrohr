@@ -1,15 +1,14 @@
 @extends('layouts.app')
 
 @php
-    $engineerView = $engineerView ?? false;
-    $backUrl = $engineerView ? route('my-projects.show', [$project, 'tab' => 'estimates']) : route('projects.show', $project);
+    $backUrl = route('projects.show', $project);
 @endphp
 
 @section('page_title', 'Registrar estimación')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ $engineerView ? route('my-projects.index') : route('projects.index') }}">{{ $engineerView ? 'Mis Proyectos' : 'Proyectos' }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('projects.index') }}">Proyectos</a></li>
     <li class="breadcrumb-item"><a href="{{ $backUrl }}">{{ $project->name }}</a></li>
     <li class="breadcrumb-item active">Registrar estimación</li>
 @endsection
@@ -38,7 +37,7 @@
 @endif
 
 <div class="card">
-    <form id="createEstimateForm" action="{{ $engineerView ? route('my-projects.estimates.store', $project) : route('projects.estimates.store', $project) }}" method="POST">
+    <form id="createEstimateForm" action="{{ route('projects.estimates.store', $project) }}" method="POST">
         @csrf
         <div class="card-body">
             @include('estimates._form', ['prefix' => 'create', 'estimate' => null])

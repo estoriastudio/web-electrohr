@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
+    use HasAccessScope;
+
     protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'currency', 'current_agreement_value', 'manager_user_id'];
 
     public function works(): HasMany
@@ -39,6 +42,14 @@ class Project extends Model
     public function scopeAccessibleBy(Builder $query, User $user): Builder
     {
         return $user->isRestrictedEngineer() ? $query->assignedTo($user) : $query;
+    }
+
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_projects' => $query->assignedTo($user),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 
     public function userCanAccess(User $user): bool

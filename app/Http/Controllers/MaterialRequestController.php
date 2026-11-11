@@ -21,8 +21,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class MaterialRequestController extends Controller
@@ -35,7 +35,7 @@ class MaterialRequestController extends Controller
 
         $tray = in_array($request->input('tray'), ['open', 'completed'], true) ? $request->input('tray') : 'all';
 
-        $baseQuery = MaterialRequest::query();
+        $baseQuery = MaterialRequest::query()->visibleTo(Auth::user(), 'material_requests');
 
         if ($scope !== 'all') {
             $baseQuery->where('requested_by', Auth::id());
@@ -68,7 +68,7 @@ class MaterialRequestController extends Controller
             ->orderByDesc('folio')
             ->paginate(15)
             ->withQueryString();
-        $projects = Project::where('status', 'active')->orderBy('name')->get();
+        $projects = Project::where('status', 'active')->visibleTo(Auth::user(), 'material_requests', 'create')->orderBy('name')->get();
         $categories = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
 
         return view('material_requests.index', compact('materialRequests', 'projects', 'search', 'status', 'scope', 'categories', 'tray', 'trayCounts'));
@@ -94,7 +94,7 @@ class MaterialRequestController extends Controller
             'concept_category_id' => 'nullable|exists:concept_categories,id',
             'supply_category' => 'nullable|string|max:255',
         ]);
-        $this->ensureProjectVisible((int) $data['project_id']);
+        $this->ensureProjectAllowed((int) $data['project_id'], 'create');
         $this->ensureWorksBelongToProject($data);
 
         // Derivar supply_category del nombre de la categoría seleccionada
@@ -156,7 +156,7 @@ class MaterialRequestController extends Controller
 
     public function show(MaterialRequest $materialRequest)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests');
 
         $materialRequest->load([
             'project',
@@ -186,7 +186,8 @@ class MaterialRequestController extends Controller
             ])
             ->whereNull('resolved_at')
             ->whereHas('materialRequest', function ($query) {
-                $query->whereNull('archived_at');
+                // Gerente y Supervisor solo ven los cambios de las SOLMAT de sus proyectos.
+                $query->whereNull('archived_at')->visibleTo(Auth::user(), 'material_requests');
             });
 
         $query = clone $baseQuery;
@@ -258,7 +259,7 @@ class MaterialRequestController extends Controller
         $this->ensureEngineerCanEdit($materialRequest);
 
         $projects = Project::where('status', 'active')
-            ->accessibleBy(Auth::user())
+            ->visibleTo(Auth::user(), 'material_requests', 'update')
             ->orderBy('name')
             ->get();
         $categories = ConceptCategory::where('type', 'materiales')->orderBy('name')->get();
@@ -283,7 +284,7 @@ class MaterialRequestController extends Controller
             'concept_category_id' => 'nullable|exists:concept_categories,id',
             'supply_category' => 'nullable|string|max:255',
         ]);
-        $this->ensureProjectVisible((int) $data['project_id']);
+        $this->ensureProjectAllowed((int) $data['project_id'], 'update');
         $this->ensureWorksBelongToProject($data);
 
         // Derivar supply_category del nombre de la categoría seleccionada
@@ -334,6 +335,7 @@ class MaterialRequestController extends Controller
 
     public function destroy(Request $request, MaterialRequest $materialRequest): RedirectResponse
     {
+        $this->ensureWarehouseManages();
         $validated = $request->validate([
             'deletion_comment' => 'required|string|max:1000',
         ]);
@@ -361,6 +363,7 @@ class MaterialRequestController extends Controller
 
     public function archive(MaterialRequest $materialRequest): RedirectResponse
     {
+        $this->ensureWarehouseManages();
         $materialRequest->update(['archived_at' => now()]);
 
         app(NotificationService::class)->send([
@@ -377,6 +380,7 @@ class MaterialRequestController extends Controller
 
     public function unarchive(MaterialRequest $materialRequest): RedirectResponse
     {
+        $this->ensureWarehouseManages();
         $materialRequest->update(['archived_at' => null]);
 
         return redirect()->route('material_requests.archived')
@@ -388,6 +392,7 @@ class MaterialRequestController extends Controller
         $search = trim($request->input('search', ''));
 
         $materialRequests = MaterialRequest::with(['project', 'projectWorks', 'requestedBy', 'purchaseRequests.purchaseOrders', 'linkedPurchaseRequests.purchaseOrders'])
+            ->visibleTo(Auth::user(), 'material_requests')
             ->archived()
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -500,7 +505,7 @@ class MaterialRequestController extends Controller
 
     public function storeItem(Request $request, MaterialRequest $materialRequest)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         if (! in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
             abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
@@ -588,7 +593,7 @@ class MaterialRequestController extends Controller
 
     public function destroyItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         if (! in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
             abort(403, 'Esta SOLMAT ya no permite editar conceptos.');
@@ -614,7 +619,7 @@ class MaterialRequestController extends Controller
 
     public function updateItem(Request $request, MaterialRequest $materialRequest, MaterialRequestItem $item)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         if ((int) $item->material_request_id !== (int) $materialRequest->id) {
             abort(404);
@@ -849,7 +854,7 @@ class MaterialRequestController extends Controller
 
     public function storeObservation(Request $request, MaterialRequest $materialRequest)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         $data = $request->validate([
             'text' => 'required|string|max:1000',
@@ -871,7 +876,7 @@ class MaterialRequestController extends Controller
 
     public function updateObservation(Request $request, MaterialRequest $materialRequest, int $noteIndex)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         $data = $request->validate([
             'text' => 'required|string|max:1000',
@@ -895,7 +900,7 @@ class MaterialRequestController extends Controller
 
     public function destroyObservation(MaterialRequest $materialRequest, int $noteIndex)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
         $observations = $materialRequest->observations ?? [];
 
@@ -913,11 +918,11 @@ class MaterialRequestController extends Controller
 
     public function sendToWarehouse(MaterialRequest $materialRequest)
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'authorize');
         abort_unless(
             $materialRequest->canBeSentToWarehouseBy(Auth::user()),
             403,
-            'Solo admin, Solmat o el gerente del proyecto pueden enviar la SOLMAT a Almacén.'
+            'Solo admin o el gerente del proyecto pueden enviar la SOLMAT a Almacén.'
         );
 
         $materialRequest->update([
@@ -1005,6 +1010,7 @@ class MaterialRequestController extends Controller
         $folio = $request->input('folio');
 
         $mr = MaterialRequest::with(['project', 'projectWorks', 'items.concept.category.users'])
+            ->visibleTo(Auth::user(), 'material_requests')
             ->where('folio', $folio)
             ->first();
 
@@ -1062,7 +1068,7 @@ class MaterialRequestController extends Controller
     // PDF
     public function downloadPdf(MaterialRequest $materialRequest): Response
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests');
 
         $materialRequest->load(['project', 'projectWorks', 'requestedBy', 'items']);
 
@@ -1074,11 +1080,15 @@ class MaterialRequestController extends Controller
         return $pdf->download($filename);
     }
 
+    /**
+     * Gerente y Supervisor (alcance por proyecto) solo editan sus SOLMAT mientras estén Pendientes o con cambios;
+     * Almacén edita todas (decisión 2026-11-10).
+     */
     private function ensureEngineerCanEdit(MaterialRequest $materialRequest): void
     {
-        $this->ensureProjectVisible($materialRequest->project_id);
+        $this->authorizeAccess($materialRequest, 'material_requests', 'update');
 
-        if (Auth::user()->isRestrictedEngineer()) {
+        if (! Auth::user()->hasFullAccessScope('material_requests', 'update')) {
             abort_unless(
                 in_array($materialRequest->status, ['pending', 'changes_requested'], true),
                 403,
@@ -1089,7 +1099,7 @@ class MaterialRequestController extends Controller
 
     private function ensureWorksBelongToProject(array $data): void
     {
-        if (! Auth::user()->isRestrictedEngineer()) {
+        if (Auth::user()->hasFullAccessScope('material_requests', 'create')) {
             return;
         }
 
@@ -1103,5 +1113,20 @@ class MaterialRequestController extends Controller
                 'project_work_ids' => 'Todas las obras deben pertenecer al proyecto seleccionado.',
             ]);
         }
+    }
+
+    /** 403 si el usuario no puede ejecutar la acción de SOLMAT en ese proyecto (permiso y alcance de la matriz). */
+    private function ensureProjectAllowed(int $projectId, string $action): void
+    {
+        abort_unless(
+            Project::query()->whereKey($projectId)->visibleTo(Auth::user(), 'material_requests', $action)->exists(),
+            403
+        );
+    }
+
+    /** Archivar, desarchivar y borrar SOLMAT es de Almacén y admin; Gerente y Supervisor no (cancelar y sustituir). */
+    private function ensureWarehouseManages(): void
+    {
+        abort_unless(Auth::user()->hasFullAccessScope('material_requests', 'update'), 403);
     }
 }

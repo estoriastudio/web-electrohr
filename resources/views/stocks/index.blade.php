@@ -28,15 +28,21 @@
             <a href="{{ route('stocks.low_stock') }}" class="btn btn-sm btn-outline-danger">
                 <i class="ri-stock-line me-1"></i>Reporte bajo mínimo
             </a>
+            @can('stock_exits.view')
             <a href="{{ route('stocks.exits.calendar') }}" class="btn btn-sm btn-outline-info">
                 <i class="ri-calendar-check-line me-1"></i>Calendario de retornos
             </a>
+            @endcan
+            @can('stock_entries.view')
             <a href="{{ route('stocks.entries.index') }}" class="btn btn-sm btn-outline-primary">
                 <i class="ri-inbox-line me-1"></i>Entradas
             </a>
+            @endcan
+            @can('stock_exits.view')
             <a href="{{ route('stocks.exits.index') }}" class="btn btn-sm btn-outline-primary">
                 <i class="ri-arrow-right-circle-line me-1"></i>Salidas
             </a>
+            @endcan
         </div>
     </div>
 

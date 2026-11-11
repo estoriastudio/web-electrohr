@@ -71,10 +71,12 @@
                     <div class="text-muted fs-12">Valor</div>
                 </div>
                 <span class="badge {{ $ps['class'] }} py-1 px-3 fs-12">{{ $ps['label'] }}</span>
+                @can('projects.create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateWork">
                     <i class="ri-add-line me-1"></i> Nueva Obra
                 </button>
+                @endcan
             </div>
         </div>
     </div>
@@ -82,6 +84,8 @@
 
 @include('projects._estimates')
 
+{{-- Documentación y convenios: solo quien edita el proyecto (decisión 2026-11-10). --}}
+@can('projects.update')
 {{-- ══════════════════════════════════════════════════════════════
      CHECKLIST DOCUMENTAL DEL PROYECTO
 ══════════════════════════════════════════════════════════════════ --}}
@@ -101,9 +105,9 @@
                         <th>Documento</th>
                         <th>Fecha subida</th>
                         <th>Archivo</th>
-                        @role('admin|Proyectos')
+                        @can('projects.update')
                         <th>Acción</th>
-                        @endrole
+                        @endcan
                     </tr>
                 </thead>
                 <tbody>
@@ -119,11 +123,11 @@
                             data-bs-toggle="collapse"
                             data-bs-target=".doc-group-{{ $catKey }}"
                             aria-expanded="false">
-                            @role('admin|Proyectos')
+                            @can('projects.update')
                             <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                             @else
                             <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
-                            @endrole
+                            @endcan
                                 <i class="ri-folder-2-line me-1"></i>{{ $category['label'] }}
                                 <span id="docCatBadge_{{ $catKey }}">
                                     @include('projects._document_category_badge', ['uploaded' => $docsUploaded, 'applicable' => $docsTotal])
@@ -142,24 +146,24 @@
                         data-bs-toggle="collapse"
                         data-bs-target=".doc-group-agreements"
                         aria-expanded="false">
-                        @role('admin|Proyectos')
+                        @can('projects.update')
                         <td colspan="5" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
                         @else
                         <td colspan="4" class="fw-semibold text-uppercase fs-12 text-muted py-2 ps-3">
-                        @endrole
+                        @endcan
                             <i class="ri-file-edit-line me-1"></i>Convenios
                             <span class="badge bg-primary-subtle text-primary fw-normal">{{ $project->agreements->count() }}</span>
                             <i class="ri-arrow-down-s-line float-end me-2 category-chevron"></i>
                         </td>
                     </tr>
                     <tr class="collapse doc-group-agreements">
-                        @role('admin|Proyectos')
+                        @can('projects.update')
                         <td colspan="5" class="p-0">
                         @else
                         <td colspan="4" class="p-0">
-                        @endrole
+                        @endcan
             <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 px-3 py-2">
-                @role('admin|Proyectos')
+                @can('projects.update')
                     @if ($project->works->isNotEmpty())
                         <button type="button" class="btn btn-sm btn-primary"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateProjectAgreement">
@@ -170,7 +174,7 @@
                             <i class="ri-add-line me-1"></i> Agregar nuevo convenio
                         </button>
                     @endif
-                @endrole
+                @endcan
             </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0 table-centered">
@@ -228,7 +232,7 @@
 </div>
 
 {{-- ── Modales de subida (uno por tipo de documento) ─────────────────── --}}
-@role('admin|Proyectos')
+@can('projects.update')
 @foreach ($docCategories as $catKey => $category)
     @foreach ($category['docs'] as $dt => $dtLabel)
         @php $docRecord = $project->documents->firstWhere('document_type', $dt); @endphp
@@ -283,9 +287,9 @@
         </div>
     @endforeach
 @endforeach
-@endrole
+@endcan
 
-@role('admin|Proyectos')
+@can('projects.update')
 @php
     $defaultAgreementAmount = number_format((float) ($project->current_agreement_value ?? $project->project_value), 2, '.', '');
     $selectedAgreementWorkIds = old('work_ids', []);
@@ -417,7 +421,8 @@
         </div>
     </div>
 </div>
-@endrole
+@endcan
+@endcan
 
 
 {{-- ══════════════════════════════════════════════════════════════
@@ -434,10 +439,12 @@
         <div class="card-body text-center text-muted py-5">
             <i class="ri-building-2-line fs-36 d-block mb-2 opacity-50"></i>
             <p class="mb-0">Este proyecto aún no tiene obras registradas.</p>
+            @can('projects.create')
             <button type="button" class="btn btn-sm btn-primary mt-3"
                     data-bs-toggle="modal" data-bs-target="#modalCreateWork">
                 <i class="ri-add-line me-1"></i> Nueva Obra
             </button>
+            @endcan
         </div>
     </div>
 @else
@@ -518,6 +525,7 @@
                                    class="btn btn-light btn-sm" title="Ver detalle">
                                     <i class="ri-eye-line"></i>
                                 </a>
+                                @can('projects.update')
                                 <a href="{{ route('project_works.edit', $work) }}"
                                    class="btn btn-soft-primary btn-sm" title="Editar">
                                     <i class="ri-edit-line"></i>
@@ -531,6 +539,7 @@
                                         <i class="ri-delete-bin-line"></i>
                                     </button>
                                 </form>
+                                @endcan
                             </div>
                         </div>
                     </div>
@@ -541,6 +550,7 @@
 @endif
 
 
+@can('projects.create')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Nueva Obra
 ══════════════════════════════════════════════════════════════════ --}}
@@ -651,6 +661,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @endsection
 

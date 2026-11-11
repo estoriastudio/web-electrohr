@@ -9,6 +9,9 @@ use App\Models\NotificationRecipient;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\PurchaseRequestChangeNote;
+use App\Models\User;
+use App\Services\AccessMatrix;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,7 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(AccessMatrix::class, fn () => new AccessMatrix(
+            database_path('data/access_matrix.php'),
+        ));
     }
 
     /**
@@ -27,16 +32,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // admin es el superusuario: pasa cualquier permiso o Policy, incluido autorizar.
+        Gate::before(fn (User $user) => $user->hasRole('admin') ? true : null);
+
         View::composer('layouts.partials._navbar', function ($view) {
             $supplier = auth()->user()?->supplier;
             $hasMaterialVouchers = $supplier !== null
                 && MaterialVoucher::where('supplier_id', $supplier->id)->exists();
             $currentUser = auth()->user();
-            $activeProjectsCount = Project::where('status', 'active')
-                ->when(! $currentUser?->hasRole('admin'), function ($query) use ($currentUser) {
-                    $currentUser ? $query->assignedTo($currentUser) : $query->whereRaw('1 = 0');
-                })
-                ->count();
+            // Proyectos lo ve quien consulta todos los proyectos; Mis Proyectos, quien tiene proyectos asignados
+            // o solo puede ver los suyos (Gerente y Supervisor).
+            $canSeeAllProjects = $currentUser !== null && app(AccessMatrix::class)->hasFullScope($currentUser, 'projects');
+            $showMyProjects = $currentUser !== null && $currentUser->can('projects.view')
+                && (! $canSeeAllProjects || $currentUser->hasAssignedProjects());
+            $activeProjectsCount = $canSeeAllProjects ? Project::where('status', 'active')->count() : 0;
+            $myActiveProjectsCount = $showMyProjects
+                ? Project::where('status', 'active')->assignedTo($currentUser)->count()
+                : 0;
             $paymentsToAuthorizeCount = Payment::query()
                 ->whereIn('status', ['por_autorizar', 'pospuesto'])
                 ->whereHas('milestone', function ($query) {
@@ -53,17 +65,22 @@ class AppServiceProvider extends ServiceProvider
                     $query->whereNull('archived_at');
                 })
                 ->count();
-            $materialRequestChangesPendingCount = MaterialRequestChangeNote::query()
-                ->where('note_type', 'change_request')
-                ->whereNull('resolved_at')
-                ->whereHas('materialRequest', function ($query) {
-                    $query->whereNull('archived_at');
-                })
-                ->count();
+            $materialRequestChangesPendingCount = $currentUser?->can('material_request_changes.view')
+                ? MaterialRequestChangeNote::query()
+                    ->where('note_type', 'change_request')
+                    ->whereNull('resolved_at')
+                    ->whereHas('materialRequest', function ($query) use ($currentUser) {
+                        $query->whereNull('archived_at')->visibleTo($currentUser, 'material_requests');
+                    })
+                    ->count()
+                : 0;
 
             $view->with(compact(
                 'hasMaterialVouchers',
                 'activeProjectsCount',
+                'canSeeAllProjects',
+                'showMyProjects',
+                'myActiveProjectsCount',
                 'paymentsToAuthorizeCount',
                 'paymentsToPayCount',
                 'purchaseRequestChangesPendingCount',

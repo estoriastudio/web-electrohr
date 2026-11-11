@@ -1,5 +1,8 @@
 @php
+    // Mis Proyectos es de solo consulta. En Proyectos, los archivos son de quien edita (decisión 2026-11-10).
     $engineerView = $engineerView ?? false;
+    $canCreateEstimates = ! $engineerView && auth()->user()->can('projects.create');
+    $canManageEstimates = ! $engineerView && auth()->user()->can('projects.update');
     $estimateTypeMap = [
         'estimacion' => ['label' => 'Estimación', 'class' => 'bg-primary-subtle text-primary'],
         'nota_credito' => ['label' => 'Nota de Crédito', 'class' => 'bg-danger-subtle text-danger'],
@@ -32,9 +35,11 @@
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center border-bottom">
         <h5 class="card-title mb-0"><i class="ri-funds-line me-1 text-muted"></i> Estimaciones</h5>
-        <a href="{{ route($engineerView ? 'my-projects.estimates.create' : 'projects.estimates.create', $project) }}" class="btn btn-sm btn-primary">
+        @if ($canCreateEstimates)
+        <a href="{{ route('projects.estimates.create', $project) }}" class="btn btn-sm btn-primary">
             <i class="ri-add-line me-1"></i> Registrar estimación
         </a>
+        @endif
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -43,15 +48,17 @@
                     <tr>
                         <th>EST</th>
                         <th>FACT</th>
-                        @unless ($engineerView)
+                        @if ($canManageEstimates)
                         <th>Archivos</th>
-                        @endunless
+                        @endif
                         <th class="text-end">IMP. EST</th>
                         <th class="text-end">ALCANCE LIQ.</th>
                         <th>FECHA PAGO</th>
                         <th>ESTATUS</th>
                         <th>Tipo</th>
+                        @if ($canManageEstimates)
                         <th class="text-end">Acciones</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -66,7 +73,7 @@
                                 <div>{{ $estimate->invoice_number ?: '—' }}</div>
                                 <small class="text-muted fs-12">{{ $estimate->invoice_date?->format('d/m/Y') ?? '—' }}</small>
                             </td>
-                            @unless ($engineerView)
+                            @if ($canManageEstimates)
                             <td class="text-nowrap">
                                 <div class="d-flex gap-1">
                                     @foreach ($estimateDocuments as $document => $definition)
@@ -139,24 +146,23 @@
                                     @endforeach
                                 </div>
                             </td>
-                            @endunless
+                            @endif
                             <td class="text-end fw-medium text-nowrap">{{ $estimateCurrency }} {{ number_format((float) $estimate->estimate_amount, 2) }}</td>
                             <td class="text-end fw-semibold text-success text-nowrap">{{ $estimateCurrency }} {{ number_format($estimate->liquid_amount, 2) }}</td>
                             <td class="text-muted fs-13 text-nowrap">{{ $estimate->payment_date?->format('d/m/Y') ?? '—' }}</td>
                             <td><span class="badge {{ $status['class'] }} py-1 px-2 fs-12">{{ $status['label'] }}</span></td>
                             <td><span class="badge {{ $type['class'] }} py-1 px-2 fs-12">{{ $type['label'] }}</span></td>
+                            @if ($canManageEstimates)
                             <td>
                                 <div class="d-flex justify-content-end gap-2">
-                                    @unless ($engineerView)
                                     <button type="button" class="btn btn-soft-secondary btn-sm"
                                             title="Gestionar archivos" data-bs-toggle="modal"
                                             data-bs-target="#modalEstimateDocuments{{ $estimate->id }}">
                                         <i class="ri-attachment-2"></i>
                                     </button>
-                                    @endunless
                                     <button type="button" class="btn btn-soft-primary btn-sm js-edit-estimate"
                                             title="Editar estimación" data-bs-toggle="modal" data-bs-target="#modalEditEstimate"
-                                            data-url="{{ route($engineerView ? 'my-projects.estimates.update' : 'projects.estimates.update', $estimate) }}"
+                                            data-url="{{ route('projects.estimates.update', $estimate) }}"
                                             data-number="{{ $estimate->estimate_number }}"
                                             data-date="{{ $estimate->estimate_date->format('Y-m-d') }}"
                                             data-type="{{ $estimate->type }}"
@@ -177,19 +183,18 @@
                                             data-notes="{{ $estimate->notes }}">
                                         <i class="ri-edit-line"></i>
                                     </button>
-                                    @unless ($engineerView)
                                     <form action="{{ route('projects.estimates.destroy', $estimate) }}" method="POST" onsubmit="return confirm('¿Eliminar esta estimación?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-soft-danger btn-sm" title="Eliminar estimación"><i class="ri-delete-bin-line"></i></button>
                                     </form>
-                                    @endunless
                                 </div>
                             </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $engineerView ? 8 : 9 }}" class="text-center text-muted py-4">
+                            <td colspan="{{ $canManageEstimates ? 9 : 7 }}" class="text-center text-muted py-4">
                                 <i class="ri-funds-line fs-24 d-block mb-1 opacity-50"></i>
                                 Sin estimaciones registradas aún.
                             </td>
@@ -199,10 +204,10 @@
                 @if ($project->estimates->isNotEmpty())
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="{{ $engineerView ? 2 : 3 }}" class="fw-semibold">Totales: Estimaciones y Notas de Crédito</td>
+                            <td colspan="{{ $canManageEstimates ? 3 : 2 }}" class="fw-semibold">Totales: Estimaciones y Notas de Crédito</td>
                             <td class="text-end fw-semibold text-nowrap">{{ $estimateCurrency }} {{ number_format($tableEstimateTotal, 2) }}</td>
                             <td class="text-end fw-semibold text-success text-nowrap">{{ $estimateCurrency }} {{ number_format($tableLiquidTotal, 2) }}</td>
-                            <td colspan="4"></td>
+                            <td colspan="{{ $canManageEstimates ? 4 : 3 }}"></td>
                         </tr>
                     </tfoot>
                 @endif
@@ -223,6 +228,7 @@
     </div>
 </div>
 
+@if ($canManageEstimates)
 <div class="modal fade" id="modalEditEstimate" tabindex="-1" aria-labelledby="modalEditEstimateLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <form id="formEditEstimate" action="" method="POST" class="h-100">
@@ -238,11 +244,10 @@
     </div>
 </div>
 
-@unless ($engineerView)
 @foreach ($project->estimates as $estimate)
     @include('estimates._documents_modal', ['estimate' => $estimate])
 @endforeach
-@endunless
+@endif
 
 @push('styles')
 <style>
@@ -260,6 +265,7 @@
 </style>
 @endpush
 
+@if ($canManageEstimates)
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -400,3 +406,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
+@endif

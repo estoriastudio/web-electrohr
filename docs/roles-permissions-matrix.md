@@ -4,6 +4,161 @@ Este archivo es la fuente de referencia para la matriz de acceso por rol.
 
 Cuando se agreguen o cambien roles, actualiza este archivo primero.
 
+## Matriz Objetivo (en transición)
+
+> Estado: **Fase 2, en curso**. Ya existen los permisos y roles nuevos. **Recursos Humanos**, **Proyectos / Mis Proyectos** y **Almacén** (SOLMAT, Pila SOLMAT, Inventario y Vales) ya usan los permisos de la matriz (ver las secciones "Fase 2"). Los demás módulos todavía usan los roles de "Roles Vigentes" y pasarán a los permisos nuevos uno por uno.
+
+La matriz objetivo vive en [`database/data/access_matrix.php`](../database/data/access_matrix.php). Se generó desde el Excel "Matriz usuarios × vistas del ERP" (hojas «admin» y «Vistas que faltan», con las respuestas V-01 a V-21) y luego se le aplicaron las decisiones de abajo. Para cambiar un permiso, se cambia ese archivo y se vuelve a correr el seeder.
+
+### Piezas (Fase 1)
+
+- `App\Services\AccessMatrix` lee la matriz:
+  - `permissionsFor($perfil)` da los permisos de un perfil;
+  - `scopesFor($user, $vista, $acción)` da el alcance que le toca al usuario (`all`, una lista de alcances o ninguno). Si alguno de sus roles no tiene restricción, gana `all`;
+  - `hiddenFieldsFor($user, $vista)` da los campos que no debe ver. Un campo se oculta solo si todos los roles del usuario que le dan acceso lo ocultan.
+- `AccessMatrixSeeder` crea los permisos `{vista}.{acción}` y los roles nuevos, y asigna a cada rol sus permisos. Es idempotente. Conserva los permisos CRUD heredados (`create`, `read`, `update`, `delete`) de los roles que ya los tenían, porque el menú actual depende de ellos. También borra los permisos `{vista}.{acción}` que ya no estén en la matriz. Ya lo llama `DatabaseSeeder`.
+- `admin` pasa cualquier verificación de permisos o Policy (`Gate::before` en `AppServiceProvider`).
+- `php artisan access:migrate-users` asigna a cada usuario los roles nuevos según `legacy_roles`:
+  - sin opciones, solo muestra el plan;
+  - con `--apply`, asigna los roles faltantes **sin quitar los anteriores**;
+  - con `--csv=ruta`, guarda el plan completo.
+
+Orden para aplicarlo en un servidor:
+
+```bash
+php artisan db:seed --class=AccessMatrixSeeder
+php artisan access:migrate-users --csv=storage/app/plan-roles.csv
+php artisan access:migrate-users --apply
+```
+
+El CSV incluye nombres y correos; no se versiona.
+
+**Antes de desplegar cualquier módulo de la Fase 2** hay que correr el seeder y `access:migrate-users --apply` en ese servidor. Si no, los usuarios que solo tienen roles anteriores (por ejemplo, `Engineer`) pierden el acceso a ese módulo.
+
+Contenido:
+
+- 13 perfiles de usuario, cada uno con su rol de Spatie (tabla de abajo).
+- 47 vistas: 42 existentes y 5 nuevas que exige el proceso.
+- 234 celdas perfil × vista. Cada celda trae el texto original del Excel, las acciones permitidas y, cuando aplica, su alcance, los campos ocultos, si solo recibe notificación y las acciones que el ERP aún no soporta.
+- Permisos con el formato `{vista}.{acción}`. Acciones: `view`, `create`, `update`, `cancel`, `authorize`, `register`, `download`. La N del Excel no es un permiso: es la lista de quién recibe notificación.
+- Alcances: `assigned_projects`, `assigned_works`, `assigned_workers`, `own_buyer`, `own_supplier`.
+
+### Perfiles y roles
+
+| Perfil | Rol | Estado | Viene de |
+|---|---|---|---|
+| ADM | `admin` | existe | — |
+| DIR | `Dirección` | nuevo | — |
+| GER | `Gerente de Proyecto` | nuevo | `Engineer` |
+| SUP | `Supervisor` | nuevo | `Engineer` |
+| CON | `Contratos` | nuevo | `Proyectos` |
+| ALM | `Almacén` | nuevo | `Solmat`, `Inventario`, `Solcom`, `suministros` |
+| ALM-A | `Almacén Autoriza` | nuevo | — |
+| COM | `Orden de compra` | existe | — |
+| PAG | `Pagos` | existe | — |
+| PRV | `supplier_portal_access` | existe | — |
+| RH | `Recursos Humanos` | existe | — |
+| MOV | `Moviles` | existe | — |
+| REC | `Recepción` | existe | — (permisos por definir) |
+
+Se eliminan: `Engineer`, `Solmat`, `Inventario`, `Solcom`, `suministros`, `Proyectos`, `Proveedor` y `Ayudante Movil`.
+
+### Decisiones (2026-11-10)
+
+- **Almacén:** `Solmat`, `Inventario`, `Solcom` y `suministros` se unifican en un solo rol. Almacén ve y edita todas las SOLMAT. La regla "cancelar y sustituir, no editar" solo aplica a los flujos de proyectos (GER/SUP).
+- **Gerente y Supervisor:** son roles separados, porque sus permisos difieren. Por ejemplo, el Gerente autoriza los cambios de SOLMAT que pide el Supervisor.
+- **Dirección:** el Director General tiene usuario propio con el rol `Dirección` y deja de entrar como admin. **Admin también autoriza:** es el webmaster y superusuario. Cada autorización guarda quién la hizo.
+- **Contratos:** da de alta Proyectos y Obras, y también carga documentación contractual y estimaciones.
+- **Vales de Material:** Móviles los opera igual que Almacén (ver, crear, editar, descargar).
+- **Confirmación de entrega en obra:** será una pantalla nueva; no se amplía Recepción de OC.
+- **Recepción** se mantiene. El rol interno **Proveedor** se elimina: no da acceso a ninguna ruta, y el portal lo da `supplier_portal_access`.
+- **Recepción** queda fuera de este flujo: la matriz no le da permisos. Conserva su acceso actual (Alta de Facturas) mientras ese módulo siga con `role:`; cuando ese módulo pase a permisos, se le dará el permiso equivalente para no quitarle acceso.
+- **Estimaciones (Proyectos):** Gerente y Supervisor solo las consultan en Mis Proyectos, como dice la matriz; las cargan Contratos, Dirección y admin.
+- **Documentos del proyecto:** la documentación contractual, los convenios y los archivos y facturas de estimaciones son solo de quien edita Proyectos (Contratos, Dirección y admin). Los roles con solo V ven datos del proyecto, obras y estimaciones.
+- **SOLMAT:** Gerente, Supervisor y Almacén crean y editan SOLMAT. Gerente y Supervisor solo en sus proyectos y mientras esté Pendiente o con cambios; Almacén, todas. Solo el gerente del proyecto (y admin) la aprueba y envía a Almacén; Almacén ya no la envía.
+- **Inventario:** como dice la matriz, Almacén solo crea entradas y salidas. Corregir o borrar movimientos y ajustar existencias queda para admin.
+- **Acciones marcadas `( )` en el Excel** (Dirección autoriza Cambios SOLCOM y Órdenes de Compra; Gerente y Supervisor autorizan Hitos): se construyen en la Fase 4.
+- **Migración de usuarios:**
+  - Todos los usuarios `Solmat` pasan a Almacén. Los que están asignados a un proyecto (como gerente, o como supervisor o residente de obra) también reciben Supervisor.
+  - Excepción: los usuarios que tienen `Engineer` y `Solmat` no reciben Almacén. Se les asignan Gerente o Supervisor según la regla de `Engineer`.
+  - Los usuarios `Proyectos` pasan a Contratos.
+  - El rol `Ayudante Movil` se elimina, porque no está en el Excel.
+  - Antes de migrar, la lista de usuarios se vuelve a generar contra producción.
+
+### Criterio de vistas por rol
+
+Una vista se separa para un rol solo cuando se cumple al menos una de estas condiciones:
+
+1. El rol ve un subconjunto distinto de los registros.
+2. Hay campos que no debe ver, como el sueldo.
+3. Su tarea es distinta, como una bandeja de autorización.
+
+En los demás casos se usa la vista compartida, con permisos (`@can`) y filtros de alcance. Lo que limita los datos son la consulta del controlador y la Policy, no la vista.
+
+Espacios propios previstos:
+
+- **Obra (GER/SUP):** amplía `my-projects.*`.
+- **Bandeja de autorizaciones de Dirección.**
+- **Portal de proveedores:** ya existe.
+- **Autorización de Vales (ALM-A).**
+
+### Fase 2: Recursos Humanos
+
+Piezas nuevas, que reutilizarán los demás módulos:
+
+- `App\Models\Concerns\HasAccessScope`: un modelo que lo usa tiene `Modelo::visibleTo($user, $vista, $acción)` para filtrar consultas y `$modelo->isVisibleTo($user, $vista, $acción)` para revisar un registro. Ambos aplican el permiso y el alcance de la matriz. Hoy lo usan `ProjectWork`, `Worker`, `WorkerGroup`, `WorkerAttendance`, `WorkerVacation` e `Incentive`.
+- `User::assignedProjectWorkIds()`: obras donde el usuario es supervisor o residente, más las de los proyectos que gerencia (alcance `assigned_works`).
+- En `Controller`: `authorizeAccess($registro, $vista, $acción)` responde 403 si no hay acceso, y `visibleProjectWorks($vista, $acción)` da las obras que el usuario puede elegir en filtros y formularios.
+- `AccessMatrix::hasFullScope()` y `AccessMatrix::hidesField()`.
+
+Cambios de comportamiento:
+
+- Cada ruta de `human_resources.*` pide su permiso `hr_*.{acción}`. El menú muestra cada opción con `@can`.
+- **Gerente y Supervisor** ven solo los trabajadores, cuadrillas, asistencias, vacaciones e incentivos de sus obras. El Gerente también ve las obras de los proyectos que gerencia; antes solo contaban supervisor y residente.
+- **Gerente** puede crear y editar cuadrillas, pero solo en sus obras (permiso nuevo de la matriz).
+- **Gerente y Supervisor** ya no ven el sueldo, el historial de nómina ni los recibos de nómina. Antes un `Engineer` podía descargar los recibos.
+- **Dirección** consulta todo RRHH, incluido el sueldo, sin botones de edición. Destajo queda solo para RRHH, como dice la matriz.
+- **Exportar trabajadores** solo está disponible para quien ve a todos los trabajadores (RRHH, Dirección y admin).
+- Se corrigió un 403: el comprobante de una falta capturada en la vista de cuadrilla no se podía abrir desde un usuario de obra.
+
+Criterios aplicados al traducir rutas a permisos:
+
+- **Borrar o cancelar sin X en la matriz** (trabajadores, cuadrillas, asistencias, vacaciones, categorías, nómina, destajo e incentivos) usa el permiso de **editar**. Así RRHH conserva lo que ya podía hacer. Si se quiere restringir, hay que agregar X a la matriz.
+- **Capturar asistencia** en la vista de cuadrilla acepta crear o editar. RRHH solo tiene E en la matriz y hoy corrige asistencias desde ahí.
+- **Marcar nómina como pagada** usa editar nómina, no registrar (R), porque RRHH no tiene R. La autorización de nómina por Dirección (V-02) se construye en la Fase 4.
+- **Expediente y DC3:** quien puede ver al trabajador también descarga sus documentos; la D de la matriz no se exige aquí.
+- **Incentivos de Gerente y Supervisor** quedaron con alcance `assigned_workers`: proponen incentivos solo para su gente. El Excel no decía el alcance.
+
+### Fase 2: Proyectos
+
+- Cada ruta de `projects.*` y `project_works.*` pide `projects.view`, `projects.create` o `projects.update`. Borrar proyectos, obras y estimaciones usa editar (mismo criterio que RRHH).
+- **Proyectos** (`/proyectos`): `Project` y `ProjectWork` usan `HasAccessScope` con el alcance `assigned_projects`. Quien solo ve sus proyectos (Gerente y Supervisor) recibe el listado filtrado y 403 en proyectos u obras ajenos.
+- **Mis Proyectos** (`/mis-proyectos`) pide `projects.view` y siempre lista los proyectos asignados al usuario. Es de solo consulta: se quitaron las rutas `my-projects.estimates.*`.
+- **Menú:** "Proyectos" aparece a quien ve todos los proyectos (Dirección, Contratos, Almacén, Compras, Pagos, RRHH, Móviles y admin). "Mis Proyectos" aparece a Gerente y Supervisor, y a cualquier otro usuario que tenga proyectos asignados.
+- **Documentación y convenios** (tarjeta completa, subida, aplicabilidad y descarga de nombramientos) y **archivos y facturas de estimaciones** piden `projects.update`.
+- Gerente del proyecto y supervisor/residente de obra se eligen entre usuarios con `Gerente de Proyecto`, `Supervisor` o `Engineer` (este último mientras exista).
+- Cambio de comportamiento: los usuarios `Solmat` (ahora Almacén) ya no crean ni editan proyectos; solo los consultan, como dice la matriz.
+- Sin cambio en esta fase: `projects.search`, `works_json` y `works.search` (los usan los formularios de SOLMAT, SOLCOM y OC) y las pestañas SOLMAT, SOLCOM y OC de Mis Proyectos siguen con la regla de `Engineer` hasta que esos módulos pasen a permisos.
+
+### Fase 2: Almacén
+
+- **SOLMAT** (`material_requests.*`): cada ruta pide `material_requests.view`, `create`, `update` o `authorize`. Las rutas de detalle y PDF, que antes abría cualquier usuario, ahora piden `material_requests.view`.
+  - `MaterialRequest` usa `HasAccessScope` (alcance `assigned_projects`). Gerente y Supervisor ven, crean y editan solo SOLMAT de sus proyectos, y solo mientras estén Pendientes o con cambios. Archivar, desarchivar y borrar son de quien edita todas (Almacén y admin).
+  - "Aprobar y enviar a Almacén" pide `material_requests.authorize` (Gerente) y además ser gerente del proyecto. Admin siempre puede.
+  - El listado "SOLMATs" del menú es para quien ve todas; Gerente y Supervisor siguen en Mis Proyectos.
+- **Cambios SOLMAT:** el panel pide `material_request_changes.view` y se filtra por las SOLMAT que el usuario ve. Pedir y resolver cambios pide `material_request_changes.update` (Almacén). La solicitud del Supervisor con autorización del Gerente es flujo nuevo de la Fase 4.
+- **Pila SOLMAT:** `material_request_queue.view` (Almacén y Compras); comprometer existencias, `material_request_queue.update` (Almacén). Crear SOLCOM desde la pila pide `purchase_requests.create`: Compras ya no lo hace, como dice la matriz.
+- **Inventario:** Consulta pide `stocks.view` (Gerente, Dirección, Almacén, Almacén Autoriza y Compras; el Supervisor no, V-08). Entradas y Salidas piden `stock_entries.*` y `stock_exits.*`. Registrar el retorno de herramienta usa R de Salidas.
+- **Vales de Material:** `material_vouchers.*` (Almacén, Almacén Autoriza y Móviles operan; Dirección consulta). Imprimir pide D. Autorizar el vale (también por cambio de estatus) pide `material_voucher_authorizations.authorize`: solo **Almacén Autoriza** y admin.
+- Cambios de comportamiento a revisar:
+  - **Pagos** pierde Vales de Material (hoy marca Facturado y Pagado) y el detalle de SOLMAT. La matriz no le da esas vistas.
+  - **Compras** pierde Cambios SOLMAT y crear SOLCOM desde la pila.
+  - Nadie tiene todavía el rol **Almacén Autoriza**: hay que asignarlo a mano a quien autoriza vales. Mientras tanto, solo admin autoriza.
+
+### Pendientes
+
+- Generar la lista de usuarios con su perfil propuesto contra producción. En la base local no existen `Recepción` ni `Proveedor`.
+
 ## Roles Vigentes
 
 - admin
@@ -90,7 +245,7 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 
 - Engineer restringido = rol `Engineer` sin `admin`, `Proyectos` ni `Solmat`. Accede unicamente a proyectos donde es Supervisor o Residente de alguna obra (`project_works.supervisor_user_id` / `resident_user_id`).
 - Rutas `my-projects.*` (`/mis-proyectos`): pestanas Estimaciones y Obras, SOLMAT, SOLCOM y Ordenes de Compra, todas de solo lectura y filtradas por `project_id`. Proyecto ajeno responde 403.
-- Estimaciones: puede ver, crear y actualizar en sus proyectos; no elimina ni sube/descarga archivos. Documentacion y convenios del proyecto solo para `admin` y `Proyectos`.
+- Estimaciones: solo consulta en sus proyectos, sin archivos (desde la Fase 2 de Proyectos; antes creaba y actualizaba). Documentación y convenios del proyecto solo para quien tiene `projects.update`.
 - `show` y PDF de SOLMAT, SOLCOM y OC responden 403 si el registro no es de sus proyectos. El PDF de OC no esta disponible para Engineer y el detalle de OC oculta hitos, pagos, facturas y evidencias.
 - Ya no usa `projects.*` ni `obras.*`; `projects.search`, `works_json` y `works.search` se limitan a sus proyectos.
 - SOLMAT: la pestaña SOLMAT lista solo las del proyecto y permite crear (proyecto fijo, obras del mismo proyecto), editar encabezado, conceptos y observaciones de cualquier SOLMAT del proyecto mientras esté Pendiente o con Cambios Solicitados. No elimina ni archiva.
@@ -110,3 +265,8 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-09-30: Pagos accede tambien al listado completo de OC activas y archivadas, sin ampliar permisos de aprobacion o reasignacion.
 - 2026-10-10: Engineer pasa a Mis Proyectos (`my-projects.*`) de solo lectura acotado a sus proyectos; se retira de `projects.*` y `obras.*`.
 - 2026-10-12: Engineer crea y edita SOLMAT de sus proyectos; nuevo Gerente de Proyecto por proyecto; envío a Almacén solo para admin, Solmat y el gerente.
+- 2026-11-10: Fase 0 de la matriz objetivo: `database/data/access_matrix.php` generado del Excel "Matriz usuarios × vistas del ERP" con las decisiones de Almacén unificado, Gerente/Supervisor separados, Dirección con usuario propio, Contratos, eliminación del rol Proveedor y pantalla nueva de entrega en obra. Los roles vigentes no cambian todavía.
+- 2026-11-10: Fase 1: servicio `AccessMatrix`, `AccessMatrixSeeder` (permisos `{vista}.{acción}` y roles nuevos), `Gate::before` para admin y comando `access:migrate-users` (aditivo). Rutas y menú sin cambios.
+- 2026-11-10: Fase 2, Almacén: SOLMAT, Cambios SOLMAT, Pila SOLMAT, Inventario y Vales con permisos de la matriz; Gerente, Supervisor y Almacén crean SOLMAT, solo el gerente del proyecto la envía a Almacén, correcciones de inventario solo admin, autorización de vales para Almacén Autoriza. Requiere haber corrido `access:migrate-users --apply`.
+- 2026-11-10: Fase 2, Proyectos: rutas con permisos `projects.*`, alcance `assigned_projects` para Gerente y Supervisor, Mis Proyectos de solo consulta (sin crear ni editar estimaciones), documentos y convenios solo para quien edita y menú por alcance. Requiere haber corrido `access:migrate-users --apply`.
+- 2026-11-10: Fase 2, Recursos Humanos: rutas con permisos `hr_*`, filtros por obra con `HasAccessScope`, sueldo y recibos ocultos para Gerente y Supervisor, Dirección de solo consulta y menú con `@can`. Requiere haber corrido `access:migrate-users --apply`.

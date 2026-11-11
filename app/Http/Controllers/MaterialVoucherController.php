@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\MaterialVoucherItem;
 use App\Models\MaterialVoucher;
+use App\Models\MaterialVoucherItem;
 use App\Models\Project;
 use App\Models\Supplier;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Response;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -39,10 +39,10 @@ class MaterialVoucherController extends Controller
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
-                      $supplierQuery->where('rfc_name', 'like', "%{$search}%")
-                          ->orWhere('commercial_name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
+                        $supplierQuery->where('rfc_name', 'like', "%{$search}%")
+                            ->orWhere('commercial_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -121,11 +121,11 @@ class MaterialVoucherController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'supplier_id'       => 'required|exists:suppliers,id',
-            'project_id'        => 'nullable|exists:projects,id',
-            'project_work_id'   => 'nullable|exists:project_works,id',
-            'requester'         => 'required|string|max:255',
-            'initial_note'      => 'nullable|string|max:1000',
+            'supplier_id' => 'required|exists:suppliers,id',
+            'project_id' => 'nullable|exists:projects,id',
+            'project_work_id' => 'nullable|exists:project_works,id',
+            'requester' => 'required|string|max:255',
+            'initial_note' => 'nullable|string|max:1000',
         ]);
 
         $supplier = Supplier::findOrFail($data['supplier_id']);
@@ -133,43 +133,43 @@ class MaterialVoucherController extends Controller
         $folioData = $this->generateUniqueFolio($prefix);
 
         $observations = [];
-        if (!empty($data['initial_note'])) {
+        if (! empty($data['initial_note'])) {
             $observations[] = [
-                'user_id'    => Auth::id(),
-                'user_name'  => Auth::user()?->name,
-                'text'       => $data['initial_note'],
+                'user_id' => Auth::id(),
+                'user_name' => Auth::user()?->name,
+                'text' => $data['initial_note'],
                 'created_at' => now()->toDateTimeString(),
             ];
         }
 
         $voucher = MaterialVoucher::create([
-            'folio'                     => $folioData['folio'],
-            'folio_prefix'              => $prefix,
-            'folio_number'              => $folioData['number'],
-            'supplier_id'               => $data['supplier_id'],
-            'project_id'                => $data['project_id'] ?? null,
-            'project_work_id'           => $data['project_work_id'] ?? null,
-            'voucher_date'              => now()->toDateString(),
-            'requester'                 => $data['requester'],
-            'status'                    => 'emitido',
-            'authorized_by'             => null,
-            'authorized_at'             => null,
+            'folio' => $folioData['folio'],
+            'folio_prefix' => $prefix,
+            'folio_number' => $folioData['number'],
+            'supplier_id' => $data['supplier_id'],
+            'project_id' => $data['project_id'] ?? null,
+            'project_work_id' => $data['project_work_id'] ?? null,
+            'voucher_date' => now()->toDateString(),
+            'requester' => $data['requester'],
+            'status' => 'emitido',
+            'authorized_by' => null,
+            'authorized_at' => null,
             'authorized_signature_name' => null,
-            'authorized_signature'      => null,
-            'observations'              => $observations ?: null,
-            'created_by'                => Auth::id(),
+            'authorized_signature' => null,
+            'observations' => $observations ?: null,
+            'created_by' => Auth::id(),
         ]);
 
         $this->notification->send([
-            'type'         => 'MaterialVoucher',
-            'action_by'    => Auth::id(),
+            'type' => 'MaterialVoucher',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $voucher->id,
-            'data'         => 'creó un nuevo vale de material ' . $voucher->folio,
+            'model_id' => $voucher->id,
+            'data' => 'creó un nuevo vale de material '.$voucher->folio,
         ]);
 
         return redirect()->route('material_vouchers.show', $voucher)
-            ->with('success', 'Vale creado correctamente con folio ' . $voucher->folio . '.');
+            ->with('success', 'Vale creado correctamente con folio '.$voucher->folio.'.');
     }
 
     /**
@@ -205,29 +205,29 @@ class MaterialVoucherController extends Controller
      */
     public function update(Request $request, MaterialVoucher $materialVoucher): RedirectResponse
     {
-        if (!$this->isEditable($materialVoucher)) {
+        if (! $this->isEditable($materialVoucher)) {
             return redirect()->route('material_vouchers.show', $materialVoucher)
                 ->with('error', 'El vale ya fue autorizado y no permite modificaciones.');
         }
 
         $data = $request->validate([
-            'supplier_id'               => 'required|exists:suppliers,id',
-            'project_id'                => 'nullable|exists:projects,id',
-            'project_work_id'           => 'nullable|exists:project_works,id',
-            'voucher_date'              => 'required|date',
-            'requester'                 => 'nullable|string|max:255',
-            'status'                    => ['required', Rule::in(MaterialVoucher::STATUSES)],
+            'supplier_id' => 'required|exists:suppliers,id',
+            'project_id' => 'nullable|exists:projects,id',
+            'project_work_id' => 'nullable|exists:project_works,id',
+            'voucher_date' => 'required|date',
+            'requester' => 'nullable|string|max:255',
+            'status' => ['required', Rule::in(MaterialVoucher::STATUSES)],
             'authorized_signature_name' => 'nullable|string|max:255',
         ]);
 
         $materialVoucher->update($data);
 
         $this->notification->send([
-            'type'         => 'MaterialVoucher',
-            'action_by'    => Auth::id(),
+            'type' => 'MaterialVoucher',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $materialVoucher->id,
-            'data'         => 'actualizó la información del vale de material ' . $materialVoucher->folio,
+            'model_id' => $materialVoucher->id,
+            'data' => 'actualizó la información del vale de material '.$materialVoucher->folio,
         ]);
 
         return redirect()->route('material_vouchers.show', $materialVoucher)
@@ -239,7 +239,7 @@ class MaterialVoucherController extends Controller
      */
     public function destroy(MaterialVoucher $materialVoucher): RedirectResponse
     {
-        if (!$this->isEditable($materialVoucher)) {
+        if (! $this->isEditable($materialVoucher)) {
             return redirect()->route('material_vouchers.show', $materialVoucher)
                 ->with('error', 'El vale ya fue autorizado y no permite modificaciones.');
         }
@@ -249,11 +249,11 @@ class MaterialVoucherController extends Controller
         $materialVoucher->delete();
 
         $this->notification->send([
-            'type'         => 'MaterialVoucher',
-            'action_by'    => Auth::id(),
+            'type' => 'MaterialVoucher',
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => $materialVoucher->id,
-            'data'         => 'eliminó el vale de material ' . $folio,
+            'model_id' => $materialVoucher->id,
+            'data' => 'eliminó el vale de material '.$folio,
         ]);
 
         return redirect()->route('material_vouchers.index')
@@ -262,7 +262,7 @@ class MaterialVoucherController extends Controller
 
     public function storeItem(Request $request, MaterialVoucher $materialVoucher): RedirectResponse|JsonResponse
     {
-        if (!$this->isEditable($materialVoucher)) {
+        if (! $this->isEditable($materialVoucher)) {
             if ($request->wantsJson()) {
                 return response()->json([
                     'message' => 'Solo puedes agregar renglones cuando el vale está en estatus Emitido.',
@@ -274,8 +274,8 @@ class MaterialVoucherController extends Controller
         }
 
         $data = $request->validate([
-            'quantity'    => 'required|numeric|min:0.01|max:99999999.99',
-            'unit'        => 'required|string|max:50',
+            'quantity' => 'required|numeric|min:0.01|max:99999999.99',
+            'unit' => 'required|string|max:50',
             'description' => 'required|string|max:500',
         ]);
 
@@ -283,9 +283,9 @@ class MaterialVoucherController extends Controller
 
         if ($request->wantsJson()) {
             return response()->json([
-                'id'          => $item->id,
-                'quantity'    => (float) $item->quantity,
-                'unit'        => $item->unit,
+                'id' => $item->id,
+                'quantity' => (float) $item->quantity,
+                'unit' => $item->unit,
                 'description' => $item->description,
             ]);
         }
@@ -296,7 +296,7 @@ class MaterialVoucherController extends Controller
 
     public function destroyItem(Request $request, MaterialVoucher $materialVoucher, MaterialVoucherItem $item): RedirectResponse|JsonResponse
     {
-        if (!$this->isEditable($materialVoucher)) {
+        if (! $this->isEditable($materialVoucher)) {
             if ($request->wantsJson()) {
                 return response()->json([
                     'message' => 'El vale ya fue autorizado y no permite modificaciones.',
@@ -323,7 +323,7 @@ class MaterialVoucherController extends Controller
 
     public function storeObservation(Request $request, MaterialVoucher $materialVoucher): RedirectResponse
     {
-        if (!$this->isEditable($materialVoucher)) {
+        if (! $this->isEditable($materialVoucher)) {
             return redirect()->route('material_vouchers.show', $materialVoucher)
                 ->with('error', 'El vale ya fue autorizado y no permite modificaciones.');
         }
@@ -332,11 +332,11 @@ class MaterialVoucherController extends Controller
             'text' => 'required|string|max:1000',
         ]);
 
-        $observations   = $materialVoucher->observations ?? [];
+        $observations = $materialVoucher->observations ?? [];
         $observations[] = [
-            'user_id'    => Auth::id(),
-            'user_name'  => Auth::user()?->name,
-            'text'       => $data['text'],
+            'user_id' => Auth::id(),
+            'user_name' => Auth::user()?->name,
+            'text' => $data['text'],
             'created_at' => now()->toDateTimeString(),
         ];
 
@@ -359,19 +359,19 @@ class MaterialVoucherController extends Controller
         }
 
         $materialVoucher->update([
-            'status'                    => 'autorizado',
-            'authorized_by'             => Auth::id(),
-            'authorized_at'             => now(),
+            'status' => 'autorizado',
+            'authorized_by' => Auth::id(),
+            'authorized_at' => now(),
             'authorized_signature_name' => $data['signature_name'] ?: (Auth::user()?->name ?? null),
-            'authorized_signature'      => $data['signature_data'],
+            'authorized_signature' => $data['signature_data'],
         ]);
 
         $this->notification->send([
-            'type'         => 'MaterialVoucher',
-            'action_by'    => Auth::id(),
+            'type' => 'MaterialVoucher',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $materialVoucher->id,
-            'data'         => 'autorizó el vale de material ' . $materialVoucher->folio,
+            'model_id' => $materialVoucher->id,
+            'data' => 'autorizó el vale de material '.$materialVoucher->folio,
         ]);
 
         return redirect()->route('material_vouchers.show', $materialVoucher)
@@ -387,37 +387,40 @@ class MaterialVoucherController extends Controller
         $currentStatus = $materialVoucher->status;
         $targetStatus = $data['status'];
 
+        // Autorizar el vale es de Almacén Autoriza (matriz: material_voucher_authorizations.authorize).
+        abort_if($targetStatus === 'autorizado' && ! Auth::user()->can('material_voucher_authorizations.authorize'), 403);
+
         $allowedTransitions = [
-            'emitido'    => ['autorizado'],
+            'emitido' => ['autorizado'],
             'autorizado' => ['completado'],
             'completado' => ['facturado'],
-            'facturado'  => ['pagado'],
-            'pagado'     => [],
+            'facturado' => ['pagado'],
+            'pagado' => [],
         ];
 
-        if (!in_array($targetStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
+        if (! in_array($targetStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
             return redirect()->route('material_vouchers.show', $materialVoucher)
                 ->with('error', 'Transición de estatus inválida.');
         }
 
-        if ($targetStatus === 'autorizado' && !$materialVoucher->authorized_by) {
+        if ($targetStatus === 'autorizado' && ! $materialVoucher->authorized_by) {
             $materialVoucher->update([
-                'status'                    => 'autorizado',
-                'authorized_by'             => Auth::id(),
-                'authorized_at'             => now(),
+                'status' => 'autorizado',
+                'authorized_by' => Auth::id(),
+                'authorized_at' => now(),
                 'authorized_signature_name' => $materialVoucher->authorized_signature_name ?: (Auth::user()?->name ?? null),
-                'authorized_signature'      => $materialVoucher->authorized_signature ?: null,
+                'authorized_signature' => $materialVoucher->authorized_signature ?: null,
             ]);
         } else {
             $materialVoucher->update(['status' => $targetStatus]);
         }
 
         $this->notification->send([
-            'type'         => 'MaterialVoucher',
-            'action_by'    => Auth::id(),
+            'type' => 'MaterialVoucher',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $materialVoucher->id,
-            'data'         => 'actualizó el estatus del vale ' . $materialVoucher->folio . ' a ' . $targetStatus,
+            'model_id' => $materialVoucher->id,
+            'data' => 'actualizó el estatus del vale '.$materialVoucher->folio.' a '.$targetStatus,
         ]);
 
         return redirect()->route('material_vouchers.show', $materialVoucher)
@@ -431,7 +434,7 @@ class MaterialVoucherController extends Controller
         $pdf = Pdf::loadView('material_vouchers.pdf', compact('materialVoucher'))
             ->setPaper([0, 0, 396, 612], 'portrait');
 
-        return $pdf->download('VALE-' . $materialVoucher->folio . '.pdf');
+        return $pdf->download('VALE-'.$materialVoucher->folio.'.pdf');
     }
 
     private function buildSupplierPrefix(Supplier $supplier): string
@@ -482,20 +485,20 @@ class MaterialVoucherController extends Controller
                     ->where('id', $sequence->id)
                     ->update([
                         'last_number' => $nextNumber,
-                        'updated_at'  => now(),
+                        'updated_at' => now(),
                     ]);
             } else {
                 DB::table('material_voucher_folio_sequences')->insert([
-                    'prefix'      => $prefix,
+                    'prefix' => $prefix,
                     'last_number' => $nextNumber,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
             return [
                 'number' => $nextNumber,
-                'folio'  => sprintf('%s-%03d', $prefix, $nextNumber),
+                'folio' => sprintf('%s-%03d', $prefix, $nextNumber),
             ];
         }, 3);
     }

@@ -91,10 +91,12 @@
             <span class="badge {{ $s['class'] }} py-1 px-2 fs-12">{{ $s['label'] }}</span>
         </div>
         <div class="d-flex gap-2">
+            @can('material_vouchers.download')
             <a href="{{ route('material_vouchers.pdf', $materialVoucher) }}" class="btn btn-sm btn-light">
                 <i class="ri-printer-line me-1"></i> Imprimir
             </a>
-            @can('update')
+            @endcan
+            @can('material_vouchers.update')
             @if($canEditVoucher)
             <a href="{{ route('material_vouchers.edit', $materialVoucher) }}" class="btn btn-sm btn-soft-primary">
                 <i class="ri-edit-line me-1"></i> Editar
@@ -168,7 +170,7 @@
                                     <td>{{ $item->unit }}</td>
                                     <td>{{ $item->description }}</td>
                                     <td>
-                                        @can('delete')
+                                        @can('material_vouchers.update')
                                         @if($canEditVoucher)
                                         <form action="{{ route('material_vouchers.items.destroy', [$materialVoucher, $item]) }}" method="POST" class="mv-delete-form">
                                             @csrf
@@ -190,7 +192,7 @@
                     </table>
                 </div>
             </div>
-            @can('create')
+            @can('material_vouchers.update')
             @if($canEditVoucher)
             <div class="card-body border-top">
                 <form id="voucherItemForm" action="{{ route('material_vouchers.items.store', $materialVoucher) }}" method="POST" class="row g-2">
@@ -229,7 +231,7 @@
                 <h5 class="card-title mb-0"><i class="ri-shield-check-line me-1"></i> Flujo de estatus</h5>
             </div>
             <div class="card-body d-grid gap-2">
-                @if($materialVoucher->status === 'emitido')
+                @if($materialVoucher->status === 'emitido' && auth()->user()->can('material_voucher_authorizations.authorize'))
                     <form id="authorizeVoucherForm" action="{{ route('material_vouchers.authorize', $materialVoucher) }}" method="POST" class="d-grid gap-2">
                         @csrf
                         <input type="text" class="form-control form-control-sm" name="signature_name" value="{{ old('signature_name', $materialVoucher->authorized_signature_name) }}" placeholder="Nombre de firma del encargado">
@@ -248,7 +250,7 @@
                     </form>
                 @endif
 
-                @if($materialVoucher->status === 'autorizado')
+                @if($materialVoucher->status === 'autorizado' && auth()->user()->can('material_vouchers.update'))
                     <form action="{{ route('material_vouchers.status.update', $materialVoucher) }}" method="POST">
                         @csrf
                         @method('PATCH')
@@ -257,7 +259,7 @@
                     </form>
                 @endif
 
-                @if($materialVoucher->status === 'completado')
+                @if($materialVoucher->status === 'completado' && auth()->user()->can('material_vouchers.update'))
                     <form action="{{ route('material_vouchers.status.update', $materialVoucher) }}" method="POST">
                         @csrf
                         @method('PATCH')
@@ -266,7 +268,7 @@
                     </form>
                 @endif
 
-                @if($materialVoucher->status === 'facturado')
+                @if($materialVoucher->status === 'facturado' && auth()->user()->can('material_vouchers.update'))
                     <form action="{{ route('material_vouchers.status.update', $materialVoucher) }}" method="POST">
                         @csrf
                         @method('PATCH')
@@ -295,7 +297,7 @@
                     <p class="text-muted mb-2">Sin observaciones.</p>
                 @endforelse
 
-                @can('create')
+                @can('material_vouchers.update')
                 @if($canEditVoucher)
                 <form action="{{ route('material_vouchers.notes.store', $materialVoucher) }}" method="POST">
                     @csrf

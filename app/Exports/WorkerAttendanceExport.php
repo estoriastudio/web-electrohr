@@ -15,9 +15,9 @@ class WorkerAttendanceExport implements FromQuery, ShouldAutoSize, WithHeadings,
     public function __construct(
         private readonly string $startDate,
         private readonly string $endDate,
-        private readonly ?int $responsibleUserId,
-    ) {
-    }
+        /** null = todas las obras */
+        private readonly ?array $projectWorkIds,
+    ) {}
 
     public function query(): Builder
     {
@@ -31,12 +31,8 @@ class WorkerAttendanceExport implements FromQuery, ShouldAutoSize, WithHeadings,
                 Carbon::parse($this->startDate)->startOfDay(),
                 Carbon::parse($this->endDate)->endOfDay(),
             ])
-            ->when($this->responsibleUserId, function (Builder $query) {
-                $query->whereHas('workerGroup.projectWork', function (Builder $projectWorkQuery) {
-                    $projectWorkQuery->where('supervisor_user_id', $this->responsibleUserId)
-                        ->orWhere('resident_user_id', $this->responsibleUserId);
-                });
-            })
+            ->when($this->projectWorkIds !== null, fn (Builder $query) => $query
+                ->whereHas('workerGroup', fn (Builder $groupQuery) => $groupQuery->whereIn('project_work_id', $this->projectWorkIds)))
             ->orderBy('worker_group_id')
             ->orderBy('date')
             ->orderBy('worker_id');
@@ -63,7 +59,7 @@ class WorkerAttendanceExport implements FromQuery, ShouldAutoSize, WithHeadings,
             $attendance->workerGroup?->name ?? '',
             $attendance->workerGroup?->projectWork?->name ?? '',
             $attendance->date?->format('d/m/Y') ?? '',
-            trim(($attendance->worker?->first_name ?? '') . ' ' . ($attendance->worker?->last_name ?? '')),
+            trim(($attendance->worker?->first_name ?? '').' '.($attendance->worker?->last_name ?? '')),
             $attendance->role ?? '',
             $attendance->attended ? 'Show' : 'No show',
             $this->absenceReasonLabel($attendance->absence_reason),

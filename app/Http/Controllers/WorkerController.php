@@ -8,10 +8,10 @@ use App\Imports\WorkerTerminationImport;
 use App\Models\PayrollLine;
 use App\Models\PositionCategory;
 use App\Models\Worker;
-use App\Models\ProjectWork;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\AccessMatrix;
 use App\Services\NotificationService;
 use App\Services\WorkerTerminationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +36,9 @@ class WorkerController extends Controller
             $section = 'active';
         }
 
+        $user = Auth::user();
         $statusCounts = Worker::query()
+            ->visibleTo($user, 'hr_workers')
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -45,10 +47,11 @@ class WorkerController extends Controller
             'active' => (int) ($statusCounts['active'] ?? 0),
             'pre_registered' => (int) ($statusCounts['pre_registered'] ?? 0),
             'terminated' => (int) ($statusCounts['terminated'] ?? 0),
-            'without_project' => Worker::whereDoesntHave('groups', fn ($query) => $query->whereNull('worker_group_members.left_at'))->count(),
+            'without_project' => Worker::query()->visibleTo($user, 'hr_workers')->whereDoesntHave('groups', fn ($query) => $query->whereNull('worker_group_members.left_at'))->count(),
         ];
 
         $workers = Worker::query()
+            ->visibleTo($user, 'hr_workers')
             ->with([
                 'projectWork',
                 'positionCategory',
@@ -78,10 +81,13 @@ class WorkerController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $projectWorks = $this->visibleProjectWorks('hr_workers')->orderBy('name')->get();
         $positionCategories = PositionCategory::query()->where('active', true)->orderBy('name')->get();
 
+        $canExport = app(AccessMatrix::class)->hasFullScope($user, 'hr_workers');
+
         return view('human_resources.workers.index', compact(
+            'canExport',
             'workers',
             'projectWorks',
             'search',
@@ -99,6 +105,8 @@ class WorkerController extends Controller
 
     public function export()
     {
+        abort_unless(app(AccessMatrix::class)->hasFullScope(Auth::user(), 'hr_workers'), 403);
+
         return Excel::download(new WorkerExport, 'trabajadores.xlsx');
     }
 
@@ -161,8 +169,9 @@ class WorkerController extends Controller
 
     public function show(Worker $worker): View
     {
-        $this->ensureWorkerAccess($worker);
+        $this->authorizeAccess($worker, 'hr_workers');
         $canManageWorker = $this->canManageWorkers();
+        $canSeeSalary = ! app(AccessMatrix::class)->hidesField(Auth::user(), 'hr_workers', 'salary');
 
         $worker->load([
             'positionCategory',
@@ -180,12 +189,12 @@ class WorkerController extends Controller
                 ->orderByDesc('payroll_period_id'),
         ]);
 
-        return view('human_resources.workers.show', compact('worker', 'canManageWorker'));
+        return view('human_resources.workers.show', compact('worker', 'canManageWorker', 'canSeeSalary'));
     }
 
     public function downloadPayrollReceipt(Worker $worker, PayrollLine $payrollLine)
     {
-        $this->ensureWorkerAccess($worker);
+        $this->authorizeAccess($worker, 'hr_workers');
 
         abort_unless(
             (int) $payrollLine->worker_id === (int) $worker->id
@@ -287,7 +296,7 @@ class WorkerController extends Controller
 
     public function profilePhoto(Worker $worker): mixed
     {
-        $this->ensureWorkerAccess($worker);
+        $this->authorizeAccess($worker, 'hr_workers');
         $path = $worker->profile_photo_path;
 
         abort_unless($path && Storage::disk('s3')->exists($path), 404);
@@ -356,16 +365,7 @@ class WorkerController extends Controller
 
     private function canManageWorkers(): bool
     {
-        return Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
-    }
-
-    private function ensureWorkerAccess(Worker $worker): void
-    {
-        if ($this->canManageWorkers()) {
-            return;
-        }
-
-        abort_unless($worker->isAssignedToResponsibleWork(Auth::user()), 403);
+        return Auth::user()->can('hr_workers.update');
     }
 
     private function notify(object $model, string $action, string $data): void

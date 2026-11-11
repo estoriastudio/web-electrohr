@@ -29,6 +29,7 @@ class WorkerGroupController extends Controller
         $projectWorkId = $request->input('project_work_id', '');
 
         $workerGroups = WorkerGroup::query()
+            ->visibleTo(Auth::user(), 'hr_worker_groups')
             ->with('projectWork')
             ->withCount([
                 'activeMembers',
@@ -37,21 +38,11 @@ class WorkerGroupController extends Controller
             ->when($search, fn ($query) => $query->where('name', 'like', "%{$search}%"))
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($projectWorkId, fn ($query) => $query->where('project_work_id', $projectWorkId))
-            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
-                $query->whereHas('projectWork', function ($projectWorkQuery) {
-                    $projectWorkQuery->where('supervisor_user_id', Auth::id())
-                        ->orWhere('resident_user_id', Auth::id());
-                });
-            })
             ->orderBy('name')
             ->paginate(25)
             ->withQueryString();
 
-        $projectWorks = ProjectWork::query()
-            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
-                $query->where('supervisor_user_id', Auth::id())
-                    ->orWhere('resident_user_id', Auth::id());
-            })
+        $projectWorks = $this->visibleProjectWorks('hr_worker_groups')
             ->orderBy('name')
             ->get();
         $projects = Project::query()
@@ -69,7 +60,7 @@ class WorkerGroupController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $workerGroup = WorkerGroup::create($this->validatedData($request));
+        $workerGroup = WorkerGroup::create($this->validatedData($request, 'create'));
 
         $this->notify($workerGroup, 'create', "creó la cuadrilla {$workerGroup->name}.");
 
@@ -79,8 +70,8 @@ class WorkerGroupController extends Controller
 
     public function show(WorkerGroup $workerGroup): View
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups');
         $workerGroup->load(['projectWork', 'activeMembers.positionCategory', 'attendances.worker']);
-        $this->ensureResponsibleWorkAccess($workerGroup);
 
         $attendanceDate = today()->toDateString();
         $attendanceSummary = [
@@ -95,12 +86,8 @@ class WorkerGroupController extends Controller
             ? round(($attendanceSummary['present'] / $attendanceSummary['assigned']) * 100)
             : 0;
 
-        $canManageWorkerGroup = ! $this->requiresResponsibleWorkFilter();
-        $projectWorks = ProjectWork::query()
-            ->when(! $canManageWorkerGroup, function ($query) {
-                $query->where('supervisor_user_id', Auth::id())
-                    ->orWhere('resident_user_id', Auth::id());
-            })
+        $canManageWorkerGroup = $workerGroup->isVisibleTo(Auth::user(), 'hr_worker_groups', 'update');
+        $projectWorks = $this->visibleProjectWorks('hr_worker_groups', 'update')
             ->orderBy('name')
             ->get();
         $projects = Project::query()
@@ -113,16 +100,18 @@ class WorkerGroupController extends Controller
 
     public function edit(WorkerGroup $workerGroup): View
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
         $workerGroup->load('projectWork');
-        $projects = Project::orderBy('name')->get();
-        $projectWorks = ProjectWork::orderBy('name')->get();
+        $projectWorks = $this->visibleProjectWorks('hr_worker_groups', 'update')->orderBy('name')->get();
+        $projects = Project::query()->whereIn('id', $projectWorks->pluck('project_id'))->orderBy('name')->get();
 
         return view('human_resources.worker-groups.edit', compact('workerGroup', 'projects', 'projectWorks'));
     }
 
     public function update(Request $request, WorkerGroup $workerGroup): RedirectResponse
     {
-        $workerGroup->update($this->validatedData($request));
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
+        $workerGroup->update($this->validatedData($request, 'update'));
 
         $this->notify($workerGroup, 'update', "actualizó la cuadrilla {$workerGroup->name}.");
 
@@ -132,6 +121,8 @@ class WorkerGroupController extends Controller
 
     public function destroy(WorkerGroup $workerGroup): RedirectResponse
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
+
         if ($workerGroup->activeMembers()->exists()) {
             return redirect()->route('human_resources.worker-groups.show', $workerGroup)
                 ->with('error', 'No se puede eliminar una cuadrilla con integrantes activos.');
@@ -148,6 +139,8 @@ class WorkerGroupController extends Controller
 
     public function relocate(Request $request, WorkerGroup $workerGroup, WorkerGroupRelocationService $relocationService): RedirectResponse
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
+
         $data = $request->validate([
             'project_id' => 'required|exists:projects,id',
             'project_work_id' => 'required|exists:project_works,id',
@@ -164,6 +157,8 @@ class WorkerGroupController extends Controller
             ]);
         }
 
+        $this->ensureProjectWorkAllowed((int) $data['project_work_id'], 'update');
+
         $relocationService->relocate($workerGroup, (int) $data['project_work_id']);
 
         $this->notify($workerGroup, 'update', "reubicó la cuadrilla {$workerGroup->name}.");
@@ -174,6 +169,7 @@ class WorkerGroupController extends Controller
 
     public function searchEligibleMembers(Request $request, WorkerGroup $workerGroup): JsonResponse
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
         $search = trim((string) $request->input('q', ''));
 
         if (mb_strlen($search) < 2) {
@@ -206,6 +202,8 @@ class WorkerGroupController extends Controller
 
     public function addMember(Request $request, WorkerGroup $workerGroup, WorkerGroupMembershipService $membershipService): RedirectResponse|JsonResponse
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
+
         if ($workerGroup->status !== 'active') {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -255,6 +253,8 @@ class WorkerGroupController extends Controller
 
     public function removeMember(Request $request, WorkerGroup $workerGroup, Worker $worker, WorkerGroupMembershipService $membershipService): RedirectResponse
     {
+        $this->authorizeAccess($workerGroup, 'hr_worker_groups', 'update');
+
         $data = $request->validate([
             'left_at' => 'required|date',
         ]);
@@ -272,7 +272,7 @@ class WorkerGroupController extends Controller
             ->with('success', 'Integrante removido correctamente.');
     }
 
-    private function validatedData(Request $request): array
+    private function validatedData(Request $request, string $action): array
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
@@ -293,6 +293,8 @@ class WorkerGroupController extends Controller
             ]);
         }
 
+        $this->ensureProjectWorkAllowed((int) $data['project_work_id'], $action);
+
         unset($data['project_id']);
 
         return $data;
@@ -309,17 +311,13 @@ class WorkerGroupController extends Controller
         ]);
     }
 
-    private function requiresResponsibleWorkFilter(): bool
+    /** Con alcance por obra, solo puede crear o mover cuadrillas en obras a su cargo. */
+    private function ensureProjectWorkAllowed(int $projectWorkId, string $action): void
     {
-        return ! Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
-    }
-
-    private function ensureResponsibleWorkAccess(WorkerGroup $workerGroup): void
-    {
-        if (! $this->requiresResponsibleWorkFilter()) {
-            return;
+        if (! $this->visibleProjectWorks('hr_worker_groups', $action)->whereKey($projectWorkId)->exists()) {
+            throw ValidationException::withMessages([
+                'project_work_id' => 'No tienes acceso a la obra seleccionada.',
+            ]);
         }
-
-        abort_unless($workerGroup->projectWork?->isAttendanceResponsible(Auth::user()), 403);
     }
 }

@@ -6,7 +6,7 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    @if (auth()->user()->isRestrictedEngineer())
+    @if (! auth()->user()->hasFullAccessScope('material_requests'))
         <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
     @else
         <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>
@@ -88,14 +88,14 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
                         
-                        @hasanyrole('admin|Solmat|Engineer')
+                        @can('material_requests.update')
                         @if ($canEditSolmatContent)
                         <a href="{{ route('material_requests.edit', $materialRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
                         @endif
-                        @endhasanyrole
+                        @endcan
                         @if ($materialRequest->status === 'pending' && $materialRequest->canBeSentToWarehouseBy(auth()->user()))
                         <form action="{{ route('material_requests.send_to_warehouse', $materialRequest) }}"
                               method="POST" onsubmit="return confirm('¿Aprobar y enviar SOLMAT #{{ $materialRequest->folio }} a Almacén?')">
@@ -106,16 +106,16 @@
                         </form>
                         @endif
 
-                        @hasanyrole('admin|Solcom|Solmat')
+                        @can('material_request_changes.update')
                         @if ($materialRequest->status === 'sent_to_warehouse')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChangesSolmat">
                             <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
                         </button>
                         @endif
-                        @endhasanyrole
+                        @endcan
 
-                        <a href="{{ auth()->user()->isRestrictedEngineer() ? route('my-projects.show', $materialRequest->project_id) : route('material_requests.index') }}" class="btn btn-light btn-sm">
+                        <a href="{{ ! auth()->user()->hasFullAccessScope('material_requests') ? route('my-projects.show', $materialRequest->project_id) : route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
                     </div>
@@ -263,7 +263,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|Solmat|Engineer')
+                                        @can('material_requests.update')
                                         @if ($canEditSolmatContent)
                                         <div class="d-flex gap-1">
                                             @if ($item->workQuantities->isNotEmpty())
@@ -284,11 +284,11 @@
                                             </form>
                                         </div>
                                         @endif
-                                        @endhasanyrole
+                                        @endcan
                                     </td>
                                 </tr>
                                 @if ($item->workQuantities->isNotEmpty())
-                                    @hasanyrole('admin|Solmat|Engineer')
+                                    @can('material_requests.update')
                                     @if ($canEditSolmatContent)
                                         <tr class="bg-light-subtle solmat-breakdown-row d-none" id="solmat_breakdown_edit_{{ $item->id }}">
                                             <td colspan="7" class="py-2">
@@ -331,7 +331,7 @@
                                             </td>
                                         </tr>
                                     @endif
-                                    @endhasanyrole
+                                    @endcan
                                 @endif
                             @empty
                                 <tr id="solmat_empty_row">
@@ -346,7 +346,7 @@
             </div>
             
             {{-- ── Panel Agregar Concepto (siempre visible, mobile-first) ── --}}
-            @hasanyrole('admin|Solmat|Engineer')
+            @can('material_requests.update')
             @if ($canEditSolmatContent)
             <div class="border-top px-3 py-3" id="solmat_add_panel">
 
@@ -421,7 +421,7 @@
 
             </div>
             @endif
-            @endhasanyrole
+            @endcan
 
         </div>
     </div>
@@ -440,12 +440,12 @@
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
                         {{ $materialRequest->changeNotes->filter(fn ($note) => $note->isChangeRequest() && ! $note->isResolved())->count() }} pendiente(s)
                     </span>
-                    @unless (auth()->user()->isRestrictedEngineer())
+                    @if (auth()->user()->hasFullAccessScope('material_requests'))
                     <a href="{{ route('material_request_changes.index', ['search' => $materialRequest->folio]) }}"
                        class="btn btn-sm btn-light">
                         <i class="ri-external-link-line me-1"></i>Ver panel
                     </a>
-                    @endunless
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -475,7 +475,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @hasanyrole('admin|Solcom|Solmat')
+                                @can('material_request_changes.update')
                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -483,7 +483,7 @@
                                         <i class="ri-check-line me-1"></i>Marcar como resuelta
                                     </button>
                                 </form>
-                                @endhasanyrole
+                                @endcan
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
@@ -528,7 +528,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @hasanyrole('admin|Solmat|Engineer')
+                                    @can('material_requests.update')
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -547,12 +547,12 @@
                                             Eliminar
                                         </button>
                                     </form>
-                                    @endhasanyrole
+                                    @endcan
                                 </div>
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @hasanyrole('admin|Solmat|Engineer')
+                            @can('material_requests.update')
                             <div class="collapse mt-2" id="solmat_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('material_requests.notes.update', [$materialRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -563,7 +563,7 @@
                                     </div>
                                 </form>
                             </div>
-                            @endhasanyrole
+                            @endcan
                         </div>
                     </div>
                     <hr class="my-2">
@@ -572,7 +572,7 @@
                 @endforelse
 
                 {{-- Agregar nota --}}
-                @hasanyrole('admin|Solmat|Engineer')
+                @can('material_requests.update')
                 <form action="{{ route('material_requests.notes.store', $materialRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -587,14 +587,14 @@
                         </button>
                     </div>
                 </form>
-                @endhasanyrole
+                @endcan
             </div>
         </div>
     </div>
 </div>
 
 {{-- ── Modal: Solicitar Cambios ── --}}
-@hasanyrole('admin|Solcom|Solmat')
+@can('material_request_changes.update')
 <div class="modal fade" id="modalRequestChangesSolmat" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -628,7 +628,7 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endcan
 
 @endsection
 

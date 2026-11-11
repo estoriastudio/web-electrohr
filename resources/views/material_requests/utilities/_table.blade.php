@@ -130,22 +130,23 @@
                                                 </li>
                                                 @endif
                                             @endif
-                                            @hasanyrole('admin|Solmat')
-                                            @can('update')
+                                            {{-- En Mis Proyectos el enlace de editar ya va arriba, según el estatus. --}}
+                                            @if (! $isEngineerView)
+                                            @can('material_requests.update')
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('material_requests.edit', $mr) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
                                                 </a>
                                             </li>
                                             @endcan
-                                            @endhasanyrole
+                                            @endif
                                         @endif
                                         <li>
                                             <a class="dropdown-item" href="{{ route('material_requests.pdf', $mr) }}" target="_blank">
                                                 <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
                                             </a>
                                         </li>
-                                        @hasanyrole('admin|Solmat')
+                                        @if (auth()->user()->hasFullAccessScope('material_requests', 'update'))
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')
                                             <li>
@@ -168,7 +169,7 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @can('delete')
+                                        @can('material_requests.update')
                                         @if ($mode === 'index')
                                         <li>
                                             <form action="{{ route('material_requests.destroy', $mr) }}"
@@ -184,7 +185,7 @@
                                         </li>
                                         @endif
                                         @endcan
-                                        @endhasanyrole
+                                        @endif
                                     @endif
 
                                 </ul>
