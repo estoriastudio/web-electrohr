@@ -6,6 +6,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -22,6 +23,8 @@ class PurchaseOrderItemDeliveryTest extends TestCase
 
         Storage::fake();
         $this->seed(RolesAndPermissionsSeeder::class);
+        // Fase 2: Pagos y Recepción usan los permisos de la matriz.
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_partial_delivery_marks_items_stores_evidence_and_sets_partial_status(): void
@@ -183,7 +186,7 @@ class PurchaseOrderItemDeliveryTest extends TestCase
                 'quantities' => [$item->id => 6.5],
                 'delivery_evidence' => UploadedFile::fake()->create('remision.pdf', 50, 'application/pdf'),
             ])
-            ->assertSessionHasErrors('quantities.' . $item->id);
+            ->assertSessionHasErrors('quantities.'.$item->id);
         $this->assertEquals(4, $item->fresh()->delivered_quantity);
 
         $this->deliver($admin, $order, [$item->id]);
@@ -236,7 +239,7 @@ class PurchaseOrderItemDeliveryTest extends TestCase
             ->assertSee('50% entregado (1/2)', false)
             ->assertSee('Registrar entrega')
             ->assertSee('Historial de entregas')
-            ->assertSee('name="quantities[' . $b->id . ']"', false)
+            ->assertSee('name="quantities['.$b->id.']"', false)
             ->assertSee('title="Entrega pendiente"', false)
             ->assertDontSee('Cambiar entrega');
     }
@@ -251,7 +254,7 @@ class PurchaseOrderItemDeliveryTest extends TestCase
             $this->actingAs($user)
                 ->get(route('purchase_orders.delivery_report', ['search' => $order->folio]))
                 ->assertOk()
-                ->assertSee('#' . $order->folio)
+                ->assertSee('#'.$order->folio)
                 ->assertSee('Registrar entrega');
 
             $this->actingAs($user)
@@ -266,14 +269,14 @@ class PurchaseOrderItemDeliveryTest extends TestCase
         }
     }
 
-    public function test_inventory_cannot_access_the_purchase_order_listing_or_milestone_confirmation(): void
+    public function test_warehouse_consults_purchase_orders_and_reports_deliveries_but_payments_does_not(): void
     {
         $inventory = $this->user('Inventario');
 
-        $this->actingAs($inventory)->get(route('purchase_orders.index'))->assertForbidden();
+        // La matriz le da a Almacén V en Órdenes de Compra y R en Recepción de OC.
+        $this->actingAs($inventory)->get(route('purchase_orders.index'))->assertOk();
         $this->actingAs($inventory)->get(route('purchase_orders.delivery_report'))->assertOk()
-            ->assertSee('href="' . route('purchase_orders.delivery_report') . '"', false)
-            ->assertDontSee('href="' . route('purchase_orders.index') . '"', false);
+            ->assertSee('href="'.route('purchase_orders.delivery_report').'"', false);
         $this->actingAs($this->user('Pagos'))->get(route('purchase_orders.delivery_report'))->assertForbidden();
     }
 
@@ -288,10 +291,11 @@ class PurchaseOrderItemDeliveryTest extends TestCase
             ->assertSessionHasNoErrors();
     }
 
+    /** Usuarios como quedan tras access:migrate-users: Inventario y Solmat también tienen Almacén. */
     private function user(string $role): User
     {
         $user = User::factory()->create();
-        $user->assignRole($role);
+        $user->assignRole(in_array($role, ['Inventario', 'Solmat'], true) ? [$role, 'Almacén'] : [$role]);
 
         return $user;
     }

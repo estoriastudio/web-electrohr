@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -13,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseOrder extends Model
 {
-    use SoftDeletes;
+    use HasAccessScope, SoftDeletes;
 
     /** Diferencia máxima (en la moneda de la OC) que se considera saldada al facturar, pagar y cerrar. */
     public const AMOUNT_TOLERANCE = 0.50;
@@ -36,7 +38,7 @@ class PurchaseOrder extends Model
         'isr_rate',
         'retention_iva_rate',
         'retention_isr_rate',
-            'cedular_rate',
+        'cedular_rate',
         'status',
         'is_delivered',
         'delivery_status',
@@ -60,20 +62,20 @@ class PurchaseOrder extends Model
     ];
 
     protected $casts = [
-        'amount'                => 'decimal:2',
-        'tax_rate'              => 'decimal:2',
-        'isr_rate'              => 'decimal:4',
-        'retention_iva_rate'    => 'decimal:4',
-        'retention_isr_rate'    => 'decimal:4',
-            'cedular_rate'          => 'decimal:4',
-        'is_destajo'            => 'boolean',
-        'is_delivered'          => 'boolean',
+        'amount' => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'isr_rate' => 'decimal:4',
+        'retention_iva_rate' => 'decimal:4',
+        'retention_isr_rate' => 'decimal:4',
+        'cedular_rate' => 'decimal:4',
+        'is_destajo' => 'boolean',
+        'is_delivered' => 'boolean',
         'recurrence_start_date' => 'date',
-        'recurrence_end_date'   => 'date',
-        'observations'          => 'array',
-        'archived_at'           => 'datetime',
-        'authorized_at'         => 'datetime',
-        'closed_at'             => 'datetime',
+        'recurrence_end_date' => 'date',
+        'observations' => 'array',
+        'archived_at' => 'datetime',
+        'authorized_at' => 'datetime',
+        'closed_at' => 'datetime',
     ];
 
     public function scopeActive($query)
@@ -108,7 +110,7 @@ class PurchaseOrder extends Model
     {
         if ($this->is_closed) {
             throw ValidationException::withMessages([
-                'purchase_order' => 'La orden de compra #' . ($this->folio ?? $this->id) . ' está cerrada. Reábrela para modificarla.',
+                'purchase_order' => 'La orden de compra #'.($this->folio ?? $this->id).' está cerrada. Reábrela para modificarla.',
             ]);
         }
     }
@@ -121,6 +123,22 @@ class PurchaseOrder extends Model
     public function scopeOwnedBy($query, int $userId)
     {
         return $query->where('purchase_orders.buyer_id', $userId);
+    }
+
+    /** Alcances de la matriz: Compras ve sus OC; Gerente y Supervisor, las de sus proyectos; el proveedor, las suyas. */
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'own_buyer' => $query->where('purchase_orders.buyer_id', $user->id),
+            'assigned_projects' => $query->where(function (Builder $projects) use ($user) {
+                $assigned = Project::query()->assignedTo($user)->select('projects.id');
+                $projects->whereIn('purchase_orders.project_id', $assigned)
+                    ->orWhereHas('workRelation', fn (Builder $works) => $works->whereIn('project_id', $assigned))
+                    ->orWhereHas('purchaseRequest', fn (Builder $requests) => $requests->whereIn('project_id', $assigned));
+            }),
+            'own_supplier' => $query->where('purchase_orders.supplier_id', $user->supplier?->id ?? 0),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 
     public function buyer(): BelongsTo
@@ -276,30 +294,35 @@ class PurchaseOrder extends Model
     public function getTaxAmountAttribute(): float
     {
         $rate = (float) ($this->tax_rate ?? 0);
+
         return round($this->subtotal * ($rate / 100), 2);
     }
 
     public function getIsrAmountAttribute(): float
     {
         $rate = (float) ($this->isr_rate ?? 0);
+
         return round($this->subtotal * ($rate / 100), 2);
     }
 
     public function getRetentionIvaAmountAttribute(): float
     {
         $rate = (float) ($this->retention_iva_rate ?? 0);
+
         return round($this->subtotal * ($rate / 100), 2);
     }
 
     public function getRetentionIsrAmountAttribute(): float
     {
         $rate = (float) ($this->retention_isr_rate ?? 0);
+
         return round($this->subtotal * ($rate / 100), 2);
     }
 
     public function getCedularAmountAttribute(): float
     {
         $rate = (float) ($this->cedular_rate ?? 0);
+
         return round($this->subtotal * ($rate / 100), 2);
     }
 

@@ -141,7 +141,7 @@ class EngineerProjectAccessTest extends TestCase
             ->get(route('purchase_orders.show', $purchaseOrder))
             ->assertOk()
             ->assertDontSee('hitos-container', false)
-            ->assertDontSee('Facturas')
+            ->assertDontSee('Subir factura')
             ->assertDontSee('Evidencias')
             ->assertDontSee('Cubierto')
             ->assertDontSee('Generar PDF')
@@ -174,7 +174,8 @@ class EngineerProjectAccessTest extends TestCase
         $this->delete(route('purchase_orders.destroy', $purchaseOrder))->assertForbidden();
         $this->post(route('milestones.store'), [])->assertForbidden();
         $this->post(route('invoices.store'), [])->assertForbidden();
-        $this->post(route('evidences.store'), [])->assertForbidden();
+        // La matriz sí le da al Supervisor subir evidencias (V C); aquí solo falla la validación.
+        $this->post(route('evidences.store'), [])->assertSessionHasErrors('purchase_order_id');
     }
 
     public function test_supervisor_only_consults_estimates_of_own_projects(): void
@@ -263,7 +264,8 @@ class EngineerProjectAccessTest extends TestCase
 
         $this->actingAs($manager)->get(route('projects.index'))->assertOk()->assertSee('Proyecto cualquiera');
         $this->get(route('projects.show', $project))->assertOk();
-        $this->get(route('purchase_orders.show', $this->purchaseOrder($project, 9001)))->assertOk();
+        // La matriz no le da a Contratos la vista de OC.
+        $this->get(route('purchase_orders.show', $this->purchaseOrder($project, 9001)))->assertForbidden();
     }
 
     private function engineer(): User

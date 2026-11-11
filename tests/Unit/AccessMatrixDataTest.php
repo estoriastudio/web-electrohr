@@ -37,6 +37,11 @@ class AccessMatrixDataTest extends TestCase
                 if (isset($cell['scope'])) {
                     $this->assertArrayHasKey($cell['scope'], $data['scopes'], "{$view}.{$profile}");
                 }
+
+                foreach ($cell['action_scopes'] ?? [] as $action => $scope) {
+                    $this->assertContains($action, $cell['actions'], "{$view}.{$profile}");
+                    $this->assertArrayHasKey($scope, $data['scopes'], "{$view}.{$profile}");
+                }
             }
         }
     }
@@ -74,7 +79,8 @@ class AccessMatrixDataTest extends TestCase
         $this->assertNotContains('stocks.view', $this->matrix->permissionsFor('SUP'));
         $this->assertContains('material_voucher_authorizations.authorize', $this->matrix->permissionsFor('ALM-A'));
         $this->assertNotContains('material_voucher_authorizations.authorize', $this->matrix->permissionsFor('ALM'));
-        $this->assertSame([], $this->matrix->permissionsFor('REC'));
+        // Recepción solo conserva Alta de Facturas (decisión 2026-11-10).
+        $this->assertSame(['invoice_intake.view', 'invoice_intake.create'], $this->matrix->permissionsFor('REC'));
     }
 
     public function test_actions_the_erp_does_not_support_yet_are_pending_not_granted(): void

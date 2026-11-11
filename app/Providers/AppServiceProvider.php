@@ -59,12 +59,14 @@ class AppServiceProvider extends ServiceProvider
                 })
                 ->count();
             $paymentsToPayCount = Payment::where('status', 'autorizado')->count();
-            $purchaseRequestChangesPendingCount = PurchaseRequestChangeNote::query()
-                ->whereNull('resolved_at')
-                ->whereHas('purchaseRequest', function ($query) {
-                    $query->whereNull('archived_at');
-                })
-                ->count();
+            $purchaseRequestChangesPendingCount = $currentUser?->can('purchase_request_changes.view')
+                ? PurchaseRequestChangeNote::query()
+                    ->whereNull('resolved_at')
+                    ->whereHas('purchaseRequest', function ($query) use ($currentUser) {
+                        $query->whereNull('archived_at')->visibleTo($currentUser, 'purchase_requests');
+                    })
+                    ->count()
+                : 0;
             $materialRequestChangesPendingCount = $currentUser?->can('material_request_changes.view')
                 ? MaterialRequestChangeNote::query()
                     ->where('note_type', 'change_request')
@@ -90,16 +92,22 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.partials._topbar', function ($view) {
             $currentUser = auth()->user();
-            $topbarGlobalNotifications = Notification::with('user')
-                ->where('is_hidden', false)
-                ->doesntHave('recipients')
-                ->latest()
-                ->limit(5)
-                ->get();
-            $topbarGlobalUnreadCount = Notification::query()
-                ->where('is_hidden', false)
-                ->doesntHave('recipients')
-                ->count();
+            // La actividad global es la auditoría: solo la ve quien tiene `notifications_audit.view`.
+            $canSeeAudit = (bool) $currentUser?->can('notifications_audit.view');
+            $topbarGlobalNotifications = $canSeeAudit
+                ? Notification::with('user')
+                    ->where('is_hidden', false)
+                    ->doesntHave('recipients')
+                    ->latest()
+                    ->limit(5)
+                    ->get()
+                : collect();
+            $topbarGlobalUnreadCount = $canSeeAudit
+                ? Notification::query()
+                    ->where('is_hidden', false)
+                    ->doesntHave('recipients')
+                    ->count()
+                : 0;
             $topbarRecipientNotifications = Notification::with('user')
                 ->whereHas('recipients', function ($query) use ($currentUser) {
                     $query->where('user_id', $currentUser?->id)

@@ -19,6 +19,7 @@
 |   actions   Acciones que el ERP debe permitir (claves de `actions`).
 |   pending   Acciones que el proceso exige y el ERP aún no soporta: "(A)".
 |   scope     Alcance de los registros (claves de `scopes`). Sin clave = todos.
+|   action_scopes  Alcance distinto para una acción concreta, p. ej. ['update' => '…'].
 |   hidden    Campos que el perfil no debe ver.
 |   notify    Recibe notificación (N). No es un permiso.
 |   note      Aclaración del Excel.
@@ -45,6 +46,7 @@ return [
         'assigned_workers' => 'Trabajadores de las cuadrillas de sus obras (assigned_works).',
         'own_buyer' => 'Registros donde el usuario es el comprador (purchase_orders.buyer_id).',
         'own_supplier' => 'Registros del proveedor ligado al usuario (portal de proveedores).',
+        'unsent_purchase_requests' => 'SOLCOM que todavía no se envían a Compras (Pendiente o con cambios solicitados).',
     ],
 
     /*
@@ -115,7 +117,7 @@ return [
         'REC' => [
             'name' => 'Recepción',
             'status' => 'existing',
-            'description' => 'Se mantiene (decisión 2026-11-10). El Excel no le asigna vistas: Alta de Facturas se le retira. Permisos por definir.',
+            'description' => 'Se mantiene (decisión 2026-11-10). El Excel no le asigna vistas; conserva solo Alta de Facturas.',
         ],
     ],
 
@@ -844,12 +846,16 @@ return [
                 ],
                 'ALM' => [
                     'raw' => 'V C (genera)',
-                    'actions' => ['view', 'create'],
+                    'actions' => ['view', 'create', 'update'],
+                    'action_scopes' => ['update' => 'unsent_purchase_requests'],
+                    'decision' => 'Edita la SOLCOM que generó solo hasta enviarla a Compras; después la edita Compras (decisión 2026-11-10).',
                     'note' => 'genera',
                 ],
                 'ALM-A' => [
                     'raw' => 'V C (genera)',
-                    'actions' => ['view', 'create'],
+                    'actions' => ['view', 'create', 'update'],
+                    'action_scopes' => ['update' => 'unsent_purchase_requests'],
+                    'decision' => 'Edita la SOLCOM que generó solo hasta enviarla a Compras; después la edita Compras (decisión 2026-11-10).',
                     'note' => 'genera',
                 ],
                 'COM' => [
@@ -970,6 +976,8 @@ return [
                 'COM' => [
                     'raw' => 'V C E X D',
                     'actions' => ['view', 'create', 'update', 'cancel', 'download'],
+                    'scope' => 'own_buyer',
+                    'decision' => 'Cada comprador ve y opera solo sus OC (comprador asignado), como hoy (decisión 2026-11-10).',
                 ],
                 'PAG' => [
                     'raw' => 'V',
@@ -1061,6 +1069,8 @@ return [
                 'COM' => [
                     'raw' => 'V A (valida el comprador dueño de la OC)',
                     'actions' => ['view', 'authorize'],
+                    'scope' => 'own_buyer',
+                    'decision' => 'Ve y valida solo las facturas de sus OC, igual que en Órdenes de Compra (decisión 2026-11-10).',
                     'note' => 'valida el comprador dueño de la OC',
                 ],
                 'PAG' => [
@@ -1086,6 +1096,11 @@ return [
                     'raw' => 'C (portal)',
                     'actions' => ['create'],
                     'scope' => 'own_supplier',
+                ],
+                'REC' => [
+                    'raw' => '',
+                    'actions' => ['view', 'create'],
+                    'decision' => 'Recepción conserva Alta de Facturas al pasar el módulo a permisos (decisión 2026-11-10), aunque el Excel no se la da.',
                 ],
                 'ADM' => [
                     'raw' => 'V C E X A R D',

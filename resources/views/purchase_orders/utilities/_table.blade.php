@@ -46,7 +46,7 @@
                     $s = $statusMap[$order->status] ?? ['label' => $order->status, 'class' => 'bg-secondary-subtle text-secondary'];
                     $supplierName = $order->supplier->rfc_name ?? $order->supplier->commercial_name ?? '—';
                         $buyerName = $order->buyer?->name ?: (trim((string) $order->elaborated_by) ?: 'Sin comprador asignado');
-                        $canManageOrder = auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $order->buyer_id === (int) auth()->id());
+                        $canManageOrder = auth()->user()->hasFullAccessScope('purchase_orders', 'update') || (auth()->user()->can('purchase_orders.update') && (int) $order->buyer_id === (int) auth()->id());
                         $buyerGravatarHash = md5(strtolower($buyerName));
                         $buyerGravatarUrl = "https://www.gravatar.com/avatar/{$buyerGravatarHash}?s=64&d=identicon";
                     $solcom = $order->purchaseRequest ?? null;
@@ -119,13 +119,14 @@
                                             </li>
                                             @endif
                                         @endif
-                                        @unless ($isEngineerView)
+                                        {{-- PDF: D de la matriz, solo Compras (sus OC) y admin (decisión 2026-11-10). --}}
+                                        @if (auth()->user()->hasFullAccessScope('purchase_orders', 'download') || (auth()->user()->can('purchase_orders.download') && (int) $order->buyer_id === (int) auth()->id()))
                                         <li>
                                             <a class="dropdown-item" href="{{ route('purchase_orders.pdf', $order) }}" target="_blank">
                                                 <i class="ri-file-pdf-2-line me-2 text-muted"></i>Descargar PDF
                                             </a>
                                         </li>
-                                        @endunless
+                                        @endif
                                         @if ($canManageOrder)
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')

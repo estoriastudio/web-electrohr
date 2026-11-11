@@ -131,26 +131,27 @@
                     <h4 class="card-title mb-0">{{ $scope === 'all' ? 'Listado completo de órdenes de compra' : 'Mis órdenes de compra' }}</h4>
                 </div>
                 <div>
-                    @hasanyrole('admin|Pagos')
+                    @if (auth()->user()->hasFullAccessScope('purchase_orders'))
                     <a href="{{ route('purchase_orders.index', ['scope' => $scope === 'all' ? 'mine' : 'all']) }}" class="btn btn-sm btn-outline-secondary">
                         <i class="{{ $scope === 'all' ? 'ri-user-line' : 'ri-list-unordered' }} me-1"></i>{{ $scope === 'all' ? 'Mis OC' : 'Listado completo' }}
                     </a>
-                    @endhasanyrole
-                    @hasanyrole('admin|Orden de compra')
-                    @can('create')
+                    @endif
+                    @can('purchase_orders.create')
                     <a href="{{ route('purchase_orders.create') }}" class="btn btn-sm btn-primary">
                         <i class="ri-add-line me-1"></i> Nueva orden de compra
                     </a>
                     @endcan
-                    @endhasanyrole
+                    
+                    @can('awarded_prices.view')
                     <a href="{{ route('concepts.awarded_prices') }}" class="btn btn-sm btn-soft-info ms-1" title="Precios adjudicados">
                         <i class="ri-price-tag-3-line me-1"></i> Precios adjudicados
                     </a>
-                    @hasanyrole('admin|Pagos|Orden de compra')
+                    @endcan
+                    @can('purchase_orders.view')
                     <a href="{{ route('purchase_orders.archived', ['scope' => $scope]) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Ver archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
-                    @endhasanyrole
+                    @endcan
                     @hasrole('admin')
                     <a href="{{ route('purchase_orders.soft_deleted') }}" class="btn btn-sm btn-outline-danger ms-1" title="Papelera">
                         <i class="ri-delete-bin-line me-1"></i> Papelera

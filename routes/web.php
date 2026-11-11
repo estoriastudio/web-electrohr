@@ -101,9 +101,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Vistas de detalle compartidas (solo lectura) para todo el equipo autenticado
         Route::get('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'show'])
             ->whereNumber('purchase_order')
+            ->middleware('permission:purchase_orders.view')
             ->name('purchase_orders.show');
         Route::get('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'show'])
             ->whereNumber('purchaseRequest')
+            ->middleware('permission:purchase_requests.view')
             ->name('purchase_requests.show');
         Route::get('/solicitudes-material/{materialRequest}', [MaterialRequestController::class, 'show'])
             ->whereNumber('materialRequest')
@@ -111,9 +113,11 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->name('material_requests.show');
         Route::get('/ordenes-de-compra/{purchase_order}/pdf', [PurchaseOrderController::class, 'downloadPdf'])
             ->whereNumber('purchase_order')
+            ->middleware('permission:purchase_orders.download')
             ->name('purchase_orders.pdf');
         Route::get('/solicitudes-compra/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'downloadPdf'])
             ->whereNumber('purchaseRequest')
+            ->middleware('permission:purchase_requests.view')
             ->name('purchase_requests.pdf');
         Route::get('/solicitudes-material/{materialRequest}/pdf', [MaterialRequestController::class, 'downloadPdf'])
             ->whereNumber('materialRequest')
@@ -122,39 +126,48 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Solo admin ────────────────────────────────────────────────────────
 
-        // Proveedores
-        Route::middleware('role:admin|Pagos|Orden de compra')->prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
-            Route::get('/', [SupplierAccountStatementController::class, 'index'])->name('index');
-            Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
-            Route::get('/exportar-documentos', [SupplierAccountStatementController::class, 'exportDocuments'])->name('export_documents');
-            Route::get('/exportar-documentos/{export}/faltantes', [SupplierAccountStatementController::class, 'documentExportReport'])
-                ->whereUuid('export')->name('export_documents.report');
+        // Proveedores: permisos de la matriz (vistas `suppliers` y `supplier_account_statements`). Compras da de
+        // alta y edita; Dirección, Almacén y Pagos consultan. Exportar es D: solo admin (decisión 2026-11-11).
+        Route::prefix('proveedores/estado-cuenta')->name('suppliers.account_statement.')->group(function () {
+            Route::get('/', [SupplierAccountStatementController::class, 'index'])
+                ->middleware('permission:supplier_account_statements.view')->name('index');
+            Route::middleware('permission:supplier_account_statements.download')->group(function () {
+                Route::get('/export', [SupplierAccountStatementController::class, 'export'])->name('export');
+                Route::get('/exportar-documentos', [SupplierAccountStatementController::class, 'exportDocuments'])->name('export_documents');
+                Route::get('/exportar-documentos/{export}/faltantes', [SupplierAccountStatementController::class, 'documentExportReport'])
+                    ->whereUuid('export')->name('export_documents.report');
+            });
             Route::get('/ordenes/{purchaseOrder}', [SupplierAccountStatementController::class, 'purchaseOrderSummary'])
+                ->middleware('permission:supplier_account_statements.view')
                 ->whereNumber('purchaseOrder')->name('order');
         });
 
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+        Route::middleware('permission:suppliers.view')->group(function () {
             Route::get('/proveedores/{supplier}', [SupplierController::class, 'show'])
                 ->whereNumber('supplier')
                 ->name('suppliers.show');
         });
 
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
-            Route::get('proveedores/export', [SupplierController::class, 'export'])->name('suppliers.export');
+        Route::get('proveedores/export', [SupplierController::class, 'export'])
+            ->middleware('permission:suppliers.download')->name('suppliers.export');
+        Route::middleware('permission:suppliers.create')->group(function () {
             Route::post('proveedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
-            Route::resource('/proveedores', SupplierController::class, [
-                'names' => [
-                    'index' => 'suppliers.index',
-                    'create' => 'suppliers.create',
-                    'store' => 'suppliers.store',
-                    'edit' => 'suppliers.edit',
-                    'update' => 'suppliers.update',
-                ],
-                'parameters' => ['proveedores' => 'supplier'],
-            ])->except(['show', 'destroy']);
-            Route::delete('/proveedores/{supplier}', [SupplierController::class, 'destroy'])
-                ->middleware('permission:delete')
-                ->name('suppliers.destroy');
+            Route::get('/proveedores/create', [SupplierController::class, 'create'])->name('suppliers.create');
+            Route::post('/proveedores', [SupplierController::class, 'store'])->name('suppliers.store');
+        });
+        Route::middleware('permission:suppliers.view')->group(function () {
+            Route::get('/proveedores', [SupplierController::class, 'index'])->name('suppliers.index');
+            // Los usan los formularios de OC.
+            Route::get('proveedores/{supplier}/contacto-principal', [SupplierContactController::class, 'primaryJson'])
+                ->name('supplier_contacts.primary_json');
+            Route::get('proveedores/{supplier}/estado-para-oc', [SupplierController::class, 'purchaseOrderReadiness'])
+                ->name('suppliers.purchase_order_readiness');
+        });
+        // Editar, borrar, contactos, sucursales y acceso al portal: E (Compras, admin); borrar usa editar.
+        Route::middleware('permission:suppliers.update')->group(function () {
+            Route::get('/proveedores/{supplier}/edit', [SupplierController::class, 'edit'])->name('suppliers.edit');
+            Route::match(['put', 'patch'], '/proveedores/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+            Route::delete('/proveedores/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
             Route::put('proveedores/{supplier}/informacion', [SupplierController::class, 'updateInfo'])->name('suppliers.update_info');
 
             Route::resource('proveedores.contactos', SupplierContactController::class, [
@@ -165,12 +178,6 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ],
                 'parameters' => ['proveedores' => 'supplier', 'contactos' => 'contact'],
             ])->only(['store', 'update', 'destroy']);
-
-            Route::get('proveedores/{supplier}/contacto-principal', [SupplierContactController::class, 'primaryJson'])
-                ->name('supplier_contacts.primary_json');
-
-            Route::get('proveedores/{supplier}/estado-para-oc', [SupplierController::class, 'purchaseOrderReadiness'])
-                ->name('suppliers.purchase_order_readiness');
 
             Route::resource('proveedores.sucursales', SupplierLocationController::class, [
                 'names' => [
@@ -189,22 +196,23 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('suppliers.portal_access.reactivate');
         });
 
-        // Bienes Móviles
-        Route::middleware('role:admin|Moviles')->group(function () {
-            Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])->name('mobile_assets.export');
+        // Bienes Móviles (vista `mobile_assets`): Móviles da de alta y edita; Gerente y Dirección consultan.
+        // Exportar y descargar el ZIP de documentos es D: solo admin. Bitácora, fotos y documentos usan editar.
+        Route::get('bienes-mobiles/export', [MobileAssetController::class, 'export'])
+            ->middleware('permission:mobile_assets.download')->name('mobile_assets.export');
+        Route::middleware('permission:mobile_assets.create')->group(function () {
             Route::post('bienes-mobiles/import', [MobileAssetController::class, 'import'])->name('mobile_assets.import');
-            Route::resource('/bienes-mobiles', MobileAssetController::class, [
-                'names' => [
-                    'index' => 'mobile_assets.index',
-                    'create' => 'mobile_assets.create',
-                    'store' => 'mobile_assets.store',
-                    'show' => 'mobile_assets.show',
-                    'edit' => 'mobile_assets.edit',
-                    'update' => 'mobile_assets.update',
-                    'destroy' => 'mobile_assets.destroy',
-                ],
-                'parameters' => ['bienes-mobiles' => 'mobile_asset'],
-            ]);
+            Route::get('/bienes-mobiles/create', [MobileAssetController::class, 'create'])->name('mobile_assets.create');
+            Route::post('/bienes-mobiles', [MobileAssetController::class, 'store'])->name('mobile_assets.store');
+        });
+        Route::middleware('permission:mobile_assets.view')->group(function () {
+            Route::get('/bienes-mobiles', [MobileAssetController::class, 'index'])->name('mobile_assets.index');
+            Route::get('/bienes-mobiles/{mobile_asset}', [MobileAssetController::class, 'show'])->name('mobile_assets.show');
+        });
+        Route::middleware('permission:mobile_assets.update')->group(function () {
+            Route::get('/bienes-mobiles/{mobile_asset}/edit', [MobileAssetController::class, 'edit'])->name('mobile_assets.edit');
+            Route::match(['put', 'patch'], '/bienes-mobiles/{mobile_asset}', [MobileAssetController::class, 'update'])->name('mobile_assets.update');
+            Route::delete('/bienes-mobiles/{mobile_asset}', [MobileAssetController::class, 'destroy'])->name('mobile_assets.destroy');
 
             // Fotos del bien móvil (upload individual por slot)
             Route::post('bienes-mobiles/{mobile_asset}/foto/{slot}', [MobileAssetController::class, 'uploadPhoto'])
@@ -214,18 +222,16 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('mobile_assets.photo.delete')
                 ->where('slot', '[123]');
 
-            // Checklist documental del bien móvil
+            // Checklist documental y bitácora de mantenimiento
             Route::patch('bienes-mobiles/{mobile_asset}/documentos/{docType}', [MobileAssetController::class, 'updateDocument'])
                 ->name('mobile_assets.document.update');
-            Route::get('bienes-mobiles/{mobile_asset}/documentos/zip', [MobileAssetController::class, 'downloadDocumentsZip'])
-                ->name('mobile_assets.documents.zip');
-
-            // Bitácora de mantenimiento
             Route::post('bienes-mobiles/{mobile_asset}/bitacora', [MaintenanceLogController::class, 'store'])
                 ->name('maintenance_logs.store');
             Route::delete('bienes-mobiles/{mobile_asset}/bitacora/{maintenanceLog}', [MaintenanceLogController::class, 'destroy'])
                 ->name('maintenance_logs.destroy');
         });
+        Route::get('bienes-mobiles/{mobile_asset}/documentos/zip', [MobileAssetController::class, 'downloadDocumentsZip'])
+            ->middleware('permission:mobile_assets.download')->name('mobile_assets.documents.zip');
 
         // Proyectos
         Route::get('/proyectos/buscar', [ProjectController::class, 'search'])->name('projects.search');
@@ -418,85 +424,96 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Conceptos (catálogo) — búsqueda JSON accesible a admin|Orden de compra
         Route::get('/conceptos/buscar', [ConceptController::class, 'search'])->name('concepts.search');
         Route::get('/conceptos/codigo-siguiente', [ConceptController::class, 'nextCode'])->name('concepts.next_code');
-        Route::get('/conceptos/precios-adjudicados', [ConceptController::class, 'awardedPrices'])->name('concepts.awarded_prices');
+        // Precios adjudicados (`awarded_prices`): Dirección y Compras. Antes lo abría cualquier usuario.
+        Route::get('/conceptos/precios-adjudicados', [ConceptController::class, 'awardedPrices'])
+            ->middleware('permission:awarded_prices.view')->name('concepts.awarded_prices');
         Route::get('/categorias-conceptos/{conceptCategory}/subcategorias-json', [ConceptCategoryController::class, 'subcategoriesJson'])->name('concept_categories.subcategories_json');
         Route::get('/categorias-herramientas/{toolCategory}/subcategorias-json', [ToolCategoryController::class, 'subcategoriesJson'])->name('tool_categories.subcategories_json');
 
-        // Conceptos (catálogo) — CRUD solo admin
-        Route::middleware('role:admin|Solmat')->group(function () {
-            Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
+        // Conceptos (`concepts`) y Familias (`concept_categories`): Almacén mantiene el catálogo; Compras consulta.
+        // Archivar y borrar usan editar. La búsqueda JSON de arriba la usan los formularios de todos los módulos.
+        Route::middleware('permission:concepts.view')->group(function () {
             Route::get('/conceptos/archivados', [ConceptController::class, 'archived'])->name('concepts.archived');
+            Route::get('/conceptos', [ConceptController::class, 'index'])->name('concepts.index');
+        });
+        Route::middleware('permission:concepts.create')->group(function () {
+            Route::post('/conceptos/import', [ConceptController::class, 'import'])->name('concepts.import');
+            Route::post('/conceptos', [ConceptController::class, 'store'])->name('concepts.store');
+        });
+        Route::middleware('permission:concepts.update')->group(function () {
             Route::patch('/conceptos/{concept}/archivar', [ConceptController::class, 'archive'])->name('concepts.archive');
             Route::patch('/conceptos/{concept}/desarchivar', [ConceptController::class, 'unarchive'])->name('concepts.unarchive');
-            Route::resource('/conceptos', ConceptController::class, [
-                'names' => [
-                    'index' => 'concepts.index',
-                    'store' => 'concepts.store',
-                    'update' => 'concepts.update',
-                ],
-                'parameters' => ['conceptos' => 'concept'],
-            ])->only(['index', 'store', 'update']);
+            Route::match(['put', 'patch'], '/conceptos/{concept}', [ConceptController::class, 'update'])->name('concepts.update');
+        });
 
-            // Categorías de Conceptos
-            Route::get('/categorias-conceptos', [ConceptCategoryController::class, 'index'])->name('concept_categories.index');
+        Route::get('/categorias-conceptos', [ConceptCategoryController::class, 'index'])
+            ->middleware('permission:concept_categories.view')->name('concept_categories.index');
+        Route::middleware('permission:concept_categories.create')->group(function () {
             Route::post('/categorias-conceptos', [ConceptCategoryController::class, 'store'])->name('concept_categories.store');
+            Route::post('/categorias-conceptos/{conceptCategory}/subcategorias', [ConceptCategoryController::class, 'storeSubcategory'])->name('concept_categories.subcategories.store');
+        });
+        Route::middleware('permission:concept_categories.update')->group(function () {
             Route::put('/categorias-conceptos/{conceptCategory}', [ConceptCategoryController::class, 'update'])->name('concept_categories.update');
             Route::delete('/categorias-conceptos/{conceptCategory}', [ConceptCategoryController::class, 'destroy'])->name('concept_categories.destroy');
             Route::put('/categorias-conceptos/{conceptCategory}/compradores', [ConceptCategoryController::class, 'syncUsers'])->name('concept_categories.sync_users');
-            Route::post('/categorias-conceptos/{conceptCategory}/subcategorias', [ConceptCategoryController::class, 'storeSubcategory'])->name('concept_categories.subcategories.store');
             Route::put('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'updateSubcategory'])->name('concept_categories.subcategories.update');
             Route::delete('/categorias-conceptos/{conceptCategory}/subcategorias/{subcategory}', [ConceptCategoryController::class, 'destroySubcategory'])->name('concept_categories.subcategories.destroy');
+        });
 
-            // Tool categories
-            Route::resource('/categorias-herramientas', ToolCategoryController::class, [
-                'names' => [
-                    'index' => 'tool_categories.index',
-                    'store' => 'tool_categories.store',
-                    'update' => 'tool_categories.update',
-                    'destroy' => 'tool_categories.destroy',
-                ],
-                'parameters' => ['categorias-herramientas' => 'toolCategory'],
-            ])->only(['index', 'store', 'update', 'destroy']);
+        // Herramientas: Registro (`tools`: Almacén y Móviles dan de alta y editan; Gerente y Supervisor
+        // consultan), Control de uso (`tool_controls`: Almacén registra) y Categorías (`tool_categories`: Almacén).
+        Route::middleware('permission:tool_categories.view')->group(function () {
+            Route::get('/categorias-herramientas', [ToolCategoryController::class, 'index'])->name('tool_categories.index');
+        });
+        Route::post('/categorias-herramientas', [ToolCategoryController::class, 'store'])
+            ->middleware('permission:tool_categories.create')->name('tool_categories.store');
+        Route::middleware('permission:tool_categories.update')->group(function () {
+            Route::match(['put', 'patch'], '/categorias-herramientas/{toolCategory}', [ToolCategoryController::class, 'update'])->name('tool_categories.update');
+            Route::delete('/categorias-herramientas/{toolCategory}', [ToolCategoryController::class, 'destroy'])->name('tool_categories.destroy');
+        });
 
-            // Tool controls
-            Route::get('/herramientas/controles', [ToolControlController::class, 'index'])->name('tool_controls.index');
+        Route::get('/herramientas/controles', [ToolControlController::class, 'index'])
+            ->middleware('permission:tool_controls.view')->name('tool_controls.index');
+        Route::middleware('permission:tool_controls.register')->group(function () {
             Route::post('/herramientas/controles', [ToolControlController::class, 'store'])->name('tool_controls.store');
             Route::put('/herramientas/controles/{toolControl}', [ToolControlController::class, 'update'])->name('tool_controls.update');
             Route::delete('/herramientas/controles/{toolControl}', [ToolControlController::class, 'destroy'])->name('tool_controls.destroy');
+        });
 
+        Route::middleware('permission:tools.update')->group(function () {
             Route::post('/herramientas/{tool}/foto/{slot}', [ToolController::class, 'uploadPhoto'])
                 ->name('tools.photo.upload')
                 ->where('slot', '[123]');
             Route::delete('/herramientas/{tool}/foto/{slot}', [ToolController::class, 'deletePhoto'])
                 ->name('tools.photo.delete')
                 ->where('slot', '[123]');
-
             Route::post('/herramientas/{tool}/calibraciones', [ToolCalibrationController::class, 'store'])
                 ->name('tool_calibrations.store');
             Route::delete('/herramientas/{tool}/calibraciones/{toolCalibration}', [ToolCalibrationController::class, 'destroy'])
                 ->name('tool_calibrations.destroy');
-
-            // Tools
-            Route::get('/herramientas/archivadas', [ToolController::class, 'archived'])->name('tools.archived');
-            Route::patch('/herramientas/{tool}/archivar', [ToolController::class, 'archive'])->name('tools.archive');
-            Route::patch('/herramientas/{tool}/desarchivar', [ToolController::class, 'unarchive'])->name('tools.unarchive');
-            Route::delete('/herramientas/{tool}/eliminar-permanente', [ToolController::class, 'forceDestroy'])
-                ->middleware('role:admin')
-                ->name('tools.force_destroy');
-
-            Route::resource('/herramientas', ToolController::class, [
-                'names' => [
-                    'index' => 'tools.index',
-                    'show' => 'tools.show',
-                    'store' => 'tools.store',
-                    'update' => 'tools.update',
-                ],
-                'parameters' => ['herramientas' => 'tool'],
-            ])->only(['index', 'show', 'store', 'update']);
         });
 
-        // Usuarios (gestión) y Roles
-        Route::middleware('role:admin')->group(function () {
+        Route::get('/herramientas/archivadas', [ToolController::class, 'archived'])
+            ->middleware('permission:tools.view')->name('tools.archived');
+        Route::middleware('permission:tools.update')->group(function () {
+            Route::patch('/herramientas/{tool}/archivar', [ToolController::class, 'archive'])->name('tools.archive');
+            Route::patch('/herramientas/{tool}/desarchivar', [ToolController::class, 'unarchive'])->name('tools.unarchive');
+        });
+        Route::delete('/herramientas/{tool}/eliminar-permanente', [ToolController::class, 'forceDestroy'])
+            ->middleware('role:admin')
+            ->name('tools.force_destroy');
+
+        Route::middleware('permission:tools.view')->group(function () {
+            Route::get('/herramientas', [ToolController::class, 'index'])->name('tools.index');
+            Route::get('/herramientas/{tool}', [ToolController::class, 'show'])->name('tools.show');
+        });
+        Route::post('/herramientas', [ToolController::class, 'store'])
+            ->middleware('permission:tools.create')->name('tools.store');
+        Route::match(['put', 'patch'], '/herramientas/{tool}', [ToolController::class, 'update'])
+            ->middleware('permission:tools.update')->name('tools.update');
+
+        // Usuarios (gestión) y Roles: vista `users`, solo admin.
+        Route::middleware('permission:users.view|users.create|users.update')->group(function () {
             Route::resource('usuarios', UserController::class, [
                 'names' => [
                     'index' => 'usuarios.index',
@@ -515,36 +532,37 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/roles/{role}', 'UserController@destroyRole')->name('roles.destroy');
         });
 
-        // Auditoría / Notificaciones
-        Route::middleware('role:admin')->group(function () {
-            Route::get('/auditoria', [NotificationController::class, 'index'])->name('notifications.index');
-        });
+        // Auditoría (`notifications_audit`): Dirección y admin.
+        Route::get('/auditoria', [NotificationController::class, 'index'])
+            ->middleware('permission:notifications_audit.view')->name('notifications.index');
 
-        Route::middleware('role:admin|Solmat')->group(function () {
-            Route::get('/notificaciones', [NotificationController::class, 'inbox'])->name('notifications.inbox');
-            Route::post('/notificaciones/marcar-leidas', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
-        });
+        // Bandeja personal: cada usuario ve solo las notificaciones que recibió (el controlador filtra por
+        // destinatario). Antes solo admin y Solmat, aunque la campana del encabezado sale a todos.
+        Route::get('/notificaciones', [NotificationController::class, 'inbox'])->name('notifications.inbox');
+        Route::post('/notificaciones/marcar-leidas', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
 
         // ── Admin + Payments + Orders ─────────────────────────────────────────
 
-        // Órdenes de Compra — lectura: admin, Pagos, Orden de compra, Solmat
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        // Órdenes de Compra: permisos de la matriz (vista `purchase_orders`). Compras ve y opera solo sus OC
+        // (alcance own_buyer); Gerente y Supervisor consultan las de sus proyectos (decisión 2026-11-10).
+        Route::middleware('permission:purchase_orders.view')->group(function () {
             Route::get('/ordenes-de-compra', [PurchaseOrderController::class, 'index'])->name('purchase_orders.index');
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
-        // Reporte de entregas por folio — Inventario y Solmat
-        Route::middleware('role:admin|Inventario|Solmat')->group(function () {
+        // Reportar entregas por folio (Recepción de OC, R): Almacén; Gerente y Supervisor, sus proyectos.
+        Route::middleware('permission:purchase_order_receipts.register')->group(function () {
             Route::get('/ordenes-de-compra/reportar-entregas', [PurchaseOrderController::class, 'deliveryReport'])
                 ->name('purchase_orders.delivery_report');
         });
 
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        Route::middleware('permission:milestones.update')->group(function () {
             Route::post('/ordenes-de-compra/{purchaseOrder}/hitos/{milestone}/modificar-monto', [PurchaseOrderMilestoneController::class, 'adjustAmount'])
                 ->name('purchase_orders.milestones.adjust_amount');
-            Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
-                ->name('purchase_orders.overdue_deliveries');
         });
+        Route::get('/ordenes-de-compra/vencidas-entrega', [PurchaseOrderController::class, 'overdueDeliveries'])
+            ->middleware('permission:purchase_orders.update')
+            ->name('purchase_orders.overdue_deliveries');
 
         // Papelera de OC — solo admin
         Route::middleware('role:admin')->group(function () {
@@ -553,21 +571,24 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{id}/eliminar-permanente', [PurchaseOrderController::class, 'forceDestroy'])->name('purchase_orders.force_destroy');
         });
 
-        // PDF de OC — incluye Solmat para descarga desde trazabilidad
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        // PDF con anexos: D de la matriz, solo Compras (sus OC) y admin (decisión 2026-11-10).
+        Route::middleware('permission:purchase_orders.download')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/anexos', [PurchaseOrderController::class, 'saveAnnex'])->name('purchase_orders.annex.save');
             Route::post('/ordenes-de-compra/{purchase_order}/pdf-con-anexos', [PurchaseOrderController::class, 'downloadPdfWithAnnexes'])->name('purchase_orders.pdfWithAnnexes');
         });
 
-        // Órdenes de Compra — escritura: admin, Orden de compra
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Órdenes de Compra — escritura. Cancelar (borrar) usa X; lo demás, editar.
+        Route::middleware('permission:purchase_orders.create')->group(function () {
             Route::get('/ordenes-de-compra/create', [PurchaseOrderController::class, 'create'])->name('purchase_orders.create');
             Route::get('/ordenes-de-compra/crear-desde/{purchaseRequest}', [PurchaseOrderController::class, 'createFromSolcom'])->name('purchase_orders.create_from_solcom');
             Route::post('/ordenes-de-compra', [PurchaseOrderController::class, 'store'])->name('purchase_orders.store');
+        });
+        Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])
+            ->middleware('permission:purchase_orders.cancel')->name('purchase_orders.destroy');
+        Route::middleware('permission:purchase_orders.update')->group(function () {
             Route::get('/ordenes-de-compra/{purchase_order}/edit', [PurchaseOrderController::class, 'edit'])->name('purchase_orders.edit');
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
             Route::patch('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update']);
-            Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase_orders.destroy');
             Route::patch('/ordenes-de-compra/{purchase_order}/archivar', [PurchaseOrderController::class, 'archive'])->name('purchase_orders.archive');
             Route::patch('/ordenes-de-compra/{purchase_order}/desarchivar', [PurchaseOrderController::class, 'unarchive'])->name('purchase_orders.unarchive');
             Route::patch('/ordenes-de-compra/{purchase_order}/comprador', [PurchaseOrderController::class, 'assignBuyer'])->name('purchase_orders.buyer.update');
@@ -581,16 +602,19 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{purchase_order}/notes/{noteIndex}', [PurchaseOrderController::class, 'destroyObservation'])->name('purchase_orders.notes.destroy');
         });
 
-        // Hitos — lectura: admin, Pagos
-        Route::middleware('role:admin|Pagos')->group(function () {
+        // ── Pagos y Recepción: permisos de la matriz ─────────────────────────
+        // Hitos (`milestones`): consultan Gerente, Supervisor, Dirección, Almacén, Compras y Pagos; el listado
+        // se acota a las OC que el usuario ve. Crean y editan Compras (sus OC) y admin; borrar usa editar.
+        Route::middleware('permission:milestones.view')->group(function () {
             Route::get('/hitos', [PurchaseOrderMilestoneController::class, 'index'])->name('milestones.index');
             Route::get('/hitos/{purchaseOrderMilestone}', [PurchaseOrderMilestoneController::class, 'show'])->name('milestones.show');
         });
 
-        // Hitos — escritura: admin, Pagos
-        Route::middleware('role:admin|Orden de compra|Pagos')->group(function () {
+        Route::middleware('permission:milestones.create')->group(function () {
             Route::get('/hitos/create', [PurchaseOrderMilestoneController::class, 'create'])->name('milestones.create');
             Route::post('/hitos', [PurchaseOrderMilestoneController::class, 'store'])->name('milestones.store');
+        });
+        Route::middleware('permission:milestones.update')->group(function () {
             Route::get('/hitos/{purchaseOrderMilestone}/edit', [PurchaseOrderMilestoneController::class, 'edit'])->name('milestones.edit');
             Route::put('/hitos/{purchaseOrderMilestone}', [PurchaseOrderMilestoneController::class, 'update'])->name('milestones.update');
             Route::patch('/hitos/{purchaseOrderMilestone}', [PurchaseOrderMilestoneController::class, 'update']);
@@ -599,48 +623,59 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Admin + Payments ──────────────────────────────────────────────────
 
-        // Pagos
-        Route::middleware('role:admin|Pagos')->group(function () {
+        // Pagos: Autorizaciones (Pagos presenta, Dirección y admin autorizan), Por Pagar (Pagos edita) y
+        // Pagado (Pagos registra el pago). Compras y Dirección consultan.
+        Route::middleware('permission:payment_authorizations.view')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
+        });
+        Route::middleware('permission:payments_payable.view')->group(function () {
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');
             Route::get('/pagos/por-pagar/exportar-excel', [PaymentController::class, 'exportPayable'])->name('payments.payable.export');
+        });
+        Route::middleware('permission:payments_paid.view')->group(function () {
             Route::get('/pagos/pagados', [PaymentController::class, 'paid'])->name('payments.paid');
             Route::get('/pagos/pagados/exportar-excel', [PaymentController::class, 'exportPaid'])->name('payments.paid.export');
-            Route::middleware('role:admin')->group(function () {
-                Route::post('/pagos/autorizar/seleccion/sincronizar', [PaymentController::class, 'syncAuthorizationSelection'])
-                    ->name('payments.authorization.selection.sync');
-                Route::post('/pagos/autorizar/seleccion/limpiar', [PaymentController::class, 'clearAuthorizationSelection'])
-                    ->name('payments.authorization.selection.clear');
-                Route::post('/pagos/autorizar/multiples', [PaymentController::class, 'authorizeMultiple'])
-                    ->name('payments.authorize_multiple');
-            });
+        });
+        Route::middleware('permission:payment_authorizations.authorize')->group(function () {
+            Route::post('/pagos/autorizar/seleccion/sincronizar', [PaymentController::class, 'syncAuthorizationSelection'])
+                ->name('payments.authorization.selection.sync');
+            Route::post('/pagos/autorizar/seleccion/limpiar', [PaymentController::class, 'clearAuthorizationSelection'])
+                ->name('payments.authorization.selection.clear');
+            Route::post('/pagos/autorizar/multiples', [PaymentController::class, 'authorizeMultiple'])
+                ->name('payments.authorize_multiple');
+        });
+        Route::middleware('permission:payments_payable.view')->group(function () {
             Route::post('/pagos/por-pagar/seleccion/sincronizar', [PaymentController::class, 'syncPayableSelection'])
                 ->name('payments.payable.selection.sync');
             Route::post('/pagos/por-pagar/seleccion/limpiar', [PaymentController::class, 'clearPayableSelection'])
                 ->name('payments.payable.selection.clear');
-            Route::post('/pagos/marcar-multiples-pagados', [PaymentController::class, 'markMultiplePaidWithSpei'])
-                ->name('payments.mark_multiple_paid_with_spei');
-            Route::resource('/pagos', PaymentController::class)->except(['index', 'store'])->names([
-                'create' => 'payments.create',
-                'show' => 'payments.show',
-                'edit' => 'payments.edit',
-                'update' => 'payments.update',
-                'destroy' => 'payments.destroy',
-            ])->parameters(['pagos' => 'payment']);
+        });
+        Route::post('/pagos/marcar-multiples-pagados', [PaymentController::class, 'markMultiplePaidWithSpei'])
+            ->middleware('permission:payments_paid.register')
+            ->name('payments.mark_multiple_paid_with_spei');
+        Route::get('/pagos/create', [PaymentController::class, 'create'])
+            ->middleware('permission:payment_authorizations.create')->name('payments.create');
+        Route::get('/pagos/{payment}', [PaymentController::class, 'show'])
+            ->middleware('permission:payments_payable.view')->name('payments.show');
+        Route::middleware('permission:payments_payable.update')->group(function () {
+            Route::get('/pagos/{payment}/edit', [PaymentController::class, 'edit'])->name('payments.edit');
+            Route::match(['put', 'patch'], '/pagos/{payment}', [PaymentController::class, 'update'])->name('payments.update');
+            Route::delete('/pagos/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
         });
 
+        // Registrar un pago adicional sobre un hito: Pagos presenta (C de Autorizaciones).
         Route::post('/pagos', [PaymentController::class, 'store'])
-            ->middleware('role:admin|Pagos|Orden de compra')
+            ->middleware('permission:payment_authorizations.create')
             ->name('payments.store');
 
-        // Reactivación de pagos rechazados — solicitud de Compras o Pagos para nueva autorización
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        // Reactivación de pagos rechazados: la piden quienes ven Autorizaciones (Pagos, Compras).
+        Route::middleware('permission:payment_authorizations.view')->group(function () {
             Route::patch('/pagos/{payment}/solicitar-reactivacion', [PaymentController::class, 'requestReactivation'])
                 ->name('payments.request_reactivation');
         });
 
-        // Emisión de Órdenes de Compra — Compras y admin
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // Emisión y cierre de OC — editar OC (Compras en sus OC, admin)
+        Route::middleware('permission:purchase_orders.update')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
             Route::post('/ordenes-de-compra/{purchase_order}/cerrar', [PurchaseOrderController::class, 'close'])->name('purchase_orders.close');
         });
@@ -659,41 +694,49 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/pagos/{payment}/swipe', [PaymentController::class, 'swipe'])->name('payments.swipe');
         });
 
-        // Facturas de Órdenes de Compra
-        Route::middleware('role:admin|Pagos|Recepción|Orden de compra')->group(function () {
-            Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])->name('payments.alta_facturas');
-            Route::get('/facturas/regularizacion-documental', [PaymentController::class, 'regularization'])->name('payments.regularization');
+        // Facturas: Alta de Facturas (`invoice_intake`: Compras, Recepción por decisión, admin) y Facturas
+        // (`invoices`: consulta acotada por OC; Compras valida las de sus OC). Borrar una factura usa C de Alta.
+        Route::get('/facturas/alta', [PaymentController::class, 'altaFacturas'])
+            ->middleware('permission:invoice_intake.view')->name('payments.alta_facturas');
+        Route::get('/facturas/regularizacion-documental', [PaymentController::class, 'regularization'])
+            ->middleware('permission:payments_paid.view')->name('payments.regularization');
+        Route::middleware('permission:invoice_intake.create')->group(function () {
             Route::post('/facturas', [PurchaseOrderInvoiceController::class, 'store'])->name('invoices.store');
-            Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])->name('invoices.download');
-            Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])->name('invoices.destroy');
         });
+        Route::get('/facturas/{invoice}/download', [PurchaseOrderInvoiceController::class, 'download'])
+            ->middleware('permission:invoices.view|invoice_intake.view')->name('invoices.download');
+        Route::delete('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'destroy'])
+            ->middleware('permission:invoice_intake.create')->name('invoices.destroy');
 
-        Route::middleware('role:admin|Pagos|Orden de compra|Solmat')->group(function () {
+        Route::middleware('permission:invoices.view')->group(function () {
             Route::get('/facturas', [PurchaseOrderInvoiceController::class, 'index'])->name('invoices.index');
             Route::get('/facturas/exportar-excel', [PurchaseOrderInvoiceController::class, 'export'])->name('invoices.export');
             Route::get('/facturas/{invoice}', [PurchaseOrderInvoiceController::class, 'show'])->name('invoices.show');
-            Route::get('/facturas/{invoice}/archivo/{type}', [PurchaseOrderInvoiceController::class, 'downloadFile'])
-                ->whereIn('type', ['pdf', 'xml', 'evidence', 'credit_note_pdf', 'credit_note_xml'])
-                ->name('invoices.download_file');
         });
+        Route::get('/facturas/{invoice}/archivo/{type}', [PurchaseOrderInvoiceController::class, 'downloadFile'])
+            ->whereIn('type', ['pdf', 'xml', 'evidence', 'credit_note_pdf', 'credit_note_xml'])
+            ->middleware('permission:invoices.view|invoice_intake.view')
+            ->name('invoices.download_file');
 
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        Route::middleware('permission:invoices.authorize')->group(function () {
             Route::patch('/facturas/{invoice}/estatus', [PurchaseOrderInvoiceController::class, 'updateStatus'])->name('invoices.status.update');
         });
 
-        // Evidencias de entrega en OC
-        Route::middleware('role:admin|Solmat|Pagos|Orden de compra')->group(function () {
-            Route::post('/evidencias', [PurchaseOrderEvidenceController::class, 'store'])->name('evidences.store');
-            Route::get('/evidencias/{evidence}/download', [PurchaseOrderEvidenceController::class, 'download'])->name('evidences.download');
-            Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])->name('evidences.destroy');
-        });
+        // Evidencias de entrega en OC: suben Gerente, Supervisor y Almacén; consultan también Compras y Pagos.
+        Route::post('/evidencias', [PurchaseOrderEvidenceController::class, 'store'])
+            ->middleware('permission:purchase_order_evidences.create')->name('evidences.store');
+        Route::get('/evidencias/{evidence}/download', [PurchaseOrderEvidenceController::class, 'download'])
+            ->middleware('permission:purchase_order_evidences.view')->name('evidences.download');
+        Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])
+            ->middleware('permission:purchase_order_evidences.create')->name('evidences.destroy');
 
-        // Entregas por concepto
-        Route::middleware('role:admin|Solmat|Inventario|Orden de compra')->group(function () {
+        // Entregas por concepto (Recepción de OC, R): Almacén; Gerente y Supervisor en sus proyectos.
+        Route::middleware('permission:purchase_order_receipts.register')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
         });
-        Route::middleware('role:admin|Solmat|Orden de compra')->group(function () {
+        // Validación de hitos (`milestone_validations`): validan Gerente, Supervisor y Almacén; Compras la define.
+        Route::middleware('permission:milestone_validations.authorize|milestone_validations.create')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/cumplimientos', [PurchaseOrderMilestoneFulfillmentController::class, 'store'])
                 ->name('purchase_orders.fulfillments.store');
             Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
@@ -704,14 +747,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('purchase_orders.deliveries.revert');
         });
 
-        // Contrarecibo PDF — accesible para admin, Pagos y Orden de compra
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        // Contrarecibo y comprobante SPEI: quienes consultan Pagado (Dirección, Compras, Pagos).
+        Route::middleware('permission:payments_paid.view')->group(function () {
             Route::get('/pagos/{payment}/contrarecibo', [PaymentController::class, 'contrarecibo'])->name('payments.contrarecibo');
             Route::get('/pagos/{payment}/comprobante-spei', [PaymentController::class, 'downloadSpeiReceipt'])->name('payments.spei_receipt.download');
         });
 
-        // AJAX: hitos de una OC (para Alta de Facturas)
-        Route::middleware('role:admin|Pagos|Orden de compra')->group(function () {
+        // AJAX: hitos de una OC (para Alta de Facturas y la vista de la OC)
+        Route::middleware('permission:invoice_intake.view|milestones.view')->group(function () {
             Route::get('/ordenes-de-compra/{purchaseOrder}/hitos-json', [PurchaseOrderMilestoneController::class, 'forOrder'])->name('milestones.for_order');
         });
 
@@ -856,92 +899,69 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->middleware('permission:material_vouchers.download')->name('material_vouchers.pdf');
 
         // ── SOLCOM (Solicitudes de Compra) ────────────────────────────────────
-        Route::middleware('role:admin|Solcom|Orden de compra')->group(function () {
-            // Búsqueda de SOLCOM por número de folio (para modal OC — debe ir ANTES del resource)
-            Route::get('/solicitudes-compra/buscar-por-folio',
-                [PurchaseRequestController::class, 'itemsJsonByFolio'])
+        // Vista `purchase_requests`: Almacén la genera y la edita hasta enviarla a Compras; Compras la edita
+        // después (decisión 2026-11-10). Enviar y reasignar comprador es la Pila SOLCOM de Almacén
+        // (`purchase_request_queue.update`); pedir y resolver cambios, `purchase_request_changes.create`.
+        Route::middleware('permission:purchase_requests.view')->group(function () {
+            // Rutas estáticas antes de {purchaseRequest}
+            Route::get('/solicitudes-compra/buscar-por-folio', [PurchaseRequestController::class, 'itemsJsonByFolio'])
                 ->name('purchase_requests.items_json_by_folio');
-
-            Route::get('/solicitudes-compra/solicitudes-cambio',
-                [PurchaseRequestController::class, 'changeRequestsPanel'])
-                ->name('purchase_request_changes.index');
-
-            Route::get('/solicitudes-compra/archivadas',
-                [PurchaseRequestController::class, 'archived'])
+            Route::get('/solicitudes-compra/archivadas', [PurchaseRequestController::class, 'archived'])
                 ->name('purchase_requests.archived');
-
-            Route::resource('/solicitudes-compra', PurchaseRequestController::class, [
-                'names' => [
-                    'index' => 'purchase_requests.index',
-                    'create' => 'purchase_requests.create',
-                    'store' => 'purchase_requests.store',
-                    'edit' => 'purchase_requests.edit',
-                    'update' => 'purchase_requests.update',
-                    'destroy' => 'purchase_requests.destroy',
-                ],
-                'parameters' => ['solicitudes-compra' => 'purchaseRequest'],
-            ])->except(['show']);
-
-            Route::patch('/solicitudes-compra/{purchaseRequest}/archivar',
-                [PurchaseRequestController::class, 'archive'])
-                ->name('purchase_requests.archive');
-
-            Route::patch('/solicitudes-compra/{purchaseRequest}/desarchivar',
-                [PurchaseRequestController::class, 'unarchive'])
-                ->name('purchase_requests.unarchive');
-
-            Route::post('/solicitudes-compra/{purchaseRequest}/items',
-                [PurchaseRequestController::class, 'storeItem'])
-                ->name('purchase_requests.items.store');
-
-            Route::delete('/solicitudes-compra/{purchaseRequest}/items/{item}',
-                [PurchaseRequestController::class, 'destroyItem'])
-                ->name('purchase_requests.items.destroy');
-
-            Route::patch('/solicitudes-compra/{purchaseRequest}/items/{item}',
-                [PurchaseRequestController::class, 'updateItem'])
-                ->name('purchase_requests.items.update');
-
-            Route::post('/solicitudes-compra/{purchaseRequest}/notes',
-                [PurchaseRequestController::class, 'storeObservation'])
-                ->name('purchase_requests.notes.store');
-
-            Route::patch('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
-                [PurchaseRequestController::class, 'updateObservation'])
-                ->name('purchase_requests.notes.update');
-
-            Route::delete('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}',
-                [PurchaseRequestController::class, 'destroyObservation'])
-                ->name('purchase_requests.notes.destroy');
-
-            // JSON de ítems para precarga en modal de creación de OC
-            Route::get('/solicitudes-compra/{purchaseRequest}/items-json',
-                [PurchaseRequestController::class, 'itemsJson'])
+            Route::get('/solicitudes-compra', [PurchaseRequestController::class, 'index'])
+                ->name('purchase_requests.index');
+            Route::get('/solicitudes-compra/{purchaseRequest}/items-json', [PurchaseRequestController::class, 'itemsJson'])
                 ->name('purchase_requests.items_json');
-
-            // ── Flujo de trabajo SOLCOM ───────────────────────────────────────
-            Route::post('/solicitudes-compra/{purchaseRequest}/send-to-purchasing',
-                [PurchaseRequestController::class, 'sendToPurchasing'])
-                ->name('purchase_requests.send_to_purchasing');
-
-            Route::post('/solicitudes-compra/{purchaseRequest}/reassign-purchasing',
-                [PurchaseRequestController::class, 'reassignPurchasing'])
-                ->name('purchase_requests.reassign_purchasing');
-
-            Route::post('/solicitudes-compra/{purchaseRequest}/request-changes',
-                [PurchaseRequestController::class, 'requestChanges'])
-                ->name('purchase_requests.request_changes');
-
-            Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/resolve',
-                [PurchaseRequestController::class, 'resolveChangeNote'])
-                ->name('purchase_requests.change_notes.resolve');
-
-            // ── Pila SOLCOM (vista de Compras por usuario) ───────────────────
-            Route::get('/compras/pila-solcom',
-                [PurchaseRequestController::class, 'purchasingPile'])
-                ->name('purchasing.solcom_pile');
-
         });
+        Route::get('/solicitudes-compra/solicitudes-cambio', [PurchaseRequestController::class, 'changeRequestsPanel'])
+            ->middleware('permission:purchase_request_changes.view')
+            ->name('purchase_request_changes.index');
+        Route::middleware('permission:purchase_requests.create')->group(function () {
+            Route::get('/solicitudes-compra/create', [PurchaseRequestController::class, 'create'])
+                ->name('purchase_requests.create');
+            Route::post('/solicitudes-compra', [PurchaseRequestController::class, 'store'])
+                ->name('purchase_requests.store');
+        });
+        Route::middleware('permission:purchase_requests.update')->group(function () {
+            Route::get('/solicitudes-compra/{purchaseRequest}/edit', [PurchaseRequestController::class, 'edit'])
+                ->name('purchase_requests.edit');
+            Route::match(['put', 'patch'], '/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'update'])
+                ->name('purchase_requests.update');
+            Route::delete('/solicitudes-compra/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])
+                ->name('purchase_requests.destroy');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/archivar', [PurchaseRequestController::class, 'archive'])
+                ->name('purchase_requests.archive');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/desarchivar', [PurchaseRequestController::class, 'unarchive'])
+                ->name('purchase_requests.unarchive');
+            Route::post('/solicitudes-compra/{purchaseRequest}/items', [PurchaseRequestController::class, 'storeItem'])
+                ->name('purchase_requests.items.store');
+            Route::delete('/solicitudes-compra/{purchaseRequest}/items/{item}', [PurchaseRequestController::class, 'destroyItem'])
+                ->name('purchase_requests.items.destroy');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/items/{item}', [PurchaseRequestController::class, 'updateItem'])
+                ->name('purchase_requests.items.update');
+            Route::post('/solicitudes-compra/{purchaseRequest}/notes', [PurchaseRequestController::class, 'storeObservation'])
+                ->name('purchase_requests.notes.store');
+            Route::patch('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}', [PurchaseRequestController::class, 'updateObservation'])
+                ->name('purchase_requests.notes.update');
+            Route::delete('/solicitudes-compra/{purchaseRequest}/notes/{noteIndex}', [PurchaseRequestController::class, 'destroyObservation'])
+                ->name('purchase_requests.notes.destroy');
+        });
+        Route::middleware('permission:purchase_request_queue.update')->group(function () {
+            Route::post('/solicitudes-compra/{purchaseRequest}/send-to-purchasing', [PurchaseRequestController::class, 'sendToPurchasing'])
+                ->name('purchase_requests.send_to_purchasing');
+            Route::post('/solicitudes-compra/{purchaseRequest}/reassign-purchasing', [PurchaseRequestController::class, 'reassignPurchasing'])
+                ->name('purchase_requests.reassign_purchasing');
+        });
+        Route::middleware('permission:purchase_request_changes.create')->group(function () {
+            Route::post('/solicitudes-compra/{purchaseRequest}/request-changes', [PurchaseRequestController::class, 'requestChanges'])
+                ->name('purchase_requests.request_changes');
+            Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/resolve', [PurchaseRequestController::class, 'resolveChangeNote'])
+                ->name('purchase_requests.change_notes.resolve');
+        });
+        // Pila SOLCOM: SOLCOM enviadas a Compras y asignadas al usuario.
+        Route::get('/compras/pila-solcom', [PurchaseRequestController::class, 'purchasingPile'])
+            ->middleware('permission:purchase_request_queue.view')
+            ->name('purchasing.solcom_pile');
 
         Route::middleware('role:admin')->group(function () {
             Route::get('/solicitudes-compra/eliminadas/papelera',
@@ -957,8 +977,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('purchase_requests.force_destroy');
         });
 
-        // ── Carga de Trabajo SOLCOM (solo Orden de compra) ─────────────────
-        Route::middleware('role:admin|Orden de compra')->group(function () {
+        // ── Carga de Trabajo SOLCOM: Dirección y admin ven la de todos; cada comprador, la suya ──
+        Route::middleware('permission:purchasing_workload.view')->group(function () {
             Route::get('/compras/carga-de-trabajo',
                 [PurchaseRequestController::class, 'workload'])
                 ->name('purchasing.workload');

@@ -42,6 +42,7 @@
                 <h5 class="card-title mb-0"><i class="ri-add-circle-line me-1 text-primary"></i> Nuevo Registro de Control</h5>
             </div>
             <div class="card-body">
+                @can('tool_controls.register')
                 <form action="{{ route('tool_controls.store') }}" method="POST" id="tool-control-form">
                     @csrf
                     <div class="mb-3">
@@ -116,6 +117,7 @@
                         </button>
                     </div>
                 </form>
+                @endcan
             </div>
         </div>
     </div>
@@ -206,6 +208,7 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="d-flex gap-2 justify-content-end">
+                                            @can('tool_controls.register')
                                             <button type="button"
                                                     class="btn btn-soft-primary btn-sm"
                                                     data-bs-toggle="modal"
@@ -220,6 +223,7 @@
                                                     <i class="ri-delete-bin-line"></i>
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>

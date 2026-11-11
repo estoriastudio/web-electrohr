@@ -26,10 +26,9 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
     {
         $purchaseOrder->ensureOpen();
 
-        $user = Auth::user();
-        $canRecord = $user->hasRole('admin')
-            || ($user->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) $user->id);
-        abort_unless($canRecord, 403);
+        // Validación del hito (matriz: milestone_validations): Gerente, Supervisor y Almacén validan; Compras
+        // define la validación. Además debe ver la OC (Compras: sus OC; Gerente y Supervisor: sus proyectos).
+        $this->authorizeAccess($purchaseOrder, 'purchase_orders');
 
         if ($purchaseOrder->status !== 'autorizada') {
             return back()->with('error', 'Solo se puede registrar el cumplimiento de una OC autorizada.');
@@ -86,7 +85,7 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
                 $file = $request->file('fulfillment_evidence');
                 $nextNumber = $purchaseOrder->evidences()->count() + 1;
                 $extension = strtolower($file->getClientOriginalExtension());
-                $evidenceFileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
+                $evidenceFileName = 'OC'.$purchaseOrder->id.'-EVID'.$nextNumber.'.'.$extension;
                 $storedPath = PurchaseOrderEvidence::storeUpload($file, $purchaseOrder->id, $evidenceFileName);
 
                 $evidence = PurchaseOrderEvidence::create([
@@ -97,7 +96,7 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
                     'file_path' => $storedPath,
                     'mime_type' => $file->getClientMimeType(),
                     'source' => 'internal',
-                    'description' => 'Evidencia de cumplimiento (' . $typeLabel . ')',
+                    'description' => 'Evidencia de cumplimiento ('.$typeLabel.')',
                 ]);
 
                 PurchaseOrderMilestoneFulfillment::create([
@@ -127,16 +126,16 @@ class PurchaseOrderMilestoneFulfillmentController extends Controller
         }
 
         $this->notification->send([
-            'type'         => 'PurchaseOrder',
-            'action_by'    => Auth::id(),
+            'type' => 'PurchaseOrder',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $purchaseOrder->id,
-            'data'         => 'validó el cumplimiento (' . $typeLabel . ') del hito #' . $milestone->id
-                . ' en la orden de compra #' . ($purchaseOrder->folio ?? $purchaseOrder->id) . '.',
+            'model_id' => $purchaseOrder->id,
+            'data' => 'validó el cumplimiento ('.$typeLabel.') del hito #'.$milestone->id
+                .' en la orden de compra #'.($purchaseOrder->folio ?? $purchaseOrder->id).'.',
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
-            ->with('success', 'Cumplimiento validado (' . $typeLabel . ').')
+            ->with('success', 'Cumplimiento validado ('.$typeLabel.').')
             ->with('warning', $creditWarning);
     }
 }

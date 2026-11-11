@@ -11,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\MilestoneEventStatus;
 use App\Services\PurchaseOrderEconomicSummary;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -24,6 +25,8 @@ class MilestoneEventStatusTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
+        // Fase 2: Pagos y Recepción usan los permisos de la matriz.
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_new_event_is_open_pending_every_dimension(): void
@@ -198,7 +201,7 @@ class MilestoneEventStatusTest extends TestCase
     {
         return Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => $amount,
             'payment_date' => '2026-08-30',
             'status' => $status,
@@ -209,7 +212,7 @@ class MilestoneEventStatusTest extends TestCase
     {
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $milestone->purchase_order_id,
-            'folio' => 'F-' . random_int(1000, 9999),
+            'folio' => 'F-'.random_int(1000, 9999),
             'status' => $status,
             'amount' => 1000,
             'currency' => 'MXN',

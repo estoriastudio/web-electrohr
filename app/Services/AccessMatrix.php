@@ -121,11 +121,13 @@ class AccessMatrix
         $scopes = [];
 
         foreach ($this->grantingCells($user, $view, $action) as $cell) {
-            if (! isset($cell['scope'])) {
+            $scope = $cell['action_scopes'][$action] ?? $cell['scope'] ?? null;
+
+            if ($scope === null) {
                 return [self::ALL];
             }
 
-            $scopes[] = $cell['scope'];
+            $scopes[] = $scope;
         }
 
         return array_values(array_unique($scopes));

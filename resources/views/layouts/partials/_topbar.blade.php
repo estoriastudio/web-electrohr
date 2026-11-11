@@ -10,7 +10,8 @@
                         </button>
                     </div>
 
-                    @hasanyrole('admin|Pagos|Solmat|Solcom|Orden de compra|Proyectos') 
+                    {{-- Búsqueda por folio de SOLMAT, SOLCOM y OC: quien consulta alguno de esos módulos. --}}
+                    @canany(['material_requests.view', 'purchase_requests.view', 'purchase_orders.view'])
                     <form method="GET" action="{{ route('global_search') }}" class="app-search general-search" role="search" aria-label="Buscar por folio">
                         <div class="d-flex align-items-center general-search-controls">
                             <div class="general-search-field">
@@ -32,7 +33,7 @@
                             </select>
                         </div>
                     </form>
-                    @endhasanyrole
+                    @endcanany
                 </div>
 
                 <div class="d-flex align-items-center gap-1">
@@ -121,7 +122,8 @@
                         </div>
                     </div>
 
-                    <!-- Global Notifications -->
+                    <!-- Global Notifications: es la auditoría (matriz: Dirección y admin) -->
+                    @can('notifications_audit.view')
                     <div class="dropdown topbar-item">
                         <button type="button" class="topbar-button position-relative" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Notificaciones globales">
                             <i class="ri-notification-3-line fs-24"></i>
@@ -182,6 +184,7 @@
                             </div>
                         </div>
                     </div>
+                    @endcan
                     @endif
 
                     <!-- Theme Setting -->

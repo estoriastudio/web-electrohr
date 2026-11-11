@@ -1,12 +1,16 @@
 @extends('layouts.app')
 
 @php use Illuminate\Support\Facades\Storage; @endphp
+@php
+    // Almacén edita la SOLCOM hasta enviarla a Compras; Compras y admin, siempre (matriz + decisión 2026-11-10).
+    $canEditSolcom = $purchaseRequest->isVisibleTo(auth()->user(), 'purchase_requests', 'update');
+@endphp
 
 @section('page_title', 'SOLCOM #' . $purchaseRequest->folio)
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    @if (auth()->user()->isRestrictedEngineer())
+    @if (! auth()->user()->hasFullAccessScope('purchase_requests'))
         <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
     @else
         <li class="breadcrumb-item"><a href="{{ route('purchase_requests.index') }}">Solicitudes de Compra</a></li>
@@ -79,32 +83,34 @@
                             <i class="ri-file-pdf-2-line me-1"></i> Descargar PDF
                         </a>
 
-                                @hasanyrole('admin|Solcom')
+                                
+                        @if ($canEditSolcom)
                         <a href="{{ route('purchase_requests.edit', $purchaseRequest) }}"
                            class="btn btn-soft-primary btn-sm">
                             <i class="ri-edit-line me-1"></i>Editar
                         </a>
+                        @endif
 
                         {{-- ENVIAR A COMPRAS: visible si NO está en compras ni finalizada --}}
-                        @if (! in_array($purchaseRequest->status, ['sent_to_purchasing', 'completed']))
+                        @if (auth()->user()->can('purchase_request_queue.update') && ! in_array($purchaseRequest->status, ['sent_to_purchasing', 'completed']))
                         <button type="button" class="btn btn-primary btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalSendToPurchasing">
                             <i class="ri-send-plane-2-line me-1"></i>Enviar a Compras
                         </button>
                         @endif
 
-                        @endhasanyrole
+                        
 
                         {{-- SOLICITAR CAMBIOS: disponible para Solcom y Compras cuando está en compras --}}
-                        @hasanyrole('admin|Solcom|Orden de compra')
+                        @can('purchase_request_changes.create')
                         @if ($purchaseRequest->status === 'sent_to_purchasing')
                         <button type="button" class="btn btn-warning btn-sm"
                                 data-bs-toggle="modal" data-bs-target="#modalRequestChanges">
                             <i class="ri-edit-circle-line me-1"></i>Solicitar Cambios
                         </button>
                         @endif
-                        @endhasanyrole
-                        <a href="{{ auth()->user()->isRestrictedEngineer() ? route('my-projects.show', $purchaseRequest->project_id) : route('purchase_requests.index') }}" class="btn btn-light btn-sm">
+                        @endcan
+                        <a href="{{ ! auth()->user()->hasFullAccessScope('purchase_requests') ? route('my-projects.show', $purchaseRequest->project_id) : route('purchase_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
                     </div>
@@ -163,7 +169,7 @@
                             <span class="badge bg-primary-subtle text-primary py-1 px-2">
                                 <i class="ri-user-line me-1"></i>{{ $purchaseRequest->assignedTo->name }}
                             </span>
-                            @hasanyrole('admin|Solcom|Orden de compra')
+                            @can('purchase_request_queue.update')
                             @if ($purchaseRequest->status === 'sent_to_purchasing')
                             <button type="button"
                                     class="btn btn-sm btn-light border"
@@ -174,7 +180,7 @@
                                 <i class="ri-edit-line"></i>
                             </button>
                             @endif
-                            @endhasanyrole
+                            @endcan
                         </div>
                     </div>
                     @endif
@@ -194,11 +200,11 @@
                     <span id="solcom_items_count" class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">
                         {{ $purchaseRequest->items->count() }} ítem(s)
                     </span>
-                    @hasanyrole('admin|Solcom')
+                    @if ($canEditSolcom)
                     <button type="button" class="btn btn-sm btn-primary" id="solcom_btn_toggle_add_concept">
                         <i class="ri-add-line me-1"></i>Agregar concepto
                     </button>
-                    @endhasanyrole
+                    @endif
                 </div>
             </div>
             <div class="card-body p-0">
@@ -295,7 +301,7 @@
                                         @endif
                                     </td>
                                     <td style="min-width:170px">
-                                        @hasanyrole('admin|Solcom')
+                                        @if ($canEditSolcom)
                                         @if ($lockingOrder && ! $canEditLockedQty)
                                             <span class="fw-bold fs-15" title="Bloqueado: fincado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
                                                 <i class="ri-lock-line text-muted me-1"></i>{{ $purchaseQuantity }}
@@ -325,10 +331,10 @@
                                         @endif
                                         @else
                                         <span class="fw-bold fs-15">{{ $purchaseQuantity }}</span>
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                     <td>
-                                        @hasanyrole('admin|Solcom')
+                                        @if ($canEditSolcom)
                                         @if ($lockingOrder)
                                             <button type="button" class="btn btn-soft-danger btn-sm" disabled
                                                     title="Bloqueado: fincado a la OC #{{ $lockingOrder->folio }} ({{ ucfirst($lockingOrder->status) }})">
@@ -344,7 +350,7 @@
                                             </button>
                                         </form>
                                         @endif
-                                        @endhasanyrole
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -360,7 +366,7 @@
                 </div>
             </div>
 
-            @hasanyrole('admin|Solcom')
+            @if ($canEditSolcom)
             <div id="solcom_add_panel" class="border-top px-3 py-3" style="display:none;">
                 <p class="text-muted fs-12 fw-medium mb-2">
                     <i class="ri-add-circle-line me-1 text-primary"></i>Nuevo concepto
@@ -423,7 +429,7 @@
                     </div>
                 </div>
             </div>
-            @endhasanyrole
+            @endif
         </div>
     </div>
 </div>
@@ -441,12 +447,12 @@
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
                         {{ $purchaseRequest->changeNotes->whereNull('resolved_at')->count() }} pendiente(s)
                     </span>
-                    @unless (auth()->user()->isRestrictedEngineer())
+                    @if (auth()->user()->hasFullAccessScope('purchase_requests'))
                     <a href="{{ route('purchase_request_changes.index', ['search' => $purchaseRequest->folio]) }}"
                        class="btn btn-sm btn-light">
                         <i class="ri-external-link-line me-1"></i>Ver panel
                     </a>
-                    @endunless
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -469,7 +475,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @hasanyrole('admin|Solcom')
+                                @can('purchase_request_changes.create')
                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -477,7 +483,7 @@
                                         <i class="ri-check-line me-1"></i>Marcar como resuelta
                                     </button>
                                 </form>
-                                @endhasanyrole
+                                @endcan
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
@@ -563,7 +569,7 @@
                                 <span class="fw-semibold fs-13">{{ $note['user_name'] ?? 'Usuario' }}</span>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="text-muted fs-12">{{ \Carbon\Carbon::parse($note['created_at'])->format('d/m/Y H:i') }}</span>
-                                    @hasanyrole('admin|Solcom')
+                                    @if ($canEditSolcom)
                                     <button type="button"
                                             class="btn btn-link btn-sm p-0 text-decoration-none"
                                             data-bs-toggle="collapse"
@@ -582,12 +588,12 @@
                                             Eliminar
                                         </button>
                                     </form>
-                                    @endhasanyrole
+                                    @endif
                                 </div>
                             </div>
                             <p class="mb-0 text-muted">{{ $note['text'] }}</p>
 
-                            @hasanyrole('admin|Solcom')
+                            @if ($canEditSolcom)
                             <div class="collapse mt-2" id="solcom_note_edit_{{ $noteIndex }}">
                                 <form action="{{ route('purchase_requests.notes.update', [$purchaseRequest, $noteIndex]) }}" method="POST">
                                     @csrf
@@ -598,7 +604,7 @@
                                     </div>
                                 </form>
                             </div>
-                            @endhasanyrole
+                            @endif
                         </div>
                     </div>
                     <hr class="my-2">
@@ -606,7 +612,7 @@
                     <p class="text-muted fs-13 mb-3">Sin observaciones registradas.</p>
                 @endforelse
 
-                @hasanyrole('admin|Solcom')
+                @if ($canEditSolcom)
                 <form action="{{ route('purchase_requests.notes.store', $purchaseRequest) }}" method="POST" class="mt-3">
                     @csrf
                     <div class="mb-2">
@@ -621,14 +627,14 @@
                         </button>
                     </div>
                 </form>
-                @endhasanyrole
+                @endif
             </div>
         </div>
     </div>
 </div>
 
 {{-- ── Modal: Enviar a Compras ── --}}
-@hasanyrole('admin|Solcom')
+@can('purchase_request_queue.update')
 <div class="modal fade" id="modalSendToPurchasing" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -666,10 +672,10 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endcan
 
 {{-- ── Modal: Reasignar en Compras ── --}}
-@hasanyrole('admin|Solcom|Orden de compra')
+@can('purchase_request_queue.update')
 @if ($purchaseRequest->assignedTo && $purchaseRequest->status === 'sent_to_purchasing')
 <div class="modal fade" id="modalReassignPurchasing" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -710,10 +716,10 @@
     </div>
 </div>
 @endif
-@endhasanyrole
+@endcan
 
 {{-- ── Modal: Solicitar Cambios ── --}}
-@hasanyrole('admin|Solcom|Orden de compra')
+@can('purchase_request_changes.create')
 <div class="modal fade" id="modalRequestChanges" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -747,7 +753,7 @@
         </div>
     </div>
 </div>
-@endhasanyrole
+@endcan
 
 @endsection
 

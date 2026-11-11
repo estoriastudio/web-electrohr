@@ -38,9 +38,11 @@
         <div class="card h-100">
             <div class="card-header bg-primary text-white">
                 <h6 class="mb-0 fw-semibold"><i class="ri-file-list-3-line me-1"></i> Órdenes de Compra</h6>
+                @can('payments_paid.view')
                 <a href="{{ route('payments.regularization') }}" class="text-white fs-12 text-decoration-underline">
                     <i class="ri-file-warning-line me-1"></i>Pagos pendientes de regularización documental
                 </a>
+                @endcan
             </div>
             <div class="card-body p-0">
                 {{-- Búsqueda y filtros --}}

@@ -50,7 +50,7 @@
                     <p class="text-muted fs-13 mb-0">Los pagos con vencimiento en los próximos 7 días aparecen primero.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    @role('admin')
+                    @can('payment_authorizations.authorize')
                     <button type="button" id="btnClearAuthorizationSelection" class="btn btn-sm btn-outline-secondary"
                             @disabled($persistedSelectedPaymentCount === 0)>
                         <i class="ri-delete-bin-line me-1"></i> Limpiar selección
@@ -60,7 +60,7 @@
                         <i class="ri-check-double-line me-1"></i> Autorizar seleccionados
                         <span class="badge bg-light text-dark ms-1" id="selectedAuthorizationPaymentsCount">{{ $persistedSelectedPaymentCount }}</span>
                     </button>
-                    @endrole
+                    @endcan
                     <a href="{{ route('payments.interactive') }}" class="btn btn-sm btn-outline-primary">
                         <i class="ri-file-list-3-line me-1"></i> Activar Modo Interactivo
                     </a>
@@ -159,15 +159,15 @@
     </div>
 </div>
 
-@role('admin')
+@can('payment_authorizations.authorize')
 <form action="{{ route('payments.authorize_multiple') }}" method="POST" id="authorizeMultiplePaymentsForm">
     @csrf
 </form>
-@endrole
+@endcan
 
 @endsection
 
-@role('admin')
+@can('payment_authorizations.authorize')
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -317,4 +317,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
-@endrole
+@endcan

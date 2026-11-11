@@ -10,6 +10,7 @@ use App\Models\PurchaseOrderMilestone;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\PurchaseOrderClosureEvaluator;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -23,6 +24,8 @@ class PurchaseOrderClosureTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
+        // Fase 2: Compras usa los permisos de la matriz.
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_order_with_pending_requirements_is_not_ready_to_close(): void
@@ -254,14 +257,14 @@ class PurchaseOrderClosureTest extends TestCase
         ]);
         Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 1000,
             'payment_date' => '2026-09-01',
             'status' => 'pagado',
         ]);
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $order->id,
-            'folio' => 'F-' . random_int(1000, 9999),
+            'folio' => 'F-'.random_int(1000, 9999),
             'status' => PurchaseOrderInvoice::STATUS_ACEPTADA,
             'amount' => 1000,
             'currency' => 'MXN',

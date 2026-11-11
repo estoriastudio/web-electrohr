@@ -95,10 +95,12 @@ class User extends Authenticatable
         return $this->hasRole('Engineer') && ! $this->hasAnyRole(['admin', 'Proyectos', 'Solmat']);
     }
 
+    /**
+     * Comprador cuyas facturas, pagos y OC se listan: el propio usuario si la matriz solo le da sus OC
+     * (Compras, alcance own_buyer en `invoices`); null si ve todas o no tiene alcance de comprador.
+     */
     public function invoiceBuyerFilter(): ?int
     {
-        return $this->hasRole('Orden de compra') && ! $this->hasAnyRole(['admin', 'Pagos', 'Solmat', 'Recepción'])
-            ? (int) $this->id
-            : null;
+        return app(AccessMatrix::class)->scopesFor($this, 'invoices') === ['own_buyer'] ? (int) $this->id : null;
     }
 }

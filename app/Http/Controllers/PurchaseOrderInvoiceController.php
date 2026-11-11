@@ -7,15 +7,19 @@ use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
+use App\Services\AccessMatrix;
 use App\Services\MilestoneCreditTerms;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -35,17 +39,15 @@ class PurchaseOrderInvoiceController extends Controller
         $paymentCondition = trim((string) $request->input('payment_condition', 'todas'));
 
         $validSections = array_merge(PurchaseOrderInvoice::STATUSES, ['todas']);
-        if (!in_array($section, $validSections, true)) {
+        if (! in_array($section, $validSections, true)) {
             $section = PurchaseOrderInvoice::STATUS_EN_PROCESO;
         }
 
-        if (!in_array($paymentCondition, ['contado', 'credito', 'todas'], true)) {
+        if (! in_array($paymentCondition, ['contado', 'credito', 'todas'], true)) {
             $paymentCondition = 'todas';
         }
 
-        $buyerId = Auth::user()->invoiceBuyerFilter();
-        $countsQuery = PurchaseOrderInvoice::query()
-            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId));
+        $countsQuery = PurchaseOrderInvoice::query()->visibleTo(Auth::user(), 'invoices');
         if ($paymentCondition !== 'todas') {
             $countsQuery->whereHas('purchaseOrder.milestones', function ($milestones) use ($paymentCondition) {
                 $milestones->where('payment_condition', $paymentCondition);
@@ -63,7 +65,7 @@ class PurchaseOrderInvoiceController extends Controller
             ->count();
 
         $invoicesQuery = PurchaseOrderInvoice::query()
-            ->when($buyerId !== null, fn ($query) => $query->ownedBy($buyerId))
+            ->visibleTo(Auth::user(), 'invoices')
             ->with([
                 'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by',
                 'purchaseOrder.buyer:id,name',
@@ -73,14 +75,14 @@ class PurchaseOrderInvoiceController extends Controller
             ])
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
-                    $sub->where('folio', 'like', '%' . $search . '%')
+                    $sub->where('folio', 'like', '%'.$search.'%')
                         ->orWhereHas('purchaseOrder', function ($po) use ($search) {
-                            $po->where('folio', 'like', '%' . $search . '%')
-                                ->orWhere('elaborated_by', 'like', '%' . $search . '%')
-                                ->orWhereHas('buyer', fn ($buyer) => $buyer->where('name', 'like', '%' . $search . '%'))
+                            $po->where('folio', 'like', '%'.$search.'%')
+                                ->orWhere('elaborated_by', 'like', '%'.$search.'%')
+                                ->orWhereHas('buyer', fn ($buyer) => $buyer->where('name', 'like', '%'.$search.'%'))
                                 ->orWhereHas('supplier', function ($sup) use ($search) {
-                                    $sup->where('rfc_name', 'like', '%' . $search . '%')
-                                        ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                                    $sup->where('rfc_name', 'like', '%'.$search.'%')
+                                        ->orWhere('commercial_name', 'like', '%'.$search.'%');
                                 });
                         });
                 });
@@ -129,6 +131,8 @@ class PurchaseOrderInvoiceController extends Controller
 
     public function show(PurchaseOrderInvoice $invoice): View
     {
+        $this->authorizeAccess($invoice, 'invoices');
+
         $invoice->load([
             'purchaseOrder:id,folio,supplier_id,buyer_id,elaborated_by,currency,amount',
             'purchaseOrder.buyer:id,name',
@@ -147,7 +151,7 @@ class PurchaseOrderInvoiceController extends Controller
      *
      * @return array<int, array<int, array{id:int, label:string, amount:float, blocked:bool}>>
      */
-    private function milestoneOptionsFor(\Illuminate\Support\Collection $invoices): array
+    private function milestoneOptionsFor(Collection $invoices): array
     {
         $orders = PurchaseOrder::query()
             ->whereIn('id', $invoices->pluck('purchase_order_id')->unique())
@@ -167,7 +171,7 @@ class PurchaseOrderInvoiceController extends Controller
 
                 return [
                     'id' => $milestone->id,
-                    'label' => 'Hito #' . ($index + 1) . ' - ' . $concept . ' . ' . $invoice->currency . ' ' . number_format($amount, 2),
+                    'label' => 'Hito #'.($index + 1).' - '.$concept.' . '.$invoice->currency.' '.number_format($amount, 2),
                     'amount' => round($amount, 2),
                     'blocked' => $milestone->invoices
                         ->where('id', '!=', $invoice->id)
@@ -187,6 +191,9 @@ class PurchaseOrderInvoiceController extends Controller
             'payment_conditions.*' => [Rule::in(['contado', 'credito'])],
         ]);
 
+        // El Excel filtra por comprador; quien solo ve sus proyectos (Gerente, Supervisor) no exporta.
+        abort_if(app(AccessMatrix::class)->scopesFor(Auth::user(), 'invoices') === ['assigned_projects'], 403);
+
         $paymentConditions = collect($validated['payment_conditions'])->unique();
         $paymentCondition = $paymentConditions->count() === 2
             ? 'ambas'
@@ -199,7 +206,7 @@ class PurchaseOrderInvoiceController extends Controller
                 $paymentCondition,
                 Auth::user()->invoiceBuyerFilter()
             ),
-            'facturas-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+            'facturas-'.$validated['start_date'].'-a-'.$validated['end_date'].'.xlsx'
         );
     }
 
@@ -223,13 +230,13 @@ class PurchaseOrderInvoiceController extends Controller
 
         $validated = $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
-            'folio'             => 'nullable|string|max:100',
-            'amount'            => ['required', 'numeric', 'min:0.01'],
-            'currency'          => 'required|in:MXN,USD,EUR',
-            'milestone_ids'     => 'nullable|array',
-            'milestone_ids.*'   => 'exists:purchase_order_milestones,id',
-            'pdf_file'          => 'nullable|file|mimes:pdf|max:10240',
-            'xml_file'          => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
+            'folio' => 'nullable|string|max:100',
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'currency' => 'required|in:MXN,USD,EUR',
+            'milestone_ids' => 'nullable|array',
+            'milestone_ids.*' => 'exists:purchase_order_milestones,id',
+            'pdf_file' => 'nullable|file|mimes:pdf|max:10240',
+            'xml_file' => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
         ]);
 
         $validated['amount'] = round((float) $validated['amount'], 2);
@@ -245,7 +252,7 @@ class PurchaseOrderInvoiceController extends Controller
 
         if ($validated['amount'] > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
             return redirect()->back()->withInput()->withErrors([
-                'amount' => 'El importe no puede exceder el saldo pendiente de la orden de compra (' . number_format($pendingAmount, 2) . ' ' . $purchaseOrder->currency . ').',
+                'amount' => 'El importe no puede exceder el saldo pendiente de la orden de compra ('.number_format($pendingAmount, 2).' '.$purchaseOrder->currency.').',
             ]);
         }
 
@@ -256,7 +263,7 @@ class PurchaseOrderInvoiceController extends Controller
             $xmlFiscalFolio = $invoiceMetadata['uuid'] ?? null;
             $xmlIssueDate = $invoiceMetadata['issue_date'] ?? null;
 
-            if (!$xmlFiscalFolio) {
+            if (! $xmlFiscalFolio) {
                 return redirect()->back()->withInput()->withErrors([
                     'xml_file' => 'No fue posible leer el folio fiscal (UUID) del XML. Verifica que sea un CFDI timbrado válido.',
                 ]);
@@ -279,7 +286,7 @@ class PurchaseOrderInvoiceController extends Controller
             ]);
         }
 
-        $fileName    = null;
+        $fileName = null;
         $storagePath = null;
         $xmlFileName = null;
         $xmlStoragePath = null;
@@ -287,43 +294,43 @@ class PurchaseOrderInvoiceController extends Controller
         $folioForFile = strtoupper(trim((string) ($validated['folio'] ?? '')));
         $baseName = $folioForFile !== ''
             ? $this->sanitizeFileToken($folioForFile)
-            : 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber;
+            : 'OC'.$purchaseOrder->id.'-FACT'.$invoiceNumber;
 
         if ($request->hasFile('pdf_file')) {
             // Generar nombre de archivo: OC{id}-FACT{n+1}
-            $fileName      = $baseName . '.pdf';
-            $storagePath   = 'invoices/' . $purchaseOrder->id . '/' . $fileName;
+            $fileName = $baseName.'.pdf';
+            $storagePath = 'invoices/'.$purchaseOrder->id.'/'.$fileName;
 
             $request->file('pdf_file')->storeAs(
-                'invoices/' . $purchaseOrder->id,
+                'invoices/'.$purchaseOrder->id,
                 $fileName
             );
         }
 
         if ($request->hasFile('xml_file')) {
-            $xmlFileName = $baseName . '.xml';
-            $xmlStoragePath = 'invoices/' . $purchaseOrder->id . '/' . $xmlFileName;
+            $xmlFileName = $baseName.'.xml';
+            $xmlStoragePath = 'invoices/'.$purchaseOrder->id.'/'.$xmlFileName;
 
             $request->file('xml_file')->storeAs(
-                'invoices/' . $purchaseOrder->id,
+                'invoices/'.$purchaseOrder->id,
                 $xmlFileName
             );
         }
 
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $purchaseOrder->id,
-            'folio'             => $validated['folio'] ?? null,
-            'status'            => PurchaseOrderInvoice::STATUS_EN_PROCESO,
-            'issue_date'        => $xmlIssueDate,
-            'file_name'         => $fileName,
-            'file_path'         => $storagePath,
-            'xml_file_name'     => $xmlFileName,
-            'xml_file_path'     => $xmlStoragePath,
-            'amount'            => $validated['amount'],
-            'currency'          => $validated['currency'],
+            'folio' => $validated['folio'] ?? null,
+            'status' => PurchaseOrderInvoice::STATUS_EN_PROCESO,
+            'issue_date' => $xmlIssueDate,
+            'file_name' => $fileName,
+            'file_path' => $storagePath,
+            'xml_file_name' => $xmlFileName,
+            'xml_file_path' => $xmlStoragePath,
+            'amount' => $validated['amount'],
+            'currency' => $validated['currency'],
         ]);
 
-        if (!empty($validated['milestone_ids'])) {
+        if (! empty($validated['milestone_ids'])) {
             $validIds = $purchaseOrder->milestones()
                 ->whereIn('id', $validated['milestone_ids'])
                 ->pluck('id');
@@ -331,11 +338,11 @@ class PurchaseOrderInvoiceController extends Controller
         }
 
         $this->notification->send([
-            'type'         => 'PurchaseOrderInvoice',
-            'action_by'    => Auth::id(),
+            'type' => 'PurchaseOrderInvoice',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $invoice->id,
-            'data'         => 'registró la factura ' . ($validated['folio'] ?? ($fileName ?? 'sin PDF')) . ' en la OC #' . $purchaseOrder->id,
+            'model_id' => $invoice->id,
+            'data' => 'registró la factura '.($validated['folio'] ?? ($fileName ?? 'sin PDF')).' en la OC #'.$purchaseOrder->id,
         ]);
 
         return redirect()
@@ -348,21 +355,23 @@ class PurchaseOrderInvoiceController extends Controller
      */
     public function download(PurchaseOrderInvoice $invoice)
     {
-        if (!$invoice->file_path || !Storage::exists($invoice->file_path)) {
+        $this->authorizeInvoiceFile($invoice);
+        if (! $invoice->file_path || ! Storage::exists($invoice->file_path)) {
             abort(404, 'Archivo no encontrado.');
         }
 
         return response()->file(
             Storage::path($invoice->file_path),
             [
-                'Content-Type'        => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . $invoice->file_name . '"',
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="'.$invoice->file_name.'"',
             ]
         );
     }
 
     public function downloadFile(PurchaseOrderInvoice $invoice, string $type)
     {
+        $this->authorizeInvoiceFile($invoice);
         $fieldMap = [
             'pdf' => ['path' => 'file_path', 'name' => 'file_name', 'mime' => 'application/pdf'],
             'xml' => ['path' => 'xml_file_path', 'name' => 'xml_file_name', 'mime' => 'application/xml'],
@@ -380,7 +389,7 @@ class PurchaseOrderInvoiceController extends Controller
         $filePath = (string) ($invoice->{$pathField} ?? '');
         $fileName = (string) ($invoice->{$nameField} ?? 'archivo');
 
-        if ($filePath === '' || !Storage::exists($filePath)) {
+        if ($filePath === '' || ! Storage::exists($filePath)) {
             abort(404, 'Archivo no encontrado.');
         }
 
@@ -388,7 +397,7 @@ class PurchaseOrderInvoiceController extends Controller
             Storage::path($filePath),
             [
                 'Content-Type' => $forcedMime ?: (Storage::mimeType($filePath) ?: 'application/octet-stream'),
-                'Content-Disposition' => 'inline; filename="' . str_replace('"', '', $fileName) . '"',
+                'Content-Disposition' => 'inline; filename="'.str_replace('"', '', $fileName).'"',
             ]
         );
     }
@@ -401,7 +410,7 @@ class PurchaseOrderInvoiceController extends Controller
         $invoice->purchaseOrder->ensureOpen();
         $this->releaseRegularizations($invoice);
         $purchaseOrderId = $invoice->purchase_order_id;
-        $fileName        = $invoice->file_name;
+        $fileName = $invoice->file_name;
 
         if ($invoice->file_path && Storage::exists($invoice->file_path)) {
             Storage::delete($invoice->file_path);
@@ -413,11 +422,11 @@ class PurchaseOrderInvoiceController extends Controller
         $invoice->delete();
 
         $this->notification->send([
-            'type'         => 'PurchaseOrderInvoice',
-            'action_by'    => Auth::id(),
+            'type' => 'PurchaseOrderInvoice',
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => $invoice->id,
-            'data'         => 'eliminó la factura ' . $fileName . ' de la OC #' . $purchaseOrderId,
+            'model_id' => $invoice->id,
+            'data' => 'eliminó la factura '.$fileName.' de la OC #'.$purchaseOrderId,
         ]);
 
         return redirect()
@@ -427,6 +436,8 @@ class PurchaseOrderInvoiceController extends Controller
 
     public function updateStatus(Request $request, PurchaseOrderInvoice $invoice): RedirectResponse
     {
+        $this->authorizeAccess($invoice, 'invoices', 'authorize');
+
         return DB::transaction(function () use ($request, $invoice) {
             PurchaseOrder::query()->lockForUpdate()->findOrFail($invoice->purchase_order_id)->ensureOpen();
 
@@ -439,7 +450,7 @@ class PurchaseOrderInvoiceController extends Controller
         $invoice->purchaseOrder->ensureOpen();
 
         $validated = $request->validate([
-            'status' => 'required|in:' . implode(',', PurchaseOrderInvoice::STATUSES),
+            'status' => 'required|in:'.implode(',', PurchaseOrderInvoice::STATUSES),
             'purchase_order_milestone_id' => 'nullable|exists:purchase_order_milestones,id',
             'milestone_ids' => 'nullable|array',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
@@ -453,7 +464,7 @@ class PurchaseOrderInvoiceController extends Controller
                 ->values();
 
             // Backward compatibility for forms still posting a single milestone field.
-            if ($selectedMilestoneIds->isEmpty() && !empty($validated['purchase_order_milestone_id'])) {
+            if ($selectedMilestoneIds->isEmpty() && ! empty($validated['purchase_order_milestone_id'])) {
                 $selectedMilestoneIds = collect([(int) $validated['purchase_order_milestone_id']]);
             }
 
@@ -500,16 +511,16 @@ class PurchaseOrderInvoiceController extends Controller
         };
 
         $this->notification->send([
-            'type'         => 'PurchaseOrderInvoice',
-            'action_by'    => Auth::id(),
+            'type' => 'PurchaseOrderInvoice',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $invoice->id,
-            'data'         => 'actualizó el estatus de la factura ' . ($invoice->folio ?: ('#' . $invoice->id)) . ' a ' . $statusLabel . '.',
+            'model_id' => $invoice->id,
+            'data' => 'actualizó el estatus de la factura '.($invoice->folio ?: ('#'.$invoice->id)).' a '.$statusLabel.'.',
         ]);
 
         return redirect()
             ->back()
-            ->with('success', 'Estatus de factura actualizado a ' . $statusLabel . '.')
+            ->with('success', 'Estatus de factura actualizado a '.$statusLabel.'.')
             ->with('warning', $creditWarnings ?? null);
     }
 
@@ -523,7 +534,7 @@ class PurchaseOrderInvoiceController extends Controller
             return;
         }
 
-        $fail = fn (string $message) => throw \Illuminate\Validation\ValidationException::withMessages([
+        $fail = fn (string $message) => throw ValidationException::withMessages([
             'milestone_ids' => $message,
         ]);
 
@@ -552,10 +563,10 @@ class PurchaseOrderInvoiceController extends Controller
         if (abs($difference) > self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
             $currency = $order->currency;
             $fail($difference > 0
-                ? 'El importe de la factura (' . number_format($invoiceAmount, 2) . ' ' . $currency . ') excede en ' . number_format($difference, 2)
-                    . ' ' . $currency . ' la suma de los hitos seleccionados (' . number_format($milestonesTotal, 2) . ' ' . $currency . ').'
-                : 'La factura (' . number_format($invoiceAmount, 2) . ' ' . $currency . ') no cubre los hitos seleccionados ('
-                    . number_format($milestonesTotal, 2) . ' ' . $currency . '): faltan ' . number_format(abs($difference), 2) . ' ' . $currency . '.');
+                ? 'El importe de la factura ('.number_format($invoiceAmount, 2).' '.$currency.') excede en '.number_format($difference, 2)
+                    .' '.$currency.' la suma de los hitos seleccionados ('.number_format($milestonesTotal, 2).' '.$currency.').'
+                : 'La factura ('.number_format($invoiceAmount, 2).' '.$currency.') no cubre los hitos seleccionados ('
+                    .number_format($milestonesTotal, 2).' '.$currency.'): faltan '.number_format(abs($difference), 2).' '.$currency.'.');
         }
     }
 
@@ -610,7 +621,7 @@ class PurchaseOrderInvoiceController extends Controller
     private function xmlExtensionRule(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) {
-            if ($value instanceof \Illuminate\Http\UploadedFile
+            if ($value instanceof UploadedFile
                 && strtolower($value->getClientOriginalExtension()) !== 'xml') {
                 $fail('El archivo debe ser de tipo XML.');
             }
@@ -624,9 +635,9 @@ class PurchaseOrderInvoiceController extends Controller
             return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         $loaded = @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS);
-        if (!$loaded) {
+        if (! $loaded) {
             return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
@@ -689,6 +700,17 @@ class PurchaseOrderInvoiceController extends Controller
     {
         $normalized = strtoupper(trim($token));
         $sanitized = preg_replace('/[^A-Z0-9\-]+/', '_', $normalized) ?? '';
+
         return trim($sanitized, '_-') !== '' ? trim($sanitized, '_-') : 'SIN-FOLIO';
+    }
+
+    /** Archivos de la factura: quien da de alta facturas (Compras, Recepción) o quien ve esa factura en Facturas. */
+    private function authorizeInvoiceFile(PurchaseOrderInvoice $invoice): void
+    {
+        if (Auth::user()->can('invoice_intake.view')) {
+            return;
+        }
+
+        $this->authorizeAccess($invoice, 'invoices');
     }
 }

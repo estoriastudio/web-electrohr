@@ -244,7 +244,8 @@
 							<td>{{ $po?->buyer?->name ?: ($po?->elaborated_by ?: '—') }}</td>
 							<td class="text-end fw-semibold">{{ $invoice->currency }} {{ number_format($netScope, 2) }}</td>
 							<td class="text-center">
-								@if ($po)
+								{{-- Validar: Compras (sus OC) y admin; los demás solo consultan. --}}
+								@if ($po && auth()->user()->can('invoices.authorize'))
 									<button type="button"
 											class="btn btn-warning btn-sm js-open-validation-modal"
 											data-invoice-id="{{ $invoice->id }}"

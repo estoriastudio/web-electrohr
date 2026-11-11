@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConceptCategory;
 use App\Models\MaterialRequest;
 use App\Models\Notification;
 use App\Models\Project;
@@ -13,13 +14,16 @@ use App\Models\PurchaseRequestItem;
 use App\Models\User;
 use App\Services\NotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class PurchaseRequestController extends Controller
 {
@@ -42,7 +46,7 @@ class PurchaseRequestController extends Controller
             ])
             ->whereNull('resolved_at')
             ->whereHas('purchaseRequest', function ($query) {
-                $query->whereNull('archived_at');
+                $query->whereNull('archived_at')->visibleTo(Auth::user(), 'purchase_requests');
             });
 
         $query = clone $baseQuery;
@@ -116,15 +120,16 @@ class PurchaseRequestController extends Controller
         $status = $request->input('status', '');
 
         $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
+            ->visibleTo(Auth::user(), 'purchase_requests')
             ->whereNull('archived_at')
             ->orderByDesc('folio');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhere('zone', 'like', "%{$search}%")
-                  ->orWhere('short_description', 'like', "%{$search}%")
-                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhere('zone', 'like', "%{$search}%")
+                    ->orWhere('short_description', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -133,9 +138,9 @@ class PurchaseRequestController extends Controller
         }
 
         $purchaseRequests = $query->paginate(15)->withQueryString();
-        $nextFolio        = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
-        $projects         = Project::where('status', 'active')->orderBy('name')->get();
-        $purchasingUsers  = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
+        $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
+        $projects = Project::where('status', 'active')->orderBy('name')->get();
+        $purchasingUsers = User::role(['admin', 'Orden de compra'])->orderBy('name')->get();
 
         return view('purchase_requests.index', compact('purchaseRequests', 'nextFolio', 'projects', 'search', 'status', 'purchasingUsers'));
     }
@@ -148,23 +153,23 @@ class PurchaseRequestController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'folio'               => 'required|integer|min:18000|unique:purchase_requests,folio',
-            'code'                => 'nullable|string|max:100',
+            'folio' => 'required|integer|min:18000|unique:purchase_requests,folio',
+            'code' => 'nullable|string|max:100',
             'material_request_id' => 'nullable|exists:material_requests,id',
             'material_request_ids' => 'nullable|array|min:1',
             'material_request_ids.*' => 'integer|exists:material_requests,id',
             'selected_item_keys' => 'nullable|array|min:1',
             'selected_item_keys.*' => 'required|string|max:255',
-            'project_id'          => 'required|exists:projects,id',
-            'project_work_id'     => 'nullable|exists:project_works,id',
-            'project_work_ids'    => 'nullable|array|min:1',
-            'project_work_ids.*'  => 'exists:project_works,id',
-            'zone'                => 'required|string|max:255',
-            'delivery_address'    => 'required|string|max:255',
-            'short_description'   => 'required|string|max:255',
-            'request_date'        => 'required|date',
-            'need_date'           => 'required|date|after_or_equal:request_date',
-            'assigned_to'         => 'nullable|exists:users,id',
+            'project_id' => 'required|exists:projects,id',
+            'project_work_id' => 'nullable|exists:project_works,id',
+            'project_work_ids' => 'nullable|array|min:1',
+            'project_work_ids.*' => 'exists:project_works,id',
+            'zone' => 'required|string|max:255',
+            'delivery_address' => 'required|string|max:255',
+            'short_description' => 'required|string|max:255',
+            'request_date' => 'required|date',
+            'need_date' => 'required|date|after_or_equal:request_date',
+            'assigned_to' => 'nullable|exists:users,id',
             'clear_solmat_pile_selection_on_success' => 'nullable|boolean',
         ]);
 
@@ -176,7 +181,7 @@ class PurchaseRequestController extends Controller
             ->filter()
             ->values();
 
-        if ($selectedWorkIds->isEmpty() && !empty($data['project_work_id'])) {
+        if ($selectedWorkIds->isEmpty() && ! empty($data['project_work_id'])) {
             $selectedWorkIds = collect([(int) $data['project_work_id']]);
         }
 
@@ -195,7 +200,7 @@ class PurchaseRequestController extends Controller
             ->unique()
             ->values();
 
-        if ($materialRequestIds->isEmpty() && !empty($data['material_request_id'])) {
+        if ($materialRequestIds->isEmpty() && ! empty($data['material_request_id'])) {
             $materialRequestIds = collect([(int) $data['material_request_id']]);
         }
 
@@ -253,7 +258,7 @@ class PurchaseRequestController extends Controller
         unset($data['selected_item_keys']);
 
         $data['requested_by'] = Auth::id();
-        $data['status']       = 'pending';
+        $data['status'] = 'pending';
 
         if ($sourceMaterialRequests->isNotEmpty()) {
             $data['material_request_id'] = (int) $sourceMaterialRequests->first()->id;
@@ -275,13 +280,13 @@ class PurchaseRequestController extends Controller
 
                     PurchaseRequestItem::create([
                         'purchase_request_id' => $purchaseRequest->id,
-                        'concept_id'          => $item['concept_id'],
-                        'code'                => $item['code'],
-                        'description'         => $item['description'],
-                        'unit'                => $item['unit'],
-                        'requested_quantity'  => $item['resolved_quantity'],
-                        'purchase_quantity'   => $item['resolved_quantity'],
-                        'file_path'           => $item['file_path'],
+                        'concept_id' => $item['concept_id'],
+                        'code' => $item['code'],
+                        'description' => $item['description'],
+                        'unit' => $item['unit'],
+                        'requested_quantity' => $item['resolved_quantity'],
+                        'purchase_quantity' => $item['resolved_quantity'],
+                        'file_path' => $item['file_path'],
                     ]);
                 }
 
@@ -290,12 +295,12 @@ class PurchaseRequestController extends Controller
                     $categoryId = $sourceMaterialRequests
                         ->flatMap(fn ($materialRequest) => $materialRequest->items)
                         ->whereNotNull('concept_id')
-                        ->map(fn($item) => optional($item->concept)->concept_category_id)
+                        ->map(fn ($item) => optional($item->concept)->concept_category_id)
                         ->filter()
                         ->first();
 
                     if ($categoryId) {
-                        $suggestedUser = \App\Models\ConceptCategory::find($categoryId)
+                        $suggestedUser = ConceptCategory::find($categoryId)
                             ?->users()
                             ->orderBy('name')
                             ->first();
@@ -308,7 +313,7 @@ class PurchaseRequestController extends Controller
 
                 // Heredar observaciones de la primera SOLMAT para mantener compatibilidad del flujo actual.
                 $firstMaterialRequest = $sourceMaterialRequests->first();
-                if (!empty($firstMaterialRequest?->observations) && empty($purchaseRequest->observations)) {
+                if (! empty($firstMaterialRequest?->observations) && empty($purchaseRequest->observations)) {
                     $purchaseRequest->update(['observations' => $firstMaterialRequest->observations]);
                 }
 
@@ -320,8 +325,8 @@ class PurchaseRequestController extends Controller
                 $sourceMaterialRequests
                     ->whereIn('id', $contributingMaterialRequestIds)
                     ->each(function ($materialRequest) {
-                    $materialRequest->update(['status' => 'linked']);
-                });
+                        $materialRequest->update(['status' => 'linked']);
+                    });
 
                 $purchaseRequest->materialRequests()->sync($contributingMaterialRequestIds->all());
             }
@@ -330,11 +335,11 @@ class PurchaseRequestController extends Controller
         });
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $pr->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$pr->folio} creada.",
+            'model_id' => $pr->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$pr->folio} creada.",
         ]);
 
         if ($clearSolmatPileSelectionOnSuccess) {
@@ -342,12 +347,12 @@ class PurchaseRequestController extends Controller
         }
 
         return redirect()->route('purchase_requests.show', $pr)
-                         ->with('success', "Solicitud de Compra #{$pr->folio} creada correctamente.");
+            ->with('success', "Solicitud de Compra #{$pr->folio} creada correctamente.");
     }
 
     public function show(PurchaseRequest $purchaseRequest)
     {
-        $this->ensureProjectVisible($purchaseRequest->project_id);
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
 
         $purchaseRequest->load([
             'project',
@@ -368,7 +373,7 @@ class PurchaseRequestController extends Controller
             ->map(fn ($id) => (int) $id)
             ->values();
 
-        if ($selectedWorkIds->isEmpty() && !empty($purchaseRequest->project_work_id)) {
+        if ($selectedWorkIds->isEmpty() && ! empty($purchaseRequest->project_work_id)) {
             $selectedWorkIds = collect([(int) $purchaseRequest->project_work_id]);
         }
 
@@ -391,6 +396,7 @@ class PurchaseRequestController extends Controller
 
             if ($matchingSourceItems->isEmpty()) {
                 $purchaseItem->setAttribute('selected_work_breakdown', []);
+
                 return;
             }
 
@@ -404,11 +410,11 @@ class PurchaseRequestController extends Controller
                 $sourceItem->workQuantities->each(function ($workQuantity) use ($selectedWorkIds, &$workTotals) {
                     $workId = (int) $workQuantity->project_work_id;
 
-                    if ($selectedWorkIds->isNotEmpty() && !$selectedWorkIds->contains($workId)) {
+                    if ($selectedWorkIds->isNotEmpty() && ! $selectedWorkIds->contains($workId)) {
                         return;
                     }
 
-                    if (!isset($workTotals[$workId])) {
+                    if (! isset($workTotals[$workId])) {
                         $workTotals[$workId] = [
                             'work_id' => (string) $workId,
                             'work_name' => $workQuantity->projectWork?->name,
@@ -424,6 +430,7 @@ class PurchaseRequestController extends Controller
                 ->sortBy('work_name')
                 ->map(function ($row) {
                     $row['quantity'] = number_format((float) $row['quantity'], 4, '.', '');
+
                     return $row;
                 })
                 ->values()
@@ -432,11 +439,11 @@ class PurchaseRequestController extends Controller
             $purchaseItem->setAttribute('selected_work_breakdown', $breakdown);
         });
 
-        $history         = Notification::where('type', 'purchase_request')
-                                       ->where('model_id', $purchaseRequest->id)
-                                       ->with('user')
-                                       ->orderBy('created_at')
-                                       ->get();
+        $history = Notification::where('type', 'purchase_request')
+            ->where('model_id', $purchaseRequest->id)
+            ->with('user')
+            ->orderBy('created_at')
+            ->get();
 
         $purchasingUsers = User::role('Orden de compra')->orderBy('name')->get();
 
@@ -450,6 +457,7 @@ class PurchaseRequestController extends Controller
 
     public function edit(PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $projects = Project::where('status', 'active')->orderBy('name')->get();
 
         return view('purchase_requests.edit', compact('purchaseRequest', 'projects'));
@@ -457,17 +465,18 @@ class PurchaseRequestController extends Controller
 
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
-            'code'              => 'nullable|string|max:100',
-            'project_id'        => 'required|exists:projects,id',
-            'project_work_id'   => 'nullable|exists:project_works,id',
-            'project_work_ids'  => 'nullable|array|min:1',
-            'project_work_ids.*'=> 'exists:project_works,id',
-            'zone'              => 'required|string|max:255',
-            'delivery_address'  => 'required|string|max:255',
+            'code' => 'nullable|string|max:100',
+            'project_id' => 'required|exists:projects,id',
+            'project_work_id' => 'nullable|exists:project_works,id',
+            'project_work_ids' => 'nullable|array|min:1',
+            'project_work_ids.*' => 'exists:project_works,id',
+            'zone' => 'required|string|max:255',
+            'delivery_address' => 'required|string|max:255',
             'short_description' => 'required|string|max:255',
-            'request_date'      => 'required|date',
-            'need_date'         => 'required|date|after_or_equal:request_date',
+            'request_date' => 'required|date',
+            'need_date' => 'required|date|after_or_equal:request_date',
         ]);
 
         $selectedWorkIds = collect($data['project_work_ids'] ?? [])
@@ -475,7 +484,7 @@ class PurchaseRequestController extends Controller
             ->filter()
             ->values();
 
-        if ($selectedWorkIds->isEmpty() && !empty($data['project_work_id'])) {
+        if ($selectedWorkIds->isEmpty() && ! empty($data['project_work_id'])) {
             $selectedWorkIds = collect([(int) $data['project_work_id']]);
         }
 
@@ -516,19 +525,20 @@ class PurchaseRequestController extends Controller
         $purchaseRequest->projectWorks()->sync($selectedWorkIds->all());
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio} actualizada.",
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio} actualizada.",
         ]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', "Solicitud de Compra #{$purchaseRequest->folio} actualizada.");
+            ->with('success', "Solicitud de Compra #{$purchaseRequest->folio} actualizada.");
     }
 
     public function destroy(PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $validated = request()->validate([
             'deletion_comment' => 'required|string|max:1000',
         ]);
@@ -542,37 +552,38 @@ class PurchaseRequestController extends Controller
         $purchaseRequest->delete();
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => 0,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$folio} eliminada. Motivo: {$validated['deletion_comment']}",
+            'model_id' => 0,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$folio} eliminada. Motivo: {$validated['deletion_comment']}",
         ]);
 
         return redirect()->route('purchase_requests.index')
-                         ->with('success', "Solicitud de Compra #{$folio} eliminada.");
+            ->with('success', "Solicitud de Compra #{$folio} eliminada.");
     }
 
     public function storeItem(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
-            'concept_id'         => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
-            'code'               => 'required|string|max:100',
-            'description'        => 'required|string|max:500',
-            'unit'               => 'required|string|max:50',
-            'purchase_quantity'  => 'required|numeric|min:0|decimal:0,4',
-            'spec_file'          => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
+            'concept_id' => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
+            'code' => 'required|string|max:100',
+            'description' => 'required|string|max:500',
+            'unit' => 'required|string|max:50',
+            'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
+            'spec_file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
         $item = DB::transaction(function () use ($request, $purchaseRequest, $data) {
             $item = PurchaseRequestItem::create([
                 'purchase_request_id' => $purchaseRequest->id,
-                'concept_id'          => $data['concept_id'] ?? null,
-                'code'                => $data['code'],
-                'description'         => $data['description'],
-                'unit'                => $data['unit'],
-                'requested_quantity'  => 0,
-                'purchase_quantity'   => $data['purchase_quantity'],
+                'concept_id' => $data['concept_id'] ?? null,
+                'code' => $data['code'],
+                'description' => $data['description'],
+                'unit' => $data['unit'],
+                'requested_quantity' => 0,
+                'purchase_quantity' => $data['purchase_quantity'],
             ]);
 
             if ($request->hasFile('spec_file')) {
@@ -585,21 +596,21 @@ class PurchaseRequestController extends Controller
 
         if ($request->wantsJson()) {
             return response()->json([
-                'id'                 => $item->id,
-                'code'               => $item->code,
-                'description'        => $item->description,
-                'unit'               => $item->unit,
+                'id' => $item->id,
+                'code' => $item->code,
+                'description' => $item->description,
+                'unit' => $item->unit,
                 'requested_quantity' => $item->requested_quantity,
-                'purchase_quantity'  => $item->purchase_quantity,
-                'file_path'          => $item->file_path,
-                'file_url'           => $item->file_path
+                'purchase_quantity' => $item->purchase_quantity,
+                'file_path' => $item->file_path,
+                'file_url' => $item->file_path
                     ? Storage::disk('s3')->temporaryUrl($item->file_path, now()->addMinutes(30))
                     : null,
             ]);
         }
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Concepto agregado.');
+            ->with('success', 'Concepto agregado.');
     }
 
     // Un concepto fincado en una OC Emitida o Autorizada no se puede modificar ni eliminar desde la SOLCOM.
@@ -614,7 +625,7 @@ class PurchaseRequestController extends Controller
 
         $order = $item->lockingOrder();
 
-        if (!$order) {
+        if (! $order) {
             return null;
         }
 
@@ -630,6 +641,7 @@ class PurchaseRequestController extends Controller
 
     public function updateItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
             'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
         ]);
@@ -638,14 +650,14 @@ class PurchaseRequestController extends Controller
             return $response;
         }
 
-        $lockingOrder     = $item->lockingOrder();
+        $lockingOrder = $item->lockingOrder();
         $previousQuantity = (float) $item->purchase_quantity;
 
         // La cantidad a comprar no puede ser menor a la que ya se heredó a OC vigentes,
         // salvo al corregir un concepto bloqueado con la SOLCOM en "Cambios Solicitados".
         $inheritedQuantity = $item->inherited_quantity;
-        if (!$lockingOrder && round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
-            $message = 'La cantidad a comprar no puede ser menor a la ya fincada a OC (' . rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.') . ').';
+        if (! $lockingOrder && round((float) $data['purchase_quantity'], 4) < $inheritedQuantity) {
+            $message = 'La cantidad a comprar no puede ser menor a la ya fincada a OC ('.rtrim(rtrim(number_format($inheritedQuantity, 4, '.', ''), '0'), '.').').';
 
             return $request->wantsJson()
                 ? response()->json(['message' => $message], 422)
@@ -658,11 +670,11 @@ class PurchaseRequestController extends Controller
         if ($lockingOrder && round($previousQuantity, 4) !== round((float) $item->purchase_quantity, 4)) {
             $format = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
 
-            $observations   = $purchaseRequest->observations ?? [];
+            $observations = $purchaseRequest->observations ?? [];
             $observations[] = [
-                'user_id'    => Auth::id(),
-                'user_name'  => Auth::user()->name,
-                'text'       => "Cantidad a comprar del concepto {$item->code} ({$item->description}) modificada de {$format($previousQuantity)} a {$format($item->purchase_quantity)} {$item->unit}. Concepto fincado a la OC #{$lockingOrder->folio}.",
+                'user_id' => Auth::id(),
+                'user_name' => Auth::user()->name,
+                'text' => "Cantidad a comprar del concepto {$item->code} ({$item->description}) modificada de {$format($previousQuantity)} a {$format($item->purchase_quantity)} {$item->unit}. Concepto fincado a la OC #{$lockingOrder->folio}.",
                 'created_at' => now()->toDateTimeString(),
             ];
 
@@ -671,7 +683,7 @@ class PurchaseRequestController extends Controller
 
         if ($request->wantsJson()) {
             return response()->json([
-                'id'                => $item->id,
+                'id' => $item->id,
                 'purchase_quantity' => $item->purchase_quantity,
             ]);
         }
@@ -681,6 +693,7 @@ class PurchaseRequestController extends Controller
 
     public function destroyItem(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestItem $item)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         if ($response = $this->rejectIfItemLocked($request, $purchaseRequest, $item)) {
             return $response;
         }
@@ -692,40 +705,42 @@ class PurchaseRequestController extends Controller
         }
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Concepto eliminado.');
+            ->with('success', 'Concepto eliminado.');
     }
 
     public function storeObservation(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
             'text' => 'required|string|max:1000',
         ]);
 
-        $observations   = $purchaseRequest->observations ?? [];
+        $observations = $purchaseRequest->observations ?? [];
         $observations[] = [
-            'user_id'    => Auth::id(),
-            'user_name'  => Auth::user()->name,
-            'text'       => $data['text'],
+            'user_id' => Auth::id(),
+            'user_name' => Auth::user()->name,
+            'text' => $data['text'],
             'created_at' => now()->toDateTimeString(),
         ];
 
         $purchaseRequest->update(['observations' => $observations]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Observación agregada.');
+            ->with('success', 'Observación agregada.');
     }
 
     public function updateObservation(Request $request, PurchaseRequest $purchaseRequest, int $noteIndex)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
             'text' => 'required|string|max:1000',
         ]);
 
         $observations = $purchaseRequest->observations ?? [];
 
-        if (!array_key_exists($noteIndex, $observations)) {
+        if (! array_key_exists($noteIndex, $observations)) {
             return redirect()->route('purchase_requests.show', $purchaseRequest)
-                             ->with('error', 'La observación no existe o ya fue eliminada.');
+                ->with('error', 'La observación no existe o ya fue eliminada.');
         }
 
         $observations[$noteIndex]['text'] = $data['text'];
@@ -734,44 +749,46 @@ class PurchaseRequestController extends Controller
         $purchaseRequest->update(['observations' => $observations]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Observación actualizada.');
+            ->with('success', 'Observación actualizada.');
     }
 
     public function destroyObservation(PurchaseRequest $purchaseRequest, int $noteIndex)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $observations = $purchaseRequest->observations ?? [];
 
-        if (!array_key_exists($noteIndex, $observations)) {
+        if (! array_key_exists($noteIndex, $observations)) {
             return redirect()->route('purchase_requests.show', $purchaseRequest)
-                             ->with('error', 'La observación no existe o ya fue eliminada.');
+                ->with('error', 'La observación no existe o ya fue eliminada.');
         }
 
         unset($observations[$noteIndex]);
         $purchaseRequest->update(['observations' => array_values($observations)]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Observación eliminada.');
+            ->with('success', 'Observación eliminada.');
     }
 
     /**
      * Devuelve los ítems de una SOLCOM en JSON para precarga en el modal de creación de OC.
      */
-    public function itemsJson(PurchaseRequest $purchaseRequest): \Illuminate\Http\JsonResponse
+    public function itemsJson(PurchaseRequest $purchaseRequest): JsonResponse
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         $purchaseRequest->load('items.concept');
 
         $items = $purchaseRequest->items->map(function ($item) {
             return [
-                'concept_id'   => $item->concept_id,
-                'description'  => $item->description,
-                'unit'         => $item->unit,
-                'quantity'     => (float) $item->purchase_quantity,
-                'unit_price'   => (float) ($item->concept?->unit_price ?? 0),
+                'concept_id' => $item->concept_id,
+                'description' => $item->description,
+                'unit' => $item->unit,
+                'quantity' => (float) $item->purchase_quantity,
+                'unit_price' => (float) ($item->concept?->unit_price ?? 0),
             ];
         });
 
         return response()->json([
-            'id'    => $purchaseRequest->id,
+            'id' => $purchaseRequest->id,
             'folio' => $purchaseRequest->folio,
             'items' => $items,
         ]);
@@ -781,17 +798,17 @@ class PurchaseRequestController extends Controller
      * Busca una SOLCOM por número de folio y devuelve sus ítems en JSON.
      * GET /solicitudes-compra/buscar-por-folio?folio=X
      */
-    public function itemsJsonByFolio(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    public function itemsJsonByFolio(Request $request): JsonResponse
     {
         $folio = $request->query('folio');
 
-        if (!$folio || !is_numeric($folio)) {
+        if (! $folio || ! is_numeric($folio)) {
             return response()->json(['error' => 'Folio requerido'], 422);
         }
 
-        $pr = PurchaseRequest::where('folio', (int) $folio)->first();
+        $pr = PurchaseRequest::visibleTo(Auth::user(), 'purchase_requests')->where('folio', (int) $folio)->first();
 
-        if (!$pr) {
+        if (! $pr) {
             return response()->json(['error' => 'SOLCOM no encontrada'], 404);
         }
 
@@ -799,32 +816,32 @@ class PurchaseRequestController extends Controller
 
         $items = $pr->items->map(function ($item) {
             return [
-                'concept_id'   => $item->concept_id,
-                'description'  => $item->description,
-                'unit'         => $item->unit,
-                'quantity'     => (float) $item->purchase_quantity,
-                'unit_price'   => (float) ($item->concept?->unit_price ?? 0),
+                'concept_id' => $item->concept_id,
+                'description' => $item->description,
+                'unit' => $item->unit,
+                'quantity' => (float) $item->purchase_quantity,
+                'unit_price' => (float) ($item->concept?->unit_price ?? 0),
             ];
         });
 
         return response()->json([
-            'id'    => $pr->id,
+            'id' => $pr->id,
             'folio' => $pr->folio,
             'items' => $items,
         ]);
     }
 
     // PDF
-    public function downloadPdf(PurchaseRequest $purchaseRequest): \Illuminate\Http\Response
+    public function downloadPdf(PurchaseRequest $purchaseRequest): Response
     {
-        $this->ensureProjectVisible($purchaseRequest->project_id);
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
 
         $purchaseRequest->load(['project', 'projectWork', 'requestedBy', 'items']);
 
         $pdf = Pdf::loadView('purchase_requests.pdf', compact('purchaseRequest'))
             ->setPaper('letter', 'portrait');
 
-        $filename = 'SOLCOM-' . ($purchaseRequest->folio ?? $purchaseRequest->id) . '.pdf';
+        $filename = 'SOLCOM-'.($purchaseRequest->folio ?? $purchaseRequest->id).'.pdf';
 
         return $pdf->download($filename);
     }
@@ -832,7 +849,7 @@ class PurchaseRequestController extends Controller
     // ── Almacén: Pila SOLMAT ────────────────────────────────────────────────
     public function solmatPile(Request $request)
     {
-        $search  = $request->input('search', '');
+        $search = $request->input('search', '');
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
         $selectionState = $this->getSolmatPileSelectionState($request);
 
@@ -852,19 +869,19 @@ class PurchaseRequestController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhere('zone', 'like', "%{$search}%")
-                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhere('zone', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
-          // Prioridad operativa: atender primero las SOLMAT liberadas antes a Almacen.
-          $query->orderByRaw('COALESCE(sent_to_warehouse_at, request_date, created_at) asc')
-              ->orderBy('folio');
+        // Prioridad operativa: atender primero las SOLMAT liberadas antes a Almacen.
+        $query->orderByRaw('COALESCE(sent_to_warehouse_at, request_date, created_at) asc')
+            ->orderBy('folio');
 
         $materialRequests = $query->paginate(20)->withQueryString();
 
         $entryCount = MaterialRequest::active()->where('status', 'sent_to_warehouse')->count();
-        $outCount   = MaterialRequest::active()->where('status', 'linked')->count();
+        $outCount = MaterialRequest::active()->where('status', 'linked')->count();
 
         return view('warehouse.solmat_pile', compact(
             'materialRequests',
@@ -914,7 +931,7 @@ class PurchaseRequestController extends Controller
         return $this->renderCreateFromSolmatView($sourceMaterialRequests, true);
     }
 
-    public function syncSolmatPileSelection(Request $request): \Illuminate\Http\JsonResponse
+    public function syncSolmatPileSelection(Request $request): JsonResponse
     {
         $data = $request->validate([
             'selected_ids' => 'required|array|max:500',
@@ -936,7 +953,7 @@ class PurchaseRequestController extends Controller
         ]);
     }
 
-    public function clearSolmatPileSelection(Request $request): \Illuminate\Http\JsonResponse
+    public function clearSolmatPileSelection(Request $request): JsonResponse
     {
         $this->persistSolmatPileSelectionState($request, [
             'selected_ids' => [],
@@ -966,7 +983,7 @@ class PurchaseRequestController extends Controller
         $materialRequest = $sourceMaterialRequests->first();
 
         $nextFolio = max((PurchaseRequest::withTrashed()->max('folio') ?? 17999), 17999) + 1;
-        $projects  = Project::where('status', 'active')->orderBy('name')->get();
+        $projects = Project::where('status', 'active')->orderBy('name')->get();
         $isMultiSource = $sourceMaterialRequests->count() > 1;
 
         $availableProjectWorks = $sourceMaterialRequests
@@ -1109,6 +1126,7 @@ class PurchaseRequestController extends Controller
     {
         if (empty($selectionState['selected_ids'])) {
             $request->session()->forget(self::SOLMAT_PILE_SELECTION_SESSION_KEY);
+
             return;
         }
 
@@ -1122,32 +1140,34 @@ class PurchaseRequestController extends Controller
     // ── Enviar SOLCOM a Compras ──────────────────────────────────────────────
     public function sendToPurchasing(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         $data = $request->validate([
             'assigned_to' => 'required|exists:users,id',
         ]);
 
         $purchaseRequest->update([
             'assigned_to' => $data['assigned_to'],
-            'status'      => 'sent_to_purchasing',
+            'status' => 'sent_to_purchasing',
         ]);
 
         $assignedUser = User::find($data['assigned_to']);
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio} enviada a Compras (asignada a {$assignedUser?->name}).",
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio} enviada a Compras (asignada a {$assignedUser?->name}).",
         ]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', "SOLCOM #{$purchaseRequest->folio} enviada a Compras.");
+            ->with('success', "SOLCOM #{$purchaseRequest->folio} enviada a Compras.");
     }
 
     // ── Reasignar SOLCOM en Compras ────────────────────────────────────────
     public function reassignPurchasing(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         if ($purchaseRequest->status !== 'sent_to_purchasing') {
             return redirect()->route('purchase_requests.show', $purchaseRequest)
                 ->with('error', 'Solo puedes reasignar una SOLCOM que esté en Compras.');
@@ -1178,11 +1198,11 @@ class PurchaseRequestController extends Controller
         ]);
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio} reasignada en Compras de {$previousAssignedUser?->name} a {$newAssignedUser?->name}.",
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio} reasignada en Compras de {$previousAssignedUser?->name} a {$newAssignedUser?->name}.",
         ]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
@@ -1190,10 +1210,14 @@ class PurchaseRequestController extends Controller
     }
 
     // ── Carga de Trabajo (estadísticas de SOLCOMs por usuario) ─────────────
-    public function workload(): \Illuminate\View\View
+    public function workload(): View
     {
         // Solo usuarios con rol "Orden de compra"
-        $ordersUsers = User::role('Orden de compra')->orderBy('name')->get();
+        $ordersUsers = User::role('Orden de compra')
+            // Matriz: el comprador ve solo su carga (own_buyer); Dirección y admin, la de todos.
+            ->when(! Auth::user()->hasFullAccessScope('purchasing_workload'), fn ($users) => $users->whereKey(Auth::id()))
+            ->orderBy('name')
+            ->get();
         $ordersUserIds = $ordersUsers->pluck('id');
 
         // SOLCOMs en Compras que aún no tienen una OC, agrupadas por responsable.
@@ -1271,7 +1295,7 @@ class PurchaseRequestController extends Controller
     // ── Pila SOLCOM (vista de Compras) ──────────────────────────────────────
     public function purchasingPile(Request $request)
     {
-        $search  = $request->input('search', '');
+        $search = $request->input('search', '');
         $section = $request->input('section', 'entrada'); // entrada | salida | todas
 
         $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'changeNotes', 'items.purchaseOrderItems.purchaseOrder:id,folio,status'])
@@ -1290,8 +1314,8 @@ class PurchaseRequestController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhere('short_description', 'like', "%{$search}%")
-                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhere('short_description', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -1301,7 +1325,7 @@ class PurchaseRequestController extends Controller
             ->where('assigned_to', Auth::id());
 
         $entryCount = (clone $baseQuery)->pendingInheritance()->count();
-        $outCount   = (clone $baseQuery)->fullyInherited()->count();
+        $outCount = (clone $baseQuery)->fullyInherited()->count();
 
         return view('purchasing.solcom_pile', compact(
             'purchaseRequests',
@@ -1315,33 +1339,35 @@ class PurchaseRequestController extends Controller
     // ── Solicitar cambios en SOLCOM ──────────────────────────────────────────
     public function requestChanges(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         $data = $request->validate([
             'change_text' => 'required|string|max:2000',
         ]);
 
         PurchaseRequestChangeNote::create([
             'purchase_request_id' => $purchaseRequest->id,
-            'requested_by'        => Auth::id(),
-            'text'                => $data['change_text'],
+            'requested_by' => Auth::id(),
+            'text' => $data['change_text'],
         ]);
 
         $purchaseRequest->update(['status' => 'changes_requested']);
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio}: cambios solicitados por " . Auth::user()->name . '.',
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio}: cambios solicitados por ".Auth::user()->name.'.',
         ]);
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Solicitud de cambios registrada. La SOLCOM regresa al equipo de Almacén.');
+            ->with('success', 'Solicitud de cambios registrada. La SOLCOM regresa al equipo de Almacén.');
     }
 
     // ── Marcar nota de cambio como resuelta ──────────────────────────────────
     public function resolveChangeNote(PurchaseRequest $purchaseRequest, PurchaseRequestChangeNote $changeNote)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         $changeNote->update([
             'resolved_at' => now(),
             'resolved_by' => Auth::id(),
@@ -1353,29 +1379,30 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->update(['status' => 'pending']);
 
             app(NotificationService::class)->send([
-                'action_by'    => Auth::id(),
+                'action_by' => Auth::id(),
                 'model_action' => 'update',
-                'model_id'     => $purchaseRequest->id,
-                'type'         => 'purchase_request',
-                'data'         => "SOLCOM #{$purchaseRequest->folio}: cambios resueltos, lista para reenviar a Compras.",
+                'model_id' => $purchaseRequest->id,
+                'type' => 'purchase_request',
+                'data' => "SOLCOM #{$purchaseRequest->folio}: cambios resueltos, lista para reenviar a Compras.",
             ]);
         }
 
         return redirect()->route('purchase_requests.show', $purchaseRequest)
-                         ->with('success', 'Nota marcada como resuelta.');
+            ->with('success', 'Nota marcada como resuelta.');
     }
 
     // ── SOLCOM: Archivo y Papelera ──────────────────────────────────────────
     public function archive(PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $purchaseRequest->update(['archived_at' => now()]);
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'archive',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio} archivada.",
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio} archivada.",
         ]);
 
         return redirect()->route('purchase_requests.index')
@@ -1384,6 +1411,7 @@ class PurchaseRequestController extends Controller
 
     public function unarchive(PurchaseRequest $purchaseRequest)
     {
+        $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $purchaseRequest->update(['archived_at' => null]);
 
         return redirect()->route('purchase_requests.archived')
@@ -1395,15 +1423,16 @@ class PurchaseRequestController extends Controller
         $search = trim($request->input('search', ''));
 
         $query = PurchaseRequest::with(['project', 'projectWork', 'requestedBy', 'materialRequest', 'purchaseOrders'])
+            ->visibleTo(Auth::user(), 'purchase_requests')
             ->whereNotNull('archived_at')
             ->orderBy('archived_at', 'desc');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhere('zone', 'like', "%{$search}%")
-                  ->orWhere('short_description', 'like', "%{$search}%")
-                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhere('zone', 'like', "%{$search}%")
+                    ->orWhere('short_description', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -1423,9 +1452,9 @@ class PurchaseRequestController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('folio', 'like', "%{$search}%")
-                  ->orWhere('zone', 'like', "%{$search}%")
-                  ->orWhere('short_description', 'like', "%{$search}%")
-                  ->orWhereHas('project', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhere('zone', 'like', "%{$search}%")
+                    ->orWhere('short_description', 'like', "%{$search}%")
+                    ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -1440,11 +1469,11 @@ class PurchaseRequestController extends Controller
         $purchaseRequest->restore();
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'restore',
-            'model_id'     => $purchaseRequest->id,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$purchaseRequest->folio} restaurada desde papelera.",
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio} restaurada desde papelera.",
         ]);
 
         return redirect()->route('purchase_requests.soft_deleted')
@@ -1463,11 +1492,11 @@ class PurchaseRequestController extends Controller
         });
 
         app(NotificationService::class)->send([
-            'action_by'    => Auth::id(),
+            'action_by' => Auth::id(),
             'model_action' => 'force_destroy',
-            'model_id'     => 0,
-            'type'         => 'purchase_request',
-            'data'         => "SOLCOM #{$folio} eliminada permanentemente.",
+            'model_id' => 0,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$folio} eliminada permanentemente.",
         ]);
 
         return redirect()->route('purchase_requests.soft_deleted')
@@ -1487,7 +1516,7 @@ class PurchaseRequestController extends Controller
 
     private function resolveCommittedItemQuantityForWorks($materialRequestItem, $selectedWorkIds): float
     {
-        if (!$materialRequestItem->relationLoaded('workQuantities') || $materialRequestItem->workQuantities->isEmpty()) {
+        if (! $materialRequestItem->relationLoaded('workQuantities') || $materialRequestItem->workQuantities->isEmpty()) {
             return 0;
         }
 
@@ -1527,7 +1556,7 @@ class PurchaseRequestController extends Controller
             ->values();
 
         $invalidStatusFolios = $orderedMaterialRequests
-            ->filter(fn ($materialRequest) => !in_array((string) $materialRequest->status, ['sent_to_warehouse', 'linked'], true))
+            ->filter(fn ($materialRequest) => ! in_array((string) $materialRequest->status, ['sent_to_warehouse', 'linked'], true))
             ->pluck('folio')
             ->values();
 
@@ -1566,10 +1595,10 @@ class PurchaseRequestController extends Controller
                 }
 
                 $itemKey = $item->concept_id
-                    ? 'concept:' . (int) $item->concept_id
-                    : 'legacy:' . $this->normalizeText($item->code) . '|' . $this->normalizeText($item->description) . '|' . $this->normalizeText($item->unit);
+                    ? 'concept:'.(int) $item->concept_id
+                    : 'legacy:'.$this->normalizeText($item->code).'|'.$this->normalizeText($item->description).'|'.$this->normalizeText($item->unit);
 
-                if (!isset($aggregatedItems[$itemKey])) {
+                if (! isset($aggregatedItems[$itemKey])) {
                     $aggregatedItems[$itemKey] = [
                         'concept_id' => $item->concept_id,
                         'code' => $item->code,
@@ -1587,7 +1616,7 @@ class PurchaseRequestController extends Controller
 
                 $aggregatedItems[$itemKey]['resolved_quantity'] += (float) $resolvedQuantity;
                 $aggregatedItems[$itemKey]['committed_quantity'] += (float) $committedQuantity;
-                if (empty($aggregatedItems[$itemKey]['file_path']) && !empty($item->file_path)) {
+                if (empty($aggregatedItems[$itemKey]['file_path']) && ! empty($item->file_path)) {
                     $aggregatedItems[$itemKey]['file_path'] = $item->file_path;
                 }
 
@@ -1598,7 +1627,7 @@ class PurchaseRequestController extends Controller
                     foreach ($item->workQuantities as $workQuantity) {
                         $workId = (int) $workQuantity->project_work_id;
 
-                        if ($selectedWorkIds->isNotEmpty() && !$selectedWorkIds->contains($workId)) {
+                        if ($selectedWorkIds->isNotEmpty() && ! $selectedWorkIds->contains($workId)) {
                             continue;
                         }
 
@@ -1606,7 +1635,7 @@ class PurchaseRequestController extends Controller
                         $availableQuantity = max(0, (float) $workQuantity->quantity - $committedQuantity);
 
                         if ($committedQuantity > 0) {
-                            if (!isset($aggregatedItems[$itemKey]['committed_work_quantities'][$workId])) {
+                            if (! isset($aggregatedItems[$itemKey]['committed_work_quantities'][$workId])) {
                                 $aggregatedItems[$itemKey]['committed_work_quantities'][$workId] = 0;
                             }
 
@@ -1617,7 +1646,7 @@ class PurchaseRequestController extends Controller
                             continue;
                         }
 
-                        if (!isset($aggregatedItems[$itemKey]['work_quantities'][$workId])) {
+                        if (! isset($aggregatedItems[$itemKey]['work_quantities'][$workId])) {
                             $aggregatedItems[$itemKey]['work_quantities'][$workId] = 0;
                         }
 
@@ -1626,7 +1655,7 @@ class PurchaseRequestController extends Controller
                 } else {
                     $legacyWorkId = $selectedWorkIds->first();
                     if ($legacyWorkId) {
-                        if (!isset($aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId])) {
+                        if (! isset($aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId])) {
                             $aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId] = 0;
                         }
                         $aggregatedItems[$itemKey]['work_quantities'][$legacyWorkId] += (float) $item->quantity;
@@ -1662,7 +1691,7 @@ class PurchaseRequestController extends Controller
 
                 return $item;
             })
-            ->sortBy(fn ($item) => strtoupper((string) ($item['code'] ?? '') . '|' . (string) ($item['description'] ?? '')))
+            ->sortBy(fn ($item) => strtoupper((string) ($item['code'] ?? '').'|'.(string) ($item['description'] ?? '')))
             ->values();
     }
 
@@ -1676,23 +1705,23 @@ class PurchaseRequestController extends Controller
 
     private function materialItemGroupingKey($materialItem): string
     {
-        if (!empty($materialItem->concept_id)) {
-            return 'concept:' . (int) $materialItem->concept_id;
+        if (! empty($materialItem->concept_id)) {
+            return 'concept:'.(int) $materialItem->concept_id;
         }
 
-        return 'legacy:' . $this->normalizeText($materialItem->code)
-            . '|' . $this->normalizeText($materialItem->description)
-            . '|' . $this->normalizeText($materialItem->unit);
+        return 'legacy:'.$this->normalizeText($materialItem->code)
+            .'|'.$this->normalizeText($materialItem->description)
+            .'|'.$this->normalizeText($materialItem->unit);
     }
 
     private function purchaseItemGroupingKey($purchaseItem): string
     {
-        if (!empty($purchaseItem->concept_id)) {
-            return 'concept:' . (int) $purchaseItem->concept_id;
+        if (! empty($purchaseItem->concept_id)) {
+            return 'concept:'.(int) $purchaseItem->concept_id;
         }
 
-        return 'legacy:' . $this->normalizeText($purchaseItem->code)
-            . '|' . $this->normalizeText($purchaseItem->description)
-            . '|' . $this->normalizeText($purchaseItem->unit);
+        return 'legacy:'.$this->normalizeText($purchaseItem->code)
+            .'|'.$this->normalizeText($purchaseItem->description)
+            .'|'.$this->normalizeText($purchaseItem->unit);
     }
 }

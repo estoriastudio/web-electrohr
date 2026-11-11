@@ -8,12 +8,12 @@
     <table class="table align-middle text-nowrap table-hover table-centered mb-0">
         <thead class="bg-light-subtle">
             <tr>
-                @role('admin')
+                @can('payment_authorizations.authorize')
                 <th style="width:44px;">
                     <input type="checkbox" class="form-check-input" id="selectAllAuthorizationPayments"
                            title="Seleccionar todos los pagos">
                 </th>
-                @endrole
+                @endcan
                 <th>Semáforo</th>
                 <th>Orden de Compra</th>
                 <th>Proveedor</th>
@@ -73,7 +73,7 @@
                     $checklist = $checklists[$payment->milestone_id];
                 @endphp
                 <tr>
-                    @role('admin')
+                    @can('payment_authorizations.authorize')
                     <td>
                         <input type="checkbox" class="form-check-input js-authorization-payment-select"
                                value="{{ $payment->id }}" aria-label="Seleccionar pago {{ $payment->folio }}"
@@ -81,7 +81,7 @@
                                @disabled(!$checklist['complete'])
                                @if (!$checklist['complete']) title="Checklist pendiente: {{ implode(', ', $checklist['pending']) }}" @endif>
                     </td>
-                    @endrole
+                    @endcan
                     <td>
                         <span class="badge {{ $trafficLight['class'] }} py-1 px-2 fs-12">
                             <i class="ri-checkbox-blank-circle-fill me-1" style="color: {{ $trafficLight['dot'] }};"></i>
@@ -145,7 +145,7 @@
                         <div class="d-flex gap-1 flex-wrap">
                             {{-- Autorizar: solo admin --}}
                             @if (in_array($payment->status, ['por_autorizar', 'pospuesto']))
-                                @role('admin')
+                                @if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
                                 @if ($checklist['complete'])
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
@@ -165,11 +165,11 @@
                                     </button>
                                 </span>
                                 @endif
-                                @endrole
+                                @endif
                             @endif
 
                             {{-- Marcar como pagado: admin|Pagos --}}
-                            @hasanyrole('admin|Pagos')
+                            @can('payments_paid.register')
                             @if ($payment->status === 'autorizado')
                                 <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
                                     @csrf @method('PATCH')
@@ -184,7 +184,7 @@
                             @endif
 
                             {{-- Revertir a por autorizar --}}
-                            @role('admin')
+                            @if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
                             @if (in_array($payment->status, ['autorizado', 'rechazado']))
                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                     @csrf @method('PATCH')
@@ -195,14 +195,14 @@
                                     </button>
                                 </form>
                             @endif
-                            @endrole
-                            @endhasanyrole
+                            @endif
+                            @endcan
                         </div>
                     </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ auth()->user()->hasRole('admin') ? 10 : 9 }}" class="text-center text-muted py-5">
+                    <td colspan="{{ auth()->user()->can('payment_authorizations.authorize') ? 10 : 9 }}" class="text-center text-muted py-5">
                         <i class="ri-check-double-line fs-36 d-block mb-2 text-success"></i>
                         No hay pagos pendientes de autorización.
                     </td>

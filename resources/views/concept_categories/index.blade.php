@@ -39,10 +39,12 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">
                 <h4 class="card-title mb-0">Categorías de Conceptos</h4>
+                @can('concept_categories.create')
                 <button type="button" class="btn btn-sm btn-primary"
                         data-bs-toggle="modal" data-bs-target="#modalCreateCategory">
                     <i class="ri-add-line me-1"></i> Nueva Categoría
                 </button>
+                @endcan
             </div>
 
             {{-- Tabs de tipo --}}
@@ -78,6 +80,7 @@
                                 </span>
                             </div>
                             <div class="d-flex gap-2">
+                                @can('concept_categories.update')
                                 <button type="button" class="btn btn-light btn-sm"
                                         title="Asignar compradores"
                                         data-bs-toggle="modal"
@@ -106,6 +109,7 @@
                                         <i class="ri-delete-bin-line"></i>
                                     </button>
                                 </form>
+                                @endcan
                             </div>
                         </div>
 
@@ -137,6 +141,7 @@
                                                 <td class="text-muted fs-13">{{ $sub->description ?? '—' }}</td>
                                                 <td class="text-end pe-3">
                                                     <div class="d-flex gap-2 justify-content-end">
+                                                        @can('concept_categories.update')
                                                         <button type="button" class="btn btn-soft-primary btn-sm"
                                                                 title="Editar"
                                                                 data-bs-toggle="modal"
@@ -151,6 +156,7 @@
                                                                 <i class="ri-delete-bin-line"></i>
                                                             </button>
                                                         </form>
+                                                        @endcan
                                                     </div>
                                                 </td>
                                             </tr>
@@ -169,10 +175,12 @@
                     <div class="text-center text-muted py-5">
                         <i class="ri-folder-3-line fs-36 d-block mb-2 opacity-50"></i>
                         <p class="mb-0">No hay categorías de tipo <strong>{{ $type === 'materiales' ? 'Materiales' : 'Mantenimiento' }}</strong>.</p>
+                        @can('concept_categories.create')
                         <button type="button" class="btn btn-primary mt-3"
                                 data-bs-toggle="modal" data-bs-target="#modalCreateCategory">
                             <i class="ri-add-line me-1"></i> Crear primera categoría
                         </button>
+                        @endcan
                     </div>
                 @endforelse
             </div>
@@ -181,6 +189,7 @@
 </div>
 
 {{-- ══ MODAL Crear Categoría ══ --}}
+@can('concept_categories.create')
 <div class="modal fade" id="modalCreateCategory" tabindex="-1" aria-labelledby="modalCreateCategoryLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -223,6 +232,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 {{-- ══ MODALES por Categoría ══ --}}
 @foreach($categories as $category)
