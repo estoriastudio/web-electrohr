@@ -15,9 +15,6 @@ use Illuminate\Support\Facades\DB;
  */
 class PurchaseOrderClosureEvaluator
 {
-    /** Misma tolerancia de centavos que se acepta al facturar una OC. */
-    private const AMOUNT_TOLERANCE = 0.5;
-
     public function __construct(private MilestoneEventStatus $eventStatus) {}
 
     /**
@@ -123,7 +120,9 @@ class PurchaseOrderClosureEvaluator
         $incompleteMilestones = $milestones->reject(fn ($milestone) => $milestone->is_complete)->count();
         $allocated = round((float) $milestones->sum(fn ($milestone) => $milestone->effective_amount), 2);
         $total = (float) $order->total_with_iva;
-        $uncovered = $total > 0 && $allocated < $total - 0.01;
+        $uncovered = $total > 0 && $allocated < $total - PurchaseOrder::AMOUNT_TOLERANCE;
+        $paid = round((float) $payments->where('status', 'pagado')->sum('amount'), 2);
+        $difference = round($total - $paid, 2);
 
         $problems = array_filter([
             $payments->isEmpty() ? 'Sin pagos registrados' : null,
@@ -136,7 +135,9 @@ class PurchaseOrderClosureEvaluator
             'key' => 'payments',
             'label' => 'Pagos completos sin saldo',
             'met' => $problems === [],
-            'detail' => $problems === [] ? 'Todo el importe fue pagado' : implode('; ', $problems),
+            'detail' => $problems === []
+                ? 'Todo el importe fue pagado' . $this->toleranceNote($difference)
+                : implode('; ', $problems),
         ];
     }
 
@@ -147,16 +148,26 @@ class PurchaseOrderClosureEvaluator
             ->where('status', PurchaseOrderInvoice::STATUS_ACEPTADA)
             ->selectRaw('COALESCE(SUM(COALESCE(net_scope, amount)), 0) as total')
             ->value('total'), 2);
-        $met = $total <= 0 || $invoiced >= $total - self::AMOUNT_TOLERANCE;
+        $met = $total <= 0 || $invoiced >= $total - PurchaseOrder::AMOUNT_TOLERANCE;
 
         return [
             'key' => 'invoiced_amount',
             'label' => 'Importe facturado completo',
             'met' => $met,
             'detail' => $met
-                ? 'Facturado ' . number_format($invoiced, 2) . ' de ' . number_format($total, 2)
+                ? 'Facturado ' . number_format($invoiced, 2) . ' de ' . number_format($total, 2) . $this->toleranceNote($total - $invoiced)
                 : 'Faltan ' . number_format($total - $invoiced, 2) . ' por facturar (aceptadas ' . number_format($invoiced, 2) . ' de ' . number_format($total, 2) . ')',
         ];
+    }
+
+    /** Aviso cuando el saldo no es exacto pero está dentro de la tolerancia permitida. */
+    private function toleranceNote(float $difference): string
+    {
+        $difference = round($difference, 2);
+
+        return $difference != 0.0 && abs($difference) <= PurchaseOrder::AMOUNT_TOLERANCE
+            ? ' (diferencia de ' . number_format(abs($difference), 2) . ' dentro de la tolerancia)'
+            : '';
     }
 
     private function documentary(PurchaseOrder $order): array

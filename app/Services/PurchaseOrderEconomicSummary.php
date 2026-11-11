@@ -19,14 +19,27 @@ class PurchaseOrderEconomicSummary
             ->value('total'), 2);
         $paid = round((float) $order->saldo_cubierto, 2);
 
-        return [
-            'total' => $total,
-            'invoiced' => $invoiced,
-            'pending_invoicing' => max(0.0, round($total - $invoiced, 2)),
-            'paid' => $paid,
-            'pending_payment' => max(0.0, round($total - $paid, 2)),
-            'invoiced_unpaid' => max(0.0, round($invoiced - $paid, 2)),
-            'paid_without_invoice' => max(0.0, round($paid - $invoiced, 2)),
+        $differences = [
+            'pending_invoicing' => round($total - $invoiced, 2),
+            'pending_payment' => round($total - $paid, 2),
+            'invoiced_unpaid' => round($invoiced - $paid, 2),
+            'paid_without_invoice' => round($paid - $invoiced, 2),
         ];
+
+        // Un saldo positivo dentro de la tolerancia se considera saldado.
+        $summary = ['total' => $total, 'invoiced' => $invoiced, 'paid' => $paid];
+        $toleranceApplied = [];
+        foreach ($differences as $key => $difference) {
+            $withinTolerance = $difference > 0 && $difference <= PurchaseOrder::AMOUNT_TOLERANCE;
+            $summary[$key] = $withinTolerance || $difference < 0 ? 0.0 : $difference;
+            if ($withinTolerance) {
+                $toleranceApplied[$key] = $difference;
+            }
+        }
+
+        $summary['tolerance'] = PurchaseOrder::AMOUNT_TOLERANCE;
+        $summary['tolerance_applied'] = $toleranceApplied;
+
+        return $summary;
     }
 }
