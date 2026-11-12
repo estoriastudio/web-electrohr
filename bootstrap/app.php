@@ -19,6 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'supplier_portal' => \App\Http\Middleware\EnsureSupplierPortalAccess::class,
         ]);
+
+        // Simulación de accesos del admin (ACCESS_SIMULATION_ENABLED), antes de auth y permission: de cada ruta.
+        $middleware->web(append: [\App\Http\Middleware\ApplyAccessSimulation::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (PostTooLargeException $e, Request $request) {

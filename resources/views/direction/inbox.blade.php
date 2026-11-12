@@ -195,7 +195,7 @@
                     </span>
                 </li>
             @empty
-                <li class="list-group-item text-center text-muted py-4">No hay nóminas pendientes.</li>
+                <li class="list-group-item text-center text-muted py-4">{{ $payrollAvailable ? 'No hay nóminas pendientes.' : 'Nómina no disponible: faltan sus tablas en esta base de datos.' }}</li>
             @endforelse
         </ul>
     </div>

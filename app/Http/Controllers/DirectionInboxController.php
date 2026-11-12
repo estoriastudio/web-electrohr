@@ -7,6 +7,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderChangeRequest;
 use App\Models\PurchaseRequestChangeNote;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 /**
@@ -43,7 +44,9 @@ class DirectionInboxController extends Controller
             ->whereHas('purchaseRequest', fn ($requests) => $requests->whereNull('archived_at'));
         $changes = (clone $changesQuery)->with('purchaseRequest', 'requestedBy')->oldest()->get();
 
-        $payrollPeriods = PayrollPeriod::query()
+        // Algunas bases no tienen las tablas de nómina aunque sus migraciones figuren como corridas.
+        $payrollAvailable = Schema::hasTable('payroll_periods');
+        $payrollPeriods = ! $payrollAvailable ? collect() : PayrollPeriod::query()
             ->whereIn('status', ['closed', 'authorized'])
             ->orderByDesc('year')
             ->orderByDesc('week_number')
@@ -59,6 +62,7 @@ class DirectionInboxController extends Controller
             'changes' => $changes,
             'changesCount' => $changesQuery->count(),
             'payrollPeriods' => $payrollPeriods,
+            'payrollAvailable' => $payrollAvailable,
         ]);
     }
 }

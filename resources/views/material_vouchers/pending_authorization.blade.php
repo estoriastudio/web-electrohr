@@ -64,7 +64,7 @@
         </div>
     </div>
     @if ($materialVouchers->hasPages())
-        <div class="card-footer d-flex justify-content-end">{{ $materialVouchers->links() }}</div>
+        <div class="card-footer d-flex justify-content-end">{{ $materialVouchers->links('pagination::bootstrap-5') }}</div>
     @endif
 </div>
 

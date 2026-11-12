@@ -372,3 +372,14 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-11-10: Fase 2, Almacén: SOLMAT, Cambios SOLMAT, Pila SOLMAT, Inventario y Vales con permisos de la matriz; Gerente, Supervisor y Almacén crean SOLMAT, solo el gerente del proyecto la envía a Almacén, correcciones de inventario solo admin, autorización de vales para Almacén Autoriza. Requiere haber corrido `access:migrate-users --apply`.
 - 2026-11-10: Fase 2, Proyectos: rutas con permisos `projects.*`, alcance `assigned_projects` para Gerente y Supervisor, Mis Proyectos de solo consulta (sin crear ni editar estimaciones), documentos y convenios solo para quien edita y menú por alcance. Requiere haber corrido `access:migrate-users --apply`.
 - 2026-11-10: Fase 2, Recursos Humanos: rutas con permisos `hr_*`, filtros por obra con `HasAccessScope`, sueldo y recibos ocultos para Gerente y Supervisor, Dirección de solo consulta y menú con `@can`. Requiere haber corrido `access:migrate-users --apply`.
+
+## Simulación de accesos (servidor de pruebas)
+
+Selector en la barra superior (icono de usuario con flecha) para revisar la matriz sin cambiar roles en la base.
+
+- Se activa con `ACCESS_SIMULATION_ENABLED=true` en `.env`. En producción va en `false`; apagado, las rutas responden 404 y el selector no aparece.
+- Solo lo usa el usuario de `ACCESS_SIMULATION_ADMIN_EMAIL` (por defecto `admin@electrohr.test`) y además debe tener el rol admin en la base.
+- **Solo el rol:** el admin conserva su usuario y pierde sus roles en memoria durante cada petición; menú, rutas y botones responden como ese rol. Los listados limitados a proyectos u obras asignados pueden salir vacíos, porque el admin no tiene asignaciones.
+- **Rol y usuario:** cada petición se atiende como ese usuario, con sus asignaciones. Lo que se guarde queda a su nombre; no hay bitácora de la simulación. El portal de proveedores siempre pide un usuario proveedor.
+- La sesión sigue siendo del admin: "Volver a admin" o cerrar sesión terminan la simulación. Si se cambia el `.env` con la configuración cacheada, correr `php artisan optimize:clear` y `php artisan optimize`.
+- Código: `App\Services\AccessSimulation`, `App\Http\Middleware\ApplyAccessSimulation`, `AccessSimulationController`, `config/access_simulation.php`. Tests en `AccessSimulationTest`.

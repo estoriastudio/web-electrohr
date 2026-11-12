@@ -25,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AccessMatrix::class, fn () => new AccessMatrix(
             database_path('data/access_matrix.php'),
         ));
+
+        // Una por petición: guarda el admin real y lo que se está simulando.
+        $this->app->scoped(\App\Services\AccessSimulation::class);
     }
 
     /**
@@ -32,6 +35,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Las vistas usan Bootstrap 5; así cualquier ->links() sin argumento también lo usa.
+        \Illuminate\Pagination\Paginator::useBootstrapFive();
+
         // admin es el superusuario: pasa cualquier permiso o Policy, incluido autorizar.
         Gate::before(fn (User $user) => $user->hasRole('admin') ? true : null);
 

@@ -187,6 +187,52 @@
                     @endcan
                     @endif
 
+                    <!-- Simulación de accesos: solo el admin configurado y con ACCESS_SIMULATION_ENABLED -->
+                    @inject('accessSimulation', 'App\Services\AccessSimulation')
+                    @if ($accessSimulation->realUser())
+                    @php
+                        $simulatedRole = $accessSimulation->simulatedUser()?->roles->first()?->name ?? $accessSimulation->roleName();
+                    @endphp
+                    <div class="dropdown topbar-item">
+                        <button type="button" class="topbar-button position-relative {{ $accessSimulation->isActive() ? 'text-warning' : '' }}" id="access-simulation-dropdown"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false" title="Simular acceso">
+                            <i class="ri-user-shared-line fs-24"></i>
+                            @if ($accessSimulation->isActive())
+                                <span class="position-absolute topbar-badge translate-middle badge bg-warning rounded-pill p-1"><span class="visually-hidden">Simulación activa</span></span>
+                            @endif
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-3 access-simulation-menu" aria-labelledby="access-simulation-dropdown">
+                            <h6 class="fs-15 fw-semibold mb-1">Simular acceso</h6>
+                            <p class="text-muted fs-12 mb-3">Ve el sistema como un rol o entra como un usuario. Lo que guardes queda a nombre del usuario elegido.</p>
+                            <form method="POST" action="{{ route('access_simulation.start') }}">
+                                @csrf
+                                <label class="form-label fs-13 mb-1" for="access-simulation-role">Rol</label>
+                                <select class="form-select form-select-sm mb-2" id="access-simulation-role" name="role" required>
+                                    @foreach ($accessSimulation->availableRoles() as $simulationRole)
+                                        <option value="{{ $simulationRole->name }}" @selected($simulatedRole === $simulationRole->name)>{{ $simulationRole->name }}</option>
+                                    @endforeach
+                                </select>
+                                <label class="form-label fs-13 mb-1" for="access-simulation-user">Usuario <span class="text-muted">(opcional)</span></label>
+                                <select class="form-select form-select-sm mb-3" id="access-simulation-user" name="user_id">
+                                    <option value="">Solo el rol, con mi usuario</option>
+                                    @foreach ($accessSimulation->availableUsers() as $simulationUser)
+                                        <option value="{{ $simulationUser['id'] }}" data-roles="{{ implode('|', $simulationUser['roles']) }}"
+                                                @selected($accessSimulation->simulatedUser()?->id === $simulationUser['id'])>{{ $simulationUser['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Simular</button>
+                            </form>
+                            @if ($accessSimulation->isActive())
+                                <form method="POST" action="{{ route('access_simulation.stop') }}" class="mt-2">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-light btn-sm w-100">Volver a admin</button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+
                     <!-- Theme Setting -->
                     <div class="topbar-item d-none d-md-flex">
                         <button type="button" class="topbar-button" id="theme-settings-btn" data-bs-toggle="offcanvas" data-bs-target="#theme-settings-offcanvas" aria-controls="theme-settings-offcanvas">
@@ -256,6 +302,11 @@
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     font-size: 14px;
+}
+
+.access-simulation-menu {
+    width: 320px;
+    max-width: calc(100vw - 32px);
 }
 
 .general-search-controls {
@@ -337,6 +388,23 @@ document.addEventListener('DOMContentLoaded', function () {
             const secure = location.protocol === 'https:' ? '; Secure' : '';
             document.cookie = `${cookieName}=${searchResource.value}; Path=/; SameSite=Lax${secure}`;
         });
+    }
+
+    // Simulación de accesos: el selector de usuario solo ofrece usuarios con el rol elegido.
+    const simulationRole = document.getElementById('access-simulation-role');
+    const simulationUser = document.getElementById('access-simulation-user');
+    if (simulationRole && simulationUser) {
+        const filterUsers = function () {
+            Array.from(simulationUser.options).forEach(function (option) {
+                if (!option.value) return;
+                const matches = option.dataset.roles.split('|').includes(simulationRole.value);
+                option.hidden = !matches;
+                option.disabled = !matches;
+            });
+            if (simulationUser.selectedOptions[0]?.disabled) simulationUser.value = '';
+        };
+        simulationRole.addEventListener('change', filterUsers);
+        filterUsers();
     }
 
     const btn = document.getElementById('btn-mark-recipient-read');

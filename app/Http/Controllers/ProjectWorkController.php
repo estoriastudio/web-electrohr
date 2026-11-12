@@ -16,6 +16,12 @@ class ProjectWorkController extends Controller
 {
     public function __construct(private NotificationService $notification) {}
 
+    /** Las obras se listan dentro de cada proyecto; la ruta /obras lleva al listado de proyectos. */
+    public function index(): RedirectResponse
+    {
+        return redirect()->route('projects.index');
+    }
+
     public function create(): RedirectResponse
     {
         return redirect()->route('projects.index');

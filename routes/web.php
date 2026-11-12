@@ -65,6 +65,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/configuracion', 'AdminController@settings')->name('settings');
         Route::get('/buscar', GlobalSearchController::class)->name('global_search');
 
+        // Simulación de accesos del admin (ACCESS_SIMULATION_ENABLED); el controlador valida quién la usa.
+        Route::post('/simulacion-acceso', [\App\Http\Controllers\AccessSimulationController::class, 'start'])->name('access_simulation.start');
+        Route::delete('/simulacion-acceso', [\App\Http\Controllers\AccessSimulationController::class, 'stop'])->name('access_simulation.stop');
+
         // Perfil propio — accesible para todos los roles autenticados
         Route::get('/usuarios/{user}', [UserController::class, 'show'])->name('usuarios.show');
         Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');

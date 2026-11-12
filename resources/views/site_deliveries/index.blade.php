@@ -111,7 +111,7 @@
         @endforelse
 
         @if ($exits->hasPages())
-            <div class="d-flex justify-content-end">{{ $exits->links() }}</div>
+            <div class="d-flex justify-content-end">{{ $exits->links('pagination::bootstrap-5') }}</div>
         @endif
     </div>
 </div>

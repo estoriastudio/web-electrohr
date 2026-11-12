@@ -76,7 +76,7 @@
         </div>
     </div>
     @if ($milestones->hasPages())
-        <div class="card-footer d-flex justify-content-end">{{ $milestones->links() }}</div>
+        <div class="card-footer d-flex justify-content-end">{{ $milestones->links('pagination::bootstrap-5') }}</div>
     @endif
 </div>
 

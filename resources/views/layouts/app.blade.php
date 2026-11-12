@@ -107,7 +107,28 @@
                         </div>
                     </div>
                     <!-- ========== Page Title End ========== -->
-                    
+
+                    @inject('accessSimulation', 'App\Services\AccessSimulation')
+                    @if ($accessSimulation->isActive())
+                        <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+                            <div>
+                                <i class="ri-user-shared-line me-1"></i>
+                                @if ($accessSimulation->simulatedUser())
+                                    Estás navegando como <strong>{{ $accessSimulation->simulatedUser()->name }}</strong>
+                                    ({{ $accessSimulation->roleName() ?: 'sin rol' }}). Lo que guardes queda a su nombre.
+                                @else
+                                    Estás viendo el sistema como <strong>{{ $accessSimulation->roleName() }}</strong> con tu usuario.
+                                    Los listados por proyecto u obra asignados pueden salir vacíos: para verlos, elige también un usuario.
+                                @endif
+                            </div>
+                            <form method="POST" action="{{ route('access_simulation.stop') }}">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-warning btn-sm">Volver a admin</button>
+                            </form>
+                        </div>
+                    @endif
+
                     @yield('content')
                </div>
                <!-- End Container Fluid -->
