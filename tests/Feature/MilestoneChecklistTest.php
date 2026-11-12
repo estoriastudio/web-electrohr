@@ -344,7 +344,7 @@ class MilestoneChecklistTest extends TestCase
     {
         return Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 1000,
             'payment_date' => '2026-08-30',
             'status' => 'por_autorizar',
@@ -355,7 +355,7 @@ class MilestoneChecklistTest extends TestCase
     {
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $milestone->purchase_order_id,
-            'folio' => 'F-' . random_int(1000, 9999),
+            'folio' => 'F-'.random_int(1000, 9999),
             'status' => $status,
             'amount' => 1000,
             'currency' => 'MXN',

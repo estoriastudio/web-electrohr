@@ -8,6 +8,7 @@ use App\Models\StockEntry;
 use App\Models\StockEntryItem;
 use App\Models\StockExitItem;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,9 +20,7 @@ use Illuminate\View\View;
 
 class StockEntryController extends Controller
 {
-    public function __construct(private NotificationService $notification)
-    {
-    }
+    public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
     {
@@ -35,6 +34,7 @@ class StockEntryController extends Controller
             ->when($dateFrom, fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->latest('received_at')->paginate(25)->withQueryString();
+
         return view('stocks.entries.index', compact('entries', 'search', 'dateFrom', 'dateTo'));
     }
 
@@ -139,7 +139,7 @@ class StockEntryController extends Controller
             throw $exception;
         }
 
-        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $entry->id, 'data' => 'registró una entrada de inventario #' . $entry->id . '.']);
+        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $entry->id, 'data' => 'registró una entrada de inventario #'.$entry->id.'.']);
 
         return redirect()->route('stocks.entries.index')->with('success', 'Entrada registrada correctamente.');
     }
@@ -176,7 +176,7 @@ class StockEntryController extends Controller
             return $entry;
         }));
 
-        $entries->each(fn (StockEntry $entry) => $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $entry->id, 'data' => 'registró una entrada de inventario #' . $entry->id . '.']));
+        $entries->each(fn (StockEntry $entry) => $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $entry->id, 'data' => 'registró una entrada de inventario #'.$entry->id.'.']));
 
         return redirect()->route('stocks.entries.index')->with('success', $entries->count() === 1 ? 'Retorno registrado correctamente.' : 'Retornos registrados correctamente.');
     }
@@ -223,10 +223,10 @@ class StockEntryController extends Controller
         $changes = [];
         $track = function (string $label, mixed $old, mixed $new) use (&$changes) {
             if ((string) $old !== (string) $new) {
-                $changes[] = "{$label}: " . ($old === null || $old === '' ? '—' : $old) . ' → ' . ($new === null || $new === '' ? '—' : $new);
+                $changes[] = "{$label}: ".($old === null || $old === '' ? '—' : $old).' → '.($new === null || $new === '' ? '—' : $new);
             }
         };
-        $track('fecha', $stockEntry->received_at->format('d/m/Y'), \Carbon\Carbon::parse($validated['received_at'])->format('d/m/Y'));
+        $track('fecha', $stockEntry->received_at->format('d/m/Y'), Carbon::parse($validated['received_at'])->format('d/m/Y'));
         $track('observaciones', $stockEntry->observations, $validated['observations'] ?? null);
 
         $newPaths = [];
@@ -248,11 +248,11 @@ class StockEntryController extends Controller
                         if ($delta < 0) {
                             $available = $this->availableStock($item->concept_id);
                             if ($available + $delta < 0) {
-                                throw ValidationException::withMessages(["items.{$item->id}.quantity" => 'No se puede reducir la cantidad de ' . $item->concept->code . ': el stock disponible (' . $this->formatQuantity($available) . ') quedaría negativo.']);
+                                throw ValidationException::withMessages(["items.{$item->id}.quantity" => 'No se puede reducir la cantidad de '.$item->concept->code.': el stock disponible ('.$this->formatQuantity($available).') quedaría negativo.']);
                             }
                         }
                         if ($delta != 0) {
-                            $changes[] = $item->concept->code . ': ' . $this->formatQuantity((float) $item->quantity) . ' → ' . $this->formatQuantity($quantity);
+                            $changes[] = $item->concept->code.': '.$this->formatQuantity((float) $item->quantity).' → '.$this->formatQuantity($quantity);
                             $item->update(['quantity' => $quantity]);
                         }
 
@@ -276,7 +276,7 @@ class StockEntryController extends Controller
                                 'file_path' => $path, 'disk' => 's3', 'mime_type' => $file->getMimeType(),
                                 'file_size' => $file->getSize(), 'uploaded_by' => Auth::id(),
                             ]);
-                            $changes[] = $item->concept->code . ': certificado de ' . ($type === 'origin' ? 'origen' : 'seguridad') . ' reemplazado';
+                            $changes[] = $item->concept->code.': certificado de '.($type === 'origin' ? 'origen' : 'seguridad').' reemplazado';
                         }
                     }
                     $attributes['quantity'] = collect($validated['items'])->sum('quantity');
@@ -309,7 +309,7 @@ class StockEntryController extends Controller
             Storage::disk($disk)->delete($path);
         }
 
-        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockEntry->id, 'data' => 'editó la entrada de inventario #' . $stockEntry->id . ($changes ? ' (' . implode('; ', $changes) . ')' : ' (sin cambios)') . '.']);
+        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockEntry->id, 'data' => 'editó la entrada de inventario #'.$stockEntry->id.($changes ? ' ('.implode('; ', $changes).')' : ' (sin cambios)').'.']);
 
         return redirect()->route('stocks.entries.index')->with('success', 'Entrada actualizada correctamente.');
     }
@@ -322,14 +322,14 @@ class StockEntryController extends Controller
         if ($stockEntry->invoice_file_path) {
             $paths[] = [$stockEntry->invoice_disk ?: 's3', $stockEntry->invoice_file_path];
         }
-        $summary = $stockEntry->items->map(fn ($item) => $item->concept->code . ' x ' . $this->formatQuantity((float) $item->quantity))->implode(', ');
+        $summary = $stockEntry->items->map(fn ($item) => $item->concept->code.' x '.$this->formatQuantity((float) $item->quantity))->implode(', ');
         $reopenedExitId = $stockEntry->returnedExit?->id;
 
         DB::transaction(function () use ($stockEntry) {
             foreach ($stockEntry->items as $item) {
                 $available = $this->availableStock($item->concept_id);
                 if ($available - (float) $item->quantity < 0) {
-                    throw ValidationException::withMessages(['stock' => 'No se puede eliminar la entrada: ' . $item->concept->code . ' ya tiene salidas que dependen de esta existencia (stock disponible ' . $this->formatQuantity($available) . ').']);
+                    throw ValidationException::withMessages(['stock' => 'No se puede eliminar la entrada: '.$item->concept->code.' ya tiene salidas que dependen de esta existencia (stock disponible '.$this->formatQuantity($available).').']);
                 }
             }
             if ($stockEntry->returnedExit) {
@@ -342,9 +342,9 @@ class StockEntryController extends Controller
             Storage::disk($disk)->delete($path);
         }
 
-        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $stockEntry->id, 'data' => 'eliminó la entrada de inventario #' . $stockEntry->id . ($summary ? " ({$summary})" : '') . ($reopenedExitId ? ' y reabrió el préstamo #' . $reopenedExitId : '') . '.']);
+        $this->notification->send(['type' => 'StockEntry', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $stockEntry->id, 'data' => 'eliminó la entrada de inventario #'.$stockEntry->id.($summary ? " ({$summary})" : '').($reopenedExitId ? ' y reabrió el préstamo #'.$reopenedExitId : '').'.']);
 
-        return redirect()->route('stocks.entries.index')->with('success', 'Entrada eliminada correctamente.' . ($reopenedExitId ? ' El préstamo asociado volvió a estar pendiente de retorno.' : ''));
+        return redirect()->route('stocks.entries.index')->with('success', 'Entrada eliminada correctamente.'.($reopenedExitId ? ' El préstamo asociado volvió a estar pendiente de retorno.' : ''));
     }
 
     private function availableStock(int $conceptId): float

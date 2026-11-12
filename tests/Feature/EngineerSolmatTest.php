@@ -12,7 +12,6 @@ use App\Models\User;
 use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class EngineerSolmatTest extends TestCase
@@ -24,8 +23,6 @@ class EngineerSolmatTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
-        Role::findOrCreate('Engineer', 'web');
-        Role::findOrCreate('Proyectos', 'web');
         $this->seed(AccessMatrixSeeder::class);
     }
 
@@ -242,15 +239,16 @@ class EngineerSolmatTest extends TestCase
             ->assertForbidden();
     }
 
-    /** Usuarios como quedan tras access:migrate-users: el rol anterior más su perfil de la matriz. */
+    /** Fase 5: los roles anteriores se retiraron; cada nombre anterior se traduce a su rol de la matriz. */
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
         $user->assignRole(match ($role) {
-            'Engineer' => ['Engineer', 'Supervisor'],
-            'Engineer Gerente' => ['Engineer', 'Gerente de Proyecto'],
-            'Proyectos' => ['Proyectos', 'Contratos'],
-            'Solmat' => ['Solmat', 'Almacén'],
+            'Engineer' => ['Supervisor'],
+            'Engineer Gerente' => ['Gerente de Proyecto'],
+            'Proyectos' => ['Contratos'],
+            'Solcom' => ['Almacén'],
+            'Solmat' => ['Almacén'],
             default => [$role],
         });
 

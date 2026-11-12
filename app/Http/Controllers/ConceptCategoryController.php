@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -32,8 +31,8 @@ class ConceptCategoryController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => ['required', 'string', 'max:100'],
-            'type'        => ['required', Rule::in(['materiales', 'mantenimiento'])],
+            'name' => ['required', 'string', 'max:100'],
+            'type' => ['required', Rule::in(['materiales', 'mantenimiento'])],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -46,8 +45,8 @@ class ConceptCategoryController extends Controller
     public function update(Request $request, ConceptCategory $conceptCategory): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => ['required', 'string', 'max:100'],
-            'type'        => ['required', Rule::in(['materiales', 'mantenimiento'])],
+            'name' => ['required', 'string', 'max:100'],
+            'type' => ['required', Rule::in(['materiales', 'mantenimiento'])],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -71,7 +70,7 @@ class ConceptCategoryController extends Controller
     public function storeSubcategory(Request $request, ConceptCategory $conceptCategory): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -86,7 +85,7 @@ class ConceptCategoryController extends Controller
     public function updateSubcategory(Request $request, ConceptCategory $conceptCategory, ConceptSubcategory $subcategory): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -109,7 +108,7 @@ class ConceptCategoryController extends Controller
     public function syncUsers(Request $request, ConceptCategory $conceptCategory): RedirectResponse
     {
         $validated = $request->validate([
-            'user_ids'   => ['nullable', 'array'],
+            'user_ids' => ['nullable', 'array'],
             'user_ids.*' => ['exists:users,id'],
         ]);
 

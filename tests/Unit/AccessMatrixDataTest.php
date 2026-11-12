@@ -85,11 +85,19 @@ class AccessMatrixDataTest extends TestCase
 
     public function test_actions_the_erp_does_not_support_yet_are_pending_not_granted(): void
     {
-        $cell = $this->matrix->views()['purchase_orders']['access']['DIR'];
+        // Una acción pendiente nunca se concede como permiso.
+        foreach ($this->matrix->views() as $view => $definition) {
+            foreach ($definition['access'] as $profile => $cell) {
+                foreach ($cell['pending'] ?? [] as $action) {
+                    $this->assertNotContains("{$view}.{$action}", $this->matrix->permissionsFor($profile), "{$view}.{$profile}");
+                }
+            }
+        }
 
-        $this->assertSame(['view'], $cell['actions']);
-        $this->assertSame(['authorize'], $cell['pending']);
-        $this->assertNotContains('purchase_orders.authorize', $this->matrix->permissionsFor('DIR'));
+        // Fase 4: las ( ) ya se construyeron y se concedieron.
+        $this->assertContains('purchase_orders.authorize', $this->matrix->permissionsFor('DIR'));
+        $this->assertContains('purchase_request_changes.authorize', $this->matrix->permissionsFor('DIR'));
+        $this->assertContains('milestones.authorize', $this->matrix->permissionsFor('SUP'));
     }
 
     public function test_all_permissions_are_unique_and_sorted(): void

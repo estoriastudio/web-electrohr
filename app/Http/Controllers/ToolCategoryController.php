@@ -14,8 +14,8 @@ class ToolCategoryController extends Controller
     public function index(): View
     {
         $rootCategories = ToolCategory::with(['children' => function ($query) {
-                $query->withCount('tools')->orderBy('name');
-            }])
+            $query->withCount('tools')->orderBy('name');
+        }])
             ->withCount('tools')
             ->whereNull('parent_id')
             ->orderBy('name')

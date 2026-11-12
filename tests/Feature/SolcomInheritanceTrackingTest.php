@@ -49,14 +49,14 @@ class SolcomInheritanceTrackingTest extends TestCase
         $this->actingAs($this->buyer)
             ->get(route('purchasing.solcom_pile', ['section' => 'entrada']))
             ->assertOk()
-            ->assertSee('#' . $partial->folio)
-            ->assertDontSee('#' . $full->folio);
+            ->assertSee('#'.$partial->folio)
+            ->assertDontSee('#'.$full->folio);
 
         $this->actingAs($this->buyer)
             ->get(route('purchasing.solcom_pile', ['section' => 'salida']))
             ->assertOk()
-            ->assertSee('#' . $full->folio)
-            ->assertDontSee('#' . $partial->folio);
+            ->assertSee('#'.$full->folio)
+            ->assertDontSee('#'.$partial->folio);
     }
 
     public function test_deleting_the_order_releases_its_items(): void
@@ -116,7 +116,7 @@ class SolcomInheritanceTrackingTest extends TestCase
         $this->actingAs($this->buyer)
             ->get(route('purchase_orders.create_from_solcom', $solcom))
             ->assertOk()
-            ->assertSee('OC #' . $order->folio)
+            ->assertSee('OC #'.$order->folio)
             ->assertSee('Heredado por completo');
 
         $this->inherit($solcom->items[1], 'pendiente');
@@ -159,7 +159,7 @@ class SolcomInheritanceTrackingTest extends TestCase
         $this->actingAs($this->buyer)
             ->get(route('purchase_requests.show', $solcom))
             ->assertOk()
-            ->assertSee('OC #' . $order->folio)
+            ->assertSee('OC #'.$order->folio)
             ->assertSee('Heredado por completo');
     }
 
@@ -268,14 +268,14 @@ class SolcomInheritanceTrackingTest extends TestCase
         $folio++;
 
         $project = Project::create([
-            'name' => 'Proyecto ' . $folio,
+            'name' => 'Proyecto '.$folio,
             'client_name' => 'Cliente',
             'currency' => 'MXN',
             'status' => 'active',
         ]);
         $work = ProjectWork::create([
             'project_id' => $project->id,
-            'name' => 'Obra ' . $folio,
+            'name' => 'Obra '.$folio,
             'status' => 'active',
         ]);
 
@@ -297,7 +297,7 @@ class SolcomInheritanceTrackingTest extends TestCase
         for ($i = 1; $i <= $itemCount; $i++) {
             PurchaseRequestItem::create([
                 'purchase_request_id' => $solcom->id,
-                'code' => 'C' . $i,
+                'code' => 'C'.$i,
                 'description' => "Concepto {$folio}-{$i}",
                 'unit' => 'pza',
                 'requested_quantity' => 5,

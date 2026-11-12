@@ -67,6 +67,19 @@
             </li>
             @endhasanyrole
 
+            {{-- Fase 3: espacios propios --}}
+            @can('direction_authorizations.authorize')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('direction.inbox') ? 'active' : '' }}" href="{{ route('direction.inbox') }}">
+                    <span class="nav-icon"><i class="ri-inbox-archive-line"></i></span>
+                    <span class="nav-text">Bandeja de Dirección</span>
+                    @if(($paymentsToAuthorizeCount ?? 0) > 0)
+                        <span class="badge bg-warning badge-pill">{{ $paymentsToAuthorizeCount }}</span>
+                    @endif
+                </a>
+            </li>
+            @endcan
+
             @canany(['suppliers.view', 'supplier_account_statements.view'])
                     <li class="nav-item">
                         <a class="nav-link menu-arrow {{ request()->routeIs('suppliers.*') ? 'active' : '' }}"
@@ -164,6 +177,16 @@
                 </a>
             </li>
             @endif
+
+            {{-- Fase 4: confirmar en obra lo que envía Almacén --}}
+            @can('site_delivery_confirmations.view')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('site_deliveries.*') ? 'active' : '' }}" href="{{ route('site_deliveries.index') }}">
+                    <span class="nav-icon"><i class="ri-truck-line"></i></span>
+                    <span class="nav-text">Entregas en obra</span>
+                </a>
+            </li>
+            @endcan
 
             @canany(['hr_workers.view', 'hr_worker_groups.view', 'hr_attendances.view', 'hr_vacations.view', 'hr_terminations.view', 'hr_position_categories.view', 'hr_payroll.view', 'hr_piecework.view', 'hr_incentives.view'])
             <li class="menu-title">Recursos Humanos</li>
@@ -268,7 +291,7 @@
             @endcan
             @endcanany
 
-            @canany(['material_requests.view', 'material_vouchers.view', 'material_request_changes.view', 'material_request_queue.view'])
+            @canany(['material_requests.view', 'material_vouchers.view', 'material_voucher_authorizations.authorize', 'material_request_changes.view', 'material_request_queue.view'])
             <li class="menu-title">Almacén</li>
 
             {{-- Gerente y Supervisor ven sus SOLMAT en Mis Proyectos. --}}
@@ -286,12 +309,27 @@
 
             @can('material_vouchers.view')
             <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('material_vouchers.*') ? 'active' : '' }}"
+                <a class="nav-link {{ request()->routeIs('material_vouchers.*') && ! request()->routeIs('material_vouchers.pending_authorization') ? 'active' : '' }}"
                    href="{{ route('material_vouchers.index') }}">
                     <span class="nav-icon">
                         <i class="ri-receipt-line"></i>
                     </span>
                     <span class="nav-text">Vales de Material</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('material_voucher_authorizations.authorize')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('material_vouchers.pending_authorization') ? 'active' : '' }}"
+                   href="{{ route('material_vouchers.pending_authorization') }}">
+                    <span class="nav-icon">
+                        <i class="ri-quill-pen-line"></i>
+                    </span>
+                    <span class="nav-text">Vales por autorizar</span>
+                    @if(($vouchersToAuthorizeCount ?? 0) > 0)
+                        <span class="badge bg-info badge-pill">{{ $vouchersToAuthorizeCount }}</span>
+                    @endif
                 </a>
             </li>
             @endcan
@@ -364,7 +402,7 @@
             @endcan
             @endcanany
 
-            @canany(['purchase_requests.view', 'purchase_request_changes.view', 'purchase_request_queue.view', 'purchasing_workload.view', 'purchase_orders.view'])
+            @canany(['purchase_requests.view', 'purchase_request_changes.view', 'purchase_request_queue.view', 'purchasing_workload.view', 'purchase_orders.view', 'event_followups.view'])
             <li class="menu-title">Compras</li>
             @endcanany
 
@@ -404,6 +442,15 @@
                         <i class="ri-stack-line"></i>
                     </span>
                     <span class="nav-text">Pila SOLCOM</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('event_followups.view')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('event_followups.*') ? 'active' : '' }}" href="{{ route('event_followups.index') }}">
+                    <span class="nav-icon"><i class="ri-route-line"></i></span>
+                    <span class="nav-text">Seguimiento de eventos</span>
                 </a>
             </li>
             @endcan

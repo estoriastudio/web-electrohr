@@ -3,7 +3,9 @@
 /* Controladores */
 use App\Http\Controllers\ConceptCategoryController;
 use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\DirectionInboxController;
 use App\Http\Controllers\EngineerProjectController;
+use App\Http\Controllers\EventFollowupController;
 use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\MaintenanceLogController;
@@ -24,12 +26,14 @@ use App\Http\Controllers\ProjectEstimateController;
 use App\Http\Controllers\ProjectEstimateFileController;
 use App\Http\Controllers\ProjectEstimateInvoiceController;
 use App\Http\Controllers\ProjectWorkController;
+use App\Http\Controllers\PurchaseOrderChangeRequestController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderEvidenceController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
 use App\Http\Controllers\PurchaseOrderMilestoneController;
 use App\Http\Controllers\PurchaseOrderMilestoneFulfillmentController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\SiteDeliveryController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockEntryController;
 use App\Http\Controllers\StockExitController;
@@ -411,6 +415,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
                     Route::resource('payroll-periods', PayrollPeriodController::class)->only(['update', 'destroy']);
                     Route::post('payroll-periods/{payrollPeriod}/close', [PayrollPeriodController::class, 'close'])->name('payroll-periods.close');
                     Route::post('payroll-periods/{payrollPeriod}/mark-paid', [PayrollPeriodController::class, 'markPaid'])->name('payroll-periods.mark-paid');
+                });
+                // Fase 4 (V-02): Dirección autoriza la nómina cerrada.
+                Route::middleware('permission:hr_payroll.authorize')->group(function () {
+                    Route::post('payroll-periods/{payrollPeriod}/authorize', [PayrollPeriodController::class, 'authorizePayroll'])->name('payroll-periods.authorize');
                     Route::resource('payroll-lines', PayrollLineController::class)->only(['update']);
                     Route::post('payroll-lines/{payrollLine}/rebuild', [PayrollLineController::class, 'rebuild'])->name('payroll-lines.rebuild');
                 });
@@ -531,6 +539,22 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/roles', 'UserController@storeRole')->name('roles.store');
             Route::delete('/roles/{role}', 'UserController@destroyRole')->name('roles.destroy');
         });
+
+        // Fase 4: seguimiento del evento hasta su cierre (vista `event_followups`).
+        Route::get('/compras/seguimiento-eventos', [EventFollowupController::class, 'index'])
+            ->middleware('permission:event_followups.view')->name('event_followups.index');
+        Route::patch('/compras/seguimiento-eventos/{milestone}', [EventFollowupController::class, 'update'])
+            ->middleware('permission:event_followups.update')->name('event_followups.update');
+
+        // Fase 4 (V-06): confirmación de entrega en obra (vista `site_delivery_confirmations`).
+        Route::get('/obra/entregas', [SiteDeliveryController::class, 'index'])
+            ->middleware('permission:site_delivery_confirmations.view')->name('site_deliveries.index');
+        Route::post('/obra/entregas/{stockExit}/confirmar', [SiteDeliveryController::class, 'store'])
+            ->middleware('permission:site_delivery_confirmations.register')->name('site_deliveries.store');
+
+        // Fase 3: Bandeja de Dirección (vista `direction_authorizations`, A: Dirección y admin).
+        Route::get('/direccion/bandeja', [DirectionInboxController::class, 'index'])
+            ->middleware('permission:direction_authorizations.authorize')->name('direction.inbox');
 
         // Auditoría (`notifications_audit`): Dirección y admin.
         Route::get('/auditoria', [NotificationController::class, 'index'])
@@ -674,14 +698,24 @@ Route::namespace('App\Http\Controllers')->group(function () {
                 ->name('payments.request_reactivation');
         });
 
+        // Compras (comprador de la OC) pide cambio o cancelación de una OC autorizada.
+        Route::post('/ordenes-de-compra/{purchase_order}/solicitudes-cambio', [PurchaseOrderChangeRequestController::class, 'store'])
+            ->middleware('permission:purchase_orders.update|purchase_orders.cancel')
+            ->name('purchase_orders.change_requests.store');
+
         // Emisión y cierre de OC — editar OC (Compras en sus OC, admin)
         Route::middleware('permission:purchase_orders.update')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/emitir', [PurchaseOrderController::class, 'emit'])->name('purchase_orders.emit');
             Route::post('/ordenes-de-compra/{purchase_order}/cerrar', [PurchaseOrderController::class, 'close'])->name('purchase_orders.close');
         });
 
-        // Autorización de Órdenes de Compra — solo admin
-        Route::middleware('role:admin')->group(function () {
+        // Autorización de OC (Fase 4): Dirección con su usuario y admin. También reabrir una OC cerrada
+        // y resolver solicitudes de cambio o cancelación de una OC autorizada.
+        Route::middleware('permission:purchase_orders.authorize')->group(function () {
+            Route::post('/ordenes-de-compra/solicitudes-cambio/{changeRequest}/autorizar', [PurchaseOrderChangeRequestController::class, 'approve'])
+                ->name('purchase_orders.change_requests.approve');
+            Route::post('/ordenes-de-compra/solicitudes-cambio/{changeRequest}/rechazar', [PurchaseOrderChangeRequestController::class, 'reject'])
+                ->name('purchase_orders.change_requests.reject');
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar', [PurchaseOrderController::class, 'approve'])->name('purchase_orders.approve');
             Route::post('/ordenes-de-compra/{purchase_order}/reabrir', [PurchaseOrderController::class, 'reopen'])->name('purchase_orders.reopen');
             Route::patch('/ordenes-de-compra/{purchase_order}/autorizar-con-pagos', [PurchaseOrderController::class, 'approveWithPayments'])
@@ -735,8 +769,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
         });
-        // Validación de hitos (`milestone_validations`): validan Gerente, Supervisor y Almacén; Compras la define.
-        Route::middleware('permission:milestone_validations.authorize|milestone_validations.create')->group(function () {
+        // Validación de hitos (Fase 4, A de `milestone_validations` y de Hitos): registrar el cumplimiento o
+        // confirmar la entrega valida el hito y habilita su pago. Validan Gerente y Supervisor (sus proyectos) y Almacén.
+        Route::middleware('permission:milestone_validations.authorize')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/cumplimientos', [PurchaseOrderMilestoneFulfillmentController::class, 'store'])
                 ->name('purchase_orders.fulfillments.store');
             Route::post('/ordenes-de-compra/{purchase_order}/hitos/{milestone}/confirmar-entrega', [PurchaseOrderController::class, 'confirmMilestoneDelivery'])
@@ -827,6 +862,13 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::get('/solicitudes-material/solicitudes-cambio', [MaterialRequestController::class, 'changeRequestsPanel'])
             ->middleware('permission:material_request_changes.view')
             ->name('material_request_changes.index');
+        // Fase 4: cambio pedido desde la obra (Supervisor o Gerente); si lo pide el Supervisor, lo autoriza el Gerente.
+        Route::post('/solicitudes-material/{materialRequest}/cambio-obra', [MaterialRequestController::class, 'requestSiteChange'])
+            ->middleware('permission:material_request_changes.create')
+            ->name('material_requests.site_changes.store');
+        Route::post('/solicitudes-material/{materialRequest}/cambio-obra/{changeNote}/decidir', [MaterialRequestController::class, 'decideSiteChange'])
+            ->middleware('permission:material_request_changes.authorize')
+            ->name('material_requests.site_changes.decide');
         Route::middleware('permission:material_request_changes.update')->group(function () {
             Route::post('/solicitudes-material/{materialRequest}/request-changes', [MaterialRequestController::class, 'requestChanges'])
                 ->name('material_requests.request_changes');
@@ -875,6 +917,9 @@ Route::namespace('App\Http\Controllers')->group(function () {
 
         // ── Vales de Material ───────────────────────────────────────────────
         // Vista `material_vouchers`; autorizar el vale es `material_voucher_authorizations.authorize` (Almacén Autoriza).
+        // Fase 3: bandeja de vales por autorizar (Almacén Autoriza y admin).
+        Route::get('/vales-material/por-autorizar', [MaterialVoucherController::class, 'pendingAuthorization'])
+            ->middleware('permission:material_voucher_authorizations.authorize')->name('material_vouchers.pending_authorization');
         Route::middleware('permission:material_vouchers.view')->group(function () {
             Route::get('/vales-material', [MaterialVoucherController::class, 'index'])->name('material_vouchers.index');
             Route::get('/vales-material/{materialVoucher}', [MaterialVoucherController::class, 'show'])
@@ -958,6 +1003,10 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/resolve', [PurchaseRequestController::class, 'resolveChangeNote'])
                 ->name('purchase_requests.change_notes.resolve');
         });
+        // Fase 4: Dirección autoriza o rechaza un ajuste comercial de SOLCOM.
+        Route::post('/solicitudes-compra/{purchaseRequest}/change-notes/{changeNote}/direccion', [PurchaseRequestController::class, 'decideCommercialChange'])
+            ->middleware('permission:purchase_request_changes.authorize')
+            ->name('purchase_requests.change_notes.decide');
         // Pila SOLCOM: SOLCOM enviadas a Compras y asignadas al usuario.
         Route::get('/compras/pila-solcom', [PurchaseRequestController::class, 'purchasingPile'])
             ->middleware('permission:purchase_request_queue.view')

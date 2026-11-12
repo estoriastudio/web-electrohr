@@ -25,6 +25,23 @@ class MaterialVoucherController extends Controller
     /**
      * Display a listing of the resource.
      */
+    /**
+     * Fase 3: bandeja de Almacén Autoriza. Vales emitidos que esperan autorización con firma;
+     * se autorizan desde el detalle del vale (material_voucher_authorizations.authorize).
+     */
+    public function pendingAuthorization(): View
+    {
+        $materialVouchers = MaterialVoucher::query()
+            ->with(['supplier', 'project', 'projectWork', 'createdBy'])
+            ->withCount('items')
+            ->where('status', 'emitido')
+            ->orderBy('voucher_date')
+            ->orderBy('id')
+            ->paginate(25);
+
+        return view('material_vouchers.pending_authorization', compact('materialVouchers'));
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->input('search', ''));

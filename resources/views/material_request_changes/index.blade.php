@@ -145,6 +145,7 @@
                         <select name="note_type" class="form-select form-select-sm">
                             <option value="all" {{ $noteType === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="change_request" {{ $noteType === 'change_request' ? 'selected' : '' }}>Cambios solicitados</option>
+                            <option value="site_change" {{ $noteType === 'site_change' ? 'selected' : '' }}>Cambios de obra</option>
                             <option value="commitment_notice" {{ $noteType === 'commitment_notice' ? 'selected' : '' }}>Avisos de Almacén</option>
                         </select>
                     </div>
@@ -267,6 +268,9 @@
                                     </td>
                                     <td style="min-width:280px; max-width:380px;">
                                         <p class="mb-0 text-body fs-13">{{ $note->text }}</p>
+                                        @if ($materialRequest)
+                                            @include('material_requests.partials._site_change', ['note' => $note, 'materialRequest' => $materialRequest])
+                                        @endif
                                         @if ($isCommitmentNotice && filled(data_get($note->payload, 'commitments')))
                                             <div class="mt-2 d-flex flex-wrap gap-1">
                                                 @foreach (data_get($note->payload, 'commitments', []) as $commitment)
@@ -285,7 +289,7 @@
                                                    title="Ver detalle">
                                                     <i class="ri-eye-line"></i>
                                                 </a>
-                                                @if ($note->isChangeRequest())
+                                                @if ($note->isChangeRequest() || ($note->isSiteChange() && ! $note->awaitsManager()))
                                                 @can('material_request_changes.update')
                                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                                       method="POST">

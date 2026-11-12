@@ -16,7 +16,6 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class EngineerProjectAccessTest extends TestCase
@@ -28,8 +27,6 @@ class EngineerProjectAccessTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
-        Role::findOrCreate('Engineer', 'web');
-        Role::findOrCreate('Proyectos', 'web');
         $this->seed(AccessMatrixSeeder::class);
     }
 
@@ -131,6 +128,7 @@ class EngineerProjectAccessTest extends TestCase
         $this->get(route('purchase_orders.pdf', $ownPo))->assertForbidden();
     }
 
+    /** Fase 3 (espacio de Obra): ve hitos y evidencias de la OC, pero no pagos ni montos pagados. */
     public function test_purchase_order_detail_hides_payment_sections_for_engineers(): void
     {
         $engineer = $this->engineer();
@@ -140,9 +138,10 @@ class EngineerProjectAccessTest extends TestCase
         $this->actingAs($engineer)
             ->get(route('purchase_orders.show', $purchaseOrder))
             ->assertOk()
-            ->assertDontSee('hitos-container', false)
+            ->assertSee('hitos-container', false)
+            ->assertSee('Evidencias')
+            ->assertDontSee('Resumen económico')
             ->assertDontSee('Subir factura')
-            ->assertDontSee('Evidencias')
             ->assertDontSee('Cubierto')
             ->assertDontSee('Generar PDF')
             ->assertDontSee('Editar OC');
@@ -273,13 +272,15 @@ class EngineerProjectAccessTest extends TestCase
         return $this->userWithRole('Engineer');
     }
 
-    /** Usuarios como quedan tras access:migrate-users: el rol anterior más su perfil de la matriz. */
+    /** Fase 5: los roles anteriores se retiraron; cada nombre anterior se traduce a su rol de la matriz. */
     private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
         $user->assignRole(match ($role) {
-            'Engineer' => ['Engineer', 'Supervisor'],
-            'Proyectos' => ['Proyectos', 'Contratos'],
+            'Engineer' => ['Supervisor'],
+            'Proyectos' => ['Contratos'],
+            'Solcom' => ['Almacén'],
+            'Solmat' => ['Almacén'],
             default => [$role],
         });
 

@@ -9,8 +9,11 @@ class PurchaseOrderMilestoneFulfillment extends Model
 {
     // La recepción física no genera registro propio: usa purchase_order_item_deliveries.
     public const TYPE_PHYSICAL = 'physical';
+
     public const TYPE_ESTIMATION = 'estimation';
+
     public const TYPE_DOCUMENTARY = 'documentary';
+
     public const TYPE_ADVANCE = 'advance';
 
     public const RECORDED_TYPES = [

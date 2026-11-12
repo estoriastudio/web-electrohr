@@ -24,8 +24,8 @@ class MilestoneAmountAdjuster
     {
         DB::transaction(function () use ($order, $milestone, $user, $data) {
             $order = PurchaseOrder::query()->lockForUpdate()->findOrFail($order->id);
-            abort_unless($user->hasRole('admin')
-                || ($user->hasRole('Orden de compra') && (int) $order->buyer_id === (int) $user->id), 403);
+            abort_unless($user->hasFullAccessScope('purchase_orders', 'update')
+                || ($user->can('milestones.update') && (int) $order->buyer_id === (int) $user->id), 403);
             $order->ensureOpen();
             $milestone = $order->milestones()->lockForUpdate()->findOrFail($milestone->id);
             $order->load(['items', 'milestones']);

@@ -52,13 +52,15 @@
 								<td class="fw-medium">{{ $period->week_number }}/{{ $period->year }}</td>
 								<td>{{ $period->start_date->format('d/m/Y') }} - {{ $period->end_date->format('d/m/Y') }}</td>
 								<td>{{ $period->lines_count }}</td>
-								<td><span class="badge {{ $period->status === 'open' ? 'bg-success-subtle text-success' : ($period->status === 'closed' ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary') }}">{{ ['open' => 'Abierto', 'closed' => 'Cerrado', 'paid' => 'Pagado'][$period->status] }}</span></td>
+								<td><span class="badge {{ ['open' => 'bg-success-subtle text-success', 'closed' => 'bg-warning-subtle text-warning', 'authorized' => 'bg-info-subtle text-info'][$period->status] ?? 'bg-primary-subtle text-primary' }}">{{ \App\Models\PayrollPeriod::STATUS_LABELS[$period->status] ?? $period->status }}</span></td>
 								<td class="text-end">
 									<a class="btn btn-light btn-sm" href="{{ route('human_resources.payroll-lines.index', ['payroll_period_id' => $period->id]) }}" title="Ver líneas"><i class="ri-list-check-2 me-1"></i>Ver líneas</a>
 									@if($period->status === 'open' && auth()->user()->can('hr_payroll.create'))
 										<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.generate-lines', $period) }}">@csrf<button class="btn btn-light btn-sm" title="Generar líneas"><i class="ri-play-line me-1"></i>Generar</button></form>
 										@can('hr_payroll.update')<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.close', $period) }}">@csrf<button class="btn btn-light btn-sm text-warning" title="Cerrar periodo"><i class="ri-lock-line me-1"></i>Cerrar</button></form>@endcan
-									@elseif($period->status === 'closed' && auth()->user()->can('hr_payroll.update'))
+									@elseif($period->status === 'closed')
+										@can('hr_payroll.authorize')<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.authorize', $period) }}">@csrf<button class="btn btn-light btn-sm text-info" title="Autorizar nómina"><i class="ri-shield-check-line me-1"></i>Autorizar</button></form>@endcan
+									@elseif($period->status === 'authorized' && auth()->user()->can('hr_payroll.update'))
 										<form class="d-inline" method="POST" action="{{ route('human_resources.payroll-periods.mark-paid', $period) }}">@csrf<button class="btn btn-light btn-sm text-success" title="Marcar como pagado"><i class="ri-checkbox-circle-line me-1"></i>Marcar pagado</button></form>
 									@endif
 								</td>

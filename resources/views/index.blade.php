@@ -71,7 +71,7 @@
 {{-- ============================================================ --}}
 {{-- Bloque 1: Indicadores de Pagos — admin + Pagos            --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
+@if(auth()->user()->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view']))
 @php $paymentCurrencies = ['MXN', 'USD', 'EUR']; @endphp
 <div class="row mb-3">
 
@@ -341,7 +341,7 @@
 {{-- ============================================================ --}}
 {{-- Bloque 3: Pendientes de Autorizar — admin + payments         --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']))
+@if(auth()->user()->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view']))
 <div class="row">
     {{-- Tarjeta 5: Gráfica de pendientes de autorizar --}}
     <div class="col-xl-12">
@@ -370,7 +370,7 @@
 {{-- ============================================================ --}}
 {{-- Bloque 4: Vista Orden de Compra — admin + Orden de compra    --}}
 {{-- ============================================================ --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']))
+@if(auth()->user()->can('purchase_orders.create'))
 
 {{-- Fila A: Métricas rápidas --}}
 <div class="row">
@@ -788,7 +788,7 @@
 @push('scripts')
 
 {{-- Gráfico 3: Urgencias por vencimiento --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Orden de compra']) && array_sum($urgencyValues) > 0)
+@if(auth()->user()->can('purchase_orders.create') && array_sum($urgencyValues) > 0)
 <script>
 (function () {
     var opts = {
@@ -828,7 +828,7 @@
 @endif
 
 {{-- Gráfico 5: Pendientes de autorizar por proveedor --}}
-@if(auth()->user()->hasAnyRole(['admin', 'Pagos']) && count($chartLabels) > 0)
+@if(auth()->user()->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view']) && count($chartLabels) > 0)
 <script>
 (function () {
     var opts = {

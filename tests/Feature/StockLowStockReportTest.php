@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\StockController;
+use App\Models\Concept;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class StockLowStockReportTest extends TestCase
@@ -116,7 +119,7 @@ class StockLowStockReportTest extends TestCase
     {
         $id = $this->concept('DEFAULT', 1);
         $this->assertSame('medium', DB::table('concepts')->where('id', $id)->value('priority'));
-        $this->assertSame('medium', (new \App\Models\Concept())->priority);
+        $this->assertSame('medium', (new Concept)->priority);
 
         $migration = require database_path('migrations/2026_09_29_180000_add_priority_to_concepts_table.php');
         $migration->down();
@@ -135,36 +138,36 @@ class StockLowStockReportTest extends TestCase
             $table->timestamps();
         });
         $id = $this->concept('EDIT', 1);
-        $concept = \App\Models\Concept::findOrFail($id);
+        $concept = Concept::findOrFail($id);
         $data = [
             'code' => 'EDIT', 'description' => 'Suministro editable', 'unit' => 'pza',
             'warehouse_location' => 'Almacen principal', 'status' => 'active', 'type' => 'materiales',
         ];
         foreach (['high', 'low', 'medium'] as $priority) {
-            app(\App\Http\Controllers\ConceptController::class)->update(
-                Request::create('/conceptos/' . $id, 'PUT', $data + ['priority' => $priority]), $concept
+            app(ConceptController::class)->update(
+                Request::create('/conceptos/'.$id, 'PUT', $data + ['priority' => $priority]), $concept
             );
             $this->assertSame($priority, $concept->fresh()->priority);
         }
         $concept->update(['priority' => 'high']);
-        app(\App\Http\Controllers\ConceptController::class)->update(Request::create('/conceptos/' . $id, 'PUT', $data), $concept);
+        app(ConceptController::class)->update(Request::create('/conceptos/'.$id, 'PUT', $data), $concept);
         $this->assertSame('high', $concept->fresh()->priority);
     }
 
     public function test_invalid_priorities_are_rejected_in_creation_and_editing(): void
     {
-        $concept = new \App\Models\Concept();
+        $concept = new Concept;
         foreach (['store', 'update'] as $method) {
             try {
                 $request = Request::create('/conceptos', 'POST', ['priority' => 'urgent']);
-                $controller = app(\App\Http\Controllers\ConceptController::class);
+                $controller = app(ConceptController::class);
                 if ($method === 'store') {
                     $controller->store($request);
                 } else {
                     $controller->update($request, $concept);
                 }
                 $this->fail('Invalid priority was accepted.');
-            } catch (\Illuminate\Validation\ValidationException $exception) {
+            } catch (ValidationException $exception) {
                 $this->assertArrayHasKey('priority', $exception->errors());
             }
         }
@@ -173,7 +176,7 @@ class StockLowStockReportTest extends TestCase
     private function concept(string $code, ?float $minimum): int
     {
         return DB::table('concepts')->insertGetId([
-            'code' => $code, 'description' => 'Suministro ' . $code,
+            'code' => $code, 'description' => 'Suministro '.$code,
             'warehouse_location' => 'Almacen principal', 'minimum_stock' => $minimum,
         ]);
     }

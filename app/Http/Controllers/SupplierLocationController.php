@@ -22,11 +22,11 @@ class SupplierLocationController extends Controller
     public function store(Request $request, Supplier $supplier): RedirectResponse
     {
         $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'bank_name'    => 'nullable|string|max:100',
+            'name' => 'required|string|max:255',
+            'bank_name' => 'nullable|string|max:100',
             'bank_account' => 'nullable|string|max:50',
-            'bank_clabe'   => 'nullable|string|max:18',
-            'currency'     => 'nullable|string|in:MXN,USD,EUR',
+            'bank_clabe' => 'nullable|string|max:18',
+            'currency' => 'nullable|string|in:MXN,USD,EUR',
             'account_statement' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
 
@@ -36,11 +36,11 @@ class SupplierLocationController extends Controller
         $this->storeAccountStatement($request, $location);
 
         $this->notification->send([
-            'type'         => 'SupplierLocation',
-            'action_by'    => Auth::id(),
+            'type' => 'SupplierLocation',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $location->id,
-            'data'         => 'registró los datos bancarios ' . $location->name . ' para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $location->id,
+            'data' => 'registró los datos bancarios '.$location->name.' para el proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -50,11 +50,11 @@ class SupplierLocationController extends Controller
     public function update(Request $request, Supplier $supplier, SupplierLocation $location): RedirectResponse
     {
         $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'bank_name'    => 'nullable|string|max:100',
+            'name' => 'required|string|max:255',
+            'bank_name' => 'nullable|string|max:100',
             'bank_account' => 'nullable|string|max:50',
-            'bank_clabe'   => 'nullable|string|max:18',
-            'currency'     => 'nullable|string|in:MXN,USD,EUR',
+            'bank_clabe' => 'nullable|string|max:18',
+            'currency' => 'nullable|string|in:MXN,USD,EUR',
             'account_statement' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
 
@@ -64,11 +64,11 @@ class SupplierLocationController extends Controller
         $this->storeAccountStatement($request, $location);
 
         $this->notification->send([
-            'type'         => 'SupplierLocation',
-            'action_by'    => Auth::id(),
+            'type' => 'SupplierLocation',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $location->id,
-            'data'         => 'actualizó los datos bancarios ' . $location->name . ' del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $location->id,
+            'data' => 'actualizó los datos bancarios '.$location->name.' del proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -86,11 +86,11 @@ class SupplierLocationController extends Controller
         $location->delete();
 
         $this->notification->send([
-            'type'         => 'SupplierLocation',
-            'action_by'    => Auth::id(),
+            'type' => 'SupplierLocation',
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => $supplier->id,
-            'data'         => 'eliminó los datos bancarios ' . $name . ' del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'eliminó los datos bancarios '.$name.' del proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -99,7 +99,7 @@ class SupplierLocationController extends Controller
 
     private function storeAccountStatement(Request $request, SupplierLocation $location): void
     {
-        if (!$request->hasFile('account_statement')) {
+        if (! $request->hasFile('account_statement')) {
             return;
         }
 
@@ -108,12 +108,11 @@ class SupplierLocationController extends Controller
         }
 
         $file = $request->file('account_statement');
-        $path = 'supplier_locations/' . $location->supplier_id . '/account_statements/'
-            . $location->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $path = 'supplier_locations/'.$location->supplier_id.'/account_statements/'
+            .$location->id.'_'.time().'.'.$file->getClientOriginalExtension();
 
         Storage::disk('s3')->put($path, file_get_contents($file));
 
         $location->update(['account_statement_path' => $path]);
     }
 }
-

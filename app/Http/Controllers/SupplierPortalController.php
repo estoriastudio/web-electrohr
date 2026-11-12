@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\MaterialVoucher;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -109,9 +109,9 @@ class SupplierPortalController extends Controller
             ->where('status', 'autorizada')
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
-                    $sub->where('folio', 'like', '%' . $search . '%')
-                        ->orWhere('project', 'like', '%' . $search . '%')
-                        ->orWhere('site', 'like', '%' . $search . '%');
+                    $sub->where('folio', 'like', '%'.$search.'%')
+                        ->orWhere('project', 'like', '%'.$search.'%')
+                        ->orWhere('site', 'like', '%'.$search.'%');
                 });
             })
             ->orderByDesc('created_at')
@@ -179,7 +179,7 @@ class SupplierPortalController extends Controller
             ->withCount('items')
             ->where('supplier_id', $supplier->id)
             ->when($search !== '', function ($q) use ($search) {
-                $q->where('folio', 'like', '%' . $search . '%');
+                $q->where('folio', 'like', '%'.$search.'%');
             })
             ->orderByDesc('voucher_date')
             ->orderByDesc('id')

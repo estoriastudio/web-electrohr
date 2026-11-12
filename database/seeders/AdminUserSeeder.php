@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
 class AdminUserSeeder extends Seeder
@@ -14,9 +14,9 @@ class AdminUserSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@electrohr.test'],
             [
-                'name'              => 'Administrador',
+                'name' => 'Administrador',
                 'email_verified_at' => now(),
-                'password'          => Hash::make('Admin1234!'),
+                'password' => Hash::make('Admin1234!'),
             ]
         );
 

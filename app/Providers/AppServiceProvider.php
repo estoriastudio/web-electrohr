@@ -59,6 +59,9 @@ class AppServiceProvider extends ServiceProvider
                 })
                 ->count();
             $paymentsToPayCount = Payment::where('status', 'autorizado')->count();
+            $vouchersToAuthorizeCount = $currentUser?->can('material_voucher_authorizations.authorize')
+                ? MaterialVoucher::where('status', 'emitido')->count()
+                : 0;
             $purchaseRequestChangesPendingCount = $currentUser?->can('purchase_request_changes.view')
                 ? PurchaseRequestChangeNote::query()
                     ->whereNull('resolved_at')
@@ -69,7 +72,7 @@ class AppServiceProvider extends ServiceProvider
                 : 0;
             $materialRequestChangesPendingCount = $currentUser?->can('material_request_changes.view')
                 ? MaterialRequestChangeNote::query()
-                    ->where('note_type', 'change_request')
+                    ->whereIn('note_type', ['change_request', 'site_change'])
                     ->whereNull('resolved_at')
                     ->whereHas('materialRequest', function ($query) use ($currentUser) {
                         $query->whereNull('archived_at')->visibleTo($currentUser, 'material_requests');
@@ -85,6 +88,7 @@ class AppServiceProvider extends ServiceProvider
                 'myActiveProjectsCount',
                 'paymentsToAuthorizeCount',
                 'paymentsToPayCount',
+                'vouchersToAuthorizeCount',
                 'purchaseRequestChangesPendingCount',
                 'materialRequestChangesPendingCount',
             ));

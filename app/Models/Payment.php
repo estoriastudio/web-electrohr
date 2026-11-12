@@ -25,7 +25,7 @@ class Payment extends Model
     ];
 
     protected $casts = [
-        'amount'       => 'decimal:2',
+        'amount' => 'decimal:2',
         'payment_date' => 'date',
         'invoice_date' => 'date',
         'checklist_verified_at' => 'datetime',

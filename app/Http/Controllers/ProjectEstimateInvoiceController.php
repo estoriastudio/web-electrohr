@@ -46,17 +46,20 @@ class ProjectEstimateInvoiceController extends Controller
 
             if (! $uuid) {
                 $errors["invoices.{$index}.xml_file"] = 'No fue posible leer el folio fiscal (UUID) del XML. Verifica que sea un CFDI timbrado válido.';
+
                 continue;
             }
 
             $inputFolio = strtoupper(trim((string) ($data['folio'] ?? '')));
             if ($inputFolio !== '' && $inputFolio !== $uuid) {
                 $errors["invoices.{$index}.folio"] = 'El folio capturado no coincide con el folio fiscal (UUID) del XML.';
+
                 continue;
             }
 
             if (in_array($uuid, $folios, true) || $estimate->invoices()->where('folio', $uuid)->exists()) {
                 $errors["invoices.{$index}.xml_file"] = "La factura {$uuid} ya está registrada en esta estimación.";
+
                 continue;
             }
 
@@ -74,8 +77,8 @@ class ProjectEstimateInvoiceController extends Controller
                 $directory = "projects/{$estimate->project_id}/estimates/{$estimate->id}";
 
                 foreach ($validated['invoices'] as $index => $data) {
-                    $pdfPath = Storage::disk('s3')->putFileAs($directory, $data['pdf_file'], Str::uuid() . '.pdf');
-                    $xmlPath = Storage::disk('s3')->putFileAs($directory, $data['xml_file'], Str::uuid() . '.xml');
+                    $pdfPath = Storage::disk('s3')->putFileAs($directory, $data['pdf_file'], Str::uuid().'.pdf');
+                    $xmlPath = Storage::disk('s3')->putFileAs($directory, $data['xml_file'], Str::uuid().'.xml');
 
                     foreach ([$pdfPath, $xmlPath] as $path) {
                         if ($path) {
@@ -115,7 +118,7 @@ class ProjectEstimateInvoiceController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $estimate->id,
-            'data' => 'cargó ' . $count . ($count === 1 ? ' factura' : ' facturas') . ' en la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
+            'data' => 'cargó '.$count.($count === 1 ? ' factura' : ' facturas').' en la estimación '.$estimate->estimate_number.' del proyecto "'.$estimate->project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $estimate->project)
@@ -126,18 +129,18 @@ class ProjectEstimateInvoiceController extends Controller
     {
         abort_unless(in_array($format, ['pdf', 'xml'], true), 404);
 
-        $path = $invoice->{$format . '_path'};
+        $path = $invoice->{$format.'_path'};
 
         abort_unless($path && Storage::disk('s3')->exists($path), 404);
 
-        return Storage::disk('s3')->download($path, $invoice->{$format . '_original_name'} ?: ($invoice->folio . '.' . $format));
+        return Storage::disk('s3')->download($path, $invoice->{$format.'_original_name'} ?: ($invoice->folio.'.'.$format));
     }
 
     public function destroy(ProjectEstimateInvoice $invoice): RedirectResponse
     {
         $estimate = $invoice->estimate;
         $paths = $invoice->storedPaths();
-        $folio = $invoice->folio ?: '#' . $invoice->id;
+        $folio = $invoice->folio ?: '#'.$invoice->id;
 
         $invoice->delete();
         $this->deleteStoredPaths($paths);
@@ -147,7 +150,7 @@ class ProjectEstimateInvoiceController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $estimate->id,
-            'data' => 'eliminó la factura ' . $folio . ' de la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
+            'data' => 'eliminó la factura '.$folio.' de la estimación '.$estimate->estimate_number.' del proyecto "'.$estimate->project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $estimate->project)
@@ -171,7 +174,7 @@ class ProjectEstimateInvoiceController extends Controller
             return null;
         }
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         if (! @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS)) {
             return null;
         }

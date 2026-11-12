@@ -2,20 +2,24 @@
 
 namespace Tests\Feature;
 
-use App\Models\PurchaseOrder;
-use App\Models\Payment;
-use App\Models\User;
-use App\Models\Supplier;
-use App\Models\PurchaseOrderInvoice;
 use App\Exports\PurchaseOrderInvoiceExport;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderInvoiceController;
-use App\Http\Controllers\PaymentController;
-use Illuminate\Http\Request;
-use Spatie\Permission\Models\Role;
+use App\Models\Payment;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderInvoice;
+use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ViewErrorBag;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PurchaseOrderBuyerTest extends TestCase
@@ -70,7 +74,7 @@ class PurchaseOrderBuyerTest extends TestCase
             $table->string('rfc_name');
             $table->string('commercial_name')->nullable();
             foreach (Supplier::PROFILE_REQUIREMENTS as $requirement) {
-                if ($requirement['source'] === 'supplier' && !in_array($requirement['column'], ['rfc_name', 'commercial_name'])) {
+                if ($requirement['source'] === 'supplier' && ! in_array($requirement['column'], ['rfc_name', 'commercial_name'])) {
                     $table->string($requirement['column'])->nullable();
                 }
             }
@@ -199,25 +203,25 @@ class PurchaseOrderBuyerTest extends TestCase
         $order->setRelation('annex', null);
         $order->setRelation('supplier', null);
         $order->setRelation('purchaseRequest', null);
-        \Illuminate\Support\Facades\View::share('errors', new \Illuminate\Support\ViewErrorBag());
+        View::share('errors', new ViewErrorBag);
         $template = str_replace("@extends('layouts.app')", '', file_get_contents(resource_path('views/purchase_orders/show.blade.php')))
-            . "\n@yield('content')";
+            ."\n@yield('content')";
         $route = app('router')->getRoutes()->getByName('payments.request_reactivation');
         $roleMiddleware = collect($route->gatherMiddleware())->first(fn ($middleware) => str_starts_with($middleware, 'role:'));
 
         foreach (['Pagos', 'Orden de compra', 'admin'] as $role) {
-            $user = User::create(['name' => $role, 'email' => 'role-' . $role . '@example.com', 'password' => 'password']);
+            $user = User::create(['name' => $role, 'email' => 'role-'.$role.'@example.com', 'password' => 'password']);
             $user->assignRole($role);
             $this->actingAs($user);
             $payment->update(['status' => 'rechazado']);
             $order->load('milestones.payments', 'milestones.invoices');
-            $html = \Illuminate\Support\Facades\Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
-            $this->assertStringContainsString('data-bs-target="#modalRequestPaymentReactivation' . $payment->id . '"', $html);
-            $this->assertStringContainsString('id="modalRequestPaymentReactivation' . $payment->id . '"', $html);
+            $html = Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
+            $this->assertStringContainsString('data-bs-target="#modalRequestPaymentReactivation'.$payment->id.'"', $html);
+            $this->assertStringContainsString('id="modalRequestPaymentReactivation'.$payment->id.'"', $html);
 
             $reason = 'Solicito revisar nuevamente este pago rechazado.';
             $request = Request::create($route->uri(), 'PATCH', ['reason' => $reason]);
-            $response = app(\Spatie\Permission\Middleware\RoleMiddleware::class)->handle(
+            $response = app(RoleMiddleware::class)->handle(
                 $request,
                 fn ($request) => app(PaymentController::class)->requestReactivation($request, $payment),
                 substr($roleMiddleware, strlen('role:')),
@@ -230,9 +234,9 @@ class PurchaseOrderBuyerTest extends TestCase
             $this->assertStringContainsString($reason, DB::table('notifications')->where('action_by', $user->id)->value('data'));
 
             $order->load('milestones.payments');
-            $html = \Illuminate\Support\Facades\Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
-            $this->assertStringNotContainsString('data-bs-target="#modalRequestPaymentReactivation' . $payment->id . '"', $html);
-            $this->assertStringNotContainsString('id="modalRequestPaymentReactivation' . $payment->id . '"', $html);
+            $html = Blade::render($template, ['purchaseOrder' => $order, 'buyers' => collect()]);
+            $this->assertStringNotContainsString('data-bs-target="#modalRequestPaymentReactivation'.$payment->id.'"', $html);
+            $this->assertStringNotContainsString('id="modalRequestPaymentReactivation'.$payment->id.'"', $html);
         }
     }
 
@@ -338,7 +342,7 @@ class PurchaseOrderBuyerTest extends TestCase
         $html = view('purchase_orders.partials.buyer-field')->render();
 
         $this->assertStringContainsString('value="Comprador" readonly', $html);
-        $this->assertStringContainsString('name="buyer_id" value="' . $buyer->id . '"', $html);
+        $this->assertStringContainsString('name="buyer_id" value="'.$buyer->id.'"', $html);
         $this->assertStringNotContainsString('Otra persona', $html);
         $this->assertStringNotContainsString('name="elaborated_by"', $html);
     }
@@ -363,7 +367,7 @@ class PurchaseOrderBuyerTest extends TestCase
         $buyer = User::create(['name' => 'José Comprador', 'email' => 'buyer@example.com', 'password' => 'password']);
         $buyer->assignRole('Orden de compra');
         foreach (['dup-a', 'dup-b'] as $email) {
-            User::create(['name' => 'Duplicado', 'email' => $email . '@example.com', 'password' => 'password'])->assignRole('Orden de compra');
+            User::create(['name' => 'Duplicado', 'email' => $email.'@example.com', 'password' => 'password'])->assignRole('Orden de compra');
         }
         User::create(['name' => 'Sin rol', 'email' => 'other@example.com', 'password' => 'password']);
         $orders = collect();
@@ -446,7 +450,7 @@ class PurchaseOrderBuyerTest extends TestCase
         $owned = PurchaseOrder::create(['buyer_id' => $buyer->id]);
         $foreign = PurchaseOrder::create([]);
         foreach ([$owned, $foreign] as $order) {
-            DB::table('purchase_order_invoices')->insert(['purchase_order_id' => $order->id, 'status' => 'en_proceso', 'folio' => 'FACT-' . $order->id]);
+            DB::table('purchase_order_invoices')->insert(['purchase_order_id' => $order->id, 'status' => 'en_proceso', 'folio' => 'FACT-'.$order->id]);
         }
 
         $data = app(PurchaseOrderInvoiceController::class)->index(Request::create('/facturas'))->getData();

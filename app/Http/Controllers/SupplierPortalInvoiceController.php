@@ -7,6 +7,7 @@ use App\Models\PurchaseOrderInvoice;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -71,13 +72,13 @@ class SupplierPortalInvoiceController extends Controller
                 ]);
             }
 
-            if (!$request->hasFile('credit_note_pdf_file')) {
+            if (! $request->hasFile('credit_note_pdf_file')) {
                 return redirect()->back()->withInput()->withErrors([
                     'credit_note_pdf_file' => 'El PDF de la nota de credito es obligatorio cuando la nota de credito esta activada.',
                 ]);
             }
 
-            if (!$request->hasFile('credit_note_xml_file')) {
+            if (! $request->hasFile('credit_note_xml_file')) {
                 return redirect()->back()->withInput()->withErrors([
                     'credit_note_xml_file' => 'El XML de la nota de credito es obligatorio cuando la nota de credito esta activada.',
                 ]);
@@ -90,7 +91,7 @@ class SupplierPortalInvoiceController extends Controller
         $xmlFiscalFolio = $invoiceMetadata['uuid'] ?? null;
         $xmlIssueDate = $invoiceMetadata['issue_date'] ?? null;
 
-        if (!$xmlFiscalFolio) {
+        if (! $xmlFiscalFolio) {
             return redirect()->back()->withInput()->withErrors([
                 'xml_file' => 'No fue posible leer el folio fiscal (UUID) del XML. Verifica que sea un CFDI timbrado válido.',
             ]);
@@ -122,7 +123,7 @@ class SupplierPortalInvoiceController extends Controller
 
         if ($netScope > $pendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE) {
             return redirect()->back()->withInput()->withErrors([
-                'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($pendingAmount, 2) . ' ' . $purchaseOrder->currency . ').',
+                'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra ('.number_format($pendingAmount, 2).' '.$purchaseOrder->currency.').',
             ]);
         }
 
@@ -134,18 +135,18 @@ class SupplierPortalInvoiceController extends Controller
         $uuidBaseName = $this->sanitizeFileToken($xmlFiscalFolio);
         $invoiceNumber = $purchaseOrder->invoices()->count() + 1;
 
-        $pdfName = $uuidBaseName . '.pdf';
-        $xmlName = $uuidBaseName . '.xml';
+        $pdfName = $uuidBaseName.'.pdf';
+        $xmlName = $uuidBaseName.'.xml';
         $evidenceExt = strtolower($request->file('evidence_file')->getClientOriginalExtension());
-        $evidenceName = 'OC' . $purchaseOrder->id . '-FACT' . $invoiceNumber . '-EVIDENCIA.' . $evidenceExt;
+        $evidenceName = 'OC'.$purchaseOrder->id.'-FACT'.$invoiceNumber.'-EVIDENCIA.'.$evidenceExt;
         $creditNotePdfName = null;
         $creditNoteXmlName = null;
 
-        $directory = 'invoices/' . $purchaseOrder->id;
+        $directory = 'invoices/'.$purchaseOrder->id;
 
         if ($hasCreditNote) {
-            $creditNotePdfName = $uuidBaseName . '-NC.pdf';
-            $creditNoteXmlName = $uuidBaseName . '-NC.xml';
+            $creditNotePdfName = $uuidBaseName.'-NC.pdf';
+            $creditNoteXmlName = $uuidBaseName.'-NC.xml';
         }
 
         DB::transaction(function () use (
@@ -172,7 +173,7 @@ class SupplierPortalInvoiceController extends Controller
 
             if ($netScope > $lockedPendingAmount + self::PURCHASE_ORDER_AMOUNT_TOLERANCE || $lockedPendingAmount <= 0) {
                 throw ValidationException::withMessages([
-                    'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra (' . number_format($lockedPendingAmount, 2) . ' ' . $lockedPurchaseOrder->currency . ').',
+                    'amount' => 'El alcance liquido no puede exceder el saldo pendiente de la orden de compra ('.number_format($lockedPendingAmount, 2).' '.$lockedPurchaseOrder->currency.').',
                 ]);
             }
 
@@ -259,14 +260,14 @@ class SupplierPortalInvoiceController extends Controller
 
         if ($netScope > $availableAmount) {
             return redirect()->back()->withInput()->withErrors([
-                'credit_note_amount' => 'El alcance líquido no puede exceder el saldo disponible de la orden de compra (' . number_format($availableAmount, 2) . ' ' . $purchaseOrder->currency . ').',
+                'credit_note_amount' => 'El alcance líquido no puede exceder el saldo disponible de la orden de compra ('.number_format($availableAmount, 2).' '.$purchaseOrder->currency.').',
             ]);
         }
 
-        $baseName = $this->sanitizeFileToken((string) ($invoice->folio ?: ('OC' . $purchaseOrder->id . '-FACT' . $invoice->id)));
-        $directory = 'invoices/' . $purchaseOrder->id;
-        $creditNotePdfName = $baseName . '-NC.pdf';
-        $creditNoteXmlName = $baseName . '-NC.xml';
+        $baseName = $this->sanitizeFileToken((string) ($invoice->folio ?: ('OC'.$purchaseOrder->id.'-FACT'.$invoice->id)));
+        $directory = 'invoices/'.$purchaseOrder->id;
+        $creditNotePdfName = $baseName.'-NC.pdf';
+        $creditNoteXmlName = $baseName.'-NC.xml';
         $creditNotePdfPath = $request->file('credit_note_pdf_file')->storeAs($directory, $creditNotePdfName);
         $creditNoteXmlPath = $request->file('credit_note_xml_file')->storeAs($directory, $creditNoteXmlName);
 
@@ -298,7 +299,7 @@ class SupplierPortalInvoiceController extends Controller
     private function xmlExtensionRule(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) {
-            if ($value instanceof \Illuminate\Http\UploadedFile
+            if ($value instanceof UploadedFile
                 && strtolower($value->getClientOriginalExtension()) !== 'xml') {
                 $fail('El archivo debe ser de tipo XML.');
             }
@@ -312,9 +313,9 @@ class SupplierPortalInvoiceController extends Controller
             return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         $loaded = @$dom->loadXML($raw, LIBXML_NONET | LIBXML_NOBLANKS);
-        if (!$loaded) {
+        if (! $loaded) {
             return ['uuid' => null, 'issue_date' => null, 'total' => null];
         }
 
@@ -385,6 +386,7 @@ class SupplierPortalInvoiceController extends Controller
     {
         $normalized = strtoupper(trim($token));
         $sanitized = preg_replace('/[^A-Z0-9\-]+/', '_', $normalized) ?? '';
+
         return trim($sanitized, '_-') !== '' ? trim($sanitized, '_-') : 'SIN-FOLIO';
     }
 
@@ -412,7 +414,7 @@ class SupplierPortalInvoiceController extends Controller
         $filePath = (string) ($invoice->{$pathField} ?? '');
         $fileName = (string) ($invoice->{$nameField} ?? 'archivo');
 
-        if ($filePath === '' || !Storage::exists($filePath)) {
+        if ($filePath === '' || ! Storage::exists($filePath)) {
             abort(404, 'Archivo no encontrado.');
         }
 
@@ -420,7 +422,7 @@ class SupplierPortalInvoiceController extends Controller
             Storage::path($filePath),
             [
                 'Content-Type' => $forcedMime ?: (Storage::mimeType($filePath) ?: 'application/octet-stream'),
-                'Content-Disposition' => 'inline; filename="' . str_replace('"', '', $fileName) . '"',
+                'Content-Disposition' => 'inline; filename="'.str_replace('"', '', $fileName).'"',
             ]
         );
     }

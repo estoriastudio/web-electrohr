@@ -150,7 +150,7 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @can('delete')
+                                        @can('purchase_orders.cancel')
                                         <li>
                                             <form action="{{ route('purchase_orders.destroy', $order) }}"
                                                 method="POST"

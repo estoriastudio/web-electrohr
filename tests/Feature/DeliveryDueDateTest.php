@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\PurchaseOrderMilestone;
-use App\Models\Payment;
 use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;

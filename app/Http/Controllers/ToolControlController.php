@@ -14,9 +14,7 @@ use Illuminate\View\View;
 
 class ToolControlController extends Controller
 {
-    public function __construct(private NotificationService $notification)
-    {
-    }
+    public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
     {
@@ -32,11 +30,11 @@ class ToolControlController extends Controller
                             ->orWhere('name', 'like', "%{$search}%")
                             ->orWhere('description', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('projectWork', function ($workQuery) use ($search) {
-                        $workQuery->where('name', 'like', "%{$search}%")
-                            ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
-                    })
-                    ->orWhere('responsible', 'like', "%{$search}%");
+                        ->orWhereHas('projectWork', function ($workQuery) use ($search) {
+                            $workQuery->where('name', 'like', "%{$search}%")
+                                ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                        })
+                        ->orWhere('responsible', 'like', "%{$search}%");
                 });
             })
             ->when($status, fn ($query) => $query->where('status', $status))
@@ -87,7 +85,7 @@ class ToolControlController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $toolControl->id,
-            'data' => 'created tool control for tool ID #' . $toolControl->tool_id . '.',
+            'data' => 'created tool control for tool ID #'.$toolControl->tool_id.'.',
         ]);
 
         return redirect()->back()
@@ -121,7 +119,7 @@ class ToolControlController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $toolControl->id,
-            'data' => 'updated tool control #' . $toolControl->id . '.',
+            'data' => 'updated tool control #'.$toolControl->id.'.',
         ]);
 
         return redirect()->back()
@@ -138,7 +136,7 @@ class ToolControlController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
             'model_id' => $controlId,
-            'data' => 'deleted tool control #' . $controlId . '.',
+            'data' => 'deleted tool control #'.$controlId.'.',
         ]);
 
         return redirect()->back()

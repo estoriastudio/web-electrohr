@@ -18,9 +18,6 @@ use Spatie\Permission\PermissionRegistrar;
  */
 class AccessMatrixSeeder extends Seeder
 {
-    /** Permisos del esquema anterior que se conservan mientras dura la transición. */
-    public const LEGACY_PERMISSIONS = ['create', 'read', 'update', 'delete'];
-
     public function run(AccessMatrix $matrix): void
     {
         $registrar = app(PermissionRegistrar::class);
@@ -39,13 +36,9 @@ class AccessMatrixSeeder extends Seeder
             ->delete();
 
         foreach (array_keys($matrix->roles()) as $profile) {
-            $role = Role::findOrCreate($matrix->roleName($profile), 'web');
-            $legacy = $role->permissions()
-                ->whereIn('name', self::LEGACY_PERMISSIONS)
-                ->pluck('name')
-                ->all();
-
-            $role->syncPermissions([...$legacy, ...$matrix->permissionsFor($profile)]);
+            // Fase 5: cada rol queda solo con los permisos de la matriz.
+            Role::findOrCreate($matrix->roleName($profile), 'web')
+                ->syncPermissions($matrix->permissionsFor($profile));
         }
 
         $registrar->forgetCachedPermissions();

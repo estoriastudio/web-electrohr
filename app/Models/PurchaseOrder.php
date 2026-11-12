@@ -56,6 +56,7 @@ class PurchaseOrder extends Model
         'deletion_comment',
         'archived_at',
         'authorized_at',
+        'authorized_by',
         'closed_at',
         'closed_by',
         'closure_note',
@@ -139,6 +140,21 @@ class PurchaseOrder extends Model
             'own_supplier' => $query->where('purchase_orders.supplier_id', $user->supplier?->id ?? 0),
             default => $this->unsupportedAccessScope($scope),
         };
+    }
+
+    public function authorizedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'authorized_by');
+    }
+
+    public function changeRequests(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderChangeRequest::class)->latest();
+    }
+
+    public function pendingChangeRequest(): HasOne
+    {
+        return $this->hasOne(PurchaseOrderChangeRequest::class)->where('status', 'pending')->latestOfMany();
     }
 
     public function buyer(): BelongsTo

@@ -38,7 +38,7 @@ class SupplierControllerIndexTest extends TestCase
             ->assertViewHas('suppliers', function ($suppliers) use ($completeSupplier, $incompleteSupplier) {
                 return $suppliers->total() === 1
                     && $suppliers->first()->is($incompleteSupplier)
-                    && !$suppliers->first()->is($completeSupplier);
+                    && ! $suppliers->first()->is($completeSupplier);
             });
     }
 
@@ -82,7 +82,7 @@ class SupplierControllerIndexTest extends TestCase
             ->assertViewHas('suppliers', function ($suppliers) use ($completeSupplier, $missingStatementSupplier) {
                 return $suppliers->total() === 2
                     && $suppliers->contains($missingStatementSupplier)
-                    && !$suppliers->contains($completeSupplier);
+                    && ! $suppliers->contains($completeSupplier);
             });
     }
 
@@ -98,7 +98,7 @@ class SupplierControllerIndexTest extends TestCase
     {
         $supplier = Supplier::create([
             'rfc_name' => $name,
-            'commercial_name' => $name . ' Comercial',
+            'commercial_name' => $name.' Comercial',
             'rfc_num' => 'AAA010101AAA',
             'street' => 'Calle Uno',
             'postal_code' => '01000',

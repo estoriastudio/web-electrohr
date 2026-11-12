@@ -115,6 +115,14 @@
                         @endif
                         @endcan
 
+                        {{-- Fase 4: la obra pide un cambio de una SOLMAT que ya no puede editar --}}
+                        @if (auth()->user()->can('material_request_changes.create') && ! in_array($materialRequest->status, ['pending', 'changes_requested'], true))
+                        <button type="button" class="btn btn-outline-warning btn-sm"
+                                data-bs-toggle="modal" data-bs-target="#modalSiteChangeSolmat">
+                            <i class="ri-building-line me-1"></i>Pedir cambio desde obra
+                        </button>
+                        @endif
+
                         <a href="{{ ! auth()->user()->hasFullAccessScope('material_requests') ? route('my-projects.show', $materialRequest->project_id) : route('material_requests.index') }}" class="btn btn-light btn-sm">
                             <i class="ri-arrow-left-line me-1"></i>Volver
                         </a>
@@ -427,18 +435,18 @@
     </div>
 </div>
 
-{{-- ── Solicitudes y avisos de Almacén ── --}}
+{{-- ── Solicitudes de cambio y avisos (de Almacén y, Fase 4, de la obra) ── --}}
 @if ($materialRequest->changeNotes->count() > 0)
 <div class="row mb-3">
     <div class="col-12">
         <div class="card border-warning">
             <div class="card-header border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0 text-warning">
-                    <i class="ri-edit-circle-line me-2"></i>Solicitudes y Avisos de Almacén
+                    <i class="ri-edit-circle-line me-2"></i>Solicitudes de cambio y avisos
                 </h5>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">
-                        {{ $materialRequest->changeNotes->filter(fn ($note) => $note->isChangeRequest() && ! $note->isResolved())->count() }} pendiente(s)
+                        {{ $materialRequest->changeNotes->filter(fn ($note) => ($note->isChangeRequest() || $note->isSiteChange()) && ! $note->isResolved())->count() }} pendiente(s)
                     </span>
                     @if (auth()->user()->hasFullAccessScope('material_requests'))
                     <a href="{{ route('material_request_changes.index', ['search' => $materialRequest->folio]) }}"
@@ -475,7 +483,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @can('material_request_changes.update')
+                                @if (auth()->user()->can('material_request_changes.update') && ! $note->awaitsManager())
                                 <form action="{{ route('material_requests.change_notes.resolve', [$materialRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -483,10 +491,11 @@
                                         <i class="ri-check-line me-1"></i>Marcar como resuelta
                                     </button>
                                 </form>
-                                @endcan
+                                @endif
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
+                        @include('material_requests.partials._site_change', ['note' => $note, 'materialRequest' => $materialRequest])
                         @if ($isCommitmentNotice && filled(data_get($note->payload, 'commitments')))
                             <div class="mt-2 d-flex flex-wrap gap-1">
                                 @foreach (data_get($note->payload, 'commitments', []) as $commitment)
@@ -592,6 +601,32 @@
         </div>
     </div>
 </div>
+
+{{-- ── Modal: cambio pedido desde la obra (Fase 4) ── --}}
+@can('material_request_changes.create')
+<div class="modal fade" id="modalSiteChangeSolmat" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('material_requests.site_changes.store', $materialRequest) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="ri-building-line me-1"></i>Pedir cambio desde obra</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13">La SOLMAT ya está en Almacén. Si lo pide el Supervisor, el Gerente del proyecto lo autoriza; después Almacén lo aplica (cancelar y sustituir).</p>
+                    <label class="form-label fw-medium">Cambio requerido <span class="text-danger">*</span></label>
+                    <textarea name="change_text" rows="4" class="form-control" required minlength="10" maxlength="2000"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endcan
 
 {{-- ── Modal: Solicitar Cambios ── --}}
 @can('material_request_changes.update')

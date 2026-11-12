@@ -17,8 +17,8 @@ class MobileAssetDocument extends Model
     ];
 
     protected $casts = [
-        'expiry_date'  => 'date',
-        'uploaded_at'  => 'date',
+        'expiry_date' => 'date',
+        'uploaded_at' => 'date',
     ];
 
     // Documentos que NO tienen fecha de vencimiento (solo gris/verde)
@@ -61,16 +61,16 @@ class MobileAssetDocument extends Model
     public static function labelsEs(): array
     {
         return [
-            'poliza_seguro'           => 'Póliza de Seguro',
-            'verificacion'            => 'Verificación',
-            'tarjeta_circulacion'     => 'Tarjeta de Circulación',
-            'ficha_tecnica'           => 'Ficha Técnica',
-            'manual'                  => 'Manual',
-            'licencia_conducir'       => 'Licencia de Conducir',
-            'placas'                  => 'Placas',
+            'poliza_seguro' => 'Póliza de Seguro',
+            'verificacion' => 'Verificación',
+            'tarjeta_circulacion' => 'Tarjeta de Circulación',
+            'ficha_tecnica' => 'Ficha Técnica',
+            'manual' => 'Manual',
+            'licencia_conducir' => 'Licencia de Conducir',
+            'placas' => 'Placas',
             'inspeccion_fisico_mecanica' => 'Inspección Físico Mecánica',
-            'factura'                 => 'Factura',
-            'pedimento'               => 'Pedimento',
+            'factura' => 'Factura',
+            'pedimento' => 'Pedimento',
         ];
     }
 

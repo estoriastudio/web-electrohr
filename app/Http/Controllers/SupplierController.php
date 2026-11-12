@@ -2,25 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SupplierExport;
+use App\Imports\SupplierImport;
+use App\Models\Payment;
+use App\Models\PurchaseOrderMilestone;
+use App\Models\Supplier;
+use App\Models\User;
+use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-
-use App\Exports\SupplierExport;
-use App\Imports\SupplierImport;
-use App\Models\Supplier;
-use App\Models\User;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+/* Notificaciones */
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
-
-/* Notificaciones */
-use App\Services\NotificationService;
 
 class SupplierController extends Controller
 {
@@ -35,7 +36,7 @@ class SupplierController extends Controller
         $documentMissing = trim($request->input('document_missing', ''));
         $profileRequirements = Supplier::PROFILE_REQUIREMENTS;
 
-        if (!array_key_exists($documentMissing, $profileRequirements)) {
+        if (! array_key_exists($documentMissing, $profileRequirements)) {
             $documentMissing = '';
         }
 
@@ -58,8 +59,8 @@ class SupplierController extends Controller
             ->with('portalUser')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
-                    $sub->where('rfc_name', 'like', '%' . $search . '%')
-                        ->orWhere('commercial_name', 'like', '%' . $search . '%');
+                    $sub->where('rfc_name', 'like', '%'.$search.'%')
+                        ->orWhere('commercial_name', 'like', '%'.$search.'%');
                 });
             })
             ->when($documentMissing, function ($query) use ($documentMissing) {
@@ -96,9 +97,9 @@ class SupplierController extends Controller
         $missingFields = $supplier->purchaseOrderMissingFields();
 
         return response()->json([
-            'ready'          => empty($missingFields),
+            'ready' => empty($missingFields),
             'missing_fields' => $missingFields,
-            'profile_url'    => route('suppliers.show', $supplier),
+            'profile_url' => route('suppliers.show', $supplier),
         ]);
     }
 
@@ -108,21 +109,21 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'rfc_name'          => 'required|string|max:255',
-            'commercial_name'   => 'required|string|max:255',
-            'rfc_num'           => 'required|string|max:13',
-            'street'            => 'required|string|max:255',
-            'postal_code'       => 'required|string|max:20',
-            'colony'            => 'required|string|max:255',
-            'city'              => 'required|string|max:100',
-            'state'             => 'required|string|max:100',
-            'contact_name'      => 'required|string|max:255',
-            'contact_phone'     => 'required|string|max:50',
-            'contact_email'     => 'required|email|max:255',
-            'bank_name'         => 'nullable|string|max:100',
-            'bank_account'      => 'nullable|string|max:50',
-            'bank_clabe'        => 'nullable|string|size:18',
-            'currency'          => 'required|in:MXN,USD,EUR',
+            'rfc_name' => 'required|string|max:255',
+            'commercial_name' => 'required|string|max:255',
+            'rfc_num' => 'required|string|max:13',
+            'street' => 'required|string|max:255',
+            'postal_code' => 'required|string|max:20',
+            'colony' => 'required|string|max:255',
+            'city' => 'required|string|max:100',
+            'state' => 'required|string|max:100',
+            'contact_name' => 'required|string|max:255',
+            'contact_phone' => 'required|string|max:50',
+            'contact_email' => 'required|email|max:255',
+            'bank_name' => 'nullable|string|max:100',
+            'bank_account' => 'nullable|string|max:50',
+            'bank_clabe' => 'nullable|string|size:18',
+            'currency' => 'required|in:MXN,USD,EUR',
             'account_statement' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
 
@@ -133,36 +134,36 @@ class SupplierController extends Controller
         try {
             $supplier = DB::transaction(function () use ($validated, $accountStatement, &$accountStatementPath) {
                 $supplier = Supplier::create([
-                    'rfc_name'        => $validated['rfc_name'],
+                    'rfc_name' => $validated['rfc_name'],
                     'commercial_name' => $validated['commercial_name'],
-                    'rfc_num'         => strtoupper($validated['rfc_num']),
-                    'street'          => $validated['street'],
-                    'postal_code'     => $validated['postal_code'],
-                    'colony'          => $validated['colony'],
-                    'city'            => $validated['city'],
-                    'state'           => $validated['state'],
-                    'status'          => 'active',
+                    'rfc_num' => strtoupper($validated['rfc_num']),
+                    'street' => $validated['street'],
+                    'postal_code' => $validated['postal_code'],
+                    'colony' => $validated['colony'],
+                    'city' => $validated['city'],
+                    'state' => $validated['state'],
+                    'status' => 'active',
                 ]);
 
                 $supplier->contacts()->create([
-                    'name'       => $validated['contact_name'],
-                    'phone'      => $validated['contact_phone'],
-                    'email'      => $validated['contact_email'],
+                    'name' => $validated['contact_name'],
+                    'phone' => $validated['contact_phone'],
+                    'email' => $validated['contact_email'],
                     'is_primary' => true,
                 ]);
 
                 $location = $supplier->locations()->create([
-                    'name'         => 'Cuenta principal',
-                    'bank_name'    => $validated['bank_name'] ?? null,
+                    'name' => 'Cuenta principal',
+                    'bank_name' => $validated['bank_name'] ?? null,
                     'bank_account' => $validated['bank_account'] ?? null,
-                    'bank_clabe'   => $validated['bank_clabe'] ?? null,
-                    'currency'     => $validated['currency'],
+                    'bank_clabe' => $validated['bank_clabe'] ?? null,
+                    'currency' => $validated['currency'],
                 ]);
 
-                $accountStatementPath = 'supplier_locations/' . $supplier->id . '/account_statements/'
-                    . $location->id . '_' . time() . '.' . $accountStatement->getClientOriginalExtension();
+                $accountStatementPath = 'supplier_locations/'.$supplier->id.'/account_statements/'
+                    .$location->id.'_'.time().'.'.$accountStatement->getClientOriginalExtension();
 
-                if (!Storage::disk('s3')->put($accountStatementPath, file_get_contents($accountStatement->getRealPath()))) {
+                if (! Storage::disk('s3')->put($accountStatementPath, file_get_contents($accountStatement->getRealPath()))) {
                     throw new \RuntimeException('No fue posible guardar la carátula de estado de cuenta.');
                 }
 
@@ -180,11 +181,11 @@ class SupplierController extends Controller
 
         // Notificación
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $supplier->id,
-            'data'         => 'creó un nuevo proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'creó un nuevo proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -211,14 +212,14 @@ class SupplierController extends Controller
 
         $milestonesCount = $supplier->purchaseOrders->sum('milestones_count');
 
-        $saldoPagado = \App\Models\Payment::whereHas('milestone', fn ($q) => $q->whereIn('purchase_order_id', $orderIds))
+        $saldoPagado = Payment::whereHas('milestone', fn ($q) => $q->whereIn('purchase_order_id', $orderIds))
             ->where('status', 'pagado')
             ->sum('amount');
 
-        $totalOrdenado  = $supplier->purchaseOrders->sum('amount');
+        $totalOrdenado = $supplier->purchaseOrders->sum('amount');
         $saldoPendiente = max(0, $totalOrdenado - $saldoPagado);
 
-        $proximoHito = \App\Models\PurchaseOrderMilestone::whereIn('purchase_order_id', $orderIds)
+        $proximoHito = PurchaseOrderMilestone::whereIn('purchase_order_id', $orderIds)
             ->whereNotNull('due_date')
             ->whereColumn('covered_amount', '<', 'value')
             ->orderBy('due_date')
@@ -233,7 +234,7 @@ class SupplierController extends Controller
         ));
     }
 
-    public function enablePortalAccess(Request $request, Supplier $supplier): \Illuminate\Http\RedirectResponse
+    public function enablePortalAccess(Request $request, Supplier $supplier): RedirectResponse
     {
         $portalUserId = $supplier->portal_user_id;
 
@@ -266,7 +267,7 @@ class SupplierController extends Controller
                 $portalUser->name = $validated['portal_name'] ?: ($supplier->commercial_name ?: $supplier->rfc_name);
                 $portalUser->email = $validated['portal_email'];
 
-                if (!empty($validated['portal_password'])) {
+                if (! empty($validated['portal_password'])) {
                     $portalUser->password = Hash::make($validated['portal_password']);
                 }
 
@@ -279,7 +280,7 @@ class SupplierController extends Controller
                 ]);
             }
 
-            if (!$portalUser->hasRole($role->name)) {
+            if (! $portalUser->hasRole($role->name)) {
                 $portalUser->assignRole($role);
             }
 
@@ -292,11 +293,11 @@ class SupplierController extends Controller
         });
 
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $supplier->id,
-            'data'         => 'habilitó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'habilitó acceso al Portal para el proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         $redirect = redirect()->route('suppliers.show', $supplier)
@@ -327,9 +328,9 @@ class SupplierController extends Controller
         return $redirect;
     }
 
-    public function disablePortalAccess(Supplier $supplier): \Illuminate\Http\RedirectResponse
+    public function disablePortalAccess(Supplier $supplier): RedirectResponse
     {
-        if (!$supplier->portal_user_id) {
+        if (! $supplier->portal_user_id) {
             return redirect()->route('suppliers.show', $supplier)
                 ->with('error', 'Este proveedor no tiene un usuario de portal configurado.');
         }
@@ -343,20 +344,20 @@ class SupplierController extends Controller
         DB::table('sessions')->where('user_id', $supplier->portal_user_id)->delete();
 
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $supplier->id,
-            'data'         => 'deshabilitó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'deshabilitó acceso al Portal para el proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
             ->with('success', 'Acceso al Portal deshabilitado.');
     }
 
-    public function reactivatePortalAccess(Supplier $supplier): \Illuminate\Http\RedirectResponse
+    public function reactivatePortalAccess(Supplier $supplier): RedirectResponse
     {
-        if (!$supplier->portal_user_id) {
+        if (! $supplier->portal_user_id) {
             return redirect()->route('suppliers.show', $supplier)
                 ->with('error', 'Este proveedor no tiene un usuario de portal configurado.');
         }
@@ -369,11 +370,11 @@ class SupplierController extends Controller
         ]);
 
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $supplier->id,
-            'data'         => 'reactivó acceso al Portal para el proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'reactivó acceso al Portal para el proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -383,28 +384,28 @@ class SupplierController extends Controller
     /**
      * Update only the general info fields from the inline modal.
      */
-    public function updateInfo(Request $request, Supplier $supplier): \Illuminate\Http\RedirectResponse
+    public function updateInfo(Request $request, Supplier $supplier): RedirectResponse
     {
         $validated = $request->validate([
-            'rfc_name'        => 'required|string|max:255',
+            'rfc_name' => 'required|string|max:255',
             'commercial_name' => 'nullable|string|max:255',
-            'rfc_num'         => 'nullable|string|max:20',
-            'street'          => 'nullable|string|max:255',
-            'colony'          => 'nullable|string|max:255',
-            'postal_code'     => 'nullable|string|max:20',
-            'city'            => 'nullable|string|max:100',
-            'state'           => 'nullable|string|max:100',
-            'status'          => 'nullable|in:active,inactive,blacklisted',
+            'rfc_num' => 'nullable|string|max:20',
+            'street' => 'nullable|string|max:255',
+            'colony' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'status' => 'nullable|in:active,inactive,blacklisted',
         ]);
 
         $supplier->update($validated);
 
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $supplier->id,
-            'data'         => 'actualizó la información general del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'actualizó la información general del proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -426,30 +427,30 @@ class SupplierController extends Controller
     {
         $validated = $request->validate([
             'commercial_name' => 'nullable|string|max:255',
-            'rfc_name'        => 'required|string|max:255',
-            'rfc_num'         => 'nullable|string|max:20',
-            'street'          => 'nullable|string|max:255',
-            'colony'          => 'nullable|string|max:255',
-            'postal_code'     => 'nullable|string|max:20',
-            'city'            => 'nullable|string|max:100',
-            'state'           => 'nullable|string|max:100',
-            'status'          => 'nullable|in:active,inactive,blacklisted',
-            'bank_name'       => 'nullable|string|max:255',
-            'bank_account'    => 'nullable|string|max:50',
-            'bank_clabe'      => 'nullable|string|max:18',
-            'swift_code'      => 'nullable|string|max:11',
-            'currency'        => 'nullable|in:MXN,USD,EUR',
+            'rfc_name' => 'required|string|max:255',
+            'rfc_num' => 'nullable|string|max:20',
+            'street' => 'nullable|string|max:255',
+            'colony' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'status' => 'nullable|in:active,inactive,blacklisted',
+            'bank_name' => 'nullable|string|max:255',
+            'bank_account' => 'nullable|string|max:50',
+            'bank_clabe' => 'nullable|string|max:18',
+            'swift_code' => 'nullable|string|max:11',
+            'currency' => 'nullable|in:MXN,USD,EUR',
         ]);
 
         $supplier->update($validated);
 
         // Notificación
         $this->notification->send([
-            'type'         => 'Supplier',
-            'action_by'    => Auth::id(),
+            'type' => 'Supplier',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $supplier->id,
-            'data'         => 'actualizó la información del proveedor ' . ($supplier->commercial_name ?? $supplier->rfc_name),
+            'model_id' => $supplier->id,
+            'data' => 'actualizó la información del proveedor '.($supplier->commercial_name ?? $supplier->rfc_name),
         ]);
 
         return redirect()->route('suppliers.show', $supplier)
@@ -470,20 +471,20 @@ class SupplierController extends Controller
                 $order->update(['archived_at' => now()]);
 
                 $this->notification->send([
-                    'type'         => 'PurchaseOrder',
-                    'action_by'    => Auth::id(),
+                    'type' => 'PurchaseOrder',
+                    'action_by' => Auth::id(),
                     'model_action' => 'archive',
-                    'model_id'     => $order->id,
-                    'data'         => 'archivó la orden de compra #' . ($order->folio ?? $order->id)
-                        . ' por eliminación del proveedor ' . $name . '.',
+                    'model_id' => $order->id,
+                    'data' => 'archivó la orden de compra #'.($order->folio ?? $order->id)
+                        .' por eliminación del proveedor '.$name.'.',
                 ]);
             }
 
             if ($supplier->portal_user_id) {
                 $supplier->update([
-                    'portal_access_enabled'        => false,
+                    'portal_access_enabled' => false,
                     'portal_access_deactivated_at' => now(),
-                    'portal_access_managed_by'     => Auth::id(),
+                    'portal_access_managed_by' => Auth::id(),
                 ]);
 
                 DB::table('sessions')->where('user_id', $supplier->portal_user_id)->delete();
@@ -493,15 +494,15 @@ class SupplierController extends Controller
 
             $archivedSummary = $orders->isEmpty()
                 ? ''
-                : ' y archivó ' . $orders->count() . ' orden(es) de compra: '
-                    . $orders->map(fn ($order) => '#' . ($order->folio ?? $order->id))->implode(', ');
+                : ' y archivó '.$orders->count().' orden(es) de compra: '
+                    .$orders->map(fn ($order) => '#'.($order->folio ?? $order->id))->implode(', ');
 
             $this->notification->send([
-                'type'         => 'Supplier',
-                'action_by'    => Auth::id(),
+                'type' => 'Supplier',
+                'action_by' => Auth::id(),
                 'model_action' => 'destroy',
-                'model_id'     => $supplier->id,
-                'data'         => 'eliminó al proveedor ' . $name . $archivedSummary . '.',
+                'model_id' => $supplier->id,
+                'data' => 'eliminó al proveedor '.$name.$archivedSummary.'.',
             ]);
         });
 
@@ -532,4 +533,3 @@ class SupplierController extends Controller
             ->with('success', 'Proveedores importados correctamente.');
     }
 }
-

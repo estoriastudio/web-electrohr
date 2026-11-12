@@ -140,7 +140,7 @@ class PurchaseOrderHealthReportCommandTest extends TestCase
 
         Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 100,
             'payment_date' => $paymentDate,
             'status' => $status,

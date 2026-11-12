@@ -112,7 +112,7 @@ class MilestoneEventStatusTest extends TestCase
             ->assertSee('Pagos pendientes de regularización documental')
             ->assertViewHas('payments', fn ($payments) => $payments->count() === 1 && $payments->first()->is($pendingPayment));
 
-        $this->actingAs($this->user('Solmat'))
+        $this->actingAs($this->user('Almacén'))
             ->get(route('payments.regularization'))
             ->assertForbidden();
     }

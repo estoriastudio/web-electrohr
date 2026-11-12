@@ -886,8 +886,8 @@ return [
                 ],
                 'DIR' => [
                     'raw' => 'V (A)',
-                    'actions' => ['view'],
-                    'pending' => ['authorize'],
+                    'actions' => ['view', 'authorize'],
+                    'decision' => 'Fase 4: autoriza los cambios marcados como ajuste comercial; los demás cambios no pasan por Dirección (2026-11-11).',
                 ],
                 'ALM' => [
                     'raw' => 'V C (genera)',
@@ -966,8 +966,8 @@ return [
                 ],
                 'DIR' => [
                     'raw' => 'V (A)',
-                    'actions' => ['view'],
-                    'pending' => ['authorize'],
+                    'actions' => ['view', 'authorize'],
+                    'decision' => 'Fase 4: autoriza OC emitidas y las solicitudes de cambio o cancelación de OC autorizadas (2026-11-11).',
                 ],
                 'ALM' => [
                     'raw' => 'V',
@@ -1115,13 +1115,13 @@ return [
             'access' => [
                 'GER' => [
                     'raw' => 'V (A)',
-                    'actions' => ['view'],
-                    'pending' => ['authorize'],
+                    'actions' => ['view', 'authorize'],
+                    'decision' => 'Fase 4: valida el hito (entrega, estimación o documental) desde la OC de sus proyectos; sin esa validación el pago no se autoriza (2026-11-11).',
                 ],
                 'SUP' => [
                     'raw' => 'V (A)',
-                    'actions' => ['view'],
-                    'pending' => ['authorize'],
+                    'actions' => ['view', 'authorize'],
+                    'decision' => 'Fase 4: valida el hito (entrega, estimación o documental) desde la OC de sus proyectos; sin esa validación el pago no se autoriza (2026-11-11).',
                 ],
                 'DIR' => [
                     'raw' => 'V',
@@ -1343,10 +1343,14 @@ return [
                 'GER' => [
                     'raw' => 'V R A',
                     'actions' => ['view', 'register', 'authorize'],
+                    'scope' => 'assigned_works',
+                    'decision' => 'Solo las entregas a sus obras (Fase 4, 2026-11-11).',
                 ],
                 'SUP' => [
                     'raw' => 'V R A',
                     'actions' => ['view', 'register', 'authorize'],
+                    'scope' => 'assigned_works',
+                    'decision' => 'Solo las entregas a sus obras (Fase 4, 2026-11-11).',
                 ],
                 'DIR' => [
                     'raw' => 'V',

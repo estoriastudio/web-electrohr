@@ -3,11 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\StockEntry;
+use App\Models\StockEntryItem;
 use App\Models\StockExit;
+use App\Models\StockExitItem;
 use App\Services\NotificationService;
+use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Middleware\RoleMiddleware;
 use Tests\TestCase;
 
 class StockMovementEditCancelTest extends TestCase
@@ -15,7 +20,7 @@ class StockMovementEditCancelTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware([\Illuminate\Auth\Middleware\Authenticate::class, \Spatie\Permission\Middleware\RoleMiddleware::class, \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+        $this->withoutMiddleware([Authenticate::class, RoleMiddleware::class, VerifyCsrfToken::class]);
 
         Schema::create('concepts', function (Blueprint $table) {
             $table->id();
@@ -256,8 +261,8 @@ class StockMovementEditCancelTest extends TestCase
 
     private function stock(): float
     {
-        return (float) \App\Models\StockEntryItem::where('concept_id', 1)->sum('quantity')
-            - (float) \App\Models\StockExitItem::where('concept_id', 1)->sum('quantity');
+        return (float) StockEntryItem::where('concept_id', 1)->sum('quantity')
+            - (float) StockExitItem::where('concept_id', 1)->sum('quantity');
     }
 
     public function test_loan_discounts_stock_and_returns_add_it_back(): void

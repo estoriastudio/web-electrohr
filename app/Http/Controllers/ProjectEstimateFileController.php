@@ -27,10 +27,10 @@ class ProjectEstimateFileController extends Controller
 
         $request->validateWithBag('estimateFiles', [
             'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['file', 'mimes:' . $extensions, 'max:10240'],
+            'files.*' => ['file', 'mimes:'.$extensions, 'max:10240'],
         ], [
             'files.required' => 'No se recibieron archivos. Verifica que el tamaño total del lote no exceda el límite del servidor.',
-            'files.*.mimes' => 'Uno de los archivos no tiene un formato permitido para este tipo (' . $extensions . ').',
+            'files.*.mimes' => 'Uno de los archivos no tiene un formato permitido para este tipo ('.$extensions.').',
             'files.*.max' => 'Cada archivo debe pesar máximo 10 MB.',
             'files.*.uploaded' => 'No se pudo cargar uno de los archivos. Verifica que no exceda el tamaño permitido.',
         ]);
@@ -44,7 +44,7 @@ class ProjectEstimateFileController extends Controller
                     $path = Storage::disk('s3')->putFileAs(
                         "projects/{$estimate->project_id}/estimates/{$estimate->id}",
                         $file,
-                        Str::uuid() . '.' . $extension
+                        Str::uuid().'.'.$extension
                     );
 
                     if (! $path) {
@@ -77,7 +77,7 @@ class ProjectEstimateFileController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $estimate->id,
-            'data' => 'cargó ' . $count . ($count === 1 ? ' archivo' : ' archivos') . ' (' . ProjectEstimateFile::TYPES[$validated['file_type']]['label'] . ') en la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
+            'data' => 'cargó '.$count.($count === 1 ? ' archivo' : ' archivos').' ('.ProjectEstimateFile::TYPES[$validated['file_type']]['label'].') en la estimación '.$estimate->estimate_number.' del proyecto "'.$estimate->project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $estimate->project)
@@ -105,7 +105,7 @@ class ProjectEstimateFileController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $estimate->id,
-            'data' => 'eliminó el archivo ' . $label . ' de la estimación ' . $estimate->estimate_number . ' del proyecto "' . $estimate->project->name . '".',
+            'data' => 'eliminó el archivo '.$label.' de la estimación '.$estimate->estimate_number.' del proyecto "'.$estimate->project->name.'".',
         ]);
 
         return redirect()->route('projects.show', $estimate->project)

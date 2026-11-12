@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\Auth;
 
 abstract class Controller
 {
-    /** Un Engineer restringido solo consulta registros de proyectos donde es supervisor o residente. */
+    /** Quien solo ve proyectos asignados (Gerente, Supervisor) consulta obras únicamente de sus proyectos. */
     protected function ensureProjectVisible(?int $projectId): void
     {
         $user = Auth::user();
 
-        if (! $user?->isRestrictedEngineer()) {
+        if (! $user?->seesOnlyAssignedProjects()) {
             return;
         }
 

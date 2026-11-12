@@ -23,13 +23,13 @@ class AdminController extends Controller
         }
 
         // Valores por defecto (se rellenan según el rol)
-        $totalPendientePago             = 0.0;
-        $totalPorAutorizar              = 0.0;
-        $totalPagado                    = 0.0;
-        $paymentTotalsByCurrency        = [
+        $totalPendientePago = 0.0;
+        $totalPorAutorizar = 0.0;
+        $totalPagado = 0.0;
+        $paymentTotalsByCurrency = [
             'por_autorizar' => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
-            'autorizado'    => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
-            'pagado'        => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
+            'autorizado' => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
+            'pagado' => ['MXN' => 0.0, 'USD' => 0.0, 'EUR' => 0.0],
         ];
         $paymentTotalsByCondition = [
             'por_autorizar' => [
@@ -48,27 +48,27 @@ class AdminController extends Controller
                 'EUR' => ['credito' => 0.0, 'contado' => 0.0],
             ],
         ];
-        $chartLabels                    = [];
-        $chartValues                    = [];
-        $top5PorAutorizar               = collect();
-        $urgencyLabels                  = [];
-        $urgencyValues                  = [];
-        $totalImporteHitosVencidos       = 0.0;
-        $top5Urgencias                  = collect();
-        $solcomSearch                   = null;
-        $solcomPendientes               = collect();
-        $ocsPendientesAutorizar         = collect();
-        $ocsPendientesEntregarSitio     = collect();
+        $chartLabels = [];
+        $chartValues = [];
+        $top5PorAutorizar = collect();
+        $urgencyLabels = [];
+        $urgencyValues = [];
+        $totalImporteHitosVencidos = 0.0;
+        $top5Urgencias = collect();
+        $solcomSearch = null;
+        $solcomPendientes = collect();
+        $ocsPendientesAutorizar = collect();
+        $ocsPendientesEntregarSitio = collect();
         $ocsPendientesEntregarElectrohr = collect();
-        $ocsVencidasEntrega             = collect();
+        $ocsVencidasEntrega = collect();
 
-        // ── Bloque pagos (admin + Pagos) ──────────────────────────────
-        if ($user->hasAnyRole(['admin', 'Pagos'])) {
+        // ── Bloque pagos: quien consulta algún módulo de Pagos ─────────
+        if ($user->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view'])) {
             $totalPendientePago = (float) Payment::where('status', 'autorizado')->sum('amount');
-            $totalPorAutorizar  = (float) Payment::where('payments.status', 'por_autorizar')
+            $totalPorAutorizar = (float) Payment::where('payments.status', 'por_autorizar')
                 ->whereHas('milestone.purchaseOrder', fn ($q) => $q->where('status', 'autorizada'))
                 ->sum('payments.amount');
-            $totalPagado        = (float) Payment::where('status', 'pagado')->sum('amount');
+            $totalPagado = (float) Payment::where('status', 'pagado')->sum('amount');
 
             Payment::query()
                 ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
@@ -90,9 +90,9 @@ class AdminController extends Controller
                 });
 
             $porAutorizarRows = Payment::join(
-                    'purchase_order_milestones',
-                    'payments.milestone_id', '=', 'purchase_order_milestones.id'
-                )
+                'purchase_order_milestones',
+                'payments.milestone_id', '=', 'purchase_order_milestones.id'
+            )
                 ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
                 ->where('payments.status', 'por_autorizar')
@@ -120,14 +120,14 @@ class AdminController extends Controller
                 ->get();
         }
 
-        // ── Bloque órdenes (admin + Orden de compra) ──────────────────
-        if ($user->hasAnyRole(['admin', 'Orden de compra'])) {
+        // ── Bloque órdenes: quien da de alta OC (Compras, admin) ──────
+        if ($user->can('purchase_orders.create')) {
             $urgencyData = [
-                'Vencido'      => 0,
-                'Esta semana'  => 0,
-                'Este mes'     => 0,
-                'Próximo mes'  => 0,
-                'Futuro'       => 0,
+                'Vencido' => 0,
+                'Esta semana' => 0,
+                'Este mes' => 0,
+                'Próximo mes' => 0,
+                'Futuro' => 0,
             ];
 
             $today = Carbon::today();
@@ -167,7 +167,7 @@ class AdminController extends Controller
 
             $solcomPendientes = PurchaseRequest::whereIn('status', ['pending', 'changes_requested'])
                 ->with(['project', 'materialRequest'])
-                ->when($solcomSearch, fn ($q) => $q->where('folio', 'like', '%' . $solcomSearch . '%'))
+                ->when($solcomSearch, fn ($q) => $q->where('folio', 'like', '%'.$solcomSearch.'%'))
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -212,7 +212,7 @@ class AdminController extends Controller
                 ])
                 ->whereHas('items', function ($q) {
                     $q->whereNotNull('delivery_due_date')
-                      ->whereDate('delivery_due_date', '<', Carbon::today());
+                        ->whereDate('delivery_due_date', '<', Carbon::today());
                 })
                 ->withMin('items as oldest_overdue_delivery_due_date', 'delivery_due_date')
                 ->orderBy('oldest_overdue_delivery_due_date')

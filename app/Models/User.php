@@ -70,8 +70,8 @@ class User extends Authenticatable
             ->all();
     }
 
-    /** Roles que pueden quedar como gerente de proyecto o supervisor/residente de obra. Engineer sigue mientras exista. */
-    public const PROJECT_STAFF_ROLES = ['Gerente de Proyecto', 'Supervisor', 'Engineer'];
+    /** Roles que pueden quedar como gerente de proyecto o supervisor/residente de obra. */
+    public const PROJECT_STAFF_ROLES = ['Gerente de Proyecto', 'Supervisor'];
 
     public function scopeProjectStaff(Builder $query): Builder
     {
@@ -90,9 +90,19 @@ class User extends Authenticatable
         return Project::query()->assignedTo($this)->exists();
     }
 
-    public function isRestrictedEngineer(): bool
+    /**
+     * Ve Proyectos solo por asignación (Gerente y Supervisor): las búsquedas de proyectos y obras
+     * que usan los formularios se limitan a sus proyectos. Reemplaza al antiguo "Engineer restringido".
+     */
+    public function seesOnlyAssignedProjects(): bool
     {
-        return $this->hasRole('Engineer') && ! $this->hasAnyRole(['admin', 'Proyectos', 'Solmat']);
+        return $this->can('projects.view') && ! $this->hasFullAccessScope('projects');
+    }
+
+    /** Usuarios con un permiso por sus roles (sin excepción si el permiso aún no existe). */
+    public function scopeWithPermission(Builder $query, string $permission): Builder
+    {
+        return $query->whereHas('roles.permissions', fn (Builder $permissions) => $permissions->where('name', $permission));
     }
 
     /**

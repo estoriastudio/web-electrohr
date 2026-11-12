@@ -4,7 +4,7 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    @if ($isRestrictedEngineer ?? false)
+    @if ($seesOnlyProjectOrders ?? false)
         <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
     @else
         <li class="breadcrumb-item"><a href="{{ route('purchase_orders.index') }}">Órdenes de Compra</a></li>
@@ -47,7 +47,7 @@
 @endif
 
 @php
-    $isRestrictedEngineer = $isRestrictedEngineer ?? false;
+    $seesOnlyProjectOrders = $seesOnlyProjectOrders ?? false;
     $statusMap = [
         'emitida'    => ['label' => 'Emitida',    'class' => 'bg-info-subtle text-info'],
         'pendiente'  => ['label' => 'Pendiente',  'class' => 'bg-warning-subtle text-warning'],
@@ -75,9 +75,9 @@
     $fulfillmentOldType = old('fulfillment_type') ?: ($reopenFulfillmentModal ? 'physical' : null);
     $canRequestPaymentReactivation = auth()->user()->can('payment_authorizations.view');
     // Entregas y validación de hitos (matriz: Recepción de OC R y validación de hitos); el controlador aplica el alcance.
-    // Gerente y Supervisor registran entregas desde "Buscar OCs" (la vista restringida de la OC no carga hitos).
-    $canRecordDeliveries = ! $isRestrictedEngineer
-        && auth()->user()->canAny(['purchase_order_receipts.register', 'milestone_validations.authorize', 'milestone_validations.create']);
+    // Pagos y montos pagados: solo quien consulta algún módulo de Pagos (Gerente y Supervisor no).
+    $canSeePayments = auth()->user()->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view']);
+    $canRecordDeliveries = auth()->user()->canAny(['purchase_order_receipts.register', 'milestone_validations.authorize']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
     $orderedMilestones = $purchaseOrder->milestones->sortBy('id')->values();
@@ -159,18 +159,96 @@
         </form>
         @endif
         @elseif ($purchaseOrder->status === 'emitida')
-        @role('admin')
+        @can('purchase_orders.authorize')
         <button type="button" class="btn btn-success btn-sm align-self-center"
                 data-bs-toggle="modal" data-bs-target="#modalApprovePurchaseOrder">
             <i class="ri-check-double-line me-1"></i> Autorizar OC
         </button>
-        @endrole
+        @endcan
         @endif
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
 
-{{-- ── RESUMEN ECONÓMICO ── --}}
+{{-- ── SOLICITUDES A DIRECCIÓN (Fase 4): cambio o cancelación de una OC autorizada ── --}}
+@php
+    $pendingChangeRequest = $purchaseOrder->pendingChangeRequest;
+    $canAuthorizeOrders = auth()->user()->can('purchase_orders.authorize');
+    $canRequestOrderChange = $canManageOrder && $purchaseOrder->status === 'autorizada' && ! $purchaseOrder->is_closed && ! $pendingChangeRequest;
+    $resolvedChangeRequests = $purchaseOrder->changeRequests->where('status', '!=', 'pending');
+@endphp
+@if ($purchaseOrder->authorizedBy || $pendingChangeRequest || $canRequestOrderChange || $resolvedChangeRequests->isNotEmpty())
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold fs-14"><i class="ri-shield-user-line me-1"></i>Autorización de Dirección</span>
+        @if ($purchaseOrder->authorizedBy && $purchaseOrder->status === 'autorizada')
+            <span class="fs-12 text-muted">Autorizada por {{ $purchaseOrder->authorizedBy->name }} · {{ $purchaseOrder->authorized_at?->format('d/m/Y H:i') }}</span>
+        @endif
+    </div>
+    <div class="card-body py-2">
+        @if ($pendingChangeRequest)
+            <div class="alert alert-warning mb-2">
+                <div class="fw-semibold">{{ $pendingChangeRequest->typeLabel() }} solicitado por {{ $pendingChangeRequest->requestedBy?->name }} · {{ $pendingChangeRequest->created_at->format('d/m/Y H:i') }}</div>
+                <div class="fs-13">{{ $pendingChangeRequest->reason }}</div>
+            </div>
+            @if ($canAuthorizeOrders)
+                <div class="d-flex flex-wrap gap-2">
+                    <form action="{{ route('purchase_orders.change_requests.approve', $pendingChangeRequest) }}" method="POST" class="d-flex gap-2 flex-grow-1"
+                          onsubmit="return confirm('{{ $pendingChangeRequest->type === 'cancel' ? '¿Autorizar la cancelación? La OC se cancelará.' : '¿Autorizar el cambio? La OC regresará a Emitida.' }}')">
+                        @csrf
+                        <input type="text" name="decision_note" class="form-control form-control-sm" placeholder="Comentario (opcional)" maxlength="2000">
+                        <button type="submit" class="btn btn-success btn-sm text-nowrap"><i class="ri-check-line me-1"></i>Autorizar</button>
+                    </form>
+                    <form action="{{ route('purchase_orders.change_requests.reject', $pendingChangeRequest) }}" method="POST" class="d-flex gap-2 flex-grow-1">
+                        @csrf
+                        <input type="text" name="decision_note" class="form-control form-control-sm" placeholder="Motivo del rechazo" required minlength="5" maxlength="2000">
+                        <button type="submit" class="btn btn-outline-danger btn-sm text-nowrap"><i class="ri-close-line me-1"></i>Rechazar</button>
+                    </form>
+                </div>
+            @else
+                <p class="text-muted fs-13 mb-0">Espera la autorización de Dirección.</p>
+            @endif
+        @elseif ($canRequestOrderChange)
+            <form action="{{ route('purchase_orders.change_requests.store', $purchaseOrder) }}" method="POST" class="row g-2 align-items-end">
+                @csrf
+                <div class="col-md-3">
+                    <label class="form-label fs-12 mb-1">Solicitar a Dirección</label>
+                    <select name="type" class="form-select form-select-sm" required>
+                        <option value="change">Cambio de la OC</option>
+                        @can('purchase_orders.cancel')
+                            <option value="cancel">Cancelación de la OC</option>
+                        @endcan
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label fs-12 mb-1">Motivo</label>
+                    <input type="text" name="reason" class="form-control form-control-sm @error('reason') is-invalid @enderror" required minlength="10" maxlength="2000" value="{{ old('reason') }}">
+                    @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Enviar solicitud</button>
+                </div>
+            </form>
+        @endif
+
+        @if ($resolvedChangeRequests->isNotEmpty())
+            <ul class="list-unstyled fs-12 text-muted mb-0 mt-2">
+                @foreach ($resolvedChangeRequests as $resolved)
+                    <li>
+                        {{ $resolved->typeLabel() }} {{ $resolved->status === 'approved' ? 'autorizado' : 'rechazado' }}
+                        por {{ $resolved->decidedBy?->name }} · {{ $resolved->decided_at?->format('d/m/Y') }}
+                        (pidió {{ $resolved->requestedBy?->name }}: {{ \Illuminate\Support\Str::limit($resolved->reason, 80) }})
+                        @if ($resolved->decision_note) — {{ $resolved->decision_note }} @endif
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </div>
+</div>
+@endif
+
+{{-- ── RESUMEN ECONÓMICO (montos pagados: solo quien consulta Pagos) ── --}}
+@if ($canSeePayments)
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center py-2">
         <span class="fw-semibold fs-14"><i class="ri-bar-chart-box-line me-1"></i>Resumen económico</span>
@@ -211,8 +289,11 @@
     </div>
 </div>
 
+@endif
+
 {{-- ── CIERRE DE LA OC ── --}}
-@if ($purchaseOrder->is_closed)
+@if (! $canSeePayments && ! $canManageOrder)
+@elseif ($purchaseOrder->is_closed)
     <div class="alert alert-dark d-flex align-items-start gap-3 mb-3" role="alert">
         <i class="ri-lock-2-line fs-22 mt-1"></i>
         <div class="flex-grow-1">
@@ -225,14 +306,14 @@
                 <p class="mb-0 fs-12 text-muted mt-1">Nota de cierre: {{ $purchaseOrder->closure_note }}</p>
             @endif
         </div>
-        @role('admin')
+        @can('purchase_orders.authorize')
         <button type="button" class="btn btn-outline-dark btn-sm align-self-center" data-bs-toggle="modal" data-bs-target="#modalReopenPurchaseOrder">
             <i class="ri-lock-unlock-line me-1"></i> Reabrir OC
         </button>
-        @endrole
+        @endcan
     </div>
 
-    @role('admin')
+    @can('purchase_orders.authorize')
     <div class="modal fade" id="modalReopenPurchaseOrder" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -255,7 +336,7 @@
             </div>
         </div>
     </div>
-    @endrole
+    @endcan
 @elseif ($purchaseOrder->status === 'autorizada')
     @php
         $closure = app(\App\Services\PurchaseOrderClosureEvaluator::class)->evaluate($purchaseOrder);
@@ -302,7 +383,7 @@
 @endif
 
 @if ($purchaseOrder->status === 'emitida')
-@role('admin')
+@can('purchase_orders.authorize')
 <div class="modal fade" id="modalApprovePurchaseOrder" tabindex="-1" aria-labelledby="modalApprovePurchaseOrderLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -391,7 +472,7 @@
         </div>
     </div>
 </div>
-@endrole
+@endcan
 @endif
 
 {{-- ── ENCABEZADO ── --}}
@@ -419,7 +500,7 @@
                             </span>
                             <span class="badge bg-light text-dark border py-1 px-2 fs-12">{{ $purchaseOrder->currency }}</span>
                         </div>
-                        @if ($supplier && $isRestrictedEngineer)
+                        @if ($supplier && ! auth()->user()->can('suppliers.view'))
                             <div class="mt-2">
                                 <span class="fw-semibold text-dark">{{ $supplier->commercial_name ?: 'Sin nombre comercial' }}</span>
                             </div>
@@ -482,7 +563,7 @@
                         <div id="oc_header_total" class="fs-22 fw-semibold text-primary" aria-label="Importe Total de la OC">
                             {{ $purchaseOrder->currency }} {{ number_format($importeTotal, 2) }}
                         </div>
-                        @unless ($isRestrictedEngineer)
+                        @if ($canSeePayments)
                         <div class="text-muted fs-13">
                             Cubierto: <strong>{{ number_format($totalCubierto, 2) }}</strong>
                         </div>
@@ -492,7 +573,7 @@
                             </div>
                             <small class="text-muted">{{ $progressTotal }}% cubierto</small>
                         </div>
-                        @endunless
+                        @endif
                         <div class="mt-2" style="min-width: 160px;">
                             <div class="progress" style="height: 8px;" role="progressbar" aria-valuenow="{{ $deliveryProgress }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de entrega">
                                 <div class="progress-bar {{ $deliveryProgress >= 100 ? 'bg-success' : 'bg-info' }}" style="width: {{ $deliveryProgress }}%"></div>
@@ -572,7 +653,7 @@
 </div>
 @endif
 
-@if ($supplier && ! $isRestrictedEngineer)
+@if ($supplier && auth()->user()->can('suppliers.view'))
 <div class="modal fade" id="modalSupplierProfileSummary" tabindex="-1" aria-labelledby="modalSupplierProfileSummaryLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -645,7 +726,7 @@
 @endif
 
 {{-- MODAL Subir Evidencia --}}
-@if (! $isRestrictedEngineer && auth()->user()->can('purchase_order_evidences.create'))
+@if (auth()->user()->can('purchase_order_evidences.create'))
 <div class="modal fade" id="modalCreateEvidence" tabindex="-1" aria-labelledby="modalCreateEvidenceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1260,7 +1341,6 @@
     </div>
 </div>
 
-@unless ($isRestrictedEngineer)
 {{-- ── HITOS (CONDICIONES DE PAGO) ── --}}
 <div class="row" id="hitos-container">
     @forelse ($orderedMilestones as $milestone)
@@ -1532,7 +1612,7 @@
                             </span>
                         </div>
                         @include('purchase_orders.partials._milestone_checklist', ['checklist' => $milestoneChecklist])
-                        @if (auth()->user()->canAny(['milestone_validations.authorize', 'milestone_validations.create']))
+                        @can('milestone_validations.authorize')
                             @if ($milestone->delivery_confirmed_at)
                                 <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
                                       onsubmit="return confirm('{{ $milestoneFulfillment ? '¿Revocar la confirmación de entrega de este hito? Se eliminará el registro de cumplimiento (' . $milestoneFulfillment->type_label . '); el archivo se conserva en las evidencias de la OC.' : '¿Revocar la confirmación de entrega de este hito?' }}')">
@@ -1547,6 +1627,9 @@
                                     </button>
                                 </form>
                             @endif
+                        @endcan
+                        @if ($milestone->delivery_confirmed_at && $milestone->deliveryConfirmedBy)
+                            <div class="fs-11 text-muted mt-1"><i class="ri-shield-check-line me-1"></i>Validado por {{ $milestone->deliveryConfirmedBy->name }} · {{ $milestone->delivery_confirmed_at->format('d/m/Y') }}</div>
                         @endif
                     </div>
 
@@ -1562,6 +1645,7 @@
                     </div>
                 </div>
 
+                @if ($canSeePayments)
                 {{-- Pagos del hito --}}
                 <div class="card-body pt-0">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -1818,6 +1902,7 @@
                         </button>
                     @endif
                 </div>
+                @endif
 
             </div>
         </div>
@@ -1833,6 +1918,7 @@
     @endforelse
 </div>
 
+@can('invoices.view')
 {{-- ── FACTURAS ── --}}
 <div class="row mb-4">
     <div class="col-12">
@@ -1983,16 +2069,16 @@
             @else
                 <div class="card-body text-center text-muted py-4">
                     <i class="ri-file-pdf-line fs-36 d-block mb-2 text-danger opacity-50"></i>
-                    No hay facturas registradas. Usa el botón <strong>"Subir factura"</strong> para agregar la primera.
+                    No hay facturas registradas.@can('invoice_intake.create') Usa el botón <strong>"Subir factura"</strong> para agregar la primera.@endcan
                 </div>
             @endif
         </div>
     </div>
 </div>
+@endcan
 
 {{-- ── EVIDENCIAS ── --}}
-{{-- Gerente y Supervisor consultan la OC sin evidencias; las subirán desde su espacio de obra (Fase 3). --}}
-@if (! $isRestrictedEngineer && auth()->user()->can('purchase_order_evidences.view'))
+@if (auth()->user()->can('purchase_order_evidences.view'))
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -2106,7 +2192,6 @@
 </div>
 @endif
 
-@endunless
 
 {{-- ── OBSERVACIONES ── --}}
 <div class="row mb-4">
@@ -2248,7 +2333,8 @@
 </div>
 @endif
 
-@unless ($isRestrictedEngineer)
+{{-- Modales de hitos y pagos: quien administra la OC o consulta Pagos (no Gerente ni Supervisor). --}}
+@if ($canManageOrder || $canSeePayments)
 {{-- ── MODALES DE HITOS (fuera del row para posicionamiento correcto) ── --}}
 @foreach ($orderedMilestones as $milestone)
     @php
@@ -2431,7 +2517,9 @@
     @endforeach
     @endif
 @endforeach
+@endif
 
+@can('invoice_intake.create')
 {{-- MODAL Subir Factura --}}
 <div class="modal fade" id="modalCreateInvoice" tabindex="-1" aria-labelledby="modalCreateInvoiceLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -2551,6 +2639,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 {{-- MODAL Crear Hito --}}
 @if ($canManageOrder)
@@ -2627,6 +2716,7 @@
 @endif
 @endif
 
+@if ($canSeePayments)
 {{-- Modal único para visualizar comprobante SPEI --}}
 <div class="modal fade" id="modalViewSpeiReceipt" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
@@ -2654,6 +2744,7 @@
         </div>
     </div>
 </div>
+@endif
 
 {{-- Modal único para visualizar evidencias --}}
 <div class="modal fade" id="modalViewEvidence" tabindex="-1" aria-hidden="true">
@@ -2699,6 +2790,7 @@
         );
 @endphp
 
+@if (auth()->user()->hasFullAccessScope('purchase_orders', 'download') || (auth()->user()->can('purchase_orders.download') && (int) $purchaseOrder->buyer_id === (int) auth()->id()))
 {{-- ── Modal: Generar PDF con Anexos ── --}}
 <div class="modal fade" id="modalPdfAnnexes" tabindex="-1" aria-labelledby="modalPdfAnnexesLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -2828,10 +2920,11 @@
         </div>
     </div>
 </div>
+@endif
+
 {{-- Contenido inicial para los editores Quill (sanitizado) --}}
 <template id="contrato-init-html">{!! $contratoInitHtml !!}</template>
 <template id="dossier-init-html">{!! $dossierInitHtml !!}</template>
-@endunless
 
 @push('styles')
 <link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
@@ -2889,7 +2982,6 @@
 
 @endsection
 
-@unless ($isRestrictedEngineer)
 @push('scripts')
 <script>
 (function () {
@@ -4013,4 +4105,3 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 </script>
 @endpush
-@endunless

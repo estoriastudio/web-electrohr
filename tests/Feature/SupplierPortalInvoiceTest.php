@@ -252,7 +252,7 @@ XML;
         $this->assertDatabaseHas('purchase_order_invoices', [
             'purchase_order_id' => $purchaseOrder->id,
             'folio' => $uuid,
-            'evidence_file_name' => 'OC' . $purchaseOrder->id . '-FACT1-EVIDENCIA.pdf',
+            'evidence_file_name' => 'OC'.$purchaseOrder->id.'-FACT1-EVIDENCIA.pdf',
         ]);
         $this->assertDatabaseMissing('purchase_order_evidences', [
             'purchase_order_id' => $purchaseOrder->id,

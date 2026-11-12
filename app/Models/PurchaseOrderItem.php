@@ -23,11 +23,11 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'quantity'          => 'decimal:4',
+        'quantity' => 'decimal:4',
         'delivered_quantity' => 'decimal:4',
-        'unit_price'        => 'decimal:8',
+        'unit_price' => 'decimal:8',
         'delivery_due_date' => 'date',
-        'delivered_at'      => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     public function getIsDeliveredAttribute(): bool

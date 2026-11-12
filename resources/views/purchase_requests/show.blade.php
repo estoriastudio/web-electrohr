@@ -475,7 +475,7 @@
                                     · {{ $note->resolved_at->format('d/m/Y H:i') }}
                                 </span>
                             @else
-                                @can('purchase_request_changes.create')
+                                @if (auth()->user()->can('purchase_request_changes.create') && ! $note->awaitsDirection())
                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                       method="POST">
                                     @csrf
@@ -483,10 +483,11 @@
                                         <i class="ri-check-line me-1"></i>Marcar como resuelta
                                     </button>
                                 </form>
-                                @endcan
+                                @endif
                             @endif
                         </div>
                         <p class="mb-0 text-body">{{ $note->text }}</p>
+                        @include('purchase_requests.partials._commercial_change', ['note' => $note, 'purchaseRequest' => $purchaseRequest])
                     </div>
                 </div>
                 @if (! $loop->last)<hr class="my-2">@endif
@@ -742,6 +743,12 @@
                               placeholder="Ej. Ajustar cantidades del ítem 3, agregar código de catálogo…"
                               required maxlength="2000"></textarea>
                     <div class="form-text text-end"><span id="changeTextCount">0</span>/2000 caracteres</div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="is_commercial" value="1" id="changeIsCommercial">
+                        <label class="form-check-label" for="changeIsCommercial">
+                            Es un ajuste comercial (precio, proveedor o condiciones): requiere autorización de Dirección
+                        </label>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>

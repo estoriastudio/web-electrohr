@@ -1342,12 +1342,17 @@ class PurchaseRequestController extends Controller
         $this->authorizeAccess($purchaseRequest, 'purchase_requests');
         $data = $request->validate([
             'change_text' => 'required|string|max:2000',
+            'is_commercial' => 'nullable|boolean',
         ]);
+        $isCommercial = (bool) ($data['is_commercial'] ?? false);
 
+        // Fase 4: un ajuste comercial espera la autorización de Dirección antes de resolverse.
         PurchaseRequestChangeNote::create([
             'purchase_request_id' => $purchaseRequest->id,
             'requested_by' => Auth::id(),
             'text' => $data['change_text'],
+            'is_commercial' => $isCommercial,
+            'direction_status' => $isCommercial ? 'pending' : null,
         ]);
 
         $purchaseRequest->update(['status' => 'changes_requested']);
@@ -1364,10 +1369,58 @@ class PurchaseRequestController extends Controller
             ->with('success', 'Solicitud de cambios registrada. La SOLCOM regresa al equipo de Almacén.');
     }
 
+    // ── Fase 4: Dirección autoriza o rechaza un ajuste comercial ─────────────
+    public function decideCommercialChange(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestChangeNote $changeNote)
+    {
+        abort_unless((int) $changeNote->purchase_request_id === (int) $purchaseRequest->id, 404);
+        $data = $request->validate([
+            'decision' => 'required|in:approved,rejected',
+            'direction_note' => 'nullable|string|max:2000|required_if:decision,rejected',
+        ]);
+
+        if (! $changeNote->awaitsDirection()) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                ->with('error', 'Este cambio no espera autorización de Dirección.');
+        }
+
+        $approved = $data['decision'] === 'approved';
+        $changeNote->update([
+            'direction_status' => $data['decision'],
+            'direction_decided_by' => Auth::id(),
+            'direction_decided_at' => now(),
+            'direction_note' => $data['direction_note'] ?? null,
+            // Un ajuste rechazado no se aplica: queda resuelto para que la SOLCOM siga su curso.
+            ...($approved ? [] : ['resolved_at' => now(), 'resolved_by' => Auth::id()]),
+        ]);
+
+        if (! $approved && $purchaseRequest->changeNotes()->whereNull('resolved_at')->doesntExist()) {
+            $purchaseRequest->update(['status' => 'pending']);
+        }
+
+        app(NotificationService::class)->send([
+            'action_by' => Auth::id(),
+            'model_action' => 'update',
+            'model_id' => $purchaseRequest->id,
+            'type' => 'purchase_request',
+            'data' => "SOLCOM #{$purchaseRequest->folio}: Dirección ".($approved ? 'autorizó' : 'rechazó').' el ajuste comercial.',
+        ]);
+
+        return redirect()->back()->with('success', $approved
+            ? 'Ajuste comercial autorizado. Compras o Almacén ya pueden aplicarlo.'
+            : 'Ajuste comercial rechazado.');
+    }
+
     // ── Marcar nota de cambio como resuelta ──────────────────────────────────
     public function resolveChangeNote(PurchaseRequest $purchaseRequest, PurchaseRequestChangeNote $changeNote)
     {
         $this->authorizeAccess($purchaseRequest, 'purchase_requests');
+        abort_unless((int) $changeNote->purchase_request_id === (int) $purchaseRequest->id, 404);
+
+        if ($changeNote->awaitsDirection()) {
+            return redirect()->route('purchase_requests.show', $purchaseRequest)
+                ->with('error', 'Este ajuste comercial espera la autorización de Dirección.');
+        }
+
         $changeNote->update([
             'resolved_at' => now(),
             'resolved_by' => Auth::id(),

@@ -272,6 +272,9 @@
                                     </td>
                                     <td style="min-width:280px; max-width:380px;">
                                         <p class="mb-0 text-body fs-13">{{ $note->text }}</p>
+                                        @if ($purchaseRequest)
+                                            @include('purchase_requests.partials._commercial_change', ['note' => $note, 'purchaseRequest' => $purchaseRequest])
+                                        @endif
                                     </td>
                                     <td>
                                         <div class="d-flex gap-2">
@@ -281,7 +284,7 @@
                                                    title="Ver detalle">
                                                     <i class="ri-eye-line"></i>
                                                 </a>
-                                                @can('purchase_request_changes.create')
+                                                @if (auth()->user()->can('purchase_request_changes.create') && ! $note->awaitsDirection())
                                                 <form action="{{ route('purchase_requests.change_notes.resolve', [$purchaseRequest, $note]) }}"
                                                       method="POST">
                                                     @csrf
@@ -289,7 +292,7 @@
                                                         <i class="ri-check-line"></i>
                                                     </button>
                                                 </form>
-                                                @endcan
+                                                @endif
                                             @endif
                                         </div>
                                     </td>

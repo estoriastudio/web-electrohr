@@ -257,7 +257,7 @@ class ProjectController extends Controller
 
     public function updateDocumentApplicability(Request $request, Project $project, string $docType): JsonResponse
     {
-        abort_unless(Auth::user()->hasAnyRole(['admin', 'Proyectos']), 403);
+        abort_unless(Auth::user()->can('projects.update'), 403);
 
         $docTypes = ProjectDocument::allDocTypes();
         if (! array_key_exists($docType, $docTypes)) {

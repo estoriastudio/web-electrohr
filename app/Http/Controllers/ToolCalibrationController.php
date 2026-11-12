@@ -25,7 +25,7 @@ class ToolCalibrationController extends Controller
         if ($request->hasFile('file')) {
             $uploadedFile = $request->file('file');
             $extension = $uploadedFile->getClientOriginalExtension();
-            $s3Path = 'tools/' . $tool->id . '/calibrations/calibration_' . time() . '.' . $extension;
+            $s3Path = 'tools/'.$tool->id.'/calibrations/calibration_'.time().'.'.$extension;
             Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
             $validated['file_path'] = $s3Path;
         }

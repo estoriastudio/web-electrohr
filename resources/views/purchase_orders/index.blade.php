@@ -36,7 +36,7 @@
 
 <div class="row">
     <div class="col-xl-12">
-        @hasanyrole('admin|Pagos|Orden de compra')
+        @can('invoices.view')
         <div class="card mb-3">
             <button type="button"
                     class="card-header d-flex justify-content-between align-items-center border-bottom recent-invoices-header {{ $recentPendingInvoices->isNotEmpty() ? 'recent-invoices-has-pending' : '' }}"
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        @endhasanyrole
+        @endcan
 
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">

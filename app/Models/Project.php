@@ -39,9 +39,10 @@ class Project extends Model
                     ->orWhere('resident_user_id', $user->id))));
     }
 
+    /** Proyectos que el usuario puede elegir en búsquedas y formularios: los suyos si solo ve asignados. */
     public function scopeAccessibleBy(Builder $query, User $user): Builder
     {
-        return $user->isRestrictedEngineer() ? $query->assignedTo($user) : $query;
+        return $user->seesOnlyAssignedProjects() ? $query->assignedTo($user) : $query;
     }
 
     public function applyAccessScope(Builder $query, string $scope, User $user): void
@@ -50,11 +51,6 @@ class Project extends Model
             'assigned_projects' => $query->assignedTo($user),
             default => $this->unsupportedAccessScope($scope),
         };
-    }
-
-    public function userCanAccess(User $user): bool
-    {
-        return static::query()->whereKey($this->getKey())->accessibleBy($user)->exists();
     }
 
     public function documents(): HasMany

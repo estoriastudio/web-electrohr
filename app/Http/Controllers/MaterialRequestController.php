@@ -209,7 +209,7 @@ class MaterialRequestController extends Controller
             $query->where('requested_by', $requestedBy);
         }
 
-        if (in_array($noteType, ['change_request', 'commitment_notice'], true)) {
+        if (in_array($noteType, ['change_request', 'commitment_notice', 'site_change'], true)) {
             $query->where('note_type', $noteType);
         }
 
@@ -839,7 +839,7 @@ class MaterialRequestController extends Controller
                 'model_id' => $lockedRequest->id,
                 'type' => 'material_request_commitment',
                 'data' => "SOLMAT #{$lockedRequest->folio}: {$summary}",
-            ], User::role('Solmat')->pluck('id')->all());
+            ], User::withPermission('material_request_queue.update')->pluck('id')->all());
 
             return count($changes);
         });
@@ -969,13 +969,101 @@ class MaterialRequestController extends Controller
             ->with('success', 'Solicitud de cambios registrada. La SOLMAT queda en ajustes para el equipo solicitante.');
     }
 
+    /**
+     * Fase 4: cambio de una SOLMAT ya enviada a Almacén, pedido desde la obra. Lo pide el Supervisor o el
+     * Gerente; si lo pide el Supervisor espera al Gerente del proyecto. Almacén lo aplica (cancelar y sustituir).
+     */
+    public function requestSiteChange(Request $request, MaterialRequest $materialRequest): RedirectResponse
+    {
+        $this->authorizeAccess($materialRequest, 'material_requests');
+        $data = $request->validate(['change_text' => 'required|string|min:10|max:2000']);
+
+        if (in_array($materialRequest->status, ['pending', 'changes_requested'], true)) {
+            return redirect()->route('material_requests.show', $materialRequest)
+                ->with('error', 'La SOLMAT todavía se puede editar directamente.');
+        }
+
+        $user = Auth::user();
+        $selfAuthorized = $this->canAuthorizeSiteChange($user, $materialRequest);
+
+        MaterialRequestChangeNote::create([
+            'material_request_id' => $materialRequest->id,
+            'requested_by' => $user->id,
+            'text' => $data['change_text'],
+            'note_type' => 'site_change',
+            'authorization_status' => $selfAuthorized ? 'approved' : 'pending',
+            'authorized_by' => $selfAuthorized ? $user->id : null,
+            'authorized_at' => $selfAuthorized ? now() : null,
+        ]);
+
+        app(NotificationService::class)->send([
+            'action_by' => $user->id,
+            'model_action' => 'update',
+            'model_id' => $materialRequest->id,
+            'type' => 'material_request',
+            'data' => "SOLMAT #{$materialRequest->folio}: cambio solicitado desde la obra".($selfAuthorized ? '.' : ', espera al Gerente.'),
+        ]);
+
+        return redirect()->route('material_requests.show', $materialRequest)->with('success', $selfAuthorized
+            ? 'Cambio enviado a Almacén.'
+            : 'Cambio enviado al Gerente del proyecto para su autorización.');
+    }
+
+    public function decideSiteChange(Request $request, MaterialRequest $materialRequest, MaterialRequestChangeNote $changeNote): RedirectResponse
+    {
+        abort_unless((int) $changeNote->material_request_id === (int) $materialRequest->id, 404);
+        abort_unless($this->canAuthorizeSiteChange(Auth::user(), $materialRequest), 403, 'Solo el Gerente del proyecto autoriza este cambio.');
+        $data = $request->validate([
+            'decision' => 'required|in:approved,rejected',
+            'authorization_note' => 'nullable|string|max:2000|required_if:decision,rejected',
+        ]);
+
+        if (! $changeNote->awaitsManager()) {
+            return redirect()->route('material_requests.show', $materialRequest)->with('error', 'Este cambio ya fue resuelto.');
+        }
+
+        $approved = $data['decision'] === 'approved';
+        $changeNote->update([
+            'authorization_status' => $data['decision'],
+            'authorized_by' => Auth::id(),
+            'authorized_at' => now(),
+            'authorization_note' => $data['authorization_note'] ?? null,
+            // Un cambio rechazado no llega a Almacén.
+            ...($approved ? [] : ['resolved_at' => now(), 'resolved_by' => Auth::id()]),
+        ]);
+
+        app(NotificationService::class)->send([
+            'action_by' => Auth::id(),
+            'model_action' => 'update',
+            'model_id' => $materialRequest->id,
+            'type' => 'material_request',
+            'data' => "SOLMAT #{$materialRequest->folio}: el Gerente ".($approved ? 'autorizó' : 'rechazó').' el cambio de obra.',
+        ]);
+
+        return redirect()->route('material_requests.show', $materialRequest)->with('success', $approved
+            ? 'Cambio autorizado: Almacén lo aplicará.'
+            : 'Cambio rechazado.');
+    }
+
+    /** Autoriza cambios de obra el Gerente del proyecto (matriz: A en Cambios SOLMAT) o admin. */
+    private function canAuthorizeSiteChange(User $user, MaterialRequest $materialRequest): bool
+    {
+        return $user->hasRole('admin')
+            || ($user->can('material_request_changes.authorize') && $materialRequest->project?->isManagedBy($user));
+    }
+
     public function resolveChangeNote(MaterialRequest $materialRequest, MaterialRequestChangeNote $changeNote): RedirectResponse
     {
         if ((int) $changeNote->material_request_id !== (int) $materialRequest->id) {
             abort(404);
         }
 
-        if (! $changeNote->isChangeRequest()) {
+        if ($changeNote->awaitsManager()) {
+            return redirect()->route('material_requests.show', $materialRequest)
+                ->with('error', 'Este cambio de obra espera la autorización del Gerente del proyecto.');
+        }
+
+        if (! $changeNote->isChangeRequest() && ! $changeNote->isSiteChange()) {
             return redirect()->route('material_requests.show', $materialRequest)
                 ->with('error', 'Los avisos de compromisos son informativos y no requieren resolución.');
         }
@@ -985,11 +1073,12 @@ class MaterialRequestController extends Controller
             'resolved_by' => Auth::id(),
         ]);
 
+        // Solo los cambios que pide Almacén regresan la SOLMAT a Pendiente; un cambio de obra lo aplica Almacén.
         $unresolvedCount = $materialRequest->changeNotes()
             ->where('note_type', 'change_request')
             ->whereNull('resolved_at')
             ->count();
-        if ($unresolvedCount === 0) {
+        if ($changeNote->isChangeRequest() && $unresolvedCount === 0) {
             $materialRequest->update(['status' => 'pending']);
 
             app(NotificationService::class)->send([

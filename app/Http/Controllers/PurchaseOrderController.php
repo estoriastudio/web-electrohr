@@ -57,7 +57,7 @@ class PurchaseOrderController extends Controller
 
         if ($purchaseOrder->status === 'autorizada' && ! Auth::user()->hasRole('admin')) {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
-                ->with('error', 'Solo admin puede editar una OC autorizada.');
+                ->with('error', 'La OC está autorizada: pide el cambio o la cancelación a Dirección.');
         }
 
         return null;
@@ -550,30 +550,9 @@ class PurchaseOrderController extends Controller
     {
         $this->authorizeAccess($purchaseOrder, 'purchase_orders');
 
-        // Gerente y Supervisor consultan la OC sin hitos, pagos, facturas ni evidencias.
-        $isRestrictedEngineer = $this->seesOnlyProjectOrders();
-
-        if ($isRestrictedEngineer) {
-            $purchaseOrder->load([
-                'buyer',
-                'supplier',
-                'projectRelation',
-                'items.concept',
-                'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
-            ]);
-            $purchaseOrder->setRelation('milestones', collect());
-            $purchaseOrder->setRelation('invoices', collect());
-            $purchaseOrder->setRelation('evidences', collect());
-
-            return view('purchase_orders.show', [
-                'purchaseOrder' => $purchaseOrder,
-                'pendingAuthCount' => 0,
-                'nextPendingPurchaseOrder' => null,
-                'buyers' => collect(),
-                'isRestrictedEngineer' => true,
-                'movementHistory' => collect(),
-            ]);
-        }
+        // Gerente y Supervisor (Fase 3, espacio de Obra) ven la OC con hitos, facturas, evidencias y entregas;
+        // la vista oculta pagos y montos pagados a quien no tiene permisos de Pagos.
+        $seesOnlyProjectOrders = $this->seesOnlyProjectOrders();
 
         $purchaseOrder->load([
             'buyer',
@@ -586,15 +565,21 @@ class PurchaseOrderController extends Controller
             'milestones.adjustments.user',
             'milestones.deliveries',
             'milestones.fulfillments.evidence',
+            'milestones.deliveryConfirmedBy:id,name',
             'invoices.milestones',
             'evidences.milestone',
             'evidences.uploader',
             'items.concept',
             'purchaseRequest.purchaseOrders:id,purchase_request_id,folio,created_at',
             'annex',
+            'authorizedBy:id,name',
+            'pendingChangeRequest.requestedBy:id,name',
+            'changeRequests.requestedBy:id,name',
+            'changeRequests.decidedBy:id,name',
         ]);
 
-        $pendingQueue = Auth::user()->hasRole('admin') ? PurchaseOrder::query()
+        // Cola de OC por autorizar: quien autoriza OC (Dirección, admin).
+        $pendingQueue = Auth::user()->can('purchase_orders.authorize') ? PurchaseOrder::query()
             ->whereNull('archived_at')
             ->where('status', 'emitida')
             ->orderBy('created_at')
@@ -632,7 +617,7 @@ class PurchaseOrderController extends Controller
             'pendingAuthCount',
             'nextPendingPurchaseOrder',
             'buyers',
-            'isRestrictedEngineer',
+            'seesOnlyProjectOrders',
             'movementHistory'
         ));
     }
@@ -927,7 +912,7 @@ class PurchaseOrderController extends Controller
                 ->with('error', 'La orden de compra debe estar emitida antes de autorizarse.');
         }
 
-        $purchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
+        $purchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now(), 'authorized_by' => Auth::id()]);
 
         $supplierName = $purchaseOrder->supplier->rfc_name ?? $purchaseOrder->supplier->commercial_name ?? 'Proveedor desconocido';
 
@@ -991,7 +976,7 @@ class PurchaseOrderController extends Controller
                 $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),
             );
             $this->milestoneChecklist->ensureComplete($payments);
-            $lockedPurchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now()]);
+            $lockedPurchaseOrder->update(['status' => 'autorizada', 'authorized_at' => now(), 'authorized_by' => Auth::id()]);
             $payments->each(fn (Payment $payment) => $payment->update(['status' => 'autorizado', 'checklist_verified_at' => now()]));
 
             return $payments;

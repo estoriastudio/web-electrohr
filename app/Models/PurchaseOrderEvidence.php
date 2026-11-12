@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\UploadedFile;
@@ -53,13 +54,13 @@ class PurchaseOrderEvidence extends Model
 
     public static function storeUpload(UploadedFile $file, int $purchaseOrderId, string $fileName): string|false
     {
-        return $file->storeAs('evidences/' . $purchaseOrderId, $fileName, self::STORAGE_DISK);
+        return $file->storeAs('evidences/'.$purchaseOrderId, $fileName, self::STORAGE_DISK);
     }
 
     // Archivos subidos antes de la migración a S3 viven en el disco local por defecto.
-    public function resolveDisk(): ?\Illuminate\Contracts\Filesystem\Filesystem
+    public function resolveDisk(): ?Filesystem
     {
-        if (!$this->file_path) {
+        if (! $this->file_path) {
             return null;
         }
 
@@ -74,7 +75,7 @@ class PurchaseOrderEvidence extends Model
 
     public function deleteFile(): void
     {
-        if (!$this->file_path) {
+        if (! $this->file_path) {
             return;
         }
 
@@ -87,7 +88,7 @@ class PurchaseOrderEvidence extends Model
     {
         $disk = $this->resolveDisk();
 
-        if (!$disk) {
+        if (! $disk) {
             return null;
         }
 
@@ -95,7 +96,7 @@ class PurchaseOrderEvidence extends Model
 
         return $disk->response($this->file_path, $downloadName, [
             'Content-Type' => $this->mime_type ?: 'application/octet-stream',
-            'Content-Disposition' => $disposition . '; filename="' . $downloadName . '"',
+            'Content-Disposition' => $disposition.'; filename="'.$downloadName.'"',
         ]);
     }
 }

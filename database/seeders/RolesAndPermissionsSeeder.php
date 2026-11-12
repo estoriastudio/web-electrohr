@@ -3,42 +3,16 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * Fase 5: los roles anteriores (Solmat, Solcom, Inventario, suministros, Proyectos, Engineer…) y los
+ * permisos genéricos create/read/update/delete ya no se crean. Los roles y permisos salen de la matriz
+ * (database/data/access_matrix.php); este seeder se conserva para quien todavía lo llame.
+ */
 class RolesAndPermissionsSeeder extends Seeder
 {
     public function run(): void
     {
-        // Limpiar la caché de permisos
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        // Crear los permisos base
-        $permissions = ['create', 'read', 'update', 'delete'];
-
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
-        }
-
-        // Crear los roles y asignarles todos los permisos
-        $roles = [
-            'admin',
-            'Orden de compra',
-            'Solcom',
-            'Solmat',
-            'suministros',
-            'Pagos',
-            'Proyectos',
-            'Moviles',
-            'Recepción',
-            'Inventario',
-            'supplier_portal_access',
-        ];
-
-        foreach ($roles as $roleName) {
-            $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
-            $role->syncPermissions($permissions);
-        }
+        $this->call(AccessMatrixSeeder::class);
     }
 }

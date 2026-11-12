@@ -291,11 +291,11 @@ class PurchaseOrderItemDeliveryTest extends TestCase
             ->assertSessionHasNoErrors();
     }
 
-    /** Usuarios como quedan tras access:migrate-users: Inventario y Solmat también tienen Almacén. */
+    /** Fase 5: Inventario y Solmat ya no existen; sus usuarios quedaron en Almacén. */
     private function user(string $role): User
     {
         $user = User::factory()->create();
-        $user->assignRole(in_array($role, ['Inventario', 'Solmat'], true) ? [$role, 'Almacén'] : [$role]);
+        $user->assignRole(in_array($role, ['Inventario', 'Solmat'], true) ? 'Almacén' : $role);
 
         return $user;
     }
