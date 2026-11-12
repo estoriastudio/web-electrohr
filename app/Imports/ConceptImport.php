@@ -43,7 +43,15 @@ class ConceptImport implements ToCollection, WithHeadingRow, WithChunkReading, S
         $unitPrice    = $this->normalizeQuantity($rawUnitPrice);
         $hasUnitPrice = trim((string) $rawUnitPrice) !== '';
 
-        DB::transaction(function () use ($code, $description, $unit, $location, $quantity, $unitPrice, $hasUnitPrice) {
+        $rawMinimumStock = $row['stock_minimo'] ?? $row['stock_mínimo'] ?? $row['minimum_stock'] ?? null;
+        $minimumStock    = $this->normalizeQuantity($rawMinimumStock);
+        $hasMinimumStock = trim((string) $rawMinimumStock) !== '';
+
+        $rawMaximumStock = $row['stock_maximo'] ?? $row['stock_máximo'] ?? $row['maximum_stock'] ?? null;
+        $maximumStock    = $this->normalizeQuantity($rawMaximumStock);
+        $hasMaximumStock = trim((string) $rawMaximumStock) !== '';
+
+        DB::transaction(function () use ($code, $description, $unit, $location, $quantity, $unitPrice, $hasUnitPrice, $minimumStock, $hasMinimumStock, $maximumStock, $hasMaximumStock) {
             $attributes = [
                 'code'        => $code,
                 'description' => $description ?: $code,
@@ -55,6 +63,15 @@ class ConceptImport implements ToCollection, WithHeadingRow, WithChunkReading, S
             // Solo se actualiza el precio si el archivo lo trae, para no sobrescribirlo con 0.
             if ($hasUnitPrice) {
                 $attributes['unit_price'] = $unitPrice;
+            }
+
+            // Igual que el precio: solo se actualizan los stocks si el archivo los trae.
+            if ($hasMinimumStock) {
+                $attributes['minimum_stock'] = $minimumStock;
+            }
+
+            if ($hasMaximumStock) {
+                $attributes['maximum_stock'] = $maximumStock;
             }
 
             $concept = Concept::updateOrCreate(['code' => $code], $attributes);
