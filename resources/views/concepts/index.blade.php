@@ -615,6 +615,8 @@
                                 <tr><td><code>ubicacion</code></td><td>Ubicación de almacén</td><td><code>ubicación</code>, <code>warehouse_location</code></td><td class="text-center text-muted">—</td></tr>
                                 <tr><td><code>cantidad</code></td><td>Stock actual inicial</td><td><code>quantity</code></td><td class="text-center text-muted">—</td></tr>
                                 <tr><td><code>precio_unitario</code></td><td>Precio unitario</td><td><code>unit_price</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>stock_minimo</code></td><td>Stock mínimo</td><td><code>stock_mínimo</code>, <code>minimum_stock</code></td><td class="text-center text-muted">—</td></tr>
+                                <tr><td><code>stock_maximo</code></td><td>Stock máximo</td><td><code>stock_máximo</code>, <code>maximum_stock</code></td><td class="text-center text-muted">—</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -624,7 +626,7 @@
                             <h6 class="alert-heading fs-12 text-uppercase fw-semibold mb-1">Antes de importar...</h6>
                             <ul class="mb-0 ps-3">
                                 <li>Si el código ya existe, se actualizará su información.</li>
-                                <li>El precio unitario solo se actualiza si la columna viene en el archivo.</li>
+                                <li>El precio unitario y los stocks mínimo y máximo solo se actualizan si la columna viene en el archivo.</li>
                                 <li>La cantidad se registra como existencia inicial solo si el concepto no tiene movimientos de inventario.</li>
                             </ul>
                         </div>
