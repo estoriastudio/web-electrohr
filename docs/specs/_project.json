@@ -55,7 +55,11 @@
     },
     {
       "path": "docs/purchase-order-payment-health-flow.md",
-      "tags": ""
+      "tags": "controllers"
+    },
+    {
+      "path": "docs/supplier-account-statement.md",
+      "tags": "controllers"
     },
     {
       "path": "docs/checklist-de-hitos-autorizacion-de-pagos.md",
