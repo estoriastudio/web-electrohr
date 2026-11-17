@@ -2,11 +2,19 @@
 
 Este repositorio sigue **Spec Driven Development**. Ningún módulo nuevo ni cambio de comportamiento se implementa sin un spec aprobado en `docs/specs/`.
 
+**Excepciones sin spec**, solo cuando la conversación se abrió con su comando:
+- `/ajuste`: textos y acomodo de pantallas. Cambia cómo se ve o se lee, no lo que el sistema hace, permite o guarda.
+- `/bug`: el código no cumple un spec implementado o el manual, y el arreglo lo regresa a eso.
+
+Cada prompt (`.github/prompts/ajuste.prompt.md` y `bug.prompt.md`) define sus límites. Lo que no cabe en ellos necesita spec: dilo y no lo hagas.
+
 ## Fuentes de verdad (en este orden)
 
-1. **El spec que se está implementando** (`docs/specs/{ID}-{modulo}.spec.md`). Su sección "Excepciones a los docs" es lo único que puede contradecir a los docs.
+1. **El spec que se está implementando** (`docs/specs/{ID}-{modulo}-{titulo}.spec.md`; el frontmatter indica `module`, `module_key` y, si aplica, el spec que `extends`). Su sección "Excepciones a los docs" es lo único que puede contradecir a los docs.
 2. **`docs/`**: reglas permanentes del proyecto (controllers, notificaciones, UI kit, Livewire, vistas públicas).
 3. **`docs/specs/_project.json`**: perfil del proyecto (versiones, layouts, paquetes instalados, archivos protegidos, fuera de alcance por defecto).
+
+`docs/manual/` contiene los manuales de uso para operación y QA. No son fuente de verdad para implementar: se generan desde los specs y el código con `/generar-manual`.
 4. **Este archivo.**
 
 Si dos fuentes se contradicen y el spec no declara la excepción, **detente y pregunta**. No elijas una por tu cuenta.
@@ -15,6 +23,8 @@ Si dos fuentes se contradicen y el spec no declara la excepción, **detente y pr
 
 - Lee el spec completo y todos los archivos listados en su sección "0. Contexto obligatorio".
 - Si el `status` del frontmatter no es `aprobado`, o `open_questions` es mayor que 0, avisa y no implementes salvo que el desarrollador lo confirme explícitamente.
+- Si el `status` es `implementado`, el spec describe código que ya existe: no lo vuelvas a implementar. Un cambio sobre ese módulo necesita su propio spec de extensión.
+- Ignora `docs/specs/_archive/`: son specs reemplazados por cambios ya implementados. Para saber cómo funciona hoy un módulo, lee su código y `docs/manual/<clave>.md`, no la cadena de specs.
 - Confirma en una lista breve: modelos, rutas, vistas y el orden de implementación que vas a seguir.
 
 ## Cómo implementar
@@ -43,5 +53,7 @@ Cada commit incluye el ID del spec al final del asunto:
 ```
 feat(projects): tabla de tareas en el detalle [PRJ-001]
 ```
+
+Excepciones: `/ajuste` usa `[ajuste]` (o `[ajuste #ticket]`) y `/bug` usa el ID del spec que restaura.
 
 Si durante la implementación aparece algo que el spec no cubre, no lo resuelvas por tu cuenta: propón la actualización del spec primero.

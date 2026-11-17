@@ -1443,7 +1443,7 @@ class PurchaseOrderController extends Controller
                       ->whereNull('archived_at');
                 }),
             ],
-            'description'   => 'required|string|max:500',
+            'description'   => 'required|string|max:2500',
             'unit'          => 'required|string|max:50',
             'quantity'      => 'required|numeric|min:0.0001|decimal:0,4',
             'unit_price'    => 'required|numeric|min:0',
