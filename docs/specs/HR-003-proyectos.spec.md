@@ -4,8 +4,9 @@ type: new-module
 variant: crud
 title: 
 module: Proyectos
-module_key: proyectos_{project}_documentos_{docType}
-status: aprobado
+module_key: proyectos
+status: implementado
+implemented: 2026-11-16
 author: Jorge Peña
 reviewers: [Mariam]
 branch: master
@@ -20,7 +21,9 @@ open_questions: 0
 
 # HR-003 · Proyectos — Módulo nuevo (CRUD)
 
-**Módulo:** Proyectos (`proyectos_{project}_documentos_{docType}`) · **Tipo:** Módulo nuevo (CRUD)
+**Módulo:** Proyectos (`proyectos`) · **Tipo:** Módulo nuevo (CRUD)
+
+> ✓ Estado: **Implementado** (2026-11-16). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 
@@ -159,4 +162,4 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 
 ---
 
-_Generado con Estoria Spec Tool v3 · Estoria Studio_
+_Generado con Estoria Spec Tool v4 · Estoria Studio_

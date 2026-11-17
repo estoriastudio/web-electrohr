@@ -567,12 +567,12 @@ class PurchaseRequestController extends Controller
     {
         $this->authorizeAccess($purchaseRequest, 'purchase_requests', 'update');
         $data = $request->validate([
-            'concept_id' => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
-            'code' => 'required|string|max:100',
-            'description' => 'required|string|max:500',
-            'unit' => 'required|string|max:50',
-            'purchase_quantity' => 'required|numeric|min:0|decimal:0,4',
-            'spec_file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
+            'concept_id'         => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
+            'code'               => 'required|string|max:100',
+            'description'        => 'required|string|max:2500',
+            'unit'               => 'required|string|max:50',
+            'purchase_quantity'  => 'required|numeric|min:0|decimal:0,4',
+            'spec_file'          => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png|max:10240',
         ]);
 
         $item = DB::transaction(function () use ($request, $purchaseRequest, $data) {

@@ -3,8 +3,9 @@ spec_id: HR-004
 type: ext-subresource
 title: Repositorio de archivos de estimaciones
 module: Estimaciones
-module_key: estimaciones
-status: aprobado
+module_key: proyectos
+status: implementado
+implemented: 2026-11-16
 author: Jorge Peña
 reviewers: [Mariam]
 branch: master
@@ -19,7 +20,9 @@ open_questions: 0
 
 # HR-004 · Estimaciones — Repositorio de archivos de estimaciones
 
-**Módulo:** Estimaciones (`estimaciones`) · **Tipo:** C4 · Sub-recurso
+**Módulo:** Estimaciones (`proyectos`) · **Tipo:** C4 · Sub-recurso
+
+> ✓ Estado: **Implementado** (2026-11-16). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 
@@ -111,7 +114,7 @@ Relaciones:
 - Formatos permitidos por tipo: credit_note_pdf solo pdf; credit_note_xml solo xml; spei_receipt y liquidation_slip pdf, jpg, jpeg y png; other pdf, xml, jpg, jpeg y png. Máximo 10 MB por archivo, sin límite de cantidad.
 - Factura: cada factura exige su PDF y su XML (CFDI timbrado), Folio, Fecha y Fecha de pago, todos obligatorios. El Folio es el folio fiscal (UUID) del nodo TimbreFiscalDigital del XML, como en "Subir factura" de la orden de compra: se autocompleta al elegir el XML, no se captura a mano y el servidor lo vuelve a leer del XML (si el XML no tiene UUID válido o difiere del enviado, se rechaza). Fecha es la fecha de emisión (se precarga del atributo Fecha del Comprobante y es editable) y Fecha de pago es la fecha esperada de pago (captura manual).
 - Factura: se pueden cargar varias facturas en una misma operación con "Agregar otra factura" (un bloque PDF + XML + fechas por factura). Si cualquiera falla, no se guarda ninguna. No se permite repetir un folio dentro de la misma estimación.
-- Factura: eliminar una factura borra su fila y sus dos archivos de S3; el menú del ícono de la tabla muestra folio y enlaces PDF y XML. El modal de archivos no lista lo ya cargado: la consulta, descarga y eliminación se hacen desde los menús de los íconos de la tabla, que se mueven al body con posición fija al abrirse (patrón de la tabla de SOLMAT) para exceder el borde de la tabla sin recortarse.
+- Factura: eliminar una factura borra su fila y sus dos archivos de S3; el menú del ícono de la tabla muestra folio y enlaces PDF y XML. El modal de archivos no lista lo ya cargado.
 - Cargar siempre agrega. No existe reemplazo: para cambiar un archivo se elimina y se carga el nuevo.
 - Una carga lleva un solo tipo y uno o varios archivos; si cualquier archivo falla la validación, no se guarda ninguno (todo o nada).
 - El archivo se guarda en S3 con un nombre único (uuid) y su nombre original se conserva en original_name para mostrarlo y descargarlo.
@@ -198,4 +201,4 @@ Detente al terminar cada capa y lista los archivos creados o modificados.
 
 ---
 
-_Generado con Estoria Spec Tool v3 · Estoria Studio_
+_Generado con Estoria Spec Tool v4 · Estoria Studio_

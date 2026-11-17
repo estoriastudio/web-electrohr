@@ -514,7 +514,7 @@ class MaterialRequestController extends Controller
         $data = $request->validate([
             'concept_id' => ['nullable', Rule::exists('concepts', 'id')->whereNull('archived_at')->where('status', 'active')],
             'code' => 'required|string|max:100',
-            'description' => 'required|string|max:500',
+            'description' => 'required|string|max:2500',
             'unit' => 'required|string|max:50',
             'work_quantities' => 'required|array|min:1',
             'work_quantities.*.work_id' => 'required|exists:project_works,id',

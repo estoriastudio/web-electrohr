@@ -52,6 +52,18 @@
     {
       "path": "docs/public-views.md",
       "tags": "public"
+    },
+    {
+      "path": "docs/purchase-order-payment-health-flow.md",
+      "tags": "controllers"
+    },
+    {
+      "path": "docs/supplier-account-statement.md",
+      "tags": "controllers"
+    },
+    {
+      "path": "docs/checklist-de-hitos-autorizacion-de-pagos.md",
+      "tags": ""
     }
   ],
   "oos": [
@@ -67,5 +79,11 @@
     "API Resources / Transformers",
     "Instalar paquetes no listados en el perfil",
     "Cambios a vite.config.js / package.json"
-  ]
+  ],
+  "architecture": {
+    "shared": [
+      "User"
+    ],
+    "modules": {}
+  }
 }
