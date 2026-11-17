@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderMilestone;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -67,6 +70,61 @@ class PurchaseOrderPaymentSequenceValidator
                         'status' => "No se puede cambiar el estatus del Hito {$current['position']}: el pago inicial del Hito {$following['position']} ya está más avanzado.",
                     ]);
                 }
+            }
+        }
+    }
+
+    /**
+     * Regla de autorización en orden de hitos: un PAY solo se autoriza si el hito anterior está
+     * aprobado (sin PAY pendientes y con saldo libre cubierto o dentro de la tolerancia).
+     * Evalúa juntos los PAY indicados, como si ya estuvieran autorizados.
+     *
+     * @param  array<int, int>  $paymentIds
+     */
+    public function ensureAuthorizationOrder(PurchaseOrder $purchaseOrder, array $paymentIds, string $errorKey = 'status'): void
+    {
+        $paymentIds = array_map('intval', $paymentIds);
+        $milestones = $this->orderedMilestones($purchaseOrder);
+
+        foreach ($milestones as $index => $milestone) {
+            if ($index === 0 || ! $milestone->payments->contains(fn (Payment $payment) => in_array($payment->id, $paymentIds, true))) {
+                continue;
+            }
+
+            if (! $this->projectedApproval($milestones[$index - 1], $paymentIds)) {
+                throw ValidationException::withMessages([
+                    $errorKey => "No se puede autorizar: el Hito {$index} aún no está aprobado.",
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Regla de pago en orden de hitos: un PAY solo se registra pagado si el hito anterior está
+     * pagado completo. Evalúa juntos los PAY indicados, como si ya estuvieran pagados.
+     *
+     * @param  array<int, int>  $paymentIds
+     */
+    public function ensurePaymentOrder(PurchaseOrder $purchaseOrder, array $paymentIds, string $errorKey = 'status'): void
+    {
+        $paymentIds = array_map('intval', $paymentIds);
+        $milestones = $this->orderedMilestones($purchaseOrder);
+
+        foreach ($milestones as $index => $milestone) {
+            if ($index === 0 || ! $milestone->payments->contains(fn (Payment $payment) => in_array($payment->id, $paymentIds, true))) {
+                continue;
+            }
+
+            $previous = $milestones[$index - 1];
+            $paidNow = (float) $previous->payments
+                ->filter(fn (Payment $payment) => in_array($payment->id, $paymentIds, true))
+                ->sum('amount');
+            $target = $previous->effective_amount;
+
+            if (! ($target > 0 && (float) $previous->covered_amount + $paidNow >= $target - PurchaseOrder::AMOUNT_TOLERANCE)) {
+                throw ValidationException::withMessages([
+                    $errorKey => "No se puede registrar pagado: el Hito {$index} aún no está pagado completo.",
+                ]);
             }
         }
     }
@@ -167,6 +225,40 @@ class PurchaseOrderPaymentSequenceValidator
         }
     }
 
+    /** @return Collection<int, PurchaseOrderMilestone> */
+    private function orderedMilestones(PurchaseOrder $purchaseOrder): Collection
+    {
+        $milestones = $purchaseOrder->milestones()
+            ->with(['payments' => fn ($query) => $query->orderBy('id')])
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        $purchaseOrder->loadMissing('items');
+        $purchaseOrder->setRelation('milestones', $milestones);
+        $milestones->each(fn (PurchaseOrderMilestone $milestone) => $milestone->setRelation('purchaseOrder', $purchaseOrder));
+
+        return $milestones;
+    }
+
+    /** @param  array<int, int>  $authorizingIds */
+    private function projectedApproval(PurchaseOrderMilestone $milestone, array $authorizingIds): bool
+    {
+        $active = $milestone->payments->reject(
+            fn (Payment $payment) => in_array($payment->status, [Payment::STATUS_SUSTITUIDO, 'rechazado'], true)
+        );
+        $statusOf = fn (Payment $payment) => in_array($payment->id, $authorizingIds, true) ? 'autorizado' : $payment->status;
+
+        if ($active->contains(fn (Payment $payment) => in_array($statusOf($payment), Payment::PENDING_STATUSES, true))) {
+            return false;
+        }
+
+        $authorizedUnpaid = (float) $active->filter(fn (Payment $payment) => $statusOf($payment) === 'autorizado')->sum('amount');
+        $free = $milestone->effective_amount - (float) $milestone->covered_amount - $authorizedUnpaid;
+
+        return round($free, 2) <= PurchaseOrder::AMOUNT_TOLERANCE;
+    }
+
     private function milestonePayments(PurchaseOrder $purchaseOrder): array
     {
         $milestones = $purchaseOrder->milestones()
@@ -182,7 +274,11 @@ class PurchaseOrderPaymentSequenceValidator
                 $payments = $milestone->payments
                     ->groupBy('milestone_id')
                     ->get($milestone->id, collect());
-                $payment = $payments->first();
+                // Pago inicial: el de menor id que no está sustituido ni es un abono.
+                $payment = $payments->first(
+                    fn (Payment $candidate) => $candidate->status !== Payment::STATUS_SUSTITUIDO
+                        && $candidate->origin !== Payment::ORIGIN_CREDIT
+                );
 
                 return [
                     'milestone' => $milestone,

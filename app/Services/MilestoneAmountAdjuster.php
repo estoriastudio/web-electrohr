@@ -139,6 +139,7 @@ class MilestoneAmountAdjuster
             'amount' => $amount,
             'payment_date' => $milestone->due_date,
             'status' => 'por_autorizar',
+            'origin' => Payment::ORIGIN_REST,
         ]);
     }
 }

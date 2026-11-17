@@ -23,6 +23,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\AccessMatrix;
 use App\Services\MilestoneCreditTerms;
+use App\Services\MilestonePaymentService;
 use App\Services\NotificationService;
 use App\Services\PurchaseOrderClosureEvaluator;
 use App\Services\PurchaseOrderMilestoneChecklist;
@@ -49,6 +50,7 @@ class PurchaseOrderController extends Controller
         private PurchaseOrderMilestoneChecklist $milestoneChecklist,
         private PurchaseOrderClosureEvaluator $closureEvaluator,
         private MilestoneCreditTerms $creditTerms,
+        private MilestonePaymentService $milestonePayments,
     ) {}
 
     private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
@@ -142,7 +144,7 @@ class PurchaseOrderController extends Controller
             ->withMin([
                 'milestones as next_payment_due_date' => fn ($query) => $query
                     ->whereNotNull('due_date')
-                    ->whereColumn('covered_amount', '<', 'value'),
+                    ->uncovered(),
             ], 'due_date')
             ->withMin([
                 'items as next_delivery_due_date' => fn ($query) => $query
@@ -560,7 +562,9 @@ class PurchaseOrderController extends Controller
             'supplier.locations',
             'mobileAsset',
             'projectRelation',
-            'milestones.payments',
+            'milestones.payments.sourcePayment:id,folio',
+            'milestones.payments.replacedBy:id,folio',
+            'milestones.credits.sourcePayment:id,folio',
             'milestones.invoices',
             'milestones.adjustments.user',
             'milestones.deliveries',
@@ -612,8 +616,18 @@ class PurchaseOrderController extends Controller
                 ->get()
             : collect();
 
+        $cashByMilestone = $this->milestonePayments->cashByMilestone($purchaseOrder);
+        $orderCash = [
+            'bank_paid' => round((float) $purchaseOrder->saldo_cubierto, 2),
+            'covered' => round(collect($cashByMilestone)->sum('covered'), 2),
+            'balance' => round(collect($cashByMilestone)->sum('balance'), 2),
+            'supplier_credit' => round((float) $purchaseOrder->supplier_credit_amount, 2),
+        ];
+
         return view('purchase_orders.show', compact(
             'purchaseOrder',
+            'cashByMilestone',
+            'orderCash',
             'pendingAuthCount',
             'nextPendingPurchaseOrder',
             'buyers',
@@ -971,6 +985,11 @@ class PurchaseOrderController extends Controller
                 ]);
             }
 
+            $this->paymentSequenceValidator->ensureAuthorizationOrder(
+                $lockedPurchaseOrder,
+                $payments->pluck('id')->all(),
+                'payment_ids',
+            );
             $this->paymentSequenceValidator->ensureStatusSequence(
                 $lockedPurchaseOrder,
                 $payments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all(),

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use Generator;
@@ -29,7 +30,7 @@ class SupplierAccountStatementService
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['buyer_id'] ?? null, fn ($query, $value) => $query->where('buyer_id', $value))
             ->with([
-                'supplier', 'projectRelation', 'buyer', 'milestones.payments', 'invoices.milestones',
+                'supplier', 'projectRelation', 'buyer', 'milestones.payments', 'milestones.credits', 'invoices.milestones',
             ]);
     }
 
@@ -90,7 +91,7 @@ class SupplierAccountStatementService
 
     public function purchaseOrderSummary(PurchaseOrder $order): array
     {
-        $order->loadMissing(['supplier', 'projectRelation', 'buyer', 'milestones.payments', 'invoices.milestones']);
+        $order->loadMissing(['supplier', 'projectRelation', 'buyer', 'milestones.payments', 'milestones.credits', 'invoices.milestones']);
         $result = $this->calculateOrder($order);
         return array_merge($result, ['summary' => $this->summarize($result['rows'])]);
     }
@@ -103,8 +104,26 @@ class SupplierAccountStatementService
         $allPayments = $order->milestones->flatMap(fn ($milestone) => $milestone->payments);
         $payments = $allPayments->where('status', 'pagado')->keyBy('id')->sortKeys();
         $scheduled = [];
-        foreach ($allPayments->where('status', '!=', 'rechazado') as $payment) {
+        foreach ($allPayments->whereNotIn('status', ['rechazado', Payment::STATUS_SUSTITUIDO]) as $payment) {
             $scheduled[$payment->milestone_id] = ($scheduled[$payment->milestone_id] ?? 0) + $this->cents($payment->amount);
+        }
+        // Lo que cada pago pagado aporta a cada hito: lo aplicado a su hito y los abonos a hitos siguientes.
+        $allocations = $payments->map(fn ($payment) => [
+            'payment_id' => $payment->id,
+            'milestone_id' => $payment->milestone_id,
+            'cents' => $this->cents($payment->applied_amount_value),
+        ])->values();
+        foreach ($order->milestones as $milestone) {
+            foreach ($milestone->credits as $credit) {
+                $scheduled[$milestone->id] = ($scheduled[$milestone->id] ?? 0) + $this->cents($credit->amount);
+                if ($payments->has($credit->source_payment_id)) {
+                    $allocations->push([
+                        'payment_id' => $credit->source_payment_id,
+                        'milestone_id' => $milestone->id,
+                        'cents' => $this->cents($credit->amount),
+                    ]);
+                }
+            }
         }
         $positions = $order->milestones->sortBy('id')->values()->pluck('id')->flip()->map(fn ($index) => $index + 1);
         $capacities = $invoices->mapWithKeys(fn ($invoice) => [$invoice->id => $this->cents(
@@ -133,7 +152,7 @@ class SupplierAccountStatementService
         foreach ($this->components($usable) as $group) {
             $groupInvoices = collect($group['invoices'])->map(fn ($id) => $invoices[$id])
                 ->sortBy(fn ($invoice) => [$invoice->due_date?->toDateString() ?? '9999-12-31', $invoice->id])->values();
-            $groupPayments = $payments->filter(fn ($payment) => in_array($payment->milestone_id, $group['milestones'], true));
+            $groupAllocations = $allocations->filter(fn ($allocation) => in_array($allocation['milestone_id'], $group['milestones'], true));
             $scheduledTotal = array_sum(array_map(fn ($id) => $scheduled[$id] ?? 0, $group['milestones']));
             $invoicedTotal = $groupInvoices->sum(fn ($invoice) => $this->cents($invoice->amount));
 
@@ -148,24 +167,24 @@ class SupplierAccountStatementService
                     $flaggedInvoices[$invoice->id] = true;
                     $invoiceReasons[$invoice->id][] = $reason;
                 }
-                foreach ($groupPayments as $payment) {
-                    $flaggedPayments[$payment->id] = true;
-                    $paymentReasons[$payment->id][] = $reason;
+                foreach ($groupAllocations as $allocation) {
+                    $flaggedPayments[$allocation['payment_id']] = true;
+                    $paymentReasons[$allocation['payment_id']][] = $reason;
                 }
                 continue;
             }
 
-            foreach ($groupPayments as $payment) {
-                $remaining = $this->cents($payment->amount);
+            foreach ($groupAllocations as $allocation) {
+                $remaining = $allocation['cents'];
                 foreach ($groupInvoices as $invoice) {
                     $take = min($remaining, max(0, $capacities[$invoice->id] - $applied[$invoice->id]));
                     if ($take <= 0) {
                         continue;
                     }
                     $applied[$invoice->id] += $take;
-                    $used[$payment->id] += $take;
+                    $used[$allocation['payment_id']] += $take;
                     $remaining -= $take;
-                    $appliedPayments[$invoice->id][] = $payment->id;
+                    $appliedPayments[$invoice->id][] = $allocation['payment_id'];
                 }
             }
         }
@@ -214,7 +233,7 @@ class SupplierAccountStatementService
         }
 
         foreach ($payments as $payment) {
-            $remaining = $this->cents($payment->amount) - $used[$payment->id];
+            $remaining = $this->cents($payment->paid_amount_value) - $used[$payment->id];
             if ($remaining <= 0) {
                 continue;
             }
@@ -250,8 +269,8 @@ class SupplierAccountStatementService
                     ? null : array_sum($capacities),
                 'pending_invoice' => $invoices->contains(fn ($invoice) => ($invoice->currency ?: $order->currency) !== $order->currency)
                     ? null : $this->cents($order->amount) - array_sum($capacities),
-                'paid' => $payments->sum(fn ($payment) => $this->cents($payment->amount)),
-                'pending_order' => $this->cents($order->amount) - $payments->sum(fn ($payment) => $this->cents($payment->amount)),
+                'paid' => $payments->sum(fn ($payment) => $this->cents($payment->paid_amount_value)),
+                'pending_order' => $this->cents($order->amount) - $payments->sum(fn ($payment) => $this->cents($payment->paid_amount_value)),
                 'pending_invoices' => $rows->contains('status', 'conciliacion')
                     ? null : $rows->where('type', 'invoice')->sum('balance'),
             ],

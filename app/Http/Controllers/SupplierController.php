@@ -221,7 +221,7 @@ class SupplierController extends Controller
 
         $proximoHito = PurchaseOrderMilestone::whereIn('purchase_order_id', $orderIds)
             ->whereNotNull('due_date')
-            ->whereColumn('covered_amount', '<', 'value')
+            ->uncovered()
             ->orderBy('due_date')
             ->first();
 

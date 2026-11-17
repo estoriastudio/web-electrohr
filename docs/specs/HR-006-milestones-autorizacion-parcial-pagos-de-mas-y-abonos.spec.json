@@ -10,10 +10,10 @@
     "extends": "",
     "author": "Jorge Peña",
     "reviewers": "Mariam",
-    "status": "borrador",
+    "status": "implementado",
     "branch": "satellite",
     "created": "2026-11-16",
-    "implemented": ""
+    "implemented": "2026-11-17"
   },
   "v": {
     "goal": "Que quien autoriza decida al autorizar cuánto se paga de cada PAY y que el sistema mantenga cuadrada la caja de cada hito: genera solo un PAY por el resto, cubre diferencias mínimas por tolerancia y, cuando se autoriza o se paga más que el saldo de un hito, abona el excedente a los hitos siguientes y rehace sus PAY pendientes por el saldo. Las reglas salen del «Simulador de caja de hitos» (artifact de Estoria, OC-1024 de ejemplo).",
@@ -40,26 +40,7 @@
     "follow_filters": true,
     "export_excel": false,
     "export_pdf": false,
-    "target_ref": {
-      "key": "milestones",
-      "name": "Hitos",
-      "controllers": [
-        "PurchaseOrderMilestoneController",
-        "PaymentController"
-      ],
-      "models": [
-        {
-          "name": "PurchaseOrderMilestone",
-          "table": "purchase_order_milestones",
-          "file": "app/Models/PurchaseOrderMilestone.php"
-        },
-        {
-          "name": "Payment",
-          "table": "payments",
-          "file": "app/Models/Payment.php"
-        }
-      ]
-    },
+    "target_ref": null,
     "current": "Al crear un hito se genera su pago inicial por el 100 % (`por_autorizar`, `payments.payment_date` = `due_date` del hito). Autorizar es solo un cambio de estatus, sin monto: `PaymentController@update` (individual, desde el detalle de la OC y la tabla de pagos; admin desde el detalle de la OC se salta el checklist con `$skipChecklist`, línea 757), `@swipe` (modo interactivo), `@authorizeMultiple` y `PurchaseOrderController@approveWithPayments` ponen `autorizado` y `checklist_verified_at` tras `PurchaseOrderMilestoneChecklist::ensureComplete` y `PurchaseOrderPaymentSequenceValidator::ensureStatusSequence`. Para pagar solo una parte hay que dividir antes el pago con `PaymentController@store` (`existing_payment_amount`), y solo si el hito tiene un único pago (`$payments->count() === 1`) y sigue `por_autorizar`. Registrar pagado (`@update` con SPEI, en dos lugares, y `@markMultiplePaidWithSpei`) no captura importe: el SPEI solo se adjunta, se pone `pagado` y se incrementa `covered_amount` del hito con `payments.amount`; `@destroy` lo decrementa con el mismo `amount`. `PurchaseOrderMilestone::ensurePaymentTotalWithinAmount` impide que la suma de pagos comprometidos (`Payment::COMMITTED_STATUSES`) supere `effective_amount`, así que no se puede autorizar ni pagar más que el hito. `PurchaseOrder::AMOUNT_TOLERANCE` ($0.50) solo se usa en `is_complete`. No existen abonos entre hitos, PAY sustituidos ni saldo a favor con el proveedor. Estatus de pago: `por_autorizar`, `autorizado`, `pagado`, `rechazado`, `pospuesto` (ENUM de MySQL, ampliado con `ALTER TABLE ... MODIFY`). Suman `payments.amount` de los pagos `pagado`: `PurchaseOrder::saldo_cubierto` (lo usa `PurchaseOrderEconomicSummary`), `PurchaseOrderClosureEvaluator`, `SupplierAccountStatementService` y `PaidPaymentExport`. `MilestoneEventStatus` cuenta pagos `pagado` y lee `covered_amount`; `MilestoneAmountAdjuster` suma pagos comprometidos; `PurchaseOrder::syncPercentageMilestonePayments` toma como monto bloqueado los pagos con `status != 'por_autorizar'`. `AdminController`, `SupplierPortalController`, `SupplierController` y `PurchaseOrderController` (línea 145) filtran hitos pendientes con `covered_amount < value`. El reporte `purchase-orders:health` es un closure en `routes/console.php` (línea 125) y, como el validador de secuencia, toma el pago de menor id de cada hito como pago inicial.",
     "uses_livewire": false,
     "table": "",

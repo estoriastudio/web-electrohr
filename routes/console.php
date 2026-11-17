@@ -108,6 +108,7 @@ Artisan::command('payments:backfill-from-milestones {--dry-run : Simula sin guar
                     'invoice_date' => null,
                     'status' => 'por_autorizar',
                     'reference_number' => null,
+                    'origin' => Payment::ORIGIN_INITIAL,
                 ]);
 
                 return 1;
@@ -133,6 +134,8 @@ Artisan::command('purchase-orders:health', function () {
     $dateAlerts = 0;
     $rejectedPaymentAlerts = 0;
     $milestonesWithoutPayment = 0;
+    $orderRuleAlerts = 0;
+    $orderRuleFolios = [];
     $ordersWithAlerts = [];
     $statusAlertFolios = [];
     $rejectedPaymentFolios = [];
@@ -142,6 +145,7 @@ Artisan::command('purchase-orders:health', function () {
         ->active()
         ->whereHas('milestones')
         ->with([
+            'items',
             'milestones' => fn ($query) => $query->orderBy('id')->with([
                 'payments' => fn ($query) => $query->orderBy('id'),
             ]),
@@ -154,11 +158,12 @@ Artisan::command('purchase-orders:health', function () {
     $this->line('OCs activas con hitos inspeccionadas: ' . $purchaseOrders->count());
     $this->line('Criterios del reporte:');
     $this->line('- Alcance: cada OC activa se analiza por separado; solo se comparan hitos de la misma OC y pagos del mismo hito.');
-    $this->line('- Orden de comparación: hitos y pagos por ID ascendente; se usa el pago de menor ID de cada hito.');
+    $this->line('- Orden de comparación: hitos y pagos por ID ascendente; se usa el pago de menor ID de cada hito que no esté sustituido ni sea un abono.');
     $this->line('- Alertas de estatus: un pago inicial de un hito posterior está más avanzado que el de un hito anterior.');
     $this->line('- Pagos rechazados: el primer pago de un hito está rechazado y requiere revisión.');
     $this->line('- Alertas de fechas: la fecha de pago inicial de un hito posterior es anterior a una fecha previa; se excluyen hitos con plazo de crédito propio.');
     $this->line('- Hitos omitidos sin pagos: no tienen pago inicial para comparar y no generan alerta en esta revisión.');
+    $this->line('- Bloqueadas por orden de hitos: un hito tiene pagos por autorizar o pagar, pero el hito anterior no tiene pagos pendientes y no está cubierto; hay que regularizarla en la base de datos.');
     $this->newLine();
 
     foreach ($purchaseOrders as $purchaseOrder) {
@@ -169,10 +174,12 @@ Artisan::command('purchase-orders:health', function () {
             ->values();
         $paymentsByMilestone = $milestones
             ->flatMap(fn ($milestone) => $milestone->payments)
+            ->where('status', '!=', Payment::STATUS_SUSTITUIDO)
             ->groupBy('milestone_id');
 
         foreach ($milestones as $position => $milestone) {
-            $payment = $paymentsByMilestone->get($milestone->id, collect())->first();
+            $payment = $paymentsByMilestone->get($milestone->id, collect())
+                ->first(fn ($candidate) => $candidate->origin !== Payment::ORIGIN_CREDIT);
 
             if (!$payment) {
                 $milestonesWithoutPayment++;
@@ -184,6 +191,26 @@ Artisan::command('purchase-orders:health', function () {
                 'position' => $position + 1,
                 'payment' => $payment,
             ];
+        }
+
+        foreach ($milestones as $position => $milestone) {
+            $milestone->setRelation('purchaseOrder', $purchaseOrder);
+            if ($position === 0) {
+                continue;
+            }
+
+            $actionable = fn ($candidate) => in_array($candidate->status, ['por_autorizar', 'pospuesto', 'autorizado'], true);
+            $previous = $milestones[$position - 1];
+            $previous->setRelation('purchaseOrder', $purchaseOrder);
+
+            if ($paymentsByMilestone->get($milestone->id, collect())->contains($actionable)
+                && ! $paymentsByMilestone->get($previous->id, collect())->contains($actionable)
+                && ! $previous->is_complete) {
+                $orderRuleAlerts++;
+                $ordersWithAlerts[$purchaseOrder->id] = true;
+                $orderRuleFolios[$purchaseOrder->id] = $purchaseOrder->folio;
+                $this->warn('ALERTA [orden] OC #'.$purchaseOrder->folio.': Hito '.($position + 1).' tiene pagos por autorizar o pagar, pero el Hito '.$position.' no tiene pagos pendientes y no está cubierto; la OC queda bloqueada.');
+            }
         }
 
         $reportedStatusPairs = [];
@@ -259,6 +286,8 @@ Artisan::command('purchase-orders:health', function () {
     $this->line('Folios con pagos rechazados: ' . (empty($rejectedPaymentFolios) ? 'ninguno' : implode(', ', $rejectedPaymentFolios)));
     $this->line('Alertas de fechas: ' . $dateAlerts);
     $this->line('Folios con alertas de fechas: ' . (empty($dateAlertFolios) ? 'ninguno' : implode(', ', $dateAlertFolios)));
+    $this->line('Alertas de bloqueo por orden de hitos: ' . $orderRuleAlerts);
+    $this->line('Folios bloqueados por orden de hitos: ' . (empty($orderRuleFolios) ? 'ninguno' : implode(', ', $orderRuleFolios)));
     $this->line('Hitos omitidos sin pagos: ' . $milestonesWithoutPayment);
 })->purpose('Reporta discrepancias de estatus y fechas entre pagos iniciales de hitos de OCs activas');
 

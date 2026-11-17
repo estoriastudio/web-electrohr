@@ -133,7 +133,7 @@ class AdminController extends Controller
             $today = Carbon::today();
 
             PurchaseOrderMilestone::whereNotNull('due_date')
-                ->whereColumn('covered_amount', '<', 'value')
+                ->uncovered()
                 ->get(['due_date', 'value', 'covered_amount'])
                 ->each(function ($ms) use (&$urgencyData, &$totalImporteHitosVencidos, $today) {
                     $due = $ms->due_date;
@@ -157,7 +157,7 @@ class AdminController extends Controller
 
             $top5Urgencias = PurchaseOrderMilestone::with(['purchaseOrder.supplier'])
                 ->whereNotNull('due_date')
-                ->whereColumn('covered_amount', '<', 'value')
+                ->uncovered()
                 ->orderBy('due_date')
                 ->limit(5)
                 ->get();

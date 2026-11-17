@@ -687,6 +687,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             ->middleware('permission:payments_payable.view')->name('payments.show');
         Route::middleware('permission:payments_payable.update')->group(function () {
             Route::get('/pagos/{payment}/edit', [PaymentController::class, 'edit'])->name('payments.edit');
+            Route::get('/pagos/{payment}/vista-previa', [PaymentController::class, 'preview'])->name('payments.preview');
             Route::match(['put', 'patch'], '/pagos/{payment}', [PaymentController::class, 'update'])->name('payments.update');
             Route::delete('/pagos/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
         });

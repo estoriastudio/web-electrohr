@@ -176,16 +176,22 @@
     $canAuthorizeOrders = auth()->user()->can('purchase_orders.authorize');
     $canRequestOrderChange = $canManageOrder && $purchaseOrder->status === 'autorizada' && ! $purchaseOrder->is_closed && ! $pendingChangeRequest;
     $resolvedChangeRequests = $purchaseOrder->changeRequests->where('status', '!=', 'pending');
+    $showChangeRequestModal = $purchaseOrder->authorizedBy || $pendingChangeRequest || $canRequestOrderChange || $resolvedChangeRequests->isNotEmpty();
 @endphp
-@if ($purchaseOrder->authorizedBy || $pendingChangeRequest || $canRequestOrderChange || $resolvedChangeRequests->isNotEmpty())
-<div class="card mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center py-2">
-        <span class="fw-semibold fs-14"><i class="ri-shield-user-line me-1"></i>Autorización de Dirección</span>
-        @if ($purchaseOrder->authorizedBy && $purchaseOrder->status === 'autorizada')
-            <span class="fs-12 text-muted">Autorizada por {{ $purchaseOrder->authorizedBy->name }} · {{ $purchaseOrder->authorized_at?->format('d/m/Y H:i') }}</span>
-        @endif
-    </div>
-    <div class="card-body py-2">
+@if ($showChangeRequestModal)
+<div class="modal fade" id="modalChangeRequest" tabindex="-1" aria-labelledby="modalChangeRequestLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="modalChangeRequestLabel"><i class="ri-shield-user-line me-1"></i>Solicitud de cambio</h5>
+                    @if ($purchaseOrder->authorizedBy && $purchaseOrder->status === 'autorizada')
+                        <span class="fs-12 text-muted">Autorización de Dirección: autorizada por {{ $purchaseOrder->authorizedBy->name }} · {{ $purchaseOrder->authorized_at?->format('d/m/Y H:i') }}</span>
+                    @endif
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
         @if ($pendingChangeRequest)
             <div class="alert alert-warning mb-2">
                 <div class="fw-semibold">{{ $pendingChangeRequest->typeLabel() }} solicitado por {{ $pendingChangeRequest->requestedBy?->name }} · {{ $pendingChangeRequest->created_at->format('d/m/Y H:i') }}</div>
@@ -243,38 +249,88 @@
                 @endforeach
             </ul>
         @endif
+            </div>
+        </div>
     </div>
 </div>
+@endif
+
+@if ($showChangeRequestModal && ($errors->has('reason') || $errors->has('decision_note') || $errors->has('type')))
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('modalChangeRequest')).show();
+            });
+        </script>
+    @endpush
 @endif
 
 {{-- ── RESUMEN ECONÓMICO (montos pagados: solo quien consulta Pagos) ── --}}
 @if ($canSeePayments)
 <div class="card mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center py-2">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 flex-wrap gap-2">
         <span class="fw-semibold fs-14"><i class="ri-bar-chart-box-line me-1"></i>Resumen económico</span>
-        @if ($economicSummary['paid_without_invoice'] > 0)
-            <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="badge bg-warning-subtle text-warning text-decoration-none">
-                <i class="ri-file-warning-line me-1"></i>Pagado sin factura aceptada: {{ $purchaseOrder->currency }} {{ number_format($economicSummary['paid_without_invoice'], 2) }}
-            </a>
-        @endif
+        <span class="d-flex align-items-center gap-2 flex-wrap">
+            @if ($economicSummary['paid_without_invoice'] > 0)
+                <a href="{{ route('payments.regularization', ['search' => $purchaseOrder->folio]) }}" class="badge bg-warning-subtle text-warning text-decoration-none">
+                    <i class="ri-file-warning-line me-1"></i>Pagado sin factura aceptada: {{ $purchaseOrder->currency }} {{ number_format($economicSummary['paid_without_invoice'], 2) }}
+                </a>
+            @endif
+            <span class="fs-12 text-muted">Importe total de la OC</span>
+            <span class="fw-semibold fs-15">{{ $purchaseOrder->currency }} {{ number_format($economicSummary['total'], 2) }}</span>
+        </span>
     </div>
+    @php
+        $billingRows = [
+            ['Facturado', $economicSummary['invoiced'], 'text-primary'],
+            ['Pendiente de facturar', $economicSummary['pending_invoicing'], 'text-warning'],
+        ];
+        $paymentRows = [
+            ['Pagado (salió del banco)', $economicSummary['paid'], 'text-success'],
+            ['Cubierto en hitos', $orderCash['covered'], 'text-primary'],
+            ['Saldo por pagar', $orderCash['balance'], 'text-danger'],
+            ['Pendiente de pagar', $economicSummary['pending_payment'], 'text-danger'],
+            ['Facturado sin pagar', $economicSummary['invoiced_unpaid'], 'text-info'],
+            ['Saldo a favor del proveedor', $orderCash['supplier_credit'], 'text-info'],
+        ];
+        $paidPercent = $economicSummary['total'] > 0 ? min(100, round($economicSummary['paid'] / $economicSummary['total'] * 100, 1)) : 0;
+        $invoicedPercent = $economicSummary['total'] > 0 ? min(100, round($economicSummary['invoiced'] / $economicSummary['total'] * 100, 1)) : 0;
+    @endphp
     <div class="card-body py-2">
-        <div class="row g-2 text-center">
-            @foreach ([
-                ['Importe total de la OC', $economicSummary['total'], 'text-dark'],
-                ['Importe facturado', $economicSummary['invoiced'], 'text-primary'],
-                ['Pendiente de facturar', $economicSummary['pending_invoicing'], 'text-warning'],
-                ['Importe pagado', $economicSummary['paid'], 'text-success'],
-                ['Pendiente de pagar', $economicSummary['pending_payment'], 'text-danger'],
-                ['Facturado sin pagar', $economicSummary['invoiced_unpaid'], 'text-info'],
-            ] as [$summaryLabel, $summaryAmount, $summaryClass])
-                <div class="col-6 col-md-4 col-xl-2">
-                    <div class="fs-11 text-muted">{{ $summaryLabel }}</div>
-                    <div class="fw-semibold {{ $summaryClass }}">{{ $purchaseOrder->currency }} {{ number_format($summaryAmount, 2) }}</div>
+        <div class="row g-3">
+            <div class="col-md-5">
+                <div class="fs-11 text-muted text-uppercase fw-semibold mb-1"><i class="ri-file-text-line me-1"></i>Facturación</div>
+                <div class="progress mb-2" style="height: 6px;" title="Facturado {{ $invoicedPercent }} %">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: {{ $invoicedPercent }}%"></div>
                 </div>
-            @endforeach
+                @foreach ($billingRows as [$rowLabel, $rowAmount, $rowClass])
+                    <div class="d-flex justify-content-between fs-13 py-1">
+                        <span class="text-muted">{{ $rowLabel }}</span>
+                        <span class="fw-semibold {{ $rowClass }}">{{ $purchaseOrder->currency }} {{ number_format($rowAmount, 2) }}</span>
+                    </div>
+                @endforeach
+                <div class="form-text mt-1">Considera solo facturas aceptadas, netas de notas de crédito.</div>
+            </div>
+            <div class="col-md-7">
+                <div class="fs-11 text-muted text-uppercase fw-semibold mb-1"><i class="ri-bank-card-line me-1"></i>Pagos</div>
+                <div class="progress mb-2" style="height: 6px;" title="Pagado {{ $paidPercent }} %">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ $paidPercent }}%"></div>
+                </div>
+                <div class="row gx-4">
+                    @foreach (array_chunk($paymentRows, 3) as $rowGroup)
+                        <div class="col-sm-6">
+                            @foreach ($rowGroup as [$rowLabel, $rowAmount, $rowClass])
+                                <div class="d-flex justify-content-between fs-13 py-1">
+                                    <span class="text-muted">{{ $rowLabel }}</span>
+                                    <span class="fw-semibold {{ $rowClass }}">{{ $purchaseOrder->currency }} {{ number_format($rowAmount, 2) }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endforeach
+                </div>
+                <div class="form-text mt-1">Pagado suma el importe de los SPEI; cubierto es lo aplicado a los hitos más los abonos entre hitos.</div>
+            </div>
         </div>
-        <div class="form-text mt-1">Facturado considera solo facturas aceptadas, netas de notas de crédito.</div>
         @php
             $toleranceDifferences = collect($economicSummary['tolerance_applied'])->only(['pending_invoicing', 'pending_payment']);
         @endphp
@@ -606,6 +662,17 @@
                             <i class="ri-lock-line me-1"></i>OC Autorizada
                         </span>
                         @endif
+                        @endif
+                        @if ($showChangeRequestModal)
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-bs-toggle="modal" data-bs-target="#modalChangeRequest">
+                                <i class="ri-shield-user-line me-1"></i> Solicitud de cambio
+                                @if ($pendingChangeRequest)
+                                    <span class="badge bg-warning text-dark ms-1">1</span>
+                                @endif
+                            </button>
+                        @endif
+                        @if ($canManageOrder)
                         @if ($canCreateMilestone)
                             <button type="button" class="btn btn-sm {{ $canAddMilestone ? 'btn-primary' : 'btn-outline-warning' }}"
                                     data-bs-toggle="modal"
@@ -1429,8 +1496,9 @@
                 }
             }
 
-            $paymentsCount = $milestone->payments->count();
-            $initialPayment = $milestone->payments->first();
+            $activePayments = $milestone->payments->where('status', '!=', \App\Models\Payment::STATUS_SUSTITUIDO)->values();
+            $paymentsCount = $activePayments->count();
+            $initialPayment = $activePayments->first();
             $requiresInitialPaymentSplit = $paymentsCount === 1
                 && $initialPayment?->status === 'por_autorizar';
             $committedPaymentAmount = (float) $milestone->payments
@@ -1481,6 +1549,16 @@
                                 <i class="ri-edit-line fs-13"></i>
                             </button>
                         @endif
+                        @endif
+                        @if ($milestone->adjustments->isNotEmpty())
+                            <button type="button" class="btn btn-xs btn-soft-secondary btn-sm"
+                                    title="Bitácora de modificaciones de monto"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalMilestoneAdjustments{{ $milestone->id }}">
+                                <i class="ri-history-line fs-13"></i>
+                            </button>
+                        @endif
+                        @if ($canManageOrder)
                         @if ($canModifyPurchaseOrder)
                         @if ($canDeleteMilestone)
                             <form action="{{ route('milestones.destroy', $milestone) }}" method="POST"
@@ -1513,83 +1591,149 @@
                         </div>
                     @endif
                     @if ($milestone->adjustments->isNotEmpty())
-                        <details class="fs-12 mb-2">
-                            <summary>Bitácora de modificaciones de monto</summary>
-                            @foreach ($milestone->adjustments as $adjustment)
-                                <div class="border-bottom py-2">
-                                    <strong>{{ $adjustment->user?->name ?? 'Usuario eliminado' }}</strong>
-                                    · {{ $adjustment->created_at->format('d/m/Y H:i') }}<br>
-                                    {{ $purchaseOrder->currency }} {{ number_format($adjustment->previous_amount, 2) }}
-                                    → {{ number_format($adjustment->new_amount, 2) }}
-                                    @if ($adjustment->previous_value_type === 'porcentaje')
-                                        (antes {{ $adjustment->previous_value }}%; ahora fijo)
+                        <div class="modal fade" id="modalMilestoneAdjustments{{ $milestone->id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="ri-history-line me-1"></i>Bitácora de modificaciones de monto — Hito #{{ $milestonePosition }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body fs-13">
+                                        @foreach ($milestone->adjustments as $adjustment)
+                                            <div class="{{ $loop->last ? '' : 'border-bottom ' }}py-2">
+                                                <strong>{{ $adjustment->user?->name ?? 'Usuario eliminado' }}</strong>
+                                                · {{ $adjustment->created_at->format('d/m/Y H:i') }}<br>
+                                                {{ $purchaseOrder->currency }} {{ number_format($adjustment->previous_amount, 2) }}
+                                                → {{ number_format($adjustment->new_amount, 2) }}
+                                                @if ($adjustment->previous_value_type === 'porcentaje')
+                                                    (antes {{ $adjustment->previous_value }}%; ahora fijo)
+                                                @endif
+                                                <div>{{ $adjustment->reason }}</div>
+                                                @if ($adjustment->partial_milestone_id)
+                                                    <div>Parcialidad generada: Hito #{{ $milestonePositionMap[$adjustment->partial_milestone_id] ?? $adjustment->partial_milestone_id }}</div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                    {{-- Información del hito --}}
+                    @php
+                        $cash = $cashByMilestone[$milestone->id] ?? null;
+                        $milestoneChecklist = $milestoneChecklists[$milestone->id];
+                        $milestoneFulfillment = $milestone->fulfillments->first();
+                        $showCash = $canSeePayments && $cash;
+                    @endphp
+                    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                        <div class="fw-semibold fs-14">{{ $milestone->concept ?: 'Sin concepto' }}</div>
+                        <span class="badge bg-light text-body border py-1 px-2 fs-11 text-nowrap">{{ $tipoValorMap[$milestone->value_type] ?? $milestone->value_type }}</span>
+                    </div>
+
+                    {{-- Dinero: monto, cubierto y saldo con su avance --}}
+                    <div class="border rounded p-2 mb-2">
+                        <div class="row g-2 text-center">
+                            @if ($showCash)
+                                <div class="col-4">
+                                    <div class="fs-11 text-muted">Monto del hito</div>
+                                    <div class="fw-semibold fs-13">{{ $purchaseOrder->currency }} {{ number_format($cash['effective'], 2) }}</div>
+                                </div>
+                            @endif
+                            <div class="{{ $showCash ? 'col-4' : 'col-12' }}">
+                                <div class="fs-11 text-muted">Cubierto</div>
+                                <div class="fw-semibold fs-13 text-success">{{ $purchaseOrder->currency }} {{ number_format($milestone->covered_amount, 2) }}</div>
+                            </div>
+                            @if ($showCash)
+                                <div class="col-4">
+                                    <div class="fs-11 text-muted">Saldo por pagar</div>
+                                    <div class="fw-semibold fs-13 {{ $cash['balance'] > 0 ? 'text-danger' : 'text-success' }}">{{ $purchaseOrder->currency }} {{ number_format($cash['balance'], 2) }}</div>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+                            <small class="text-muted">Progreso</small>
+                            <small class="fw-semibold">{{ $percent }}%</small>
+                        </div>
+                        <div class="progress" style="height: 8px;" role="progressbar" aria-valuenow="{{ $percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Progreso del hito">
+                            <div class="progress-bar {{ $progressClass }}" style="width: {{ $percent }}%"></div>
+                        </div>
+                        @if ($showCash)
+                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                @foreach ([
+                                    ['Pagado', $cash['paid'], 'bg-success-subtle text-success'],
+                                    ['Abono recibido', $cash['credits'], 'bg-info-subtle text-info'],
+                                    ['Tolerancia', $cash['tolerance'], 'bg-secondary-subtle text-secondary'],
+                                    ['Autorizado sin pagar', $cash['authorized'], 'bg-primary-subtle text-primary'],
+                                    ['Por autorizar', $cash['pending'], 'bg-warning-subtle text-warning'],
+                                ] as [$chipLabel, $chipAmount, $chipClass])
+                                    @if ($chipAmount > 0)
+                                        <span class="badge {{ $chipClass }} fs-11 fw-normal">{{ $chipLabel }} {{ number_format($chipAmount, 2) }}</span>
                                     @endif
-                                    <div>{{ $adjustment->reason }}</div>
-                                    @if ($adjustment->partial_milestone_id)
-                                        <div>Parcialidad generada: Hito #{{ $milestonePositionMap[$adjustment->partial_milestone_id] ?? $adjustment->partial_milestone_id }}</div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Fechas y plazos --}}
+                    @if ($milestone->due_date || $milestone->invoice_date || $creditTermsService->hasTerms($milestone))
+                        <div class="row g-2 mb-2">
+                            @if ($milestone->due_date)
+                                <div class="col-sm-6">
+                                    <div class="fs-11 text-muted"><i class="ri-calendar-event-line me-1"></i>Vencimiento</div>
+                                    <div class="fs-13 {{ $isOverdue && !$isComplete ? 'text-danger fw-semibold' : 'fw-medium' }}">{{ $milestone->due_date->format('d/m/Y') }}</div>
+                                    @if ($dueLabel)
+                                        <div class="fs-11 {{ $dueLabelClass }}">{{ $dueLabel }}</div>
                                     @endif
                                 </div>
-                            @endforeach
-                        </details>
-                    @endif
-                    {{-- Info principal --}}
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted fs-12">Concepto:</span>
-                        <span class="fs-12 fw-medium text-end">{{ $milestone->concept ?: '—' }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted fs-12">Tipo valor:</span>
-                        <span class="fs-12 fw-medium">{{ $tipoValorMap[$milestone->value_type] ?? $milestone->value_type }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted fs-12">Cubierto:</span>
-                        <span class="fs-12 fw-semibold text-success">
-                            {{ $purchaseOrder->currency }} {{ number_format($milestone->covered_amount, 2) }}
-                        </span>
-                    </div>
-                    @if ($milestone->invoice_date)
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted fs-12">Fecha factura:</span>
-                            <span class="fs-12">{{ $milestone->invoice_date->format('d/m/Y') }}</span>
-                        </div>
-                    @endif
-                    @if ($creditTermsService->hasTerms($milestone))
-                        @php $creditBase = $creditTermsService->baseDate($milestone); @endphp
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted fs-12">Plazo de crédito:</span>
-                            <span class="fs-12 text-end">
-                                {{ $milestone->credit_days }} días desde
-                                {{ $creditTermsService->startsWith($milestone) === 'fulfillment_validated' ? 'cumplimiento validado' : 'validación de factura' }}
-                                <span class="d-block fs-11 {{ $creditBase ? 'text-success' : 'text-muted' }}">
-                                    {{ $creditBase ? 'Inicio: ' . $creditBase->format('d/m/Y') . ' (vencimiento calculado)' : 'Inicio pendiente: vencimiento estimado' }}
-                                </span>
-                            </span>
-                        </div>
-                    @endif
-                    @if ($milestone->due_date)
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted fs-12">Vencimiento:</span>
-                            <span class="fs-12 text-end">
-                                <span class="{{ $isOverdue && !$isComplete ? 'text-danger fw-semibold' : '' }}">
-                                    {{ $milestone->due_date->format('d/m/Y') }}
-                                </span>
-                                @if ($dueLabel)
-                                    <span class="d-block fs-11 {{ $dueLabelClass }}">{{ $dueLabel }}</span>
-                                @endif
-                            </span>
+                            @endif
+                            @if ($milestone->invoice_date)
+                                <div class="col-sm-6">
+                                    <div class="fs-11 text-muted"><i class="ri-file-text-line me-1"></i>Fecha factura</div>
+                                    <div class="fs-13 fw-medium">{{ $milestone->invoice_date->format('d/m/Y') }}</div>
+                                </div>
+                            @endif
+                            @if ($creditTermsService->hasTerms($milestone))
+                                @php $creditBase = $creditTermsService->baseDate($milestone); @endphp
+                                <div class="col-sm-6">
+                                    <div class="fs-11 text-muted"><i class="ri-time-line me-1"></i>Plazo de crédito</div>
+                                    <div class="fs-13 fw-medium">
+                                        {{ $milestone->credit_days }} días desde
+                                        {{ $creditTermsService->startsWith($milestone) === 'fulfillment_validated' ? 'cumplimiento validado' : 'validación de factura' }}
+                                    </div>
+                                    <div class="fs-11 {{ $creditBase ? 'text-success' : 'text-muted' }}">
+                                        {{ $creditBase ? 'Inicio: ' . $creditBase->format('d/m/Y') . ' (vencimiento calculado)' : 'Inicio pendiente: vencimiento estimado' }}
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     @endif
 
-                    {{-- Checklist de comprobación previo a la autorización del pago --}}
+                    {{-- ¿Se puede autorizar un pago? --}}
                     @php
-                        $milestoneChecklist = $milestoneChecklists[$milestone->id];
-                        $milestoneFulfillment = $milestone->fulfillments->first();
+                        $checklistPending = collect($milestoneChecklist['requirements'])->where('required', true)->where('met', false);
+                        $checklistTooltip = collect($milestoneChecklist['requirements'])
+                            ->where('applicable', true)
+                            ->map(fn ($requirement) => $requirement['label'].': '.$requirement['detail'])
+                            ->implode(' · ');
                     @endphp
-                    @if ($milestone->delivery_confirmed_at)
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted fs-12">Cumplimiento:</span>
-                            <span class="fs-12 text-end">
-                                <span class="fw-medium">{{ $milestone->fulfillment_type_label ?? 'Sin tipo' }}</span>
+                    <div class="border rounded p-2 mt-2 {{ $milestoneChecklist['complete'] ? 'border-success-subtle' : 'border-danger-subtle' }}">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <span class="fs-12 fw-semibold"><i class="ri-list-check-2 me-1"></i>Autorizar pagos</span>
+                                <small class="d-block fs-11 text-muted">¿Se puede autorizar un pago?</small>
+                            </div>
+                            <span class="badge {{ $milestoneChecklist['complete'] ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }} fs-11"
+                                  title="{{ $checklistTooltip }}">
+                                {{ $milestoneChecklist['complete'] ? 'Listo para autorizar' : 'No se debe autorizar' }}
+                            </span>
+                        </div>
+                        @foreach ($checklistPending as $requirement)
+                            <div class="fs-12 text-danger mt-1"><i class="ri-close-circle-line me-1"></i>Falta: {{ $requirement['label'] }} · {{ $requirement['detail'] }}</div>
+                        @endforeach
+                        @if ($milestone->delivery_confirmed_at)
+                            <div class="fs-12 mt-1">
+                                <i class="ri-checkbox-circle-line text-success me-1"></i>Entrega confirmada · <span class="fw-medium">{{ $milestone->fulfillment_type_label ?? 'Sin tipo' }}</span>
                                 @if ($milestoneFulfillment?->comment)
                                     <span class="d-block fs-11 text-muted">{{ $milestoneFulfillment->comment }}</span>
                                 @endif
@@ -1598,20 +1742,11 @@
                                         <i class="ri-attachment-2"></i> Ver evidencia
                                     </a>
                                 @endif
-                            </span>
-                        </div>
-                    @endif
-                    <div class="border rounded p-2 mt-2">
-                        @include('purchase_orders.partials._event_status', ['eventStatus' => $eventStatuses[$milestone->id]])
-                    </div>
-                    <div class="border rounded p-2 mt-2 {{ $milestoneChecklist['complete'] ? 'border-success-subtle' : 'border-danger-subtle' }}">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="fs-12 fw-semibold"><i class="ri-list-check-2 me-1"></i>Checklist del hito</span>
-                            <span class="badge {{ $milestoneChecklist['complete'] ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' }} fs-11">
-                                {{ $milestoneChecklist['complete'] ? 'Listo para autorizar' : 'Pendiente' }}
-                            </span>
-                        </div>
-                        @include('purchase_orders.partials._milestone_checklist', ['checklist' => $milestoneChecklist])
+                                @if ($milestone->deliveryConfirmedBy)
+                                    <span class="d-block fs-11 text-muted"><i class="ri-shield-check-line me-1"></i>Validado por {{ $milestone->deliveryConfirmedBy->name }} · {{ $milestone->delivery_confirmed_at->format('d/m/Y') }}</span>
+                                @endif
+                            </div>
+                        @endif
                         @can('milestone_validations.authorize')
                             @if ($milestone->delivery_confirmed_at)
                                 <form action="{{ route('purchase_orders.milestones.confirm_delivery', [$purchaseOrder, $milestone]) }}" method="POST" class="mt-1"
@@ -1628,20 +1763,11 @@
                                 </form>
                             @endif
                         @endcan
-                        @if ($milestone->delivery_confirmed_at && $milestone->deliveryConfirmedBy)
-                            <div class="fs-11 text-muted mt-1"><i class="ri-shield-check-line me-1"></i>Validado por {{ $milestone->deliveryConfirmedBy->name }} · {{ $milestone->delivery_confirmed_at->format('d/m/Y') }}</div>
-                        @endif
                     </div>
 
-                    {{-- Barra de progreso --}}
-                    <div class="mt-2 mb-1">
-                        <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted">Progreso</small>
-                            <small class="fw-semibold">{{ $percent }}%</small>
-                        </div>
-                        <div class="progress" style="height: 8px;">
-                            <div class="progress-bar {{ $progressClass }}" style="width: {{ $percent }}%"></div>
-                        </div>
+                    {{-- ¿El hito está abierto o cerrado? --}}
+                    <div class="border rounded p-2 mt-2">
+                        @include('purchase_orders.partials._event_status', ['eventStatus' => $eventStatuses[$milestone->id]])
                     </div>
                 </div>
 
@@ -1653,40 +1779,31 @@
                     </div>
 
                     @if ($milestone->payments->count() > 0)
-                        <div class="table-responsive overflow-visible">
-                            <table class="table table-sm table-hover mb-0" style="font-size: 12px;">
-                                <thead class="bg-light-subtle">
-                                    <tr>
-                                        <th>Estatus</th>
-                                        <th>Folio</th>
-                                        <th>Monto</th>
-                                        @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                                        <th>Fecha Factura</th>
-                                        @endif
-                                        <th>Fecha Pago</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <div class="row g-2">
                                     @foreach ($milestone->payments as $payment)
                                         @php
                                             $payStatusMap = [
-                                                'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning'],
-                                                'pospuesto'     => ['label' => 'Pospuesto',     'class' => 'bg-secondary-subtle text-secondary'],
-                                                'autorizado'    => ['label' => 'Autorizado',    'class' => 'bg-info-subtle text-info'],
-                                                'pagado'        => ['label' => 'Pagado',        'class' => 'bg-success-subtle text-success'],
-                                                'rechazado'     => ['label' => 'Rechazado',     'class' => 'bg-danger-subtle text-danger'],
+                                                'por_autorizar' => ['label' => 'Por autorizar', 'class' => 'bg-warning-subtle text-warning',     'bg' => 'bg-warning-subtle', 'accent' => 'border-warning',   'icon' => 'ri-time-line'],
+                                                'pospuesto'     => ['label' => 'Pospuesto',     'class' => 'bg-secondary-subtle text-secondary', 'bg' => 'bg-secondary-subtle', 'accent' => 'border-secondary', 'icon' => 'ri-pause-circle-line'],
+                                                'autorizado'    => ['label' => 'Autorizado',    'class' => 'bg-info-subtle text-info',           'bg' => 'bg-info-subtle', 'accent' => 'border-info',      'icon' => 'ri-shield-check-line'],
+                                                'pagado'        => ['label' => 'Pagado',        'class' => 'bg-success-subtle text-success',     'bg' => 'bg-success-subtle', 'accent' => 'border-success',   'icon' => 'ri-checkbox-circle-line'],
+                                                'rechazado'     => ['label' => 'Rechazado',     'class' => 'bg-danger-subtle text-danger',       'bg' => 'bg-danger-subtle', 'accent' => 'border-danger',    'icon' => 'ri-close-circle-line'],
+                                                'sustituido'    => ['label' => 'Sustituido',    'class' => 'bg-secondary-subtle text-secondary', 'bg' => 'bg-secondary-subtle', 'accent' => 'border-secondary', 'icon' => 'ri-repeat-line'],
                                             ];
-                                            $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary'];
-                                            $statusRowClassMap = [
-                                                'por_autorizar' => 'table-warning',
-                                                'pospuesto'     => 'table-warning',
-                                                'autorizado'    => 'table-info',
-                                                'pagado'        => 'table-success',
-                                                'rechazado'     => 'table-danger',
-                                            ];
-                                            $statusRowClass = $statusRowClassMap[$payment->status] ?? '';
+                                            $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary', 'bg' => 'bg-secondary-subtle', 'accent' => 'border-secondary', 'icon' => 'ri-question-line'];
                                             $isAdminUser = auth()->user()?->hasRole('admin');
+                                            $canCorrectPaid = auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update');
+                                            $originText = match ($payment->origin) {
+                                                \App\Models\Payment::ORIGIN_REST => $payment->sourcePayment ? 'Resto de '.$payment->sourcePayment->folio : 'Resto de un PAY eliminado',
+                                                \App\Models\Payment::ORIGIN_CREDIT => $payment->sourcePayment ? 'Abono del excedente de '.$payment->sourcePayment->folio : 'Abono de un PAY eliminado',
+                                                \App\Models\Payment::ORIGIN_REPLACEMENT => 'Saldo del hito'.($payment->sourcePayment ? '; sustituye a '.$payment->sourcePayment->folio : ''),
+                                                default => null,
+                                            };
+                                            $replacedText = $payment->status === 'sustituido'
+                                                ? ($payment->replacedBy
+                                                    ? 'Sustituido por '.$payment->replacedBy->folio
+                                                    : (($cash['free'] ?? 0) <= 0.004 ? 'El hito ya quedó cubierto' : 'Diferencia cubierta por tolerancia'))
+                                                : null;
                                             $paymentDaysDiff = $today->diffInDays($payment->payment_date, false);
                                             if ($paymentDaysDiff === 0) {
                                                 $paymentDateLabel = 'Vence hoy';
@@ -1719,26 +1836,11 @@
                                                 }
                                                 : [];
                                         @endphp
-                                        <tr class="{{ $statusRowClass }}" data-bs-theme="light">
-                                            <td>
-                                                <span class="badge {{ $ps['class'] }} py-1 px-1 fs-10">{{ $ps['label'] }}</span>
-                                            </td>
-                                            <td class="fw-medium">{{ $payment->folio }}</td>
-                                            <td>{{ $purchaseOrder->currency }} ${{ number_format($payment->amount, 2) }}</td>
-                                            @if (($milestone->payment_condition ?? 'credito') === 'credito')
-                                            <td>
-                                                {{ $payment->invoice_date ? $payment->invoice_date->format('d/m/Y') : '—' }}
-                                            </td>
-                                            @endif
-                                            <td>
-                                                <span class="d-flex align-items-center gap-1 fs-12">
-                                                    <i class="ri-calendar-check-line text-primary"></i>
-                                                    {{ $payment->payment_date->format('d/m/Y') }}
-                                                </span>
-                                                <small class="d-block fs-11 {{ $paymentDateLabelClass }}">{{ $paymentDateLabel }}</small>
-                                            </td>
-                                            <td class="text-end">
-                                                <div class="dropdown">
+                                        <div class="col-12 col-sm-6">
+                                            <div class="border-start border-4 {{ $ps['accent'] }} rounded p-2 h-100 shadow-sm {{ $ps['bg'] }} {{ $payment->status === 'sustituido' ? 'opacity-75' : '' }}" data-bs-theme="light">
+                                                <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
+                                                    <span class="badge bg-white border {{ $ps['accent'] }} {{ explode(' ', $ps['class'])[1] ?? '' }} py-1 px-2 fs-11"><i class="{{ $ps['icon'] }} me-1"></i>{{ $ps['label'] }}</span>
+                                                    <div class="dropdown">
                                                     <button class="btn btn-light btn-sm" type="button"
                                                             data-bs-toggle="dropdown" aria-expanded="false"
                                                             title="Acciones">
@@ -1760,6 +1862,11 @@
                                                                         <i class="ri-lock-line mt-1"></i>
                                                                         <span>Autorizar bloqueado<small class="d-block fs-11 text-danger">Falta: {{ implode(', ', $milestoneChecklist['pending']) }}</small></span>
                                                                     </span>
+                                                                @elseif ($newStatus === 'autorizado')
+                                                                    <button type="button" class="dropdown-item"
+                                                                            data-bs-toggle="modal" data-bs-target="#modalAuthorizePayment{{ $payment->id }}">
+                                                                        <i class="{{ $transition['icon'] }} me-1"></i>{{ $transition['label'] }}
+                                                                    </button>
                                                                 @else
                                                                 <form action="{{ route('payments.update', $payment) }}" method="POST">
                                                                     @csrf @method('PATCH')
@@ -1789,17 +1896,27 @@
 
                                                         {{-- SPEI: subir/reemplazar --}}
                                                         @can('payments_paid.register')
-                                                        @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
+                                                        @if ($payment->status === 'autorizado')
                                                         <li>
                                                             <button type="button" class="dropdown-item"
                                                                     data-bs-toggle="modal"
-                                                                    data-bs-target="#modalSpeiReceipt{{ $payment->id }}">
-                                                                <i class="ri-file-upload-line me-1"></i>
-                                                                {{ $payment->spei_receipt_path ? 'Reemplazar SPEI' : 'Subir SPEI y marcar pagado' }}
+                                                                    data-bs-target="#modalPayPayment{{ $payment->id }}">
+                                                                <i class="ri-file-upload-line me-1"></i>Registrar pagado
                                                             </button>
                                                         </li>
                                                         @endif
                                                         @endcan
+
+                                                        {{-- Corrección de admin sobre un pago pagado --}}
+                                                        @if ($payment->status === 'pagado' && $canCorrectPaid)
+                                                        <li>
+                                                            <button type="button" class="dropdown-item"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modalCorrectPayment{{ $payment->id }}">
+                                                                <i class="ri-edit-box-line me-1"></i>Corregir pago
+                                                            </button>
+                                                        </li>
+                                                        @endif
 
                                                         {{-- SPEI: ver --}}
                                                         @if ($payment->spei_receipt_path)
@@ -1821,7 +1938,8 @@
                                                         @endif
                                                         @endif
 
-                                                        {{-- Eliminar --}}
+                                                        {{-- Eliminar (un pago pagado solo se elimina desde «Corregir pago») --}}
+                                                        @if (! in_array($payment->status, ['pagado', 'sustituido'], true))
                                                         @can('payments_payable.update')
                                                         <li><hr class="dropdown-divider"></li>
                                                         <li>
@@ -1834,63 +1952,66 @@
                                                             </form>
                                                         </li>
                                                         @endcan
+                                                        @endif
                                                     </ul>
+                                                    </div>
                                                 </div>
-                                            </td>
-                                        </tr>
+
+                                                <div class="fw-semibold fs-13 {{ $payment->status === 'sustituido' ? 'text-decoration-line-through text-muted' : '' }}">{{ $payment->folio }}</div>
+                                                @if ($originText)
+                                                    <div class="fs-11 text-muted">
+                                                        @if ($payment->origin === 'credit')<span class="badge bg-info-subtle text-info fs-10">Abono</span>@endif
+                                                        {{ $originText }}
+                                                    </div>
+                                                @endif
+                                                @if ($replacedText)
+                                                    <div class="fs-11 text-muted">{{ $replacedText }}</div>
+                                                @endif
+
+                                                <div class="fs-16 fw-semibold mt-1 {{ $payment->status === 'sustituido' ? 'text-decoration-line-through text-muted' : '' }}">
+                                                    {{ $purchaseOrder->currency }} ${{ number_format($payment->amount, 2) }}
+                                                </div>
+                                                @if ($payment->original_amount !== null && abs((float) $payment->original_amount - (float) $payment->amount) > 0.004)
+                                                    <div class="fs-11 text-muted">de ${{ number_format($payment->original_amount, 2) }}</div>
+                                                @endif
+                                                @if ($payment->status === 'pagado' && $payment->paid_amount !== null && abs((float) $payment->paid_amount - (float) $payment->amount) > 0.004)
+                                                    <div class="fs-11 text-muted">SPEI ${{ number_format($payment->paid_amount, 2) }} · aplicado ${{ number_format($payment->applied_amount_value, 2) }}</div>
+                                                @endif
+
+                                                <div class="border-top border-dashed mt-2 pt-2">
+                                                    <div class="fs-11 text-muted"><i class="ri-calendar-check-line me-1"></i>Fecha de pago</div>
+                                                    <div class="fs-12 fw-medium">{{ $payment->payment_date->format('d/m/Y') }}</div>
+                                                    <div class="fs-11 {{ $paymentDateLabelClass }}">{{ $paymentDateLabel }}</div>
+                                                    @if (($milestone->payment_condition ?? 'credito') === 'credito')
+                                                        <div class="fs-11 text-muted mt-1"><i class="ri-file-text-line me-1"></i>Fecha factura: {{ $payment->invoice_date ? $payment->invoice_date->format('d/m/Y') : '—' }}</div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
                                     @endforeach
-                                </tbody>
-                            </table>
                         </div>
 
                         @can('payments_paid.register')
-                        @foreach ($milestone->payments as $payment)
-                        @if ($payment->status === 'autorizado' || $payment->status === 'pagado')
-                        <div class="modal fade" id="modalSpeiReceipt{{ $payment->id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
-                                        @csrf @method('PATCH')
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">
-                                                <i class="ri-bank-card-line me-1"></i>
-                                                {{ $payment->spei_receipt_path ? 'Reemplazar' : 'Subir' }} comprobante SPEI — Pago {{ $payment->folio }}
-                                            </h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            @if ($payment->status === 'autorizado')
-                                                <div class="alert alert-info fs-12 py-2">
-                                                    Al adjuntar el comprobante SPEI, el pago se marcará como <strong>pagado</strong>.
-                                                </div>
-                                            @endif
-                                            <div class="mb-0">
-                                                <label class="form-label fw-medium">
-                                                    Archivo comprobante SPEI <span class="text-danger">*</span>
-                                                    <small class="text-muted fw-normal">(PDF, JPG, PNG, WEBP - máx. 10MB)</small>
-                                                </label>
-                                                <input type="file"
-                                                       name="spei_receipt_file"
-                                                       class="form-control @error('spei_receipt_file') is-invalid @enderror"
-                                                       accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                                       required>
-                                                @error('spei_receipt_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-primary">
-                                                <i class="ri-upload-2-line me-1"></i>
-                                                {{ $payment->spei_receipt_path ? 'Reemplazar archivo' : 'Subir y marcar pagado' }}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        @endif
+                        @foreach ($milestone->payments->where('status', 'autorizado') as $payment)
+                            @include('payments.utilities.pay_modal', ['payment' => $payment, 'currency' => $purchaseOrder->currency, 'fromDetail' => true])
                         @endforeach
                         @endcan
+                        @if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
+                        @foreach ($milestone->payments->whereIn('status', ['por_autorizar', 'pospuesto']) as $payment)
+                            @include('payments.utilities.authorize_modal', [
+                                'payment' => $payment,
+                                'currency' => $purchaseOrder->currency,
+                                'fromDetail' => true,
+                                'checklistWarning' => $milestoneChecklist['complete']
+                                    ? null
+                                    : 'ATENCION: el hito no cumple su checklist ('.implode(', ', $milestoneChecklist['pending']).'). Se autorizara como excepcion de administrador.',
+                            ])
+                        @endforeach
+                        @foreach ($milestone->payments->where('status', 'pagado') as $payment)
+                            @include('payments.utilities.correct_modal', ['payment' => $payment, 'currency' => $purchaseOrder->currency])
+                        @endforeach
+                        @endif
+                        @include('payments.utilities.preview_script')
                     @else
                         <p class="text-muted fs-12 mb-0 text-center">Sin pagos registrados.</p>
                     @endif
@@ -2339,8 +2460,9 @@
 @foreach ($orderedMilestones as $milestone)
     @php
         $milestonePosition = $loop->iteration;
-        $paymentsCount = $milestone->payments->count();
-        $initialPayment = $milestone->payments->first();
+        $activePayments = $milestone->payments->where('status', '!=', \App\Models\Payment::STATUS_SUSTITUIDO)->values();
+        $paymentsCount = $activePayments->count();
+        $initialPayment = $activePayments->first();
         $requiresInitialPaymentSplit = $paymentsCount === 1
             && $initialPayment?->status === 'por_autorizar';
         $committedPaymentAmount = (float) $milestone->payments

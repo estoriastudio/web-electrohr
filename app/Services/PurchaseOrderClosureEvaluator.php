@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderItemDelivery;
@@ -115,13 +116,13 @@ class PurchaseOrderClosureEvaluator
 
     private function payments(PurchaseOrder $order, $milestones): array
     {
-        $payments = $order->payments()->get();
+        $payments = $order->payments()->where('payments.status', '!=', Payment::STATUS_SUSTITUIDO)->get();
         $unpaid = $payments->where('status', '!=', 'pagado')->count();
         $incompleteMilestones = $milestones->reject(fn ($milestone) => $milestone->is_complete)->count();
         $allocated = round((float) $milestones->sum(fn ($milestone) => $milestone->effective_amount), 2);
         $total = (float) $order->total_with_iva;
         $uncovered = $total > 0 && $allocated < $total - PurchaseOrder::AMOUNT_TOLERANCE;
-        $paid = round((float) $payments->where('status', 'pagado')->sum('amount'), 2);
+        $paid = round((float) $payments->where('status', 'pagado')->sum(fn (Payment $payment) => $payment->paid_amount_value), 2);
         $difference = round($total - $paid, 2);
 
         $problems = array_filter([

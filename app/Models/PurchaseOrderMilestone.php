@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderMilestone extends Model
@@ -73,9 +75,15 @@ class PurchaseOrderMilestone extends Model
         return $this->hasMany(PurchaseOrderMilestoneAdjustment::class, 'milestone_id')->latest('id');
     }
 
-    public function ensurePaymentTotalWithinAmount(float $total, string $errorKey = 'amount'): void
+    /**
+     * Valida que los pagos comprometidos más los abonos recibidos no superen el monto del hito.
+     * $tolerance permite excederlo hasta esa cantidad (solo al autorizar con monto y registrar pagado).
+     */
+    public function ensurePaymentTotalWithinAmount(float $total, string $errorKey = 'amount', float $tolerance = 0.0): void
     {
-        if (round($total * 100) > round($this->effective_amount * 100)) {
+        $total += $this->creditsReceivedAmount();
+
+        if (round($total * 100) > round(($this->effective_amount + $tolerance) * 100)) {
             throw ValidationException::withMessages([
                 $errorKey => 'El total de pagos no rechazados no puede exceder el monto del hito ('
                     .number_format($this->effective_amount, 2).').',
@@ -83,12 +91,43 @@ class PurchaseOrderMilestone extends Model
         }
     }
 
+    /**
+     * Suma de pagos comprometidos del hito. Los pagos `pagado` cuentan por lo aplicado al hito
+     * (`applied_amount`; `amount` en pagos anteriores), no por lo autorizado ni por el SPEI.
+     */
+    public function committedPaymentsAmount(): float
+    {
+        return round((float) $this->payments()
+            ->whereIn('status', Payment::COMMITTED_STATUSES)
+            ->sum(DB::raw("CASE WHEN status = 'pagado' THEN COALESCE(applied_amount, amount) ELSE amount END")), 2);
+    }
+
+    public function creditsReceivedAmount(): float
+    {
+        return round((float) $this->credits()->sum('amount'), 2);
+    }
+
+    /**
+     * Hitos con saldo por cubrir. Los fijos admiten la tolerancia de $0.50; los porcentuales se
+     * comparan como siempre contra `value`.
+     */
+    public function scopeUncovered(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query) {
+            $query->where(fn (Builder $fixed) => $fixed
+                ->where('value_type', 'fijo')
+                ->whereRaw('covered_amount < value - ?', [PurchaseOrder::AMOUNT_TOLERANCE]))
+                ->orWhere(fn (Builder $other) => $other
+                    ->where(fn (Builder $type) => $type->where('value_type', '!=', 'fijo')->orWhereNull('value_type'))
+                    ->whereColumn('covered_amount', '<', 'value'));
+        });
+    }
+
     public function ensureReactivationFits(Payment $payment): void
     {
         if ($payment->status === 'rechazado') {
             $this->ensurePaymentTotalWithinAmount(
-                (float) $this->payments()->whereIn('status', Payment::COMMITTED_STATUSES)->sum('amount')
-                    + (float) $payment->amount,
+                $this->committedPaymentsAmount() + (float) $payment->amount,
                 'status',
             );
         }
@@ -97,6 +136,11 @@ class PurchaseOrderMilestone extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class, 'milestone_id');
+    }
+
+    public function credits(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderMilestoneCredit::class, 'milestone_id');
     }
 
     public function invoices(): BelongsToMany

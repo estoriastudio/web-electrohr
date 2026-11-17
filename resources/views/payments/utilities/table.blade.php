@@ -123,6 +123,14 @@
                             {{ number_format($payment->amount, 2) }}
                         </span>
                         <small class="badge bg-secondary-subtle text-secondary fs-10 mt-1">{{ $order->currency }}</small>
+                        @if ($payment->original_amount !== null && abs((float) $payment->original_amount - (float) $payment->amount) > 0.004)
+                            <small class="d-block text-muted fs-11">de ${{ number_format($payment->original_amount, 2) }}</small>
+                        @endif
+                        @if ($payment->origin === 'rest')
+                            <small class="badge bg-warning-subtle text-warning fs-10 d-block mt-1">Resto{{ $payment->sourcePayment ? ' de '.$payment->sourcePayment->folio : '' }}</small>
+                        @elseif ($payment->origin === 'replacement')
+                            <small class="badge bg-secondary-subtle text-secondary fs-10 d-block mt-1">Saldo del hito</small>
+                        @endif
                     </td>
                     <td>
                         @if ($milestone->is_advance)
@@ -147,14 +155,10 @@
                             @if (in_array($payment->status, ['por_autorizar', 'pospuesto']))
                                 @if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
                                 @if ($checklist['complete'])
-                                <form action="{{ route('payments.update', $payment) }}" method="POST">
-                                    @csrf @method('PATCH')
-                                    <input type="hidden" name="status" value="autorizado">
-                                    <button type="submit" class="btn btn-soft-info btn-sm" title="Autorizar"
-                                            onclick="return confirm('¿Autorizar este pago?')">
-                                        <i class="ri-check-line"></i> Autorizar
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn-soft-info btn-sm" title="Autorizar con monto"
+                                        data-bs-toggle="modal" data-bs-target="#modalAuthorizePayment{{ $payment->id }}">
+                                    <i class="ri-check-line"></i> Autorizar
+                                </button>
                                 @else
                                 {{-- Un botón disabled no dispara tooltip; se coloca en un contenedor que sí lo muestra. --}}
                                 <span class="d-inline-block" style="cursor:not-allowed;"
@@ -171,16 +175,10 @@
                             {{-- Marcar como pagado: admin|Pagos --}}
                             @can('payments_paid.register')
                             @if ($payment->status === 'autorizado')
-                                <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data">
-                                    @csrf @method('PATCH')
-                                    <input type="file" name="spei_receipt_file" class="d-none"
-                                           accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                           onchange="if (this.files.length) this.form.submit()">
-                                    <button type="button" class="btn btn-soft-success btn-sm" title="Adjuntar SPEI y marcar como pagado"
-                                            onclick="this.form.querySelector('input[type=file]').click()">
-                                        <i class="ri-upload-2-line"></i> Subir SPEI
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn-soft-success btn-sm" title="Registrar pagado con SPEI"
+                                        data-bs-toggle="modal" data-bs-target="#modalPayPayment{{ $payment->id }}">
+                                    <i class="ri-upload-2-line"></i> Subir SPEI
+                                </button>
                             @endif
 
                             {{-- Revertir a por autorizar --}}
@@ -211,3 +209,18 @@
         </tbody>
     </table>
 </div>
+
+{{-- Modales fuera de la tabla para que no los recorte el contenedor con scroll. --}}
+@if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
+    @foreach ($payments as $payment)
+        @if (in_array($payment->status, ['por_autorizar', 'pospuesto'], true) && ($checklists[$payment->milestone_id]['complete'] ?? false))
+            @include('payments.utilities.authorize_modal', ['payment' => $payment, 'currency' => $payment->milestone->purchaseOrder->currency])
+        @endif
+    @endforeach
+@endif
+@can('payments_paid.register')
+    @foreach ($payments->where('status', 'autorizado') as $payment)
+        @include('payments.utilities.pay_modal', ['payment' => $payment, 'currency' => $payment->milestone->purchaseOrder->currency])
+    @endforeach
+@endcan
+@include('payments.utilities.preview_script')

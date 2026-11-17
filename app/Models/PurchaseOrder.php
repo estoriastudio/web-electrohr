@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseOrder extends Model
@@ -60,10 +61,12 @@ class PurchaseOrder extends Model
         'closed_at',
         'closed_by',
         'closure_note',
+        'supplier_credit_amount',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'supplier_credit_amount' => 'decimal:2',
         'tax_rate' => 'decimal:2',
         'isr_rate' => 'decimal:4',
         'retention_iva_rate' => 'decimal:4',
@@ -212,6 +215,11 @@ class PurchaseOrder extends Model
         return $this->hasManyThrough(Payment::class, PurchaseOrderMilestone::class, 'purchase_order_id', 'milestone_id');
     }
 
+    public function credits(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderMilestoneCredit::class);
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(PurchaseOrderInvoice::class);
@@ -283,7 +291,7 @@ class PurchaseOrder extends Model
     {
         $milestone = $this->milestones()
             ->whereNotNull('due_date')
-            ->whereColumn('covered_amount', '<', 'value')
+            ->uncovered()
             ->orderBy('due_date')
             ->first();
 
@@ -293,8 +301,8 @@ class PurchaseOrder extends Model
     public function getSaldoCubiertoAttribute(): float
     {
         return (float) $this->payments()
-            ->where('status', 'pagado')
-            ->sum('amount');
+            ->where('payments.status', 'pagado')
+            ->sum(DB::raw(Payment::PAID_AMOUNT_SQL));
     }
 
     public function getSubtotalAttribute(): float
@@ -430,6 +438,7 @@ class PurchaseOrder extends Model
             $previousAmounts = round($previousAmounts + $targetAmount, 2);
 
             $payments = $milestone->payments()
+                ->where('status', '!=', Payment::STATUS_SUSTITUIDO)
                 ->lockForUpdate()
                 ->orderBy('id')
                 ->get();
@@ -441,7 +450,7 @@ class PurchaseOrder extends Model
 
             $lockedAmount = round((float) $payments
                 ->where('status', '!=', 'por_autorizar')
-                ->sum('amount'), 2);
+                ->sum('amount') + $milestone->creditsReceivedAmount(), 2);
             $pendingTargetAmount = max(0, round($targetAmount - $lockedAmount, 2));
             $currentPendingAmount = (float) $pendingPayments->sum('amount');
             $remainingAmount = $pendingTargetAmount;

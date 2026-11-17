@@ -48,9 +48,12 @@
                                 'pagado' => ['label' => 'Pagado', 'class' => 'bg-success-subtle text-success'],
                                 'rechazado' => ['label' => 'Rechazado', 'class' => 'bg-danger-subtle text-danger'],
                                 'pospuesto' => ['label' => 'Pospuesto', 'class' => 'bg-secondary-subtle text-secondary'],
+                                'sustituido' => ['label' => 'Sustituido', 'class' => 'bg-secondary-subtle text-secondary'],
                             ];
                             $linkedPaymentStatuses = $invoice->milestones
-                                ->map(fn ($milestone) => $milestone->payments->first()?->status)
+                                // Pago inicial del hito: el de menor id que no está sustituido ni es un abono.
+                                ->map(fn ($milestone) => $milestone->payments
+                                    ->first(fn ($payment) => $payment->status !== 'sustituido' && $payment->origin !== 'credit')?->status)
                                 ->filter()
                                 ->unique()
                                 ->values();

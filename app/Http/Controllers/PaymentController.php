@@ -8,6 +8,7 @@ use App\Models\Payment;
 /* Modelos */
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
+use App\Services\MilestonePaymentService;
 use App\Services\NotificationService;
 use App\Services\PaymentFolioGenerator;
 use App\Services\PurchaseOrderMilestoneChecklist;
@@ -34,11 +35,14 @@ class PaymentController extends Controller
 
     private const SUPPORTED_CURRENCIES = ['MXN', 'USD', 'EUR'];
 
+    private const PAID_LOCKED_MESSAGE = 'Este pago ya se registró con SPEI y no se puede modificar ni eliminar.';
+
     public function __construct(
         private NotificationService $notification,
         private PaymentFolioGenerator $paymentFolioGenerator,
         private PurchaseOrderPaymentSequenceValidator $paymentSequenceValidator,
         private PurchaseOrderMilestoneChecklist $milestoneChecklist,
+        private MilestonePaymentService $milestonePayments,
     ) {}
 
     public function index(Request $request): View
@@ -61,6 +65,7 @@ class PaymentController extends Controller
             : ['selected_ids' => [], 'selected_count' => 0];
 
         $payments = Payment::with([
+            'sourcePayment:id,folio',
             'milestone.purchaseOrder.supplier',
             'milestone.purchaseOrder.projectRelation',
             'milestone.purchaseOrder.workRelation',
@@ -178,6 +183,7 @@ class PaymentController extends Controller
         $selectionState = $this->getPayableSelectionState($request);
 
         $paymentsQuery = Payment::with([
+            'sourcePayment:id,folio',
             'milestone.invoices:id',
             'milestone.purchaseOrder.supplier',
             'milestone.purchaseOrder.projectRelation',
@@ -406,8 +412,15 @@ class PaymentController extends Controller
 
         $milestone = $payment->milestone()->with('purchaseOrder')->firstOrFail();
         $milestone->purchaseOrder->ensureOpen();
+        $this->ensureEditablePayment($payment);
+        if ($payment->status === 'autorizado' && $validated['status'] !== 'autorizado') {
+            $this->milestonePayments->ensureNotGenerated($payment);
+        }
         if ($validated['status'] !== 'rechazado') {
             $milestone->ensureReactivationFits($payment);
+        }
+        if ($validated['status'] === 'autorizado') {
+            $this->paymentSequenceValidator->ensureAuthorizationOrder($milestone->purchaseOrder, [$payment->id]);
         }
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
@@ -419,7 +432,10 @@ class PaymentController extends Controller
         $payment->update([
             'status' => $validated['status'],
             'checklist_verified_at' => $validated['status'] === 'autorizado' ? now() : null,
-        ]);
+        ] + ($validated['status'] === 'autorizado' ? [] : $this->originalAmountAttributes($payment)));
+        if ($validated['status'] !== 'autorizado') {
+            $this->milestonePayments->recalculateAfterPendingChange($payment->milestone_id);
+        }
 
         // Solo notificar si no es un undo (revertir a por_autorizar)
         if (! in_array($validated['status'], ['por_autorizar', 'pospuesto'])) {
@@ -469,7 +485,11 @@ class PaymentController extends Controller
                     ]);
                 }
 
-                $payments = $milestone->payments()->lockForUpdate()->orderBy('id')->get();
+                $payments = $milestone->payments()
+                    ->where('status', '!=', Payment::STATUS_SUSTITUIDO)
+                    ->lockForUpdate()
+                    ->orderBy('id')
+                    ->get();
                 $firstPayment = $payments->first();
                 $newAmount = round((float) $validated['amount'], 2);
 
@@ -496,10 +516,7 @@ class PaymentController extends Controller
 
                     $firstPayment->update(['amount' => $existingAmount]);
                 } else {
-                    $committedAmount = round((float) $payments
-                        ->whereIn('status', Payment::COMMITTED_STATUSES)
-                        ->sum('amount'), 2);
-                    $milestone->ensurePaymentTotalWithinAmount($committedAmount + $newAmount);
+                    $milestone->ensurePaymentTotalWithinAmount($milestone->committedPaymentsAmount() + $newAmount);
                 }
 
                 return Payment::create([
@@ -510,6 +527,8 @@ class PaymentController extends Controller
                     'invoice_date' => $validated['invoice_date'] ?? null,
                     'status' => 'por_autorizar',
                     'reference_number' => null,
+                    'origin' => $firstPayment === null ? Payment::ORIGIN_INITIAL : Payment::ORIGIN_REST,
+                    'source_payment_id' => $firstPayment?->id,
                 ]);
             });
         } catch (ValidationException $exception) {
@@ -568,6 +587,7 @@ class PaymentController extends Controller
                 [$lockedPayment->id => 'por_autorizar'],
             );
             $lockedPayment->update(['status' => 'por_autorizar']);
+            $this->milestonePayments->recalculateAfterPendingChange($milestoneId);
 
             return [
                 'payment' => $lockedPayment,
@@ -611,6 +631,9 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'status' => 'nullable|in:por_autorizar,autorizado,pagado,rechazado,pospuesto',
             'spei_receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'authorized_amount' => 'nullable|numeric|min:0.01|decimal:0,2',
+            'paid_amount' => 'nullable|numeric|min:0.01|decimal:0,2',
+            'confirm_correction' => 'nullable|boolean',
             'return_to' => 'nullable|in:purchase_order,payable',
             'origin' => 'nullable|in:purchase_order_detail',
         ]);
@@ -619,9 +642,20 @@ class PaymentController extends Controller
         $orderId = $milestone->purchase_order_id;
         $milestone->purchaseOrder->ensureOpen();
         $returnTo = $validated['return_to'] ?? 'purchase_order';
+        // Autorizar, posponer, rechazar, reactivar y corregir pagos pagados es de quien autoriza pagos.
+        $isAdmin = Auth::user()->can('payment_authorizations.authorize');
 
         $hasStatusChange = array_key_exists('status', $validated) && ! is_null($validated['status']);
         $hasSpeiFile = $request->hasFile('spei_receipt_file');
+
+        if ($payment->status === Payment::STATUS_SUSTITUIDO) {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'Este PAY fue sustituido y ya no se puede autorizar ni pagar.');
+        }
+
+        if ($payment->status === 'pagado') {
+            return $this->correctPaidPayment($request, $payment, $validated, $isAdmin, $returnTo);
+        }
 
         if (! $hasStatusChange && ! $hasSpeiFile) {
             return $this->paymentUpdateRedirect($returnTo, $orderId)
@@ -633,104 +667,31 @@ class PaymentController extends Controller
                 ->with('error', 'Para marcar el pago como pagado es obligatorio adjuntar el comprobante SPEI.');
         }
 
-        if ($hasSpeiFile && $hasStatusChange) {
-            if ($validated['status'] !== 'pagado') {
-                return $this->paymentUpdateRedirect($returnTo, $orderId)
-                    ->with('error', 'El comprobante SPEI solo se puede adjuntar para marcar o mantener el pago como pagado.');
-            }
-
-            // Subir SPEI siempre implica estatus pagado; se procesa como carga/reemplazo de comprobante.
-            $hasStatusChange = false;
-        }
-
-        if ($hasSpeiFile && ! in_array($payment->status, ['autorizado', 'pagado'], true)) {
+        if ($hasSpeiFile && $hasStatusChange && $validated['status'] !== 'pagado') {
             return $this->paymentUpdateRedirect($returnTo, $orderId)
-                ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado o pagado.');
+                ->with('error', 'El comprobante SPEI solo se puede adjuntar para marcar el pago como pagado.');
         }
 
-        if (! $hasStatusChange && $payment->status !== 'pagado') {
-            $this->paymentSequenceValidator->ensureStatusSequence(
-                $milestone->purchaseOrder,
-                [$payment->id => 'pagado'],
-            );
+        if ($hasSpeiFile && $payment->status !== 'autorizado') {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'Solo se puede subir el comprobante SPEI cuando el pago está autorizado.');
         }
 
-        $previousSpeiPath = null;
+        // Excepción de emergencia: admin puede autorizar desde el listado de hitos de la OC sin cumplir el checklist.
+        $skipChecklist = $isAdmin && ($validated['origin'] ?? null) === 'purchase_order_detail';
 
         if ($hasSpeiFile) {
-            $file = $request->file('spei_receipt_file');
-            $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) $payment->folio));
-            $fileName = 'SPEI-'.$safeFolio.'-'.time().'.'.strtolower($file->getClientOriginalExtension());
-            $storageDir = 'payments/spei/'.$payment->milestone_id;
-            $storedPath = Storage::disk('s3')->putFileAs($storageDir, $file, $fileName);
-
-            if (! $storedPath) {
-                return $this->paymentUpdateRedirect($returnTo, $orderId)
-                    ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
-            }
-
-            $previousSpeiPath = $payment->spei_receipt_path;
-            $payment->spei_receipt_path = $storedPath;
-            $payment->spei_receipt_name = $fileName;
-        }
-
-        if (! $hasStatusChange && $payment->status !== 'pagado') {
-            $payment->status = 'pagado';
-            $payment->save();
-            $milestone->increment('covered_amount', $payment->amount);
-
-            $this->notification->send([
-                'type' => 'Payment',
-                'action_by' => Auth::id(),
-                'model_action' => 'update',
-                'model_id' => $payment->id,
-                'data' => 'registró el comprobante SPEI y marcó como pagado el pago #'.$payment->folio.' en el hito #'.$milestone->id.' de la orden de compra #'.$orderId,
-            ]);
-
-            return $this->paymentUpdateRedirect($returnTo, $orderId)
-                ->with('success', 'Comprobante SPEI registrado y pago marcado como pagado.');
-        }
-
-        if (! $hasStatusChange) {
-            // Reemplazar el SPEI nunca debe dejar el pago en un estatus distinto de pagado.
-            $payment->status = 'pagado';
-            $payment->save();
-
-            if ($previousSpeiPath && $previousSpeiPath !== $payment->spei_receipt_path) {
-                $isSharedWithOthers = Payment::query()
-                    ->where('spei_receipt_path', $previousSpeiPath)
-                    ->whereKeyNot($payment->id)
-                    ->exists();
-
-                if (! $isSharedWithOthers && Storage::disk('s3')->exists($previousSpeiPath)) {
-                    Storage::disk('s3')->delete($previousSpeiPath);
-                }
-            }
-
-            $this->notification->send([
-                'type' => 'Payment',
-                'action_by' => Auth::id(),
-                'model_action' => 'update',
-                'model_id' => $payment->id,
-                'data' => 'reemplazó el comprobante SPEI del pago #'.$payment->folio.' en el hito #'.$milestone->id.' de la orden de compra #'.$orderId,
-            ]);
-
-            return $this->paymentUpdateRedirect($returnTo, $orderId)
-                ->with('success', 'Comprobante SPEI reemplazado.');
+            return $this->registerPaidWithSpei($request, $payment, $validated, $skipChecklist, $returnTo);
         }
 
         $previousStatus = $payment->status;
         $newStatus = $validated['status'];
 
         // Reglas de transición de estatus (no se puede ir "hacia atrás")
-        // Autorizar, posponer, rechazar y reactivar es de quien autoriza pagos (Dirección, admin).
-        $isAdmin = Auth::user()->can('payment_authorizations.authorize');
-
         $allowed = match ($previousStatus) {
             'por_autorizar' => $isAdmin ? ['autorizado', 'rechazado', 'pospuesto'] : [],
             'pospuesto' => $isAdmin ? ['por_autorizar', 'autorizado', 'rechazado'] : [],
-            'autorizado' => $isAdmin ? ['pagado', 'por_autorizar'] : ['pagado'],
-            'pagado' => [],                                      // pagado es estado final
+            'autorizado' => $isAdmin ? ['por_autorizar'] : [],
             'rechazado' => $isAdmin ? ['por_autorizar'] : [],       // solo admin puede reactivar
             default => [],
         };
@@ -740,34 +701,36 @@ class PaymentController extends Controller
                 ->with('error', 'Transición de estatus no permitida.');
         }
 
-        if ($previousStatus === 'rechazado' && $newStatus !== 'rechazado') {
+        if ($newStatus === 'autorizado') {
+            $result = $this->milestonePayments->authorizeWithAmount(
+                $payment,
+                (float) ($validated['authorized_amount'] ?? $payment->amount),
+                $skipChecklist,
+            );
+
+            return $this->withMovements(
+                $this->paymentUpdateRedirect($returnTo, $orderId)->with('success', 'Pago autorizado.'),
+                count($result['movements']) > 1 ? $result['movements'] : [],
+            );
+        }
+
+        if ($previousStatus === 'autorizado') {
+            $this->milestonePayments->ensureNotGenerated($payment);
+        }
+        if ($previousStatus === 'rechazado') {
             $milestone->ensureReactivationFits($payment);
         }
         $this->paymentSequenceValidator->ensureStatusSequence(
             $milestone->purchaseOrder,
             [$payment->id => $newStatus],
         );
-        // Excepción de emergencia: admin puede autorizar desde el listado de hitos de la OC sin cumplir el checklist.
-        $skipChecklist = $isAdmin && ($validated['origin'] ?? null) === 'purchase_order_detail';
-        if ($newStatus === 'autorizado' && ! $skipChecklist) {
-            $this->milestoneChecklist->ensureComplete([$payment], 'status');
-        }
+
+        $payment->fill($this->originalAmountAttributes($payment));
         $payment->status = $newStatus;
-        if ($newStatus === 'autorizado') {
-            $payment->checklist_verified_at = now();
-        } elseif ($newStatus !== 'pagado') {
-            $payment->checklist_verified_at = null;
-        }
+        $payment->checklist_verified_at = null;
         $payment->save();
+        $this->milestonePayments->recalculateAfterPendingChange($payment->milestone_id);
 
-        // Ajustar saldo cubierto del hito según transición
-        if ($previousStatus !== 'pagado' && $newStatus === 'pagado') {
-            $milestone->increment('covered_amount', $payment->amount);
-        } elseif ($previousStatus === 'pagado' && $newStatus !== 'pagado') {
-            $milestone->decrement('covered_amount', $payment->amount);
-        }
-
-        // Notificación
         if ($newStatus !== 'pospuesto') {
             $this->notification->send([
                 'type' => 'Payment',
@@ -780,6 +743,158 @@ class PaymentController extends Controller
 
         return $this->paymentUpdateRedirect($returnTo, $orderId)
             ->with('success', 'Estatus del pago actualizado.');
+    }
+
+    /** Registra pagado un PAY autorizado: sube el comprobante SPEI y aplica el importe con la caja del hito. */
+    private function registerPaidWithSpei(Request $request, Payment $payment, array $validated, bool $skipChecklist, string $returnTo): RedirectResponse
+    {
+        $orderId = $payment->milestone->purchase_order_id;
+
+        if (! array_key_exists('paid_amount', $validated) || $validated['paid_amount'] === null) {
+            throw ValidationException::withMessages(['paid_amount' => 'Indica el importe del SPEI.']);
+        }
+
+        $receipt = $this->storeSpeiReceipt($request->file('spei_receipt_file'), $payment);
+
+        if ($receipt === null) {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
+        }
+
+        try {
+            $result = $this->milestonePayments->registerPaid($payment, (float) $validated['paid_amount'], $receipt, $skipChecklist);
+        } catch (\Throwable $exception) {
+            Storage::disk('s3')->delete($receipt['path']);
+
+            throw $exception;
+        }
+
+        return $this->withMovements(
+            $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('success', 'Comprobante SPEI registrado y pago marcado como pagado.'),
+            count($result['movements']) > 1 ? $result['movements'] : [],
+        );
+    }
+
+    /** Un pago pagado solo lo corrige admin: importe, comprobante, regresarlo a autorizado. */
+    private function correctPaidPayment(Request $request, Payment $payment, array $validated, bool $isAdmin, string $returnTo): RedirectResponse
+    {
+        abort_unless($isAdmin, 403, self::PAID_LOCKED_MESSAGE);
+
+        $orderId = $payment->milestone->purchase_order_id;
+        $confirmed = (bool) ($validated['confirm_correction'] ?? false);
+        $newStatus = $validated['status'] ?? null;
+        $hasSpeiFile = $request->hasFile('spei_receipt_file');
+
+        if ($newStatus !== null && ! in_array($newStatus, ['pagado', 'autorizado'], true)) {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'Transición de estatus no permitida.');
+        }
+
+        if ($newStatus === 'autorizado') {
+            $previousPath = $payment->spei_receipt_path;
+            $result = $this->milestonePayments->revertPaidToAuthorized($payment, $confirmed);
+            $this->deleteSpeiReceiptIfUnused($previousPath);
+
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('success', 'Pago regresado a autorizado.')
+                ->with('info', implode(' ', $result['movements']));
+        }
+
+        $newPaid = $validated['paid_amount'] ?? null;
+        $amountChanged = $newPaid !== null && abs((float) $newPaid - $payment->paid_amount_value) > 0.004;
+
+        if (! $amountChanged && ! $hasSpeiFile) {
+            return $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('error', 'No se enviaron cambios para actualizar el pago.');
+        }
+
+        $movements = [];
+        if ($amountChanged) {
+            $movements = $this->milestonePayments->correctPaidAmount($payment, (float) $newPaid, $confirmed)['movements'];
+        }
+
+        if ($hasSpeiFile) {
+            $payment->refresh();
+            $receipt = $this->storeSpeiReceipt($request->file('spei_receipt_file'), $payment);
+
+            if ($receipt === null) {
+                return $this->paymentUpdateRedirect($returnTo, $orderId)
+                    ->with('error', 'No se pudo guardar el comprobante SPEI en S3. Intenta nuevamente.');
+            }
+
+            $previousPath = $payment->spei_receipt_path;
+            $payment->update(['spei_receipt_path' => $receipt['path'], 'spei_receipt_name' => $receipt['name']]);
+            if ($previousPath !== $receipt['path']) {
+                $this->deleteSpeiReceiptIfUnused($previousPath, $payment->id);
+            }
+
+            $this->notification->send([
+                'type' => 'Payment',
+                'action_by' => Auth::id(),
+                'model_action' => 'update',
+                'model_id' => $payment->id,
+                'data' => 'reemplazó el comprobante SPEI del pago #'.$payment->folio.' en el hito #'.$payment->milestone_id.' de la orden de compra #'.$orderId,
+            ]);
+        }
+
+        return $this->withMovements(
+            $this->paymentUpdateRedirect($returnTo, $orderId)
+                ->with('success', $amountChanged ? 'Pago corregido.' : 'Comprobante SPEI reemplazado.'),
+            $movements,
+        );
+    }
+
+    /** Agrega el aviso `info` con lo que hizo el sistema solo cuando hubo movimientos. */
+    private function withMovements(RedirectResponse $response, array $movements): RedirectResponse
+    {
+        return $movements === [] ? $response : $response->with('info', implode(' ', $movements));
+    }
+
+    /** @return array{path: string, name: string}|null */
+    private function storeSpeiReceipt(\Illuminate\Http\UploadedFile $file, Payment $payment): ?array
+    {
+        $safeFolio = Str::upper(preg_replace('/[^A-Za-z0-9\-_]/', '-', (string) $payment->folio));
+        $fileName = 'SPEI-'.$safeFolio.'-'.time().'.'.strtolower($file->getClientOriginalExtension());
+        $storedPath = Storage::disk('s3')->putFileAs('payments/spei/'.$payment->milestone_id, $file, $fileName);
+
+        return $storedPath ? ['path' => $storedPath, 'name' => $fileName] : null;
+    }
+
+    private function deleteSpeiReceiptIfUnused(?string $path, ?int $exceptPaymentId = null): void
+    {
+        if (! $path) {
+            return;
+        }
+
+        $isShared = Payment::query()
+            ->where('spei_receipt_path', $path)
+            ->when($exceptPaymentId, fn ($query) => $query->whereKeyNot($exceptPaymentId))
+            ->exists();
+
+        if (! $isShared && Storage::disk('s3')->exists($path)) {
+            Storage::disk('s3')->delete($path);
+        }
+    }
+
+    /** Un PAY pagado o sustituido no se mueve desde las rutas de pagos pendientes. */
+    private function ensureEditablePayment(Payment $payment): void
+    {
+        if ($payment->status === Payment::STATUS_SUSTITUIDO) {
+            throw ValidationException::withMessages(['status' => 'Este PAY fue sustituido y ya no se puede autorizar ni pagar.']);
+        }
+
+        if ($payment->status === 'pagado') {
+            throw ValidationException::withMessages(['status' => self::PAID_LOCKED_MESSAGE]);
+        }
+    }
+
+    /** Al dejar de estar autorizado, el PAY recupera el monto que tenía antes de autorizarlo parcialmente. */
+    private function originalAmountAttributes(Payment $payment): array
+    {
+        return $payment->original_amount === null
+            ? []
+            : ['amount' => $payment->original_amount, 'original_amount' => null];
     }
 
     private function paymentUpdateRedirect(string $returnTo, int $orderId): RedirectResponse
@@ -856,15 +971,26 @@ class PaymentController extends Controller
                     ->map(fn ($orderPayments) => $orderPayments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'pagado'])->all());
 
                 foreach ($statusUpdatesByPurchaseOrder as $purchaseOrderId => $statusUpdates) {
+                    $this->paymentSequenceValidator->ensurePaymentOrder(
+                        $purchaseOrders->get($purchaseOrderId),
+                        array_keys($statusUpdates),
+                        'payment_ids',
+                    );
                     $this->paymentSequenceValidator->ensureStatusSequence(
                         $purchaseOrders->get($purchaseOrderId),
                         $statusUpdates,
                     );
                 }
 
+                // Los PAY de abono validan su checklist al registrarse pagados.
+                $this->milestoneChecklist->ensureComplete($payments->where('origin', Payment::ORIGIN_CREDIT), 'payment_ids');
+
+                // El SPEI múltiple registra cada pago por lo autorizado.
                 foreach ($payments as $payment) {
                     $payment->update([
                         'status' => 'pagado',
+                        'paid_amount' => $payment->amount,
+                        'applied_amount' => $payment->amount,
                         'spei_receipt_path' => $storedPath,
                         'spei_receipt_name' => $fileName,
                     ]);
@@ -957,6 +1083,11 @@ class PaymentController extends Controller
                 ->map(fn ($orderPayments) => $orderPayments->mapWithKeys(fn (Payment $payment) => [$payment->id => 'autorizado'])->all());
 
             foreach ($statusUpdatesByPurchaseOrder as $purchaseOrderId => $statusUpdates) {
+                $this->paymentSequenceValidator->ensureAuthorizationOrder(
+                    $purchaseOrders->get($purchaseOrderId),
+                    array_keys($statusUpdates),
+                    'payment_ids',
+                );
                 $this->paymentSequenceValidator->ensureStatusSequence(
                     $purchaseOrders->get($purchaseOrderId),
                     $statusUpdates,
@@ -998,26 +1129,40 @@ class PaymentController extends Controller
             ->with('success', $authorizedPayments->count().' pago(s) autorizado(s).');
     }
 
-    public function destroy(Payment $payment): RedirectResponse
+    public function destroy(Request $request, Payment $payment): RedirectResponse
     {
-        $milestone = $payment->milestone;
-        $orderId = $milestone->purchase_order_id;
-        $milestone->purchaseOrder->ensureOpen();
+        $orderId = $payment->milestone->purchase_order_id;
+        $isAdmin = Auth::user()->can('payment_authorizations.authorize');
 
-        $hasSharedSpeiReceipt = $payment->spei_receipt_path
-            && Payment::whereKeyNot($payment->id)
-                ->where('spei_receipt_path', $payment->spei_receipt_path)
-                ->exists();
+        abort_if($payment->status === 'pagado' && ! $isAdmin, 403, self::PAID_LOCKED_MESSAGE);
 
-        if ($payment->spei_receipt_path && ! $hasSharedSpeiReceipt && Storage::disk('s3')->exists($payment->spei_receipt_path)) {
-            Storage::disk('s3')->delete($payment->spei_receipt_path);
-        }
+        $request->validate(['confirm_correction' => 'nullable|boolean']);
 
-        if ($payment->status === 'pagado') {
-            $milestone->decrement('covered_amount', $payment->amount);
-        }
+        $receiptPath = $payment->spei_receipt_path;
+        $folio = $payment->folio;
+        $milestoneId = $payment->milestone_id;
 
-        $payment->delete();
+        DB::transaction(function () use ($request, $payment, $orderId) {
+            $order = PurchaseOrder::query()->lockForUpdate()->findOrFail($orderId);
+            $order->ensureOpen();
+            PurchaseOrderMilestone::query()->where('purchase_order_id', $orderId)->orderBy('id')->lockForUpdate()->get(['id']);
+            $payment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+
+            if ($payment->status === 'pagado') {
+                $this->milestonePayments->deletePaid($payment, (bool) $request->boolean('confirm_correction'));
+
+                return;
+            }
+
+            if ($payment->status === 'autorizado') {
+                $this->milestonePayments->ensureNotGenerated($payment);
+            }
+
+            $payment->delete();
+            $this->milestonePayments->recalculateAfterPendingChange($payment->milestone_id);
+        });
+
+        $this->deleteSpeiReceiptIfUnused($receiptPath, $payment->id);
 
         // Notificación
         $this->notification->send([
@@ -1025,11 +1170,50 @@ class PaymentController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
             'model_id' => $payment->id,
-            'data' => 'eliminó un pago en el hito #'.$milestone->id.' de la orden de compra #'.$milestone->purchase_order_id,
+            'data' => 'eliminó el pago #'.$folio.' en el hito #'.$milestoneId.' de la orden de compra #'.$orderId,
         ]);
 
         return redirect()->route('purchase_orders.show', $orderId)
             ->with('success', 'Pago eliminado.');
+    }
+
+    /**
+     * Vista previa de lo que hará el sistema al autorizar o pagar con un monto. No guarda nada.
+     */
+    public function preview(Request $request, Payment $payment): JsonResponse
+    {
+        $validated = $request->validate([
+            'accion' => 'required|in:autorizar,pagar',
+            'monto' => 'required|numeric|min:0.01|decimal:0,2',
+            'correccion' => 'nullable|in:importe,autorizado,eliminar',
+            'origin' => 'nullable|in:purchase_order_detail',
+        ]);
+
+        $isAdmin = Auth::user()->can('payment_authorizations.authorize');
+        abort_if($validated['accion'] === 'autorizar' && ! $isAdmin, 403);
+        abort_if($payment->status === 'pagado' && ! $isAdmin, 403, self::PAID_LOCKED_MESSAGE);
+
+        $amount = (float) $validated['monto'];
+        $skipChecklist = $isAdmin && ($validated['origin'] ?? null) === 'purchase_order_detail';
+
+        try {
+            $result = match (true) {
+                $validated['accion'] === 'autorizar' => $this->milestonePayments->authorizeWithAmount($payment, $amount, $skipChecklist, true),
+                $payment->status === 'pagado' => match ($validated['correccion'] ?? 'importe') {
+                    'autorizado' => $this->milestonePayments->revertPaidToAuthorized($payment, true, true),
+                    'eliminar' => $this->milestonePayments->deletePaid($payment, true, true),
+                    default => $this->milestonePayments->correctPaidAmount($payment, $amount, true, true),
+                },
+                default => $this->milestonePayments->registerPaid($payment, $amount, null, $skipChecklist, true),
+            };
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'ok' => false,
+                'error' => collect($exception->errors())->flatten()->first(),
+            ]);
+        }
+
+        return response()->json(['ok' => true] + $result);
     }
 
     private function selectedCurrency(Request $request): string

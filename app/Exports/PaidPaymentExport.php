@@ -59,7 +59,7 @@ class PaidPaymentExport implements FromQuery, ShouldAutoSize, WithHeadings, With
             $payment->folio,
             $purchaseOrder?->folio ?? '',
             $supplier?->rfc_name ?: $supplier?->commercial_name ?: '',
-            (float) $payment->amount,
+            (float) $payment->paid_amount_value,
             $purchaseOrder?->currency ?? '',
             $payment->payment_date?->format('d/m/Y') ?? '',
         ];

@@ -32,7 +32,7 @@ class SupplierPortalController extends Controller
             })
             ->whereNotNull('due_date')
             ->whereDate('due_date', '<=', now()->toDateString())
-            ->whereColumn('covered_amount', '<', 'value')
+            ->uncovered()
             ->count();
 
         $recentOrders = PurchaseOrder::query()

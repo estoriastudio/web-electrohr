@@ -160,6 +160,7 @@ class PurchaseOrderMilestoneController extends Controller
                 'invoice_date' => null,
                 'status' => 'por_autorizar',
                 'reference_number' => null,
+                'origin' => Payment::ORIGIN_INITIAL,
             ]);
 
             return $milestone;
@@ -234,7 +235,7 @@ class PurchaseOrderMilestoneController extends Controller
                 ->orderBy('id')
                 ->get();
 
-            $firstPayment = $payments->first();
+            $firstPayment = $payments->first(fn (Payment $payment) => $payment->status !== Payment::STATUS_SUSTITUIDO);
             if ($firstPayment?->status === 'por_autorizar') {
                 $this->paymentSequenceValidator->ensurePaymentDateSequence(
                     $purchaseOrderMilestone->purchaseOrder,
@@ -264,6 +265,7 @@ class PurchaseOrderMilestoneController extends Controller
                     'invoice_date' => null,
                     'status' => 'por_autorizar',
                     'reference_number' => null,
+                    'origin' => Payment::ORIGIN_INITIAL,
                 ]);
 
                 return;
@@ -273,6 +275,7 @@ class PurchaseOrderMilestoneController extends Controller
             $lockedAmount = round((float) $payments
                 ->where('status', '!=', 'por_autorizar')
                 ->where('status', '!=', 'rechazado')
+                ->where('status', '!=', Payment::STATUS_SUSTITUIDO)
                 ->sum('amount'), 2);
 
             if ($pendingPayments->isEmpty()) {
@@ -281,7 +284,7 @@ class PurchaseOrderMilestoneController extends Controller
                 return;
             }
 
-            $pendingAmount = round($targetAmount - $lockedAmount, 2);
+            $pendingAmount = round($targetAmount - $lockedAmount - $purchaseOrderMilestone->creditsReceivedAmount(), 2);
             if ($pendingAmount < 0) {
                 throw ValidationException::withMessages([
                     'value' => 'El monto del hito no puede ser menor que los pagos ya autorizados, pagados o bloqueados ('
