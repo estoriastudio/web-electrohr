@@ -1,0 +1,199 @@
+---
+spec_id: HR-008
+type: ext-rule
+title: Bloqueo de funciones internas para proveedores
+module: Pagos
+module_key: payments
+extends: HR-007
+status: aprobado
+author: Jorge Peña
+reviewers: []
+branch: master
+created: 2026-11-18
+profile: docs/specs/_project.json
+docs:
+  - docs/controller-structure-and-notifications.md
+  - docs/purchase-order-payment-health-flow.md
+  - docs/supplier-account-statement.md
+open_questions: 0
+---
+
+# HR-008 · Pagos — Bloqueo de funciones internas para proveedores
+
+**Módulo:** Pagos (`payments`) · **Tipo:** C3 · Cambio de regla · **Extiende:** HR-007
+
+## 0. Contexto obligatorio
+
+Antes de generar código, lee completos estos archivos. Sus reglas aplican sin repetirse aquí; este spec solo declara lo específico del cambio y sus excepciones.
+
+- `.github/copilot-instructions.md`
+- `docs/specs/_project.json` — perfil del proyecto (Laravel 13, layouts, paquetes, archivos protegidos)
+- `docs/controller-structure-and-notifications.md`
+- `docs/purchase-order-payment-health-flow.md`
+- `docs/supplier-account-statement.md`
+
+## 1. Propósito
+
+Ocultar Exportar a Excel y Regularización documental de Pagos pagados al usuario con supplier_portal_access, y denegar con HTTP 403 sus rutas. Ocultar y bloquear también el Estado de Cuenta interno global de proveedores, incluidas sus consultas auxiliares y exportaciones. Conservar el estado de cuenta propio del portal.
+
+**Flujo de interacción**
+
+El proveedor entra a Pagado y consulta sus pagos sin ver Exportar a Excel ni Regularización documental. En el menú no aparece Proveedores > Estado de Cuenta; si Proveedores no tiene otra opción visible, tampoco aparece ese contenedor vacío. Sigue disponible Portal Proveedor > Estado de Cuenta, con sus propios datos. Intentar abrir una URL interna bloqueada devuelve 403, aunque la cuenta también tenga otro rol, incluido admin.
+
+## 2. Módulo afectado
+
+- **Módulo:** Pagos
+- **Usa Livewire:** no
+
+**Comportamiento actual**
+
+resources/views/payments/paid.blade.php ya condiciona Por Pagar con payments_payable.view y el enlace del proveedor con suppliers.view. Exportar a Excel y Regularización documental siguen visibles; sus rutas usan payments_paid.view, permiso que tiene el perfil PRV. El navbar contiene dos Estados de Cuenta distintos: supplier_portal.account_statement.index, cuyo controller filtra por el proveedor autenticado, y suppliers.account_statement.index, un reporte interno global. PRV tiene supplier_account_statements.view con own_supplier en la matriz, pero SupplierAccountStatementController no aplica ese alcance: genera el reporte con los filtros de la petición. El grupo interno incluye listado, Excel, ZIP, reporte de faltantes y resumen de OC.
+
+**Archivos que se tocan**
+
+- app/Http/Controllers/PaymentController.php: comprobación de acceso al inicio de exportPaid y regularization.
+- app/Http/Controllers/SupplierAccountStatementController.php: comprobación de acceso al inicio de index, export, exportDocuments, documentExportReport y purchaseOrderSummary.
+- resources/views/payments/paid.blade.php: ocultar ambos botones y el formulario de exportación para supplier_portal_access.
+- resources/views/layouts/partials/_navbar.blade.php: ocultar únicamente el Estado de Cuenta interno a supplier_portal_access y evitar el contenedor Proveedores vacío.
+- docs/roles-permissions-matrix.md: documentar la restricción adicional por rol y la distinción entre estado de cuenta interno y portal.
+- docs/supplier-account-statement.md: documentar la exclusión de cuentas con supplier_portal_access del reporte interno, aun con roles adicionales.
+
+**Debe permanecer igual**
+
+- payments.paid y el alcance own_supplier de sus consultas; el proveedor sigue consultando sus pagos.
+- supplier_portal.account_statement.index y su filtrado por el proveedor ligado al usuario; su enlace en el menú del portal y los enlaces del dashboard permanecen disponibles.
+- Las órdenes propias, el contrarecibo y el comprobante SPEI conservan sus permisos y restricciones por registro.
+- Por Pagar y el enlace al proveedor mantienen las condiciones introducidas por HR-007.
+- Los usuarios sin supplier_portal_access conservan exactamente los permisos, filtros, consultas, cálculos, formatos y descargas existentes; no se les concede acceso nuevo.
+- La matriz ejecutable database/data/access_matrix.php, los roles, los permisos y sus asignaciones. No se requiere correr seeders.
+- Las rutas existentes, sus nombres, verbos, URI y middleware de permisos; se agrega la denegación en los controllers sin crear rutas, Policies, Gates ni middleware nuevos.
+- Modelos, tablas, registros financieros, archivos, configuración de discos y archivos protegidos; no se modifica resources/views/errors/layout.blade.php ni se crea una página de error nueva.
+
+**Riesgos**
+
+- supplier_portal.account_statement.index y suppliers.account_statement.index tienen nombres visibles similares: solo se bloquea el segundo.
+- Ocultar controles en Blade no bloquea URLs directas. Deben protegerse las siete acciones indicadas, incluidas descargas y consultas auxiliares.
+- Un permiso adicional o el bypass de admin no deben anular la denegación explícita por supplier_portal_access.
+- Ocultar solo el enlace interno sin revisar el contenedor Proveedores dejaría un desplegable vacío para el proveedor que no tiene suppliers.view.
+- La restricción también afecta a cuentas existentes que mezclen supplier_portal_access con roles internos; el equipo confirmó que debe prevalecer la denegación.
+
+## 3. Regla
+
+**Actual**
+
+Un usuario con supplier_portal_access puede ver los dos botones de Pagado y pasar la autorización payments_paid.view de sus rutas. También puede abrir el Estado de Cuenta interno mediante supplier_account_statements.view. Los permisos no distinguen por sí solos estas funciones internas del acceso propio del portal.
+
+**Nueva**
+
+La presencia de supplier_portal_access impide usar las funciones internas enumeradas en este spec, con independencia de los demás roles y permisos de la cuenta. Las vistas ocultan sus botones o enlaces y los controllers responden HTTP 403 al acceso directo. Esta denegación no bloquea payments.paid, los comprobantes propios ni supplier_portal.account_statement.index. No se eliminan ni reasignan permisos de Spatie.
+
+**Dónde se aplica:** controller
+
+**Casos afectados**
+
+- Con supplier_portal_access, el HTML de payments.paid no contiene el dropdown Exportar a Excel, su formulario ni el enlace Regularización documental; conserva el listado y los enlaces propios permitidos.
+- Con supplier_portal_access y un rango de fechas válido, GET payments.paid.export devuelve 403 y no genera ni entrega un Excel. Con fechas omitidas o inválidas también devuelve 403, antes de validar la entrada.
+- Con supplier_portal_access, GET payments.regularization devuelve 403; agregar filtros o parámetros no habilita la consulta.
+- Con supplier_portal_access, GET suppliers.account_statement.index devuelve 403, incluso enviando supplier_id del propio proveedor o de otro.
+- Con supplier_portal_access, GET suppliers.account_statement.export, suppliers.account_statement.export_documents, suppliers.account_statement.export_documents.report y suppliers.account_statement.order devuelve 403 para URLs que cumplan las restricciones existentes de ruta y referencias válidas. No se genera ningún archivo ni se entrega información global.
+- Una petición denegada a documentExportReport no consume el reporte de sesión; la comprobación ocurre antes de session()->pull().
+- Con supplier_portal_access, el menú no contiene el enlace al Estado de Cuenta interno. Si no tiene suppliers.view, tampoco contiene el desplegable Proveedores vacío; si sí tiene suppliers.view por otro rol, conserva Listado sin Estado de Cuenta.
+- Con supplier_portal_access y un proveedor con acceso al portal habilitado, supplier_portal.account_statement.index sigue accesible y no muestra facturas de otro proveedor.
+- Una cuenta con supplier_portal_access y Pagos u Orden de compra conserva los bloqueos descritos. Una cuenta con supplier_portal_access y admin también recibe 403 y no ve los controles bloqueados.
+- Un usuario interno sin supplier_portal_access que ya podía exportar, regularizar o consultar el Estado de Cuenta conserva ese acceso. Otro sin los permisos requeridos continúa denegado por la autorización existente.
+
+**Datos históricos**
+
+No hay migraciones, backfill, limpieza ni modificación de registros o asignaciones de roles/permisos. La nueva restricción aplica desde el despliegue a todas las cuentas existentes que tengan supplier_portal_access, incluidas las que tengan roles internos adicionales.
+
+## 4. Reglas de negocio
+
+- Contexto obligatorio adicional antes de implementar: leer HR-007-payments-enlaces-de-pagos-pagados-segun-permisos.spec.md, docs/roles-permissions-matrix.md, docs/ui-kit-design-system.md y docs/ui-kit-table-structure.md, además de los archivos afectados y las instrucciones de controllers y vistas de .github/instructions/.
+- Denegación por rol: comprobar la presencia exacta de supplier_portal_access, no la ausencia de otros roles ni un permiso inexistente. No hacer excepciones para admin ni para permisos directos.
+- Servidor: aplicar abort(403) mediante una comprobación explícita del rol al inicio de cada acción afectada, antes de validar entradas, consultar el reporte, generar archivos o consumir reportes de sesión. Reutilizar la relación de roles y helpers existentes; no introducir Policies/Gates ni modificar el bypass global de admin.
+- Rutas de Pagos bloqueadas, todas GET: /pagos/pagados/exportar-excel (payments.paid.export, PaymentController::exportPaid) y /facturas/regularizacion-documental (payments.regularization, PaymentController::regularization).
+- Rutas internas de Estado de Cuenta bloqueadas, todas GET: /proveedores/estado-cuenta (suppliers.account_statement.index), /proveedores/estado-cuenta/export (suppliers.account_statement.export), /proveedores/estado-cuenta/exportar-documentos (suppliers.account_statement.export_documents), /proveedores/estado-cuenta/exportar-documentos/{export}/faltantes (suppliers.account_statement.export_documents.report) y /proveedores/estado-cuenta/ordenes/{purchaseOrder} (suppliers.account_statement.order). Conservar las restricciones actuales de UUID, ID y permisos.
+- La denegación devuelve un estado HTTP real 403 tanto en navegación HTML como en solicitudes que esperan JSON; usar la respuesta de error estándar existente, sin redirigir al dashboard, devolver un listado vacío con 200 ni iniciar una descarga.
+- Vista Pagado: envolver el dropdown completo de Excel y el enlace Regularización documental con la condición Blade de ausencia del rol, usando @unlessrole('supplier_portal_access') y @endunlessrole. No utilizar @can('payments_paid.view') para distinguirlos, porque el proveedor sí tiene ese permiso.
+- Navbar: combinar la ausencia de supplier_portal_access con @can('supplier_account_statements.view') exclusivamente para el enlace interno. El contenedor Proveedores solo se muestra si está permitido Listado o el Estado de Cuenta interno. No ocultar la opción homónima de Portal Proveedor.
+- El acceso al Estado de Cuenta interno se deniega por completo para supplier_portal_access; no se resuelve agregando un filtro de proveedor al reporte global. La consulta propia permanece en el portal.
+- Implementación por capas: capa 1, comprobaciones en los dos controllers; capa 2, sin cambios sobre datos existentes; capa 3, ambas vistas y la actualización de los dos documentos operativos. Detenerse tras cada capa para confirmación conforme a las instrucciones del proyecto.
+
+## 5. Validaciones
+
+_Convenciones de docs/controller-structure-and-notifications.md §4._
+
+## 6. Excepciones a los docs
+
+Estas reglas de este spec **sustituyen** a las de docs/ solo para este cambio:
+
+- La indicación automática del generador en Orden de implementación que dice «sin detenerte entre ellas» no aplica en este repositorio: debe solicitarse confirmación al terminar cada capa, conforme a .github/copilot-instructions.md. Esta excepción resuelve expresamente ese texto automático.
+- Para Regularización documental y la exportación de Pagado, payments_paid.view sigue siendo necesario pero deja de ser suficiente si el usuario tiene supplier_portal_access. Esta regla precisa docs/roles-permissions-matrix.md, sección Fase 2: Pagos y Recepción, sin cambiar el acceso al contrarecibo ni a SPEI.
+- La celda PRV de supplier_account_statements conserva su significado de consulta propia del portal. No autoriza el reporte interno global suppliers.account_statement.*. Esta exclusión también se aplica si el usuario tiene admin u otro rol con acceso global.
+- Este cambio sustituye la conservación de Exportar a Excel y Regularización documental establecida por HR-007 únicamente para usuarios con supplier_portal_access; para el resto, se mantiene el comportamiento existente.
+
+## 7. Preguntas abiertas
+
+- [x] ¿Se bloquea solo el Estado de Cuenta interno global o también el estado de cuenta propio del portal? → **Solo el interno global. Se conserva el estado de cuenta propio del portal, ya filtrado por el proveedor autenticado.**
+- [x] ¿Qué ocurre si una cuenta tiene supplier_portal_access junto con otro rol interno, incluido admin? → **Denegar siempre mientras tenga supplier_portal_access; prevalece la restricción por ese rol.**
+
+## 8. Fuera de alcance
+
+- Rutas API (routes/api.php)
+- Unit / Feature tests
+- Factories y seeders
+- Form Requests
+- Observers / Event listeners
+- Jobs y colas
+- Artisan commands
+- Policies / Gates
+- Clases Mail / Notification de Laravel
+- API Resources / Transformers
+- Instalar paquetes no listados en el perfil
+- Cambios a vite.config.js / package.json
+- Implementar el cambio durante la creación o revisión de este spec: primero debe aprobarse.
+- Ocultar o bloquear el Estado de Cuenta propio del portal.
+- Cambiar los cálculos financieros, consultas o alcances del reporte y del listado Pagado.
+- Agregar permisos, roles, migraciones, seeders, Policies, Gates, middleware o rutas; cambiar la autorización de otras funciones.
+- Modificar vistas distintas de payments/paid y layouts/partials/_navbar, incluida la vista de error adjunta.
+- Crear pruebas permanentes, factories o archivos de infraestructura de pruebas.
+- Editar o archivar HR-007 durante la elaboración de este spec.
+- Modificar archivos protegidos del perfil del proyecto
+
+## 9. Orden de implementación
+
+1. Lógica de la regla en el punto de aplicación
+2. Tratamiento de datos históricos
+3. Ajustes en vistas/mensajes
+
+Implementa las capas en este orden sin detenerte entre ellas. Al terminar, lista los archivos creados o modificados por capa.
+
+## 10. Criterios de aceptación
+
+- [ ] La regla nueva se aplica en el controller: La presencia de supplier_portal_access impide usar las funciones internas enumeradas en este spec, con independencia de los demás roles y permisos de la cuenta. Las vistas ocultan sus botones o enlaces y los controllers responden HTTP 403 al acceso directo. Esta denegación no bloquea payments.paid, los comprobantes propios ni supplier_portal.account_statement.index. No se eliminan ni reasignan permisos de Spatie.
+- [ ] Caso: Con supplier_portal_access, el HTML de payments.paid no contiene el dropdown Exportar a Excel, su formulario ni el enlace Regularización documental; conserva el listado y los enlaces propios permitidos.
+- [ ] Caso: Con supplier_portal_access y un rango de fechas válido, GET payments.paid.export devuelve 403 y no genera ni entrega un Excel. Con fechas omitidas o inválidas también devuelve 403, antes de validar la entrada.
+- [ ] Caso: Con supplier_portal_access, GET payments.regularization devuelve 403; agregar filtros o parámetros no habilita la consulta.
+- [ ] Caso: Con supplier_portal_access, GET suppliers.account_statement.index devuelve 403, incluso enviando supplier_id del propio proveedor o de otro.
+- [ ] Caso: Con supplier_portal_access, GET suppliers.account_statement.export, suppliers.account_statement.export_documents, suppliers.account_statement.export_documents.report y suppliers.account_statement.order devuelve 403 para URLs que cumplan las restricciones existentes de ruta y referencias válidas. No se genera ningún archivo ni se entrega información global.
+- [ ] Caso: Una petición denegada a documentExportReport no consume el reporte de sesión; la comprobación ocurre antes de session()->pull().
+- [ ] Caso: Con supplier_portal_access, el menú no contiene el enlace al Estado de Cuenta interno. Si no tiene suppliers.view, tampoco contiene el desplegable Proveedores vacío; si sí tiene suppliers.view por otro rol, conserva Listado sin Estado de Cuenta.
+- [ ] Caso: Con supplier_portal_access y un proveedor con acceso al portal habilitado, supplier_portal.account_statement.index sigue accesible y no muestra facturas de otro proveedor.
+- [ ] Caso: Una cuenta con supplier_portal_access y Pagos u Orden de compra conserva los bloqueos descritos. Una cuenta con supplier_portal_access y admin también recibe 403 y no ve los controles bloqueados.
+- [ ] Caso: Un usuario interno sin supplier_portal_access que ya podía exportar, regularizar o consultar el Estado de Cuenta conserva ese acceso. Otro sin los permisos requeridos continúa denegado por la autorización existente.
+- [ ] Datos históricos: No hay migraciones, backfill, limpieza ni modificación de registros o asignaciones de roles/permisos. La nueva restricción aplica desde el despliegue a todas las cuentas existentes que tengan supplier_portal_access, incluidas las que tengan roles internos adicionales.
+- [ ] Permanece igual: payments.paid y el alcance own_supplier de sus consultas; el proveedor sigue consultando sus pagos.
+- [ ] Permanece igual: supplier_portal.account_statement.index y su filtrado por el proveedor ligado al usuario; su enlace en el menú del portal y los enlaces del dashboard permanecen disponibles.
+- [ ] Permanece igual: Las órdenes propias, el contrarecibo y el comprobante SPEI conservan sus permisos y restricciones por registro.
+- [ ] Permanece igual: Por Pagar y el enlace al proveedor mantienen las condiciones introducidas por HR-007.
+- [ ] Permanece igual: Los usuarios sin supplier_portal_access conservan exactamente los permisos, filtros, consultas, cálculos, formatos y descargas existentes; no se les concede acceso nuevo.
+- [ ] Permanece igual: La matriz ejecutable database/data/access_matrix.php, los roles, los permisos y sus asignaciones. No se requiere correr seeders.
+- [ ] Permanece igual: Las rutas existentes, sus nombres, verbos, URI y middleware de permisos; se agrega la denegación en los controllers sin crear rutas, Policies, Gates ni middleware nuevos.
+- [ ] Permanece igual: Modelos, tablas, registros financieros, archivos, configuración de discos y archivos protegidos; no se modifica resources/views/errors/layout.blade.php ni se crea una página de error nueva.
+- [ ] No se modificó ningún archivo protegido del perfil del proyecto.
+- [ ] No se generó nada listado en Fuera de alcance ni se instalaron paquetes nuevos.
+- [ ] Los commits incluyen `[HR-008]` en el mensaje.
+
+---
+
+_Generado con Estoria Spec Tool v4 · Estoria Studio_

@@ -80,7 +80,7 @@
             </li>
             @endcan
 
-            @canany(['suppliers.view', 'supplier_account_statements.view'])
+            @if(auth()->user()->can('suppliers.view') || (! auth()->user()->hasRole('supplier_portal_access') && auth()->user()->can('supplier_account_statements.view')))
                     <li class="nav-item">
                         <a class="nav-link menu-arrow {{ request()->routeIs('suppliers.*') ? 'active' : '' }}"
                            href="#sidebarSuppliers" data-bs-toggle="collapse" role="button"
@@ -98,16 +98,18 @@
                                        href="{{ route('suppliers.index') }}">Listado</a>
                                 </li>
                                 @endcan
+                                @unlessrole('supplier_portal_access')
                                 @can('supplier_account_statements.view')
                                 <li class="sub-nav-item">
                                     <a class="sub-nav-link {{ request()->routeIs('suppliers.account_statement.*') ? 'active' : '' }}"
                                        href="{{ route('suppliers.account_statement.index') }}">Estado de Cuenta</a>
                                 </li>
                                 @endcan
+                                @endunlessrole
                             </ul>
                         </div>
                     </li>
-            @endcanany
+            @endif
 
             @can('mobile_assets.view')
                     <li class="nav-item">

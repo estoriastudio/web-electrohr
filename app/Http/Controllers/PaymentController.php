@@ -320,6 +320,8 @@ class PaymentController extends Controller
 
     public function exportPaid(Request $request)
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $validated = $request->validate([
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
@@ -1415,6 +1417,8 @@ class PaymentController extends Controller
      */
     public function regularization(Request $request): View
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $search = trim($request->input('search', ''));
         $currency = $this->selectedCurrency($request);
         $buyerId = Auth::user()->invoiceBuyerFilter();

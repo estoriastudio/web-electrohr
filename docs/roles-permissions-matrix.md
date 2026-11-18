@@ -180,7 +180,7 @@ Criterios aplicados al traducir rutas a permisos:
 - **Facturas** (`invoices`): `PurchaseOrderInvoice` usa `HasAccessScope` (`own_buyer`, `assigned_projects`, por la OC). Consultan Gerente y Supervisor (sus proyectos), Dirección, Almacén, Compras (sus OC) y Pagos. Validar pide `invoices.authorize`: Compras en sus OC y admin. Exportar no está disponible para quien solo ve sus proyectos. `User::invoiceBuyerFilter()` ahora sale de la matriz.
 - **Alta de Facturas** (`invoice_intake`): Compras, Recepción (decisión) y admin. Borrar una factura pide C de Alta. Se agregó "Alta de facturas" al menú Facturas.
 - **Hitos** (`milestones`): el listado se acota a las OC que el usuario ve. Crear, editar, ajustar monto y borrar piden C o E (Compras en sus OC, admin).
-- **Pagos:** Autorizaciones (`payment_authorizations`: Pagos presenta y registra pagos adicionales; **Dirección autoriza con su usuario**, como admin), Por Pagar (`payments_payable`: Pagos edita) y Pagado (`payments_paid`: Pagos registra con SPEI). Compras y Dirección consultan. Regularización documental, contrarecibo y comprobante SPEI piden V de Pagado.
+- **Pagos:** Autorizaciones (`payment_authorizations`: Pagos presenta y registra pagos adicionales; **Dirección autoriza con su usuario**, como admin), Por Pagar (`payments_payable`: Pagos edita) y Pagado (`payments_paid`: Pagos registra con SPEI). Compras y Dirección consultan. Regularización documental, contrarecibo y comprobante SPEI piden V de Pagado. Las cuentas con `supplier_portal_access` no ven ni pueden abrir Regularización documental ni exportar Pagado a Excel: reciben 403 incluso si también tienen `admin` u otro rol. Conservan Pagado con su alcance y los comprobantes permitidos.
 - **Recepción de OC** (`purchase_order_receipts`): registrar entregas y "Buscar OCs" piden R (Almacén; Gerente y Supervisor en sus proyectos). **Validación de hitos** (`milestone_validations`): confirmar entrega y registrar cumplimiento piden A o C, y ver la OC.
 - **Evidencias** (`purchase_order_evidences`): suben Gerente, Supervisor y Almacén; consultan Compras y Pagos; siempre sobre una OC que el usuario ve.
 - La vista de la OC muestra cada sección según estos permisos. En la Fase 3 Gerente y Supervisor pasaron a ver hitos, facturas y evidencias, y a registrar entregas desde la OC (ver "Fase 3: Espacios propios").
@@ -189,7 +189,7 @@ Criterios aplicados al traducir rutas a permisos:
 ### Fase 2: Proveedores
 
 - **Listado** (`suppliers`): Compras da de alta, importa y edita (incluye contactos, sucursales y acceso al portal; borrar usa editar). Dirección, Almacén y Pagos consultan. Los datos de proveedor que usan los formularios de OC piden V.
-- **Estado de Cuenta** (`supplier_account_statements`): consultan Dirección, Compras y Pagos. Almacén no.
+- **Estado de Cuenta** (`supplier_account_statements`): consultan Dirección, Compras y Pagos. Almacén no. El reporte interno global y sus exportaciones, reporte de faltantes y resumen de OC responden 403 a toda cuenta con `supplier_portal_access`, incluso si también tiene `admin` u otro rol. El alcance `own_supplier` de PRV corresponde al estado de cuenta propio del portal, que permanece disponible.
 - **Exportar** el listado, el estado de cuenta y los documentos pide D: solo admin.
 - Cambios de comportamiento: Pagos ya no da de alta ni edita proveedores; Compras y Pagos ya no exportan; Almacén y Dirección pasan a consultar el listado.
 

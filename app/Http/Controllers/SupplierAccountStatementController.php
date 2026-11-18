@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\SupplierAccountStatementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -26,6 +27,8 @@ class SupplierAccountStatementController extends Controller
 
     public function index(Request $request): View
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $filters = $this->filters($request);
         $pagination = $request->validate([
             'page' => ['nullable', 'integer', 'min:1'],
@@ -46,6 +49,8 @@ class SupplierAccountStatementController extends Controller
 
     public function export(Request $request)
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $filters = $this->filters($request);
 
         return DB::transaction(fn () => Excel::download(
@@ -56,6 +61,8 @@ class SupplierAccountStatementController extends Controller
 
     public function exportDocuments(Request $request): BinaryFileResponse|JsonResponse
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $validated = $request->validate([
             'status' => ['required', Rule::in(array_keys(SupplierAccountStatementService::STATUSES))],
             'export_id' => ['required', 'uuid'],
@@ -149,6 +156,8 @@ class SupplierAccountStatementController extends Controller
 
     public function documentExportReport(Request $request, string $export): JsonResponse
     {
+        abort_if($request->user()->hasRole('supplier_portal_access'), 403);
+
         $report = $request->session()->pull('statement_document_exports.'.$export);
         abort_if($report === null, 404, 'No se encontró el reporte de exportación.');
 
@@ -157,6 +166,8 @@ class SupplierAccountStatementController extends Controller
 
     public function purchaseOrderSummary(PurchaseOrder $purchaseOrder): View
     {
+        abort_if(Auth::user()->hasRole('supplier_portal_access'), 403);
+
         $result = DB::transaction(fn () => $this->statement->purchaseOrderSummary($purchaseOrder));
 
         return view('suppliers.partials._account_statement_oc_summary', array_merge($result, [

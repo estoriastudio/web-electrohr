@@ -4,6 +4,8 @@
 
 Consulta para los roles `admin`, `Pagos` y `Orden de compra` en `/proveedores/estado-cuenta`. Proveedores es un desplegable con Listado (permisos existentes) y Estado de Cuenta, visible para esos tres roles. Las rutas del reporte son solo GET: listado, Excel y resumen de OC, con la misma restriccion de roles en todos los endpoints. Consultar no registra aplicaciones, genera pagos, cambia documentos ni envia notificaciones.
 
+Las cuentas con `supplier_portal_access` no ven el enlace al reporte interno y reciben 403 en todas sus rutas, incluidas las exportaciones, el reporte de documentos faltantes y el resumen de OC. Esta restriccion prevalece aun si tambien tienen `admin` u otro rol interno. Su estado de cuenta propio en `/portal-proveedor/estado-cuenta` permanece disponible y limitado al proveedor autenticado.
+
 Proveedor carga factura por portal; Compras acepta/rechaza y vincula al hito; Pagos realiza transferencia y carga SPEI. Regularizar significa incorporar la factura faltante a un pago existente, no crear un nuevo hito, pago o solicitud. Estas operaciones siguen en sus modulos responsables.
 
 ## Fuentes y calculos

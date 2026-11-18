@@ -17,6 +17,7 @@
                     <p class="text-muted fs-13 mb-0">Consulta los pagos liquidados y sus comprobantes SPEI.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    @unlessrole('supplier_portal_access')
                     <div class="dropdown">
                         <button class="btn btn-sm btn-success dropdown-toggle" type="button" id="paidExportDropdown"
                                 data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
@@ -49,6 +50,7 @@
                     <a href="{{ route('payments.regularization') }}" class="btn btn-sm btn-outline-warning">
                         <i class="ri-file-warning-line me-1"></i> Regularización documental
                     </a>
+                    @endunlessrole
                     @can('payments_payable.view')
                     <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
                         <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
