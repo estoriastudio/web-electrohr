@@ -10,20 +10,20 @@
 	<div class="card-header d-flex flex-wrap justify-content-between gap-2">
 		<h4 class="card-title mb-0">Vacaciones de {{ $workerVacation->worker->first_name }} {{ $workerVacation->worker->last_name }}</h4>
 		<div class="d-flex gap-2">
-			<a class="btn btn-primary btn-sm" href="{{ route('human_resources.worker-vacations.edit', $workerVacation) }}">Editar</a>
+			@can('hr_vacations.update')<a class="btn btn-primary btn-sm" href="{{ route('human_resources.worker-vacations.edit', $workerVacation) }}">Editar</a>@endcan
 
 			@if ($workerVacation->status === 'in_progress')
-				<form method="POST" action="{{ route('human_resources.worker-vacations.approve', $workerVacation) }}">
+				@can('hr_vacations.authorize')<form method="POST" action="{{ route('human_resources.worker-vacations.approve', $workerVacation) }}">
 					@csrf
 					<button class="btn btn-success btn-sm">Aprobar</button>
-				</form>
+				</form>@endcan
 			@endif
 
 			@if (in_array($workerVacation->status, ['in_progress', 'approved'], true))
-				<form method="POST" action="{{ route('human_resources.worker-vacations.cancel', $workerVacation) }}">
+				@can('hr_vacations.update')<form method="POST" action="{{ route('human_resources.worker-vacations.cancel', $workerVacation) }}">
 					@csrf
 					<button class="btn btn-outline-danger btn-sm">Cancelar</button>
-				</form>
+				</form>@endcan
 			@endif
 		</div>
 	</div>
@@ -40,11 +40,11 @@
 		</dl>
 	</div>
 	<div class="card-footer">
-		<form method="POST" action="{{ route('human_resources.worker-vacations.destroy', $workerVacation) }}" onsubmit="return confirm('¿Eliminar esta solicitud?')">
+		@can('hr_vacations.update')<form method="POST" action="{{ route('human_resources.worker-vacations.destroy', $workerVacation) }}" onsubmit="return confirm('¿Eliminar esta solicitud?')">
 			@csrf
 			@method('DELETE')
 			<button class="btn btn-outline-danger btn-sm">Eliminar solicitud</button>
-		</form>
+		</form>@endcan
 	</div>
 </div>
 @endsection

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -9,8 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderInvoice extends Model
 {
+    use HasAccessScope;
+
     public const STATUS_EN_PROCESO = 'en_proceso';
+
     public const STATUS_ACEPTADA = 'aceptada';
+
     public const STATUS_RECHAZADA = 'rechazada';
 
     public const STATUSES = [
@@ -46,11 +52,11 @@ class PurchaseOrderInvoice extends Model
     ];
 
     protected $casts = [
-        'amount'      => 'decimal:2',
+        'amount' => 'decimal:2',
         'credit_note_amount' => 'decimal:2',
-        'net_scope'   => 'decimal:2',
-        'due_date'    => 'date',
-        'issue_date'  => 'date',
+        'net_scope' => 'decimal:2',
+        'due_date' => 'date',
+        'issue_date' => 'date',
         'attached_at' => 'datetime',
         'accepted_at' => 'datetime',
     ];
@@ -70,6 +76,18 @@ class PurchaseOrderInvoice extends Model
     public function scopeOwnedBy($query, int $userId)
     {
         return $query->whereHas('purchaseOrder', fn ($order) => $order->ownedBy($userId));
+    }
+
+    /** Alcances de la matriz por la OC de la factura: Compras, sus OC; Gerente y Supervisor, sus proyectos. */
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'own_buyer', 'assigned_projects' => $query->whereHas(
+                'purchaseOrder',
+                fn (Builder $orders) => (new PurchaseOrder)->applyAccessScope($orders, $scope, $user)
+            ),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 
     public function milestones(): BelongsToMany

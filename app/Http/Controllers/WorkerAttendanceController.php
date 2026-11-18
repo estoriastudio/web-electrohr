@@ -8,6 +8,7 @@ use App\Models\Worker;
 use App\Models\WorkerAttendance;
 use App\Models\WorkerGroup;
 use App\Models\WorkerGroupMember;
+use App\Services\AccessMatrix;
 use App\Services\NotificationService;
 use App\Services\WorkerIncentiveService;
 use Carbon\Carbon;
@@ -43,6 +44,7 @@ class WorkerAttendanceController extends Controller
         $date = $selectedDate->toDateString();
 
         $workerGroups = WorkerGroup::query()
+            ->visibleTo(Auth::user(), 'hr_attendances')
             ->with('projectWork')
             ->withCount([
                 'members as assigned_count' => function ($query) use ($date) {
@@ -60,12 +62,6 @@ class WorkerAttendanceController extends Controller
                     ->where('attended', false)
                     ->where('absence_reason', 'incapacity'),
             ])
-            ->when($this->requiresResponsibleWorkFilter(), function ($query) {
-                $query->whereHas('projectWork', function ($projectWorkQuery) {
-                    $projectWorkQuery->where('supervisor_user_id', Auth::id())
-                        ->orWhere('resident_user_id', Auth::id());
-                });
-            })
             ->orderBy('name')
             ->get()
             ->each(function (WorkerGroup $workerGroup) {
@@ -109,9 +105,11 @@ class WorkerAttendanceController extends Controller
             new WorkerAttendanceExport(
                 $validated['start_date'],
                 $validated['end_date'],
-                $this->requiresResponsibleWorkFilter() ? Auth::id() : null,
+                app(AccessMatrix::class)->hasFullScope(Auth::user(), 'hr_attendances')
+                    ? null
+                    : $this->visibleProjectWorks('hr_attendances')->pluck('project_works.id')->all(),
             ),
-            'asistencias-por-cuadrilla-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx'
+            'asistencias-por-cuadrilla-'.$validated['start_date'].'-a-'.$validated['end_date'].'.xlsx'
         );
     }
 
@@ -120,8 +118,8 @@ class WorkerAttendanceController extends Controller
         $request->validate(['date' => 'nullable|date']);
         $selectedDate = Carbon::parse($request->input('date', today()->toDateString()))->startOfDay()->locale('es');
         $date = $selectedDate->toDateString();
+        $this->authorizeAccess($workerGroup, 'hr_attendances');
         $workerGroup->load('projectWork');
-        $this->ensureResponsibleWorkAccess($workerGroup);
 
         $members = $workerGroup->members()
             ->with('positionCategory')
@@ -148,7 +146,9 @@ class WorkerAttendanceController extends Controller
         $previousDate = $selectedDate->copy()->subDay()->toDateString();
         $nextDate = $selectedDate->copy()->addDay()->toDateString();
         $canGoNext = $selectedDate->lt(today()->startOfDay());
-        $canAddIncentives = $selectedDate->lt(today()->startOfDay());
+        $canAddIncentives = $selectedDate->lt(today()->startOfDay()) && Auth::user()->can('hr_incentives.create');
+        $canRecordAttendance = $workerGroup->isVisibleTo(Auth::user(), 'hr_attendances', 'create')
+            || $workerGroup->isVisibleTo(Auth::user(), 'hr_attendances', 'update');
 
         return view('human_resources.worker-groups.attendance', compact(
             'workerGroup',
@@ -161,12 +161,14 @@ class WorkerAttendanceController extends Controller
             'nextDate',
             'canGoNext',
             'canAddIncentives',
+            'canRecordAttendance',
         ));
     }
 
     public function storeGroupIncentive(Request $request, WorkerGroup $workerGroup, Worker $worker): JsonResponse
     {
-        $this->ensureResponsibleWorkAccess($workerGroup);
+        $this->authorizeAccess($workerGroup, 'hr_attendances');
+        $this->authorizeAccess($worker, 'hr_incentives', 'create');
         $data = $this->validatedIncentiveData($request);
         $incentiveDate = Carbon::parse($data['incentive_date'])->startOfDay();
 
@@ -227,7 +229,7 @@ class WorkerAttendanceController extends Controller
                 'id' => $incentive->id,
                 'label' => $labels[$incentive->category],
                 'detail' => $incentive->category === 'overtime'
-                    ? number_format((float) $incentive->overtime_hours, 2) . ' h x $' . number_format((float) $incentive->overtime_hourly_rate, 2)
+                    ? number_format((float) $incentive->overtime_hours, 2).' h x $'.number_format((float) $incentive->overtime_hourly_rate, 2)
                     : $incentive->rate_type,
             ],
         ]);
@@ -235,7 +237,7 @@ class WorkerAttendanceController extends Controller
 
     public function markGroupAttendance(Request $request, WorkerGroup $workerGroup, Worker $worker): JsonResponse
     {
-        $this->ensureResponsibleWorkAccess($workerGroup);
+        $this->ensureCanRecordAttendance($workerGroup);
         $data = $request->validate([
             'date' => 'required|date',
             'attended' => 'required|boolean',
@@ -313,7 +315,7 @@ class WorkerAttendanceController extends Controller
         $this->notify($attendance, $isNew ? 'create' : 'update', "registró {$statusLabel} de {$worker->first_name} {$worker->last_name}.");
 
         return response()->json([
-            'message' => ucfirst($statusLabel) . ' registrada correctamente.',
+            'message' => ucfirst($statusLabel).' registrada correctamente.',
             'attendance' => [
                 'worker_id' => $worker->id,
                 'attended' => $attendance->attended,
@@ -331,6 +333,7 @@ class WorkerAttendanceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validatedData($request);
+        $this->ensureCanRecordAttendance(WorkerGroup::findOrFail($data['worker_group_id']));
         $this->ensureNoDuplicate($data);
         $this->ensureActiveMembership($data);
 
@@ -348,6 +351,7 @@ class WorkerAttendanceController extends Controller
 
     public function show(WorkerAttendance $workerAttendance): View
     {
+        $this->authorizeAccess($workerAttendance, 'hr_attendances');
         $workerAttendance->load(['worker', 'workerGroup.projectWork']);
 
         return view('human_resources.attendances.show', compact('workerAttendance'));
@@ -355,16 +359,19 @@ class WorkerAttendanceController extends Controller
 
     public function edit(WorkerAttendance $workerAttendance): View
     {
-        $workerGroups = WorkerGroup::with('projectWork')->where('status', 'active')->orderBy('name')->get();
-        $workers = Worker::whereIn('status', ['pre_registered', 'active'])->orderBy('last_name')->orderBy('first_name')->get();
+        $this->authorizeAccess($workerAttendance, 'hr_attendances', 'update');
+        $workerGroups = WorkerGroup::query()->visibleTo(Auth::user(), 'hr_attendances', 'update')->with('projectWork')->where('status', 'active')->orderBy('name')->get();
+        $workers = Worker::query()->visibleTo(Auth::user(), 'hr_workers')->whereIn('status', ['pre_registered', 'active'])->orderBy('last_name')->orderBy('first_name')->get();
 
         return view('human_resources.attendances.edit', compact('workerAttendance', 'workerGroups', 'workers'));
     }
 
     public function update(Request $request, WorkerAttendance $workerAttendance): RedirectResponse
     {
+        $this->authorizeAccess($workerAttendance, 'hr_attendances', 'update');
         $this->ensureUnlocked($workerAttendance);
         $data = $this->validatedData($request, $workerAttendance);
+        $this->authorizeAccess(WorkerGroup::findOrFail($data['worker_group_id']), 'hr_attendances', 'update');
         $this->ensureNoDuplicate($data, $workerAttendance);
         $this->ensureActiveMembership($data);
 
@@ -390,6 +397,7 @@ class WorkerAttendanceController extends Controller
 
     public function destroy(WorkerAttendance $workerAttendance): RedirectResponse
     {
+        $this->authorizeAccess($workerAttendance, 'hr_attendances', 'update');
         $this->ensureUnlocked($workerAttendance);
         $workerAttendance->loadMissing('worker');
         $name = "{$workerAttendance->worker->first_name} {$workerAttendance->worker->last_name}";
@@ -406,6 +414,7 @@ class WorkerAttendanceController extends Controller
 
     public function downloadAbsenceDocument(WorkerAttendance $workerAttendance): mixed
     {
+        $this->authorizeAccess($workerAttendance, 'hr_attendances');
         $path = $workerAttendance->absence_document_path;
 
         abort_unless($path && Storage::disk('s3')->exists($path), 404);
@@ -545,20 +554,16 @@ class WorkerAttendanceController extends Controller
         }
     }
 
-    private function requiresResponsibleWorkFilter(): bool
+    /** Capturar asistencia es crear o corregir el registro del día: basta con cualquiera de los dos permisos. */
+    private function ensureCanRecordAttendance(WorkerGroup $workerGroup): void
     {
-        return ! Auth::user()->hasAnyRole(['admin', 'Recursos Humanos']);
-    }
+        $user = Auth::user();
 
-    private function ensureResponsibleWorkAccess(WorkerGroup $workerGroup): void
-    {
-        if (! $this->requiresResponsibleWorkFilter()) {
-            return;
-        }
-
-        $workerGroup->loadMissing('projectWork');
-
-        abort_unless($workerGroup->projectWork?->isAttendanceResponsible(Auth::user()), 403);
+        abort_unless(
+            $workerGroup->isVisibleTo($user, 'hr_attendances', 'create')
+                || $workerGroup->isVisibleTo($user, 'hr_attendances', 'update'),
+            403
+        );
     }
 
     private function notify(WorkerAttendance $attendance, string $action, string $data): void

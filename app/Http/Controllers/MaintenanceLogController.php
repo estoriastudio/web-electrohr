@@ -15,19 +15,19 @@ class MaintenanceLogController extends Controller
     public function store(Request $request, MobileAsset $mobileAsset): RedirectResponse
     {
         $validated = $request->validate([
-            'maintenance_date'      => 'required|date',
+            'maintenance_date' => 'required|date',
             'next_maintenance_date' => 'nullable|date|after_or_equal:maintenance_date',
-            'mileage_due'           => 'nullable|integer|min:0',
-            'notes'                 => 'nullable|string|max:2000',
-            'inspection_file'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
+            'mileage_due' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string|max:2000',
+            'inspection_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
         ]);
 
         $validated['folio'] = $this->generateNextFolio($mobileAsset);
 
         if ($request->hasFile('inspection_file')) {
             $uploadedFile = $request->file('inspection_file');
-            $extension    = $uploadedFile->getClientOriginalExtension();
-            $s3Path       = 'mobile_assets/' . $mobileAsset->id . '/maintenance/inspeccion_' . time() . '.' . $extension;
+            $extension = $uploadedFile->getClientOriginalExtension();
+            $s3Path = 'mobile_assets/'.$mobileAsset->id.'/maintenance/inspeccion_'.time().'.'.$extension;
             Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
             $validated['inspection_file'] = $s3Path;
         }

@@ -12,7 +12,7 @@
 @section('content')
 
 @php
-    $canManageOrder = auth()->user()->hasRole('admin') || (auth()->user()->hasRole('Orden de compra') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canManageOrder = auth()->user()->hasFullAccessScope('purchase_orders', 'update') || (auth()->user()->can('purchase_orders.update') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
 @endphp
 
 @if ($errors->any())

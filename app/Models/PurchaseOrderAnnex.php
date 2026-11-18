@@ -23,8 +23,8 @@ class PurchaseOrderAnnex extends Model
 
     protected $casts = [
         'annex_condiciones' => 'boolean',
-        'annex_contrato'    => 'boolean',
-        'annex_dossier'     => 'boolean',
+        'annex_contrato' => 'boolean',
+        'annex_dossier' => 'boolean',
     ];
 
     public function purchaseOrder(): BelongsTo

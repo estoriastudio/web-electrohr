@@ -8,6 +8,7 @@ use App\Models\StockEntryItem;
 use App\Models\StockExit;
 use App\Models\StockExitItem;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,9 +20,7 @@ use Illuminate\View\View;
 
 class StockExitController extends Controller
 {
-    public function __construct(private NotificationService $notification)
-    {
-    }
+    public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
     {
@@ -40,6 +39,7 @@ class StockExitController extends Controller
             ->when($dateFrom, fn ($query) => $query->whereDate('exited_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('exited_at', '<=', $dateTo))
             ->latest('exited_at')->paginate(25)->withQueryString();
+
         return view('stocks.exits.index', compact('exits', 'search', 'dateFrom', 'dateTo'));
     }
 
@@ -54,8 +54,8 @@ class StockExitController extends Controller
             'start' => ['required', 'date'],
             'end' => ['required', 'date', 'after:start'],
         ]);
-        $start = \Carbon\Carbon::parse($validated['start'])->toDateString();
-        $end = \Carbon\Carbon::parse($validated['end'])->toDateString();
+        $start = Carbon::parse($validated['start'])->toDateString();
+        $end = Carbon::parse($validated['end'])->toDateString();
 
         $events = StockExit::with(['concept', 'tool', 'items.concept', 'recipientWorker', 'project', 'projectWork', 'returnStockEntry'])
             ->where('exit_type', 'tool_loan')
@@ -69,8 +69,8 @@ class StockExitController extends Controller
 
                 return [
                     'id' => (string) $exit->id,
-                    'title' => ($exit->voucher_number ? $exit->voucher_number . ' - ' : '') . ($exit->items->isNotEmpty()
-                        ? $exit->items->first()->concept->code . ($exit->items->count() > 1 ? ' +' . ($exit->items->count() - 1) : '')
+                    'title' => ($exit->voucher_number ? $exit->voucher_number.' - ' : '').($exit->items->isNotEmpty()
+                        ? $exit->items->first()->concept->code.($exit->items->count() > 1 ? ' +'.($exit->items->count() - 1) : '')
                         : ($exit->concept?->code ?: $exit->tool?->economic_number ?: 'Suministro')),
                     'start' => $exit->expected_return_at->toDateString(),
                     'allDay' => true,
@@ -78,11 +78,11 @@ class StockExitController extends Controller
                     'extendedProps' => [
                         'voucher' => $exit->voucher_number ?: '—',
                         'tool' => $exit->items->isNotEmpty()
-                            ? $exit->items->map(fn ($item) => $item->concept->code . ' - ' . $item->concept->description . ' (x' . $this->formatQuantity((float) $item->quantity) . ')')->implode('; ')
+                            ? $exit->items->map(fn ($item) => $item->concept->code.' - '.$item->concept->description.' (x'.$this->formatQuantity((float) $item->quantity).')')->implode('; ')
                             : ($exit->concept
-                            ? $exit->concept->code . ' - ' . $exit->concept->description
-                            : trim(($exit->tool?->economic_number ?? '') . ' - ' . ($exit->tool?->name ?: $exit->tool?->description ?: 'Sin suministro'))),
-                        'worker' => $exit->recipient_name ?: ($worker ? trim($worker->first_name . ' ' . $worker->last_name) : 'Sin responsable'),
+                            ? $exit->concept->code.' - '.$exit->concept->description
+                            : trim(($exit->tool?->economic_number ?? '').' - '.($exit->tool?->name ?: $exit->tool?->description ?: 'Sin suministro'))),
+                        'worker' => $exit->recipient_name ?: ($worker ? trim($worker->first_name.' '.$worker->last_name) : 'Sin responsable'),
                         'project' => $exit->project?->name ?: 'Sin proyecto',
                         'work' => $exit->projectWork?->name ?: 'Sin obra',
                         'quantity' => $exit->quantity,
@@ -130,6 +130,7 @@ class StockExitController extends Controller
             if (! $concept) {
                 throw ValidationException::withMessages(["items.{$index}.concept_code" => 'El código de suministro no existe o no está activo.']);
             }
+
             return ['concept' => $concept, 'quantity' => $item['quantity'], 'index' => $index];
         });
 
@@ -138,7 +139,7 @@ class StockExitController extends Controller
                 $available = StockEntryItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity')
                     - StockExitItem::where('concept_id', $item['concept']->id)->lockForUpdate()->sum('quantity');
                 if ((float) $item['quantity'] > (float) $available) {
-                    throw ValidationException::withMessages(["items.{$item['index']}.quantity" => 'La cantidad excede el stock disponible para ' . $item['concept']->code . '.']);
+                    throw ValidationException::withMessages(["items.{$item['index']}.quantity" => 'La cantidad excede el stock disponible para '.$item['concept']->code.'.']);
                 }
             }
 
@@ -162,7 +163,8 @@ class StockExitController extends Controller
 
             return $exit;
         });
-        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $exit->id, 'data' => 'registró una salida de inventario #' . $exit->id . '.']);
+        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'create', 'model_id' => $exit->id, 'data' => 'registró una salida de inventario #'.$exit->id.'.']);
+
         return redirect()->route('stocks.exits.index')->with('success', 'Salida registrada correctamente.');
     }
 
@@ -197,10 +199,11 @@ class StockExitController extends Controller
                 'concept_id' => $line['concept_id'], 'line_number' => $index + 1, 'quantity' => $line['quantity'],
             ]));
             $stockExit->update(['status' => 'returned', 'return_stock_entry_id' => $entry->id]);
+
             return $entry;
         });
 
-        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockExit->id, 'data' => 'registró el retorno del préstamo de herramienta #' . $stockExit->id . '.']);
+        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockExit->id, 'data' => 'registró el retorno del préstamo de herramienta #'.$stockExit->id.'.']);
 
         return redirect()->route('stocks.exits.index')->with('success', 'Retorno de herramienta registrado correctamente.');
     }
@@ -247,10 +250,10 @@ class StockExitController extends Controller
         $changes = [];
         $track = function (string $label, mixed $old, mixed $new) use (&$changes) {
             if ((string) $old !== (string) $new) {
-                $changes[] = "{$label}: " . ($old === null || $old === '' ? '—' : $old) . ' → ' . ($new === null || $new === '' ? '—' : $new);
+                $changes[] = "{$label}: ".($old === null || $old === '' ? '—' : $old).' → '.($new === null || $new === '' ? '—' : $new);
             }
         };
-        $date = fn ($value) => $value ? \Carbon\Carbon::parse($value)->format('d/m/Y') : null;
+        $date = fn ($value) => $value ? Carbon::parse($value)->format('d/m/Y') : null;
 
         $track('vale', $stockExit->voucher_number, $validated['voucher_number'] ?? null);
         $track('observaciones', $stockExit->observations, $validated['observations'] ?? null);
@@ -263,7 +266,7 @@ class StockExitController extends Controller
 
             if ($isLoan) {
                 $currentRecipient = $stockExit->recipient_name ?: ($stockExit->recipientWorker
-                    ? trim($stockExit->recipientWorker->first_name . ' ' . $stockExit->recipientWorker->last_name)
+                    ? trim($stockExit->recipientWorker->first_name.' '.$stockExit->recipientWorker->last_name)
                     : null);
                 $track('persona responsable', $currentRecipient, $validated['recipient_name']);
                 $attributes['recipient_name'] = $validated['recipient_name'];
@@ -273,7 +276,7 @@ class StockExitController extends Controller
                     $track('retorno tentativo', $date($stockExit->expected_return_at), $date($validated['expected_return_at']));
                     $attributes['exited_at'] = $validated['exited_at'];
                     $attributes['expected_return_at'] = $validated['expected_return_at'];
-                    if ($stockExit->expected_return_at?->toDateString() !== \Carbon\Carbon::parse($validated['expected_return_at'])->toDateString()) {
+                    if ($stockExit->expected_return_at?->toDateString() !== Carbon::parse($validated['expected_return_at'])->toDateString()) {
                         $attributes['overdue_notified_at'] = null;
                     }
                 }
@@ -289,11 +292,11 @@ class StockExitController extends Controller
                     if ($delta > 0) {
                         $available = $this->availableStock($item->concept_id);
                         if ($delta > $available) {
-                            throw ValidationException::withMessages(["items.{$item->id}.quantity" => 'La cantidad excede el stock disponible para ' . $item->concept->code . ' (' . $this->formatQuantity($available) . ').']);
+                            throw ValidationException::withMessages(["items.{$item->id}.quantity" => 'La cantidad excede el stock disponible para '.$item->concept->code.' ('.$this->formatQuantity($available).').']);
                         }
                     }
                     if ($delta != 0) {
-                        $changes[] = $item->concept->code . ': ' . $this->formatQuantity((float) $item->quantity) . ' → ' . $this->formatQuantity($quantity);
+                        $changes[] = $item->concept->code.': '.$this->formatQuantity((float) $item->quantity).' → '.$this->formatQuantity($quantity);
                         $item->update(['quantity' => $quantity]);
                     }
                 }
@@ -303,7 +306,7 @@ class StockExitController extends Controller
             $stockExit->update($attributes);
         });
 
-        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockExit->id, 'data' => 'editó la salida de inventario #' . $stockExit->id . ($changes ? ' (' . implode('; ', $changes) . ')' : ' (sin cambios)') . '.']);
+        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $stockExit->id, 'data' => 'editó la salida de inventario #'.$stockExit->id.($changes ? ' ('.implode('; ', $changes).')' : ' (sin cambios)').'.']);
 
         return redirect()->route('stocks.exits.index')->with('success', 'Salida actualizada correctamente.');
     }
@@ -312,7 +315,7 @@ class StockExitController extends Controller
     {
         $stockExit->load('items.concept');
         $summary = $stockExit->items->isNotEmpty()
-            ? $stockExit->items->map(fn ($item) => $item->concept->code . ' x ' . $this->formatQuantity((float) $item->quantity))->implode(', ')
+            ? $stockExit->items->map(fn ($item) => $item->concept->code.' x '.$this->formatQuantity((float) $item->quantity))->implode(', ')
             : ($stockExit->concept?->code ?: $stockExit->tool?->economic_number);
 
         DB::transaction(function () use ($stockExit) {
@@ -323,7 +326,7 @@ class StockExitController extends Controller
             }
         });
 
-        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $stockExit->id, 'data' => 'eliminó la salida de inventario #' . $stockExit->id . ' (' . ($stockExit->voucher_number ? 'vale ' . $stockExit->voucher_number : 'sin vale') . ($summary ? ", {$summary}" : '') . ').']);
+        $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'destroy', 'model_id' => $stockExit->id, 'data' => 'eliminó la salida de inventario #'.$stockExit->id.' ('.($stockExit->voucher_number ? 'vale '.$stockExit->voucher_number : 'sin vale').($summary ? ", {$summary}" : '').').']);
 
         return redirect()->route('stocks.exits.index')->with('success', 'Salida eliminada correctamente.');
     }

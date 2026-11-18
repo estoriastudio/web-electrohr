@@ -13,15 +13,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ToolController extends Controller
 {
-    public function __construct(private NotificationService $notification)
-    {
-    }
+    public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
     {
@@ -120,7 +118,7 @@ class ToolController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $tool->id,
-            'data' => 'created tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+            'data' => 'created tool "'.$tool->economic_number.' - '.$tool->name.'".',
         ]);
 
         return redirect()->route('tools.index')
@@ -160,7 +158,7 @@ class ToolController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'update',
             'model_id' => $tool->id,
-            'data' => 'updated tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+            'data' => 'updated tool "'.$tool->economic_number.' - '.$tool->name.'".',
         ]);
 
         return redirect()->route('tools.index')
@@ -171,7 +169,7 @@ class ToolController extends Controller
     {
         if ($tool->controls()->where('status', 'active')->exists()) {
             return redirect()->route('tools.index')
-                ->with('error', 'La herramienta ' . $tool->economic_number . ' tiene un control de uso activo. Ciérralo antes de archivarla.');
+                ->with('error', 'La herramienta '.$tool->economic_number.' tiene un control de uso activo. Ciérralo antes de archivarla.');
         }
 
         $tool->update(['archived_at' => now()]);
@@ -181,11 +179,11 @@ class ToolController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'archive',
             'model_id' => $tool->id,
-            'data' => 'archived tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+            'data' => 'archived tool "'.$tool->economic_number.' - '.$tool->name.'".',
         ]);
 
         return redirect()->route('tools.index')
-            ->with('success', 'Herramienta ' . $tool->economic_number . ' archivada.');
+            ->with('success', 'Herramienta '.$tool->economic_number.' archivada.');
     }
 
     public function unarchive(Tool $tool): RedirectResponse
@@ -197,11 +195,11 @@ class ToolController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'unarchive',
             'model_id' => $tool->id,
-            'data' => 'restored tool "' . $tool->economic_number . ' - ' . $tool->name . '".',
+            'data' => 'restored tool "'.$tool->economic_number.' - '.$tool->name.'".',
         ]);
 
         return redirect()->route('tools.archived')
-            ->with('success', 'Herramienta ' . $tool->economic_number . ' restaurada al listado activo.');
+            ->with('success', 'Herramienta '.$tool->economic_number.' restaurada al listado activo.');
     }
 
     public function archived(Request $request): View
@@ -233,14 +231,14 @@ class ToolController extends Controller
 
         if (StockExit::where('tool_id', $tool->id)->exists()) {
             return redirect()->route('tools.archived')
-                ->with('error', 'La herramienta ' . $tool->economic_number . ' tiene salidas de inventario vinculadas y no puede eliminarse permanentemente. Mantenla archivada.');
+                ->with('error', 'La herramienta '.$tool->economic_number.' tiene salidas de inventario vinculadas y no puede eliminarse permanentemente. Mantenla archivada.');
         }
 
-        $label = $tool->economic_number . ' - ' . $tool->name;
+        $label = $tool->economic_number.' - '.$tool->name;
         $toolId = $tool->id;
 
         $paths = collect([1, 2, 3])
-            ->map(fn ($slot) => $tool->{'photo' . $slot})
+            ->map(fn ($slot) => $tool->{'photo'.$slot})
             ->merge($tool->calibrations->pluck('file_path'))
             ->filter()
             ->all();
@@ -256,7 +254,7 @@ class ToolController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
             'model_id' => $toolId,
-            'data' => 'permanently deleted tool "' . $label . '".',
+            'data' => 'permanently deleted tool "'.$label.'".',
         ]);
 
         return redirect()->route('tools.archived')
@@ -283,7 +281,7 @@ class ToolController extends Controller
             'file' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
 
         if ($tool->$field) {
             Storage::disk('s3')->delete($tool->$field);
@@ -291,7 +289,7 @@ class ToolController extends Controller
 
         $uploadedFile = $request->file('file');
         $extension = $uploadedFile->getClientOriginalExtension();
-        $s3Path = 'tools/' . $tool->id . '/photo' . $slot . '_' . time() . '.' . $extension;
+        $s3Path = 'tools/'.$tool->id.'/photo'.$slot.'_'.time().'.'.$extension;
 
         $stored = Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
 
@@ -314,7 +312,7 @@ class ToolController extends Controller
             abort(404);
         }
 
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
 
         if ($tool->$field) {
             Storage::disk('s3')->delete($tool->$field);

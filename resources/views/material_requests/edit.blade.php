@@ -4,7 +4,7 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
-    @if (auth()->user()->isRestrictedEngineer())
+    @if (! auth()->user()->hasFullAccessScope('material_requests'))
         <li class="breadcrumb-item"><a href="{{ route('my-projects.index') }}">Mis Proyectos</a></li>
     @else
         <li class="breadcrumb-item"><a href="{{ route('material_requests.index') }}">Solicitudes de Material</a></li>

@@ -46,7 +46,7 @@
             </span>
         </div>
     </div>
-    <div class="d-flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalStockAdjustment"><i class="ri-scales-3-line me-1"></i>Ajuste manual</button><a href="{{ route('stocks.entries.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-inbox-line me-1"></i>Ver entradas</a><a href="{{ route('stocks.exits.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-right-circle-line me-1"></i>Ver salidas</a></div>
+    <div class="d-flex flex-wrap gap-2"> @can('stocks.update')<button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalStockAdjustment"><i class="ri-scales-3-line me-1"></i>Ajuste manual</button>@endcan  @can('stock_entries.view')<a href="{{ route('stocks.entries.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-inbox-line me-1"></i>Ver entradas</a>@endcan  @can('stock_exits.view')<a href="{{ route('stocks.exits.index', ['search' => $concept->code]) }}" class="btn btn-sm btn-outline-primary"><i class="ri-arrow-right-circle-line me-1"></i>Ver salidas</a>@endcan </div>
 </div>
 
 <div class="row g-3 mb-3">

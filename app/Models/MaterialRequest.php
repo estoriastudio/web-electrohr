@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MaterialRequest extends Model
 {
-    use SoftDeletes;
+    use HasAccessScope, SoftDeletes;
 
     protected $fillable = [
         'folio',
@@ -35,10 +37,10 @@ class MaterialRequest extends Model
 
     protected $casts = [
         'request_date' => 'date',
-        'need_date'    => 'date',
+        'need_date' => 'date',
         'sent_to_warehouse_at' => 'datetime',
         'observations' => 'array',
-        'archived_at'  => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function scopeActive($query)
@@ -96,10 +98,19 @@ class MaterialRequest extends Model
         return $orders->isNotEmpty() && $orders->every(fn ($order) => $order->closed_at !== null);
     }
 
+    /** Aprobar y enviar a Almacén: admin, o quien autoriza SOLMAT (Gerente) en un proyecto que gerencia (decisión 2026-11-10). */
     public function canBeSentToWarehouseBy(User $user): bool
     {
-        return $user->hasAnyRole(['admin', 'Solmat'])
-            || ($this->project !== null && $this->project->isManagedBy($user));
+        return $user->hasRole('admin')
+            || ($user->can('material_requests.authorize') && $this->project !== null && $this->project->isManagedBy($user));
+    }
+
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_projects' => $query->whereIn('material_requests.project_id', Project::query()->assignedTo($user)->select('projects.id')),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 
     public function project(): BelongsTo
@@ -183,11 +194,9 @@ class MaterialRequest extends Model
         return $this->items->contains(function (MaterialRequestItem $item) use ($projectWorkIds) {
             if ($item->relationLoaded('workQuantities') && $item->workQuantities->isNotEmpty()) {
                 return (float) $item->workQuantities
-                    ->filter(fn (MaterialRequestItemProjectWork $workQuantity) =>
-                        $projectWorkIds->contains((int) $workQuantity->project_work_id)
+                    ->filter(fn (MaterialRequestItemProjectWork $workQuantity) => $projectWorkIds->contains((int) $workQuantity->project_work_id)
                     )
-                    ->sum(fn (MaterialRequestItemProjectWork $workQuantity) =>
-                        max(0, (float) $workQuantity->quantity - (float) $workQuantity->committed_quantity)
+                    ->sum(fn (MaterialRequestItemProjectWork $workQuantity) => max(0, (float) $workQuantity->quantity - (float) $workQuantity->committed_quantity)
                     ) > 0;
             }
 

@@ -18,9 +18,9 @@ class MaintenanceLog extends Model
     ];
 
     protected $casts = [
-        'maintenance_date'      => 'date',
+        'maintenance_date' => 'date',
         'next_maintenance_date' => 'date',
-        'mileage_due'           => 'integer',
+        'mileage_due' => 'integer',
     ];
 
     public function mobileAsset(): BelongsTo

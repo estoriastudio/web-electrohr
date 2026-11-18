@@ -17,7 +17,7 @@ class PurchaseOrderItemDelivery extends Model
     ];
 
     protected $casts = [
-        'quantity'     => 'decimal:4',
+        'quantity' => 'decimal:4',
         'delivered_at' => 'datetime',
     ];
 

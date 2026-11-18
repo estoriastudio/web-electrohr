@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concept;
+use App\Models\StockCertificate;
 use App\Models\StockEntry;
 use App\Models\StockEntryItem;
 use App\Models\StockExit;
@@ -19,9 +20,7 @@ use Illuminate\View\View;
 
 class StockController extends Controller
 {
-    public function __construct(private NotificationService $notification)
-    {
-    }
+    public function __construct(private NotificationService $notification) {}
 
     public function index(Request $request): View
     {
@@ -140,14 +139,14 @@ class StockController extends Controller
 
                 if ((float) $validated['quantity'] > $available) {
                     throw ValidationException::withMessages([
-                        'quantity' => 'La cantidad del ajuste excede el stock disponible (' . rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.') . ' ' . $concept->unit . ').',
+                        'quantity' => 'La cantidad del ajuste excede el stock disponible ('.rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.').' '.$concept->unit.').',
                     ]);
                 }
 
                 $exit = StockExit::create([
                     'concept_id' => null,
                     'exit_type' => 'definitive',
-                    'voucher_number' => 'AJUSTE-' . now()->format('YmdHis') . '-' . random_int(100, 999),
+                    'voucher_number' => 'AJUSTE-'.now()->format('YmdHis').'-'.random_int(100, 999),
                     'quantity' => $validated['quantity'],
                     'exited_at' => $validated['adjusted_at'],
                     'status' => 'completed',
@@ -190,7 +189,7 @@ class StockController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $movement->id,
-            'data' => 'registró un ajuste manual de inventario para ' . $concept->code . '.',
+            'data' => 'registró un ajuste manual de inventario para '.$concept->code.'.',
         ]);
 
         return redirect()->route('stocks.show', $concept)->with('success', 'Ajuste manual de stock registrado correctamente.');
@@ -206,7 +205,7 @@ class StockController extends Controller
         );
     }
 
-    public function downloadCertificate(\App\Models\StockCertificate $stockCertificate): mixed
+    public function downloadCertificate(StockCertificate $stockCertificate): mixed
     {
         abort_unless(Storage::disk($stockCertificate->disk)->exists($stockCertificate->file_path), 404);
 
@@ -218,7 +217,7 @@ class StockController extends Controller
         StockExit::where('exit_type', 'tool_loan')->where('status', 'open')
             ->whereDate('expected_return_at', '<', today())->whereNull('overdue_notified_at')
             ->get()->each(function (StockExit $exit) {
-                $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $exit->id, 'data' => 'detectó un préstamo de herramienta vencido #' . $exit->id . '.']);
+                $this->notification->send(['type' => 'StockExit', 'action_by' => Auth::id(), 'model_action' => 'update', 'model_id' => $exit->id, 'data' => 'detectó un préstamo de herramienta vencido #'.$exit->id.'.']);
                 $exit->update(['overdue_notified_at' => now()]);
             });
     }

@@ -13,6 +13,10 @@ class MaterialRequestChangeNote extends Model
         'text',
         'note_type',
         'payload',
+        'authorization_status',
+        'authorized_by',
+        'authorized_at',
+        'authorization_note',
         'resolved_at',
         'resolved_by',
     ];
@@ -20,6 +24,7 @@ class MaterialRequestChangeNote extends Model
     protected $casts = [
         'payload' => 'array',
         'resolved_at' => 'datetime',
+        'authorized_at' => 'datetime',
     ];
 
     public function materialRequest(): BelongsTo
@@ -50,5 +55,22 @@ class MaterialRequestChangeNote extends Model
     public function isCommitmentNotice(): bool
     {
         return $this->note_type === 'commitment_notice';
+    }
+
+    /** Cambio pedido desde la obra (Fase 4). */
+    public function isSiteChange(): bool
+    {
+        return $this->note_type === 'site_change';
+    }
+
+    /** Cambio de obra que todavía espera la autorización del Gerente. */
+    public function awaitsManager(): bool
+    {
+        return $this->isSiteChange() && $this->authorization_status === 'pending';
+    }
+
+    public function authorizedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'authorized_by');
     }
 }

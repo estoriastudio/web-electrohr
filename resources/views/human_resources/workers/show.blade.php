@@ -75,7 +75,7 @@
                 <div class="row g-4">
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Puesto</span><span class="text-dark fw-medium">{{ $worker->positionCategory?->name ?: 'Sin asignar' }}</span></div>
                     <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Obra actual</span><span class="text-dark fw-medium">{{ $worker->currentProjectWork()?->name ?: 'Sin asignar' }}</span></div>
-                    @if($canManageWorker)
+                    @if($canSeeSalary)
                         <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Esquema de pago</span><span class="text-dark fw-medium">{{ $paymentType }}</span></div>
                         <div class="col-sm-6 col-lg-3"><span class="text-muted d-block fs-12 mb-1">Sueldo semanal</span><span class="text-dark fw-medium">${{ number_format((float) $worker->weekly_salary, 2) }}</span></div>
                     @endif
@@ -161,6 +161,7 @@
     </div>
 </div>
 
+@can('hr_payroll.view')
 <div class="card mt-3">
     <div class="card-header border-bottom d-flex justify-content-between align-items-center">
         <div><h4 class="card-title mb-0"><i class="ri-file-text-line me-2 text-primary"></i>Recibos de nómina</h4><span class="text-muted fs-12">Pagos semanales realizados.</span></div>
@@ -187,6 +188,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @if($canManageWorker)
 <div class="card mt-3">
@@ -198,20 +200,20 @@
 </div>
 @endif
 
-@if($canManageWorker)
+@can('hr_incentives.view')
 <div class="card mt-3">
     <div class="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div><h4 class="card-title mb-0"><i class="ri-medal-line me-2 text-primary"></i>Incentivos</h4><span class="text-muted fs-12">Se incluyen automáticamente en la nómina de la semana correspondiente.</span></div>
-        @if($worker->status !== 'terminated')<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createWorkerIncentiveModal"><i class="ri-add-line me-1"></i>Registrar incentivo</button>@endif
+        @if($worker->status !== 'terminated' && auth()->user()->can('hr_incentives.create'))<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createWorkerIncentiveModal"><i class="ri-add-line me-1"></i>Registrar incentivo</button>@endif
     </div>
-    <div class="card-body p-0"><div class="table-responsive"><table class="table align-middle text-nowrap table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Estatus</th><th>Notas</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($worker->incentives as $incentive)<tr><td>{{ $incentive->incentive_date->format('d/m/Y') }}</td><td>{{ $incentiveLabels[$incentive->category] ?? $incentive->category }}</td><td>@if($incentive->category === 'overtime' && $incentive->overtime_hours !== null)<span class="badge bg-info-subtle text-info py-1 px-2 fs-12">{{ $incentive->overtime_hours }} h x ${{ number_format((float) $incentive->overtime_hourly_rate, 2) }}</span>@else<span class="badge bg-info-subtle text-info py-1 px-2 fs-12">{{ $incentive->rate_type }}</span>@endif</td><td><span class="badge {{ $incentive->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} py-1 px-2 fs-12">{{ $incentive->status === 'active' ? 'Activo' : 'Cancelado' }}</span></td><td class="text-muted text-wrap">{{ $incentive->notes ?: '—' }}</td><td class="text-end">@if($worker->status !== 'terminated')<form method="POST" action="{{ route('human_resources.incentives.destroy', $incentive) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este incentivo?')">@csrf @method('DELETE')<input type="hidden" name="return_to_worker" value="1"><button class="btn btn-soft-danger btn-sm" title="Eliminar"><i class="ri-delete-bin-line align-middle fs-18"></i></button></form>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1"></i>No hay incentivos registrados.</td></tr>@endforelse</tbody></table></div></div>
+    <div class="card-body p-0"><div class="table-responsive"><table class="table align-middle text-nowrap table-hover table-centered mb-0"><thead class="bg-light-subtle"><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Estatus</th><th>Notas</th><th class="text-end">Acciones</th></tr></thead><tbody>@forelse($worker->incentives as $incentive)<tr><td>{{ $incentive->incentive_date->format('d/m/Y') }}</td><td>{{ $incentiveLabels[$incentive->category] ?? $incentive->category }}</td><td>@if($incentive->category === 'overtime' && $incentive->overtime_hours !== null)<span class="badge bg-info-subtle text-info py-1 px-2 fs-12">{{ $incentive->overtime_hours }} h x ${{ number_format((float) $incentive->overtime_hourly_rate, 2) }}</span>@else<span class="badge bg-info-subtle text-info py-1 px-2 fs-12">{{ $incentive->rate_type }}</span>@endif</td><td><span class="badge {{ $incentive->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} py-1 px-2 fs-12">{{ $incentive->status === 'active' ? 'Activo' : 'Cancelado' }}</span></td><td class="text-muted text-wrap">{{ $incentive->notes ?: '—' }}</td><td class="text-end">@if($worker->status !== 'terminated' && auth()->user()->can('hr_incentives.update'))<form method="POST" action="{{ route('human_resources.incentives.destroy', $incentive) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este incentivo?')">@csrf @method('DELETE')<input type="hidden" name="return_to_worker" value="1"><button class="btn btn-soft-danger btn-sm" title="Eliminar"><i class="ri-delete-bin-line align-middle fs-18"></i></button></form>@endif</td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4"><i class="ri-inbox-line fs-24 d-block mb-1"></i>No hay incentivos registrados.</td></tr>@endforelse</tbody></table></div></div>
 </div>
-@endif
+@endcan
 
 <div class="card mt-3">
     <div class="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div><h4 class="card-title mb-0"><i class="ri-calendar-event-line me-2 text-primary"></i>Vacaciones</h4><span class="text-muted fs-12">Solicitudes y periodos del trabajador.</span></div>
-        @if($canManageWorker && $worker->status !== 'terminated')<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createWorkerVacationModal"><i class="ri-add-line me-1"></i>Nueva solicitud</button>@endif
+        @if(auth()->user()->can('hr_vacations.create') && $worker->status !== 'terminated')<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createWorkerVacationModal"><i class="ri-add-line me-1"></i>Nueva solicitud</button>@endif
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -254,9 +256,12 @@
     </div>
 </div>
 
-@if($canManageWorker && $worker->status !== 'terminated')
+@if($worker->status !== 'terminated')
+    @can('hr_vacations.create')
     <div class="modal fade" id="createWorkerVacationModal" tabindex="-1" aria-labelledby="createWorkerVacationModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="POST" action="{{ route('human_resources.worker-vacations.store') }}">@csrf<input type="hidden" name="worker_id" value="{{ $worker->id }}"><input type="hidden" name="return_to_worker" value="1"><div class="modal-header"><h5 class="modal-title" id="createWorkerVacationModalLabel">Nueva solicitud de vacaciones</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-3"><div class="col-md-6"><label class="form-label" for="workerVacationRequestDate">Fecha de solicitud</label><input id="workerVacationRequestDate" name="request_date" type="date" class="form-control" value="{{ old('request_date', now()->format('Y-m-d')) }}" required></div><div class="col-md-6"><label class="form-label" for="workerVacationStartDate">Inicio</label><input id="workerVacationStartDate" name="start_date" type="date" class="form-control" value="{{ old('start_date') }}" required></div><div class="col-md-6"><label class="form-label" for="workerVacationEndDate">Fin</label><input id="workerVacationEndDate" name="end_date" type="date" class="form-control" value="{{ old('end_date') }}" required></div><div class="col-12"><label class="form-label" for="workerVacationNotes">Notas</label><textarea id="workerVacationNotes" name="notes" class="form-control" rows="3">{{ old('notes') }}</textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Guardar solicitud</button></div></form></div></div></div>
+    @endcan
 
+    @can('hr_incentives.create')
     <div class="modal fade" id="createWorkerIncentiveModal" tabindex="-1" aria-labelledby="createWorkerIncentiveModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -353,8 +358,11 @@
     });
     </script>
     @endpush
+    @endcan
 
+    @can('hr_terminations.create')
     <div class="modal fade" id="terminateWorkerModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="POST" action="{{ route('human_resources.workers.terminate', $worker) }}">@csrf<div class="modal-header"><h5 class="modal-title">Registrar baja</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-3"><div class="col-12"><label class="form-label" for="termination_type">Tipo</label><select id="termination_type" class="form-select" name="termination_type" required><option value="resignation">Renuncia</option><option value="dismissal">Despido</option><option value="rest">Descanso</option></select></div><div class="col-12"><label class="form-label" for="termination_date">Fecha</label><input id="termination_date" class="form-control" type="date" name="termination_date" value="{{ now()->format('Y-m-d') }}" required></div><div class="col-12"><label class="form-label" for="termination_reason">Motivo</label><input id="termination_reason" class="form-control" type="text" name="reason"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger" type="submit">Registrar baja</button></div></form></div></div></div>
+    @endcan
 @endif
 
 @if ($worker->status !== 'terminated' && ($errors->has('request_date') || $errors->has('start_date') || $errors->has('end_date')))

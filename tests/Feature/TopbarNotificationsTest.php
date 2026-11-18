@@ -23,9 +23,9 @@ class TopbarNotificationsTest extends TestCase
     public function test_topbar_separates_global_and_recipient_notifications(): void
     {
         $recipient = User::factory()->create();
-        $recipient->assignRole('Solmat');
+        $recipient->assignRole('Almacén');
         $otherUser = User::factory()->create();
-        $otherUser->assignRole('Solmat');
+        $otherUser->assignRole('Almacén');
 
         $globalNotification = $this->notification($recipient, 'Notificacion global');
         $recipientNotification = $this->notification($recipient, 'Notificacion personal');
@@ -46,7 +46,7 @@ class TopbarNotificationsTest extends TestCase
 
         $this->assertStringContainsString('Notificaciones globales', $topbar);
         $this->assertStringContainsString($globalNotification->data, $topbar);
-    $this->assertMatchesRegularExpression('/id="global-notif-badge"[^>]*>\s*1\s*/', $topbar);
+        $this->assertMatchesRegularExpression('/id="global-notif-badge"[^>]*>\s*1\s*/', $topbar);
         $this->assertStringContainsString('Notificaciones personales', $topbar);
         $this->assertStringContainsString($recipientNotification->data, $topbar);
         $this->assertStringNotContainsString($otherNotification->data, $topbar);

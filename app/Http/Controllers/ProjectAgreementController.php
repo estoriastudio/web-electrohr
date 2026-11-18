@@ -7,8 +7,8 @@ use App\Models\ProjectAgreement;
 use App\Models\ProjectWork;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +39,7 @@ class ProjectAgreementController extends Controller
         }
 
         return redirect()->route('projects.show', $project)
-            ->with('success', 'Convenio "' . $agreement->agreement_number . '" registrado correctamente.');
+            ->with('success', 'Convenio "'.$agreement->agreement_number.'" registrado correctamente.');
     }
 
     public function initChunkUpload(Request $request, Project $project): JsonResponse
@@ -89,12 +89,12 @@ class ProjectAgreementController extends Controller
             return response()->json(['message' => 'Indice de chunk fuera de rango.'], 422);
         }
 
-        $tempDir = storage_path('app/temp/project-agreement-chunks/' . $validated['upload_id']);
+        $tempDir = storage_path('app/temp/project-agreement-chunks/'.$validated['upload_id']);
         if (! File::exists($tempDir)) {
             File::makeDirectory($tempDir, 0755, true);
         }
 
-        $request->file('chunk')->move($tempDir, 'chunk_' . $validated['chunk_number'] . '.part');
+        $request->file('chunk')->move($tempDir, 'chunk_'.$validated['chunk_number'].'.part');
         $session['uploaded_chunks'][(string) $validated['chunk_number']] = true;
         cache()->put($this->chunkSessionKey($validated['upload_id']), $session, now()->addHour());
 
@@ -114,9 +114,9 @@ class ProjectAgreementController extends Controller
             return response()->json(['message' => 'Aun faltan chunks por subir.'], 422);
         }
 
-        $tempDir = storage_path('app/temp/project-agreement-chunks/' . $uploadId);
+        $tempDir = storage_path('app/temp/project-agreement-chunks/'.$uploadId);
         $finalDir = storage_path('app/temp/project-agreement-final');
-        $finalFilePath = $finalDir . '/' . $uploadId . '_' . basename($session['filename']);
+        $finalFilePath = $finalDir.'/'.$uploadId.'_'.basename($session['filename']);
 
         if (! File::exists($finalDir)) {
             File::makeDirectory($finalDir, 0755, true);
@@ -129,10 +129,11 @@ class ProjectAgreementController extends Controller
 
         try {
             for ($index = 0; $index < (int) $session['total_chunks']; $index++) {
-                $chunkPath = $tempDir . '/chunk_' . $index . '.part';
+                $chunkPath = $tempDir.'/chunk_'.$index.'.part';
                 if (! File::exists($chunkPath)) {
                     fclose($finalHandle);
-                    return response()->json(['message' => 'Falta el chunk #' . $index . '.'], 422);
+
+                    return response()->json(['message' => 'Falta el chunk #'.$index.'.'], 422);
                 }
 
                 $chunkHandle = fopen($chunkPath, 'rb');
@@ -161,7 +162,7 @@ class ProjectAgreementController extends Controller
             $this->cleanupChunkUpload($uploadId, $finalFilePath);
 
             return response()->json([
-                'message' => 'Convenio "' . $agreement->agreement_number . '" registrado correctamente.',
+                'message' => 'Convenio "'.$agreement->agreement_number.'" registrado correctamente.',
             ]);
         } catch (\Throwable $exception) {
             if (is_resource($finalHandle)) {
@@ -252,7 +253,7 @@ class ProjectAgreementController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $agreement->id,
-            'data' => 'registró el convenio "' . $agreement->agreement_number . '" del proyecto "' . $project->name . '".',
+            'data' => 'registró el convenio "'.$agreement->agreement_number.'" del proyecto "'.$project->name.'".',
         ]);
 
         return $agreement;
@@ -293,7 +294,7 @@ class ProjectAgreementController extends Controller
 
     private function cleanupChunkUpload(string $uploadId, ?string $finalFilePath = null): void
     {
-        $tempDir = storage_path('app/temp/project-agreement-chunks/' . $uploadId);
+        $tempDir = storage_path('app/temp/project-agreement-chunks/'.$uploadId);
         if (File::exists($tempDir)) {
             File::deleteDirectory($tempDir);
         }
@@ -307,12 +308,12 @@ class ProjectAgreementController extends Controller
 
     private function agreementFilePath(Project $project, string $extension): string
     {
-        return 'projects/' . $project->id . '/agreements/' . now()->timestamp . '_' . Str::lower(Str::random(8)) . '.' . $extension;
+        return 'projects/'.$project->id.'/agreements/'.now()->timestamp.'_'.Str::lower(Str::random(8)).'.'.$extension;
     }
 
     private function chunkSessionKey(string $uploadId): string
     {
-        return 'project_agreement_chunk_upload_' . $uploadId;
+        return 'project_agreement_chunk_upload_'.$uploadId;
     }
 
     private function mimeTypeFromExtension(string $filename): string

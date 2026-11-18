@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderMilestone;
-use App\Models\Payment;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,6 +21,8 @@ class PurchaseOrderStatusFlowTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
+        // Fase 2: Compras usa los permisos de la matriz.
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_direct_folio_search_includes_a_completed_purchase_order(): void
@@ -51,6 +54,8 @@ class PurchaseOrderStatusFlowTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('Orden de compra');
         $purchaseOrder = $this->purchaseOrder('pendiente');
+        // Cada comprador opera solo sus OC (decisión 2026-11-10).
+        $purchaseOrder->update(['buyer_id' => $user->id]);
 
         $this->actingAs($user)
             ->patch(route('purchase_orders.emit', $purchaseOrder))
@@ -126,7 +131,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
         $payment = Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-PENDING-' . random_int(10000, 99999),
+            'folio' => 'PAY-PENDING-'.random_int(10000, 99999),
             'amount' => 1000,
             'payment_date' => '2026-09-01',
             'status' => 'por_autorizar',
@@ -169,6 +174,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('Orden de compra');
         $purchaseOrder = $this->purchaseOrder('autorizada');
+        $purchaseOrder->update(['buyer_id' => $user->id]); // cada comprador opera sus OC
 
         $this->actingAs($user)
             ->post(route('milestones.store'), $this->milestoneData($purchaseOrder))
@@ -217,14 +223,14 @@ class PurchaseOrderStatusFlowTest extends TestCase
         ]);
         $authorizedPayment = Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-AUTH-' . random_int(10000, 99999),
+            'folio' => 'PAY-AUTH-'.random_int(10000, 99999),
             'amount' => 300,
             'payment_date' => '2026-09-01',
             'status' => 'autorizado',
         ]);
         $pendingPayment = Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-PENDING-' . random_int(10000, 99999),
+            'folio' => 'PAY-PENDING-'.random_int(10000, 99999),
             'amount' => 700,
             'payment_date' => '2026-09-01',
             'status' => 'por_autorizar',
@@ -287,7 +293,7 @@ class PurchaseOrderStatusFlowTest extends TestCase
 
         Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-COMPLETED-' . random_int(10000, 99999),
+            'folio' => 'PAY-COMPLETED-'.random_int(10000, 99999),
             'amount' => 1000,
             'payment_date' => '2026-09-01',
             'status' => 'pagado',

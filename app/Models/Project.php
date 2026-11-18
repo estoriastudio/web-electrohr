@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
+    use HasAccessScope;
+
     protected $fillable = ['name', 'client_name', 'city', 'state', 'status', 'currency', 'current_agreement_value', 'manager_user_id'];
 
     public function works(): HasMany
@@ -36,14 +39,18 @@ class Project extends Model
                     ->orWhere('resident_user_id', $user->id))));
     }
 
+    /** Proyectos que el usuario puede elegir en búsquedas y formularios: los suyos si solo ve asignados. */
     public function scopeAccessibleBy(Builder $query, User $user): Builder
     {
-        return $user->isRestrictedEngineer() ? $query->assignedTo($user) : $query;
+        return $user->seesOnlyAssignedProjects() ? $query->assignedTo($user) : $query;
     }
 
-    public function userCanAccess(User $user): bool
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
     {
-        return static::query()->whereKey($this->getKey())->accessibleBy($user)->exists();
+        match ($scope) {
+            'assigned_projects' => $query->assignedTo($user),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 
     public function documents(): HasMany

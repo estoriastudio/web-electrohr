@@ -2,18 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\PurchaseOrder;
 
 /* Internamente esto se conoce como SOLCOM o Solicitud de Compra */
 
 class PurchaseRequest extends Model
 {
-    use SoftDeletes;
+    use HasAccessScope, SoftDeletes;
 
     protected $fillable = [
         'folio',
@@ -36,8 +37,8 @@ class PurchaseRequest extends Model
 
     protected $casts = [
         'request_date' => 'date',
-        'need_date'    => 'date',
-        'archived_at'  => 'datetime',
+        'need_date' => 'date',
+        'archived_at' => 'datetime',
         'observations' => 'array',
     ];
 
@@ -131,5 +132,15 @@ class PurchaseRequest extends Model
     public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class);
+    }
+
+    /** Alcances de la matriz: Gerente y Supervisor ven las de sus proyectos; Almacén edita solo las no enviadas a Compras. */
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_projects' => $query->whereIn('purchase_requests.project_id', Project::query()->assignedTo($user)->select('projects.id')),
+            'unsent_purchase_requests' => $query->whereIn('purchase_requests.status', ['pending', 'changes_requested']),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 }

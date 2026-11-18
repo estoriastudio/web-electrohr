@@ -11,12 +11,19 @@ class PurchaseRequestChangeNote extends Model
         'purchase_request_id',
         'requested_by',
         'text',
+        'is_commercial',
+        'direction_status',
+        'direction_decided_by',
+        'direction_decided_at',
+        'direction_note',
         'resolved_at',
         'resolved_by',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'is_commercial' => 'boolean',
+        'direction_decided_at' => 'datetime',
     ];
 
     public function purchaseRequest(): BelongsTo
@@ -34,8 +41,19 @@ class PurchaseRequestChangeNote extends Model
         return $this->belongsTo(User::class, 'resolved_by');
     }
 
+    public function directionDecidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'direction_decided_by');
+    }
+
     public function isResolved(): bool
     {
         return $this->resolved_at !== null;
+    }
+
+    /** Ajuste comercial que todavía espera la autorización de Dirección (Fase 4). */
+    public function awaitsDirection(): bool
+    {
+        return $this->is_commercial && $this->direction_status === 'pending';
     }
 }

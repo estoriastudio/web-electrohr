@@ -59,5 +59,4 @@ class StockEntry extends Model
     {
         return $this->hasOne(StockExit::class, 'return_stock_entry_id');
     }
-
 }

@@ -33,7 +33,7 @@
             <span class="text-muted fs-12">Sin archivo</span>
         @endif
     </td>
-    @role('admin|Proyectos')
+    @can('projects.update')
     <td>
         <div class="d-flex gap-1 flex-wrap">
             @if ($isNa)
@@ -66,5 +66,5 @@
             @endif
         </div>
     </td>
-    @endrole
+    @endcan
 </tr>

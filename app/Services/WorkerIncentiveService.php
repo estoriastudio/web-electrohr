@@ -83,7 +83,7 @@ class WorkerIncentiveService
     public function ensureMutable(Incentive $incentive): void
     {
         $hasLockedPayment = $incentive->extraPayments()
-            ->whereHas('payrollLine.payrollPeriod', fn ($query) => $query->whereIn('status', ['closed', 'paid']))
+            ->whereHas('payrollLine.payrollPeriod', fn ($query) => $query->whereIn('status', ['closed', 'authorized', 'paid']))
             ->exists();
 
         if ($hasLockedPayment) {

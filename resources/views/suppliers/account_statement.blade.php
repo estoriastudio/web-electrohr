@@ -230,8 +230,10 @@
             <span class="badge bg-secondary-subtle text-secondary">{{ $rows->total() }} registros</span>
         </div>
         <div class="d-flex gap-2">
+            @can('supplier_account_statements.download')
             <a class="btn btn-sm btn-outline-primary" href="{{ route('suppliers.account_statement.export', $filters) }}"><i class="ri-download-2-line me-1"></i>Exportar Excel</a>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#statementDocumentsModal"><i class="ri-file-zip-line me-1"></i>Exportar Documentos</button>
+            @endcan
         </div>
     </div>
     <div class="card-body p-0">

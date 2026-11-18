@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Incentive extends Model
 {
+    use HasAccessScope;
+
     protected $fillable = [
         'worker_id',
         'category',
@@ -33,5 +37,13 @@ class Incentive extends Model
     public function extraPayments(): HasMany
     {
         return $this->hasMany(PayrollLineExtraPayment::class);
+    }
+
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'assigned_workers' => $query->whereHas('worker', fn (Builder $workers) => (new Worker)->applyAccessScope($workers, $scope, $user)),
+            default => $this->unsupportedAccessScope($scope),
+        };
     }
 }

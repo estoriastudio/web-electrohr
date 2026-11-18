@@ -34,8 +34,7 @@
                 <div>
                     <h4 class="card-title mb-0">{{ $isAdmin ? 'Listado de proyectos' : 'Mis proyectos' }}</h4>
                 </div>
-                @hasanyrole('admin|Proyectos')
-                @can('create')
+                @can('projects.create')
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-soft-success"
                             data-bs-toggle="modal" data-bs-target="#modalImportProjects">
@@ -47,7 +46,6 @@
                     </button>
                 </div>
                 @endcan
-                @endhasanyrole
             </div>
 
             {{-- Barra de búsqueda --}}
@@ -157,7 +155,7 @@
                                                class="btn btn-light btn-sm" title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
-                                            @can('update')
+                                            @can('projects.update')
                                                 <button type="button"
                                                         class="btn btn-soft-primary btn-sm btn-edit-project"
                                                         title="Editar"
@@ -173,7 +171,7 @@
                                                     <i class="ri-edit-line"></i>
                                                 </button>
                                             @endcan
-                                            @can('delete')
+                                            @can('projects.update')
                                                 <form action="{{ route('projects.destroy', $project) }}"
                                                       method="POST"
                                                       onsubmit="return confirm('¿Eliminar este proyecto y todas sus obras?')">
@@ -212,8 +210,7 @@
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Nuevo Proyecto
 ══════════════════════════════════════════════════════════════════ --}}
-@hasanyrole('admin|Proyectos')
-@can('create')
+@can('projects.create')
 <div class="modal fade" id="modalCreateProject" tabindex="-1" aria-labelledby="modalCreateProjectLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -283,13 +280,12 @@
     </div>
 </div>
 @endcan
-@endhasanyrole
 
 
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Editar Proyecto
 ══════════════════════════════════════════════════════════════════ --}}
-@can('update')
+@can('projects.update')
 <div class="modal fade" id="modalEditProject" tabindex="-1" aria-labelledby="modalEditProjectLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -360,6 +356,7 @@
 
 @endsection
 
+@can('projects.create')
 {{-- ══════════════════════════════════════════════════════════════
      MODAL — Importar Proyectos
 ══════════════════════════════════════════════════════════════════ --}}
@@ -421,6 +418,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 @push('scripts')
 <script>

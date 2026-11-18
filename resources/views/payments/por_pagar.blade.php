@@ -366,7 +366,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form action="{{ route('payments.update', $payment) }}" method="POST" enctype="multipart/form-data"
-                  class="js-individual-spei-form">
+                  class="js-individual-spei-form js-amount-preview-form">
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="return_to" value="payable">
@@ -379,7 +379,20 @@
                 <div class="modal-body">
                     <p class="text-muted fs-13 mb-3">
                         Pago <strong>{{ $payment->folio }}</strong>. Al asociar el comprobante, se marcará como pagado.
+                        @if ($payment->origin === 'credit')
+                            <span class="badge bg-info-subtle text-info fs-10">Abono de {{ $payment->sourcePayment?->folio ?? 'un PAY eliminado' }}</span>
+                        @endif
                     </p>
+                    <div class="mb-3">
+                        <label for="individualPaidAmount{{ $payment->id }}" class="form-label fw-medium">Importe del SPEI <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">{{ $payment->milestone->purchaseOrder->currency }}</span>
+                            <input type="number" id="individualPaidAmount{{ $payment->id }}" name="paid_amount"
+                                   class="form-control js-preview-amount" step="0.01" min="0.01"
+                                   value="{{ number_format($payment->amount, 2, '.', '') }}" required>
+                        </div>
+                        <div class="form-text">Precargado con lo autorizado. No se puede pagar menos de lo autorizado (salvo $0.50 de tolerancia).</div>
+                    </div>
                     <input type="file" name="spei_receipt_file" id="individualSpeiFile{{ $payment->id }}"
                            class="d-none js-individual-spei-file" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
                     <div id="individualSpeiDropzone{{ $payment->id }}" class="dropzone spei-dropzone js-individual-spei-dropzone">
@@ -390,10 +403,17 @@
                         </div>
                     </div>
                     <div class="form-text mt-2">PDF, JPG, PNG o WEBP. Tamaño máximo: 10 MB.</div>
+                    <div class="js-preview-box mt-3" data-url="{{ route('payments.preview', $payment) }}" data-accion="pagar"></div>
+                    <div class="form-check mt-2 d-none js-preview-confirm">
+                        <input class="form-check-input" type="checkbox" id="individualConfirmExcess{{ $payment->id }}" name="confirm_excess" value="1">
+                        <label class="form-check-label fs-13" for="individualConfirmExcess{{ $payment->id }}">
+                            Confirmo el pago de más y lo que hará el sistema con el excedente.
+                        </label>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success js-preview-submit" disabled>
                         <i class="ri-check-double-line me-1"></i> Asociar y marcar pagado
                     </button>
                 </div>
@@ -444,6 +464,8 @@
     </div>
 </div>
 @endsection
+
+@include('payments.utilities.preview_script')
 
 @push('scripts')
 <script>

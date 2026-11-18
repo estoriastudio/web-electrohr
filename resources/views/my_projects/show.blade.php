@@ -171,9 +171,11 @@
                 <h5 class="card-title mb-0">Solicitudes de Material</h5>
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-muted fs-13">{{ $materialRequests->total() }} registros</span>
+                    @can('material_requests.create')
                     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateMR">
                         <i class="ri-add-line me-1"></i> Nueva SOLMAT
                     </button>
+                    @endcan
                 </div>
             </div>
             <div class="card-body p-0">

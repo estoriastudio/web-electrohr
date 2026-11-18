@@ -136,7 +136,15 @@
                                             —
                                         @endif
                                     </td>
-                                    <td class="fw-semibold">{{ $order->currency }} {{ number_format($payment->amount, 2) }}</td>
+                                    <td class="fw-semibold">
+                                        {{ $order->currency }} {{ number_format($payment->paid_amount_value, 2) }}
+                                        @if (abs($payment->paid_amount_value - (float) $payment->amount) > 0.004)
+                                            <small class="d-block fs-11 text-muted fw-normal">Autorizado {{ number_format($payment->amount, 2) }}</small>
+                                        @endif
+                                        @if ($payment->origin === 'credit')
+                                            <span class="badge bg-info-subtle text-info fs-10">Abono</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $payment->payment_date?->format('d/m/Y') ?? '—' }}</td>
                                     <td>{{ $payment->reference_number ?? '—' }}</td>
                                     <td>

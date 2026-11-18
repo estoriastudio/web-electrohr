@@ -37,6 +37,7 @@ class PurchaseOrderEconomicSummary
             }
         }
 
+        $summary['supplier_credit'] = round((float) $order->supplier_credit_amount, 2);
         $summary['tolerance'] = PurchaseOrder::AMOUNT_TOLERANCE;
         $summary['tolerance_applied'] = $toleranceApplied;
 

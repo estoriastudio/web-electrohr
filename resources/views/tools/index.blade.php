@@ -43,12 +43,16 @@
                     <a href="{{ route('tools.archived') }}" class="btn btn-sm btn-outline-secondary" title="Archivadas">
                         <i class="ri-archive-line me-1"></i> Archivadas
                     </a>
-                    <a href="{{ route('tool_controls.index') }}" class="btn btn-sm btn-soft-success">
+                    @can('tool_controls.view')
+<a href="{{ route('tool_controls.index') }}" class="btn btn-sm btn-soft-success">
                         <i class="ri-calendar-check-line me-1"></i> Control de uso
                     </a>
+@endcan
+                    @can('tools.create')
                     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreateTool">
                         <i class="ri-add-line me-1"></i> Nueva Herramienta
                     </button>
+                    @endcan
                 </div>
             </div>
 
@@ -157,6 +161,7 @@
                                                title="Ver detalle">
                                                 <i class="ri-eye-line"></i>
                                             </a>
+                                            @can('tools.update')
                                             <button type="button"
                                                     class="btn btn-soft-primary btn-sm btn-edit-tool"
                                                     title="Editar"
@@ -172,6 +177,8 @@
                                                     data-subcategory-id="{{ $subcategoryForTool?->id }}">
                                                 <i class="ri-edit-line"></i>
                                             </button>
+                                            @endcan
+                                            @can('tools.update')
                                             <button type="button"
                                                     class="btn btn-soft-warning btn-sm btn-archive-tool"
                                                     title="Archivar"
@@ -180,6 +187,7 @@
                                                     data-description="{{ $tool->description }}">
                                                 <i class="ri-archive-line"></i>
                                             </button>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -205,6 +213,7 @@
     </div>
 </div>
 
+@can('tools.create')
 <div class="modal fade" id="modalCreateTool" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -287,6 +296,7 @@
         </div>
     </div>
 </div>
+@endcan
 
 <div class="modal fade" id="modalEditTool" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">

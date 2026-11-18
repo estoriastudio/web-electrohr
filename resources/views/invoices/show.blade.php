@@ -104,6 +104,7 @@
 				<h6 class="mb-0">Validación de Compras</h6>
 			</div>
 			<div class="card-body">
+				@can('invoices.authorize')
 				<form method="POST" action="{{ route('invoices.status.update', $invoice) }}" id="invoiceApprovalForm">
 					@csrf
 					@method('PATCH')
@@ -162,6 +163,9 @@
 
 					<button type="submit" class="btn btn-primary w-100">Guardar validación</button>
 				</form>
+				@else
+					<p class="text-muted fs-13 mb-0">Valida el comprador de la OC.</p>
+				@endcan
 			</div>
 		</div>
 
@@ -202,7 +206,7 @@
 			</div>
 		</div>
 
-		@if (auth()->user()->hasAnyRole(['admin', 'Pagos', 'Orden de compra']))
+		@if (auth()->user()->can('invoice_intake.create'))
 		<div class="card mt-3 border-danger-subtle">
 			<div class="card-header border-bottom">
 				<h6 class="mb-0 text-danger">Eliminar factura</h6>
@@ -228,6 +232,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 	const form = document.getElementById('invoiceApprovalForm');
+	if (!form) return; // sin permiso de validar no se muestra el formulario
 	const statusSelect = document.getElementById('invoiceStatusSelect');
 	const milestonesBlock = document.getElementById('invoiceMilestonesBlock');
 	const milestoneChecks = form ? form.querySelectorAll('input[name="milestone_ids[]"]') : [];

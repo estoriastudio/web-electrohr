@@ -8,6 +8,7 @@ use App\Models\PurchaseOrderInvoice;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\AccessMatrixSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -23,6 +24,8 @@ class PaymentMultipleMilestoneTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesAndPermissionsSeeder::class);
+        // Fase 2: Pagos y Recepción usan los permisos de la matriz.
+        $this->seed(AccessMatrixSeeder::class);
     }
 
     public function test_payments_user_can_split_the_initial_payment_into_two_payments(): void
@@ -168,7 +171,7 @@ class PaymentMultipleMilestoneTest extends TestCase
         ]);
         $secondPayment = Payment::create([
             'milestone_id' => $secondMilestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 300,
             'payment_date' => '2026-09-15',
             'status' => 'autorizado',
@@ -307,7 +310,7 @@ class PaymentMultipleMilestoneTest extends TestCase
 
         $milestone = $this->milestoneWithInitialPayment();
         $payment = $milestone->payments()->first();
-        $previousPath = 'payments/spei/' . $milestone->id . '/SPEI-OLD.pdf';
+        $previousPath = 'payments/spei/'.$milestone->id.'/SPEI-OLD.pdf';
         Storage::disk('s3')->put($previousPath, 'old receipt');
         $milestone->update(['covered_amount' => 1000]);
         $payment->update([
@@ -337,7 +340,7 @@ class PaymentMultipleMilestoneTest extends TestCase
         $firstPayment = $firstMilestone->payments()->first();
         $secondPayment = Payment::create([
             'milestone_id' => $firstMilestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 1,
             'payment_date' => '2026-09-15',
             'status' => 'pospuesto',
@@ -433,7 +436,7 @@ class PaymentMultipleMilestoneTest extends TestCase
     {
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $milestone->purchase_order_id,
-            'folio' => 'F-' . random_int(1000, 9999),
+            'folio' => 'F-'.random_int(1000, 9999),
             'status' => PurchaseOrderInvoice::STATUS_ACEPTADA,
             'amount' => 1000,
             'currency' => 'MXN',
@@ -474,7 +477,7 @@ class PaymentMultipleMilestoneTest extends TestCase
 
         Payment::create([
             'milestone_id' => $milestone->id,
-            'folio' => 'PAY-' . random_int(10000, 99999),
+            'folio' => 'PAY-'.random_int(10000, 99999),
             'amount' => 1000,
             'payment_date' => '2026-08-30',
             'status' => 'por_autorizar',

@@ -27,10 +27,10 @@ class MaterialVoucher extends Model
     ];
 
     protected $casts = [
-        'voucher_date'   => 'date',
-        'authorized_at'  => 'datetime',
-        'observations'   => 'array',
-        'folio_number'   => 'integer',
+        'voucher_date' => 'date',
+        'authorized_at' => 'datetime',
+        'observations' => 'array',
+        'folio_number' => 'integer',
     ];
 
     public const STATUSES = ['emitido', 'autorizado', 'completado', 'facturado', 'pagado'];

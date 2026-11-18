@@ -15,7 +15,7 @@ class UserController extends Controller
 
     public function index()
     {
-        $users       = User::with('roles', 'permissions')
+        $users = User::with('roles', 'permissions')
             ->whereDoesntHave('roles', function ($query) {
                 $query->where('name', 'supplier_portal_access');
             })
@@ -25,7 +25,7 @@ class UserController extends Controller
             ->role('supplier_portal_access')
             ->orderBy('name')
             ->get();
-        $roles       = Role::with('permissions')->orderBy('name')->get();
+        $roles = Role::with('permissions')->orderBy('name')->get();
         $permissions = Permission::orderBy('name')->pluck('name');
 
         return view('users.index', compact('users', 'supplierUsers', 'roles', 'permissions'));
@@ -42,18 +42,18 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'        => ['required', 'string', 'max:255'],
-            'email'       => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password'    => ['required', 'confirmed', Password::min(8)],
-            'roles'       => ['nullable', 'array'],
-            'roles.*'     => ['string', 'exists:roles,name'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'confirmed', Password::min(8)],
+            'roles' => ['nullable', 'array'],
+            'roles.*' => ['string', 'exists:roles,name'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
 
         $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
+            'name' => $data['name'],
+            'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ]);
 
@@ -65,21 +65,30 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        // Sin permiso de administrar usuarios solo se edita el perfil propio (nombre, correo y contraseña):
+        // antes cualquier usuario podía cambiar a otros y asignarse roles o permisos.
+        $canManageUsers = $request->user()->can('users.update');
+        abort_unless($canManageUsers || (int) $user->id === (int) $request->user()->id, 403);
+
         $data = $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'email'         => ['required', 'email', 'max:255', "unique:users,email,{$user->id}"],
-            'password'      => ['nullable', 'confirmed', Password::min(8)],
-            'roles'         => ['nullable', 'array'],
-            'roles.*'       => ['string', 'exists:roles,name'],
-            'permissions'   => ['nullable', 'array'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', "unique:users,email,{$user->id}"],
+            'password' => ['nullable', 'confirmed', Password::min(8)],
+            'roles' => ['nullable', 'array'],
+            'roles.*' => ['string', 'exists:roles,name'],
+            'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
 
         $user->update([
-            'name'  => $data['name'],
+            'name' => $data['name'],
             'email' => $data['email'],
-            ...($data['password'] ? ['password' => Hash::make($data['password'])] : []),
+            ...(! empty($data['password']) ? ['password' => Hash::make($data['password'])] : []),
         ]);
+
+        if (! $canManageUsers) {
+            return redirect()->route('usuarios.show', $user)->with('success', 'Perfil actualizado correctamente.');
+        }
 
         $user->syncRoles($data['roles'] ?? []);
         $user->syncPermissions($data['permissions'] ?? []);
@@ -116,8 +125,8 @@ class UserController extends Controller
     public function storeRole(Request $request)
     {
         $data = $request->validate([
-            'name'          => ['required', 'string', 'max:100', 'unique:roles,name'],
-            'permissions'   => ['nullable', 'array'],
+            'name' => ['required', 'string', 'max:100', 'unique:roles,name'],
+            'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
 

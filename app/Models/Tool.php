@@ -62,7 +62,7 @@ class Tool extends Model
 
     public function photoUrl(int $slot): ?string
     {
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
 
         return $this->$field ? Storage::disk('s3')->url($this->$field) : null;
     }

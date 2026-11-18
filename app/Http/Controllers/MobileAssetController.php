@@ -10,9 +10,9 @@ use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -29,19 +29,19 @@ class MobileAssetController extends Controller
      */
     public function index(Request $request): View
     {
-        $search          = trim($request->input('search', ''));
-        $type            = $request->input('type', 'parque_vehicular');
-        $docStatus       = $request->input('doc_status', '');
+        $search = trim($request->input('search', ''));
+        $type = $request->input('type', 'parque_vehicular');
+        $docStatus = $request->input('doc_status', '');
         $documentMissing = trim($request->input('document_missing', ''));
-        $galleryMissing  = $request->boolean('gallery_missing');
-        $documentTypes   = MobileAssetDocument::DOCS_BY_TYPE[$type] ?? [];
+        $galleryMissing = $request->boolean('gallery_missing');
+        $documentTypes = MobileAssetDocument::DOCS_BY_TYPE[$type] ?? [];
 
         if (! in_array($documentMissing, $documentTypes, true)) {
             $documentMissing = '';
         }
 
         $coverageQuery = MobileAsset::query()->where('type', $type);
-        $assetCount    = (clone $coverageQuery)->count();
+        $assetCount = (clone $coverageQuery)->count();
         $documentCoverage = [];
 
         foreach ($documentTypes as $documentType) {
@@ -54,7 +54,7 @@ class MobileAssetController extends Controller
 
             $documentCoverage[$documentType] = [
                 'uploaded' => $assetCount - $missingCount,
-                'missing'  => $missingCount,
+                'missing' => $missingCount,
             ];
         }
 
@@ -72,8 +72,8 @@ class MobileAssetController extends Controller
 
         $galleryCoverage = [
             'uploaded' => $uploadedPhotoCount,
-            'total'    => $assetCount * 3,
-            'missing'  => $galleryMissingCount,
+            'total' => $assetCount * 3,
+            'missing' => $galleryMissingCount,
         ];
 
         $mobileAssets = MobileAsset::with('documents')
@@ -147,21 +147,21 @@ class MobileAssetController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'           => 'required|string|max:255',
-            'folio'          => 'nullable|string|max:100',
-            'policy'         => 'nullable|string|max:100',
-            'card_number'    => 'nullable|string|max:100',
-            'milage'         => 'nullable|string|max:50',
-            'brand'          => 'nullable|string|max:255',
-            'model'          => 'nullable|string|max:255',
-            'year'           => 'nullable|string|max:10',
-            'serial'         => 'nullable|string|max:255',
-            'color'          => 'nullable|string|max:100',
-            'operator'       => 'nullable|string|max:255',
+            'name' => 'required|string|max:255',
+            'folio' => 'nullable|string|max:100',
+            'policy' => 'nullable|string|max:100',
+            'card_number' => 'nullable|string|max:100',
+            'milage' => 'nullable|string|max:50',
+            'brand' => 'nullable|string|max:255',
+            'model' => 'nullable|string|max:255',
+            'year' => 'nullable|string|max:10',
+            'serial' => 'nullable|string|max:255',
+            'color' => 'nullable|string|max:100',
+            'operator' => 'nullable|string|max:255',
             'asset_function' => 'nullable|string|max:255',
-            'type'           => 'nullable|in:parque_vehicular,maquinaria_pesada,semiremolque',
-            'plates'         => 'nullable|string|max:20',
-            'status'         => 'nullable|in:activo,vendido,obsoleto,reparacion',
+            'type' => 'nullable|in:parque_vehicular,maquinaria_pesada,semiremolque',
+            'plates' => 'nullable|string|max:20',
+            'status' => 'nullable|in:activo,vendido,obsoleto,reparacion',
         ]);
 
         if (($validated['type'] ?? null) === 'maquinaria_pesada') {
@@ -176,11 +176,11 @@ class MobileAssetController extends Controller
         $asset = MobileAsset::create($validated);
 
         $this->notification->send([
-            'type'         => 'MobileAsset',
-            'action_by'    => Auth::id(),
+            'type' => 'MobileAsset',
+            'action_by' => Auth::id(),
             'model_action' => 'create',
-            'model_id'     => $asset->id,
-            'data'         => 'creó un nuevo bien móvil ' . $asset->name,
+            'model_id' => $asset->id,
+            'data' => 'creó un nuevo bien móvil '.$asset->name,
         ]);
 
         return redirect()->route('mobile_assets.show', $asset)
@@ -202,9 +202,9 @@ class MobileAssetController extends Controller
         $mobileAsset->loadCount('maintenanceOrders');
 
         $applicableDocTypes = $mobileAsset->getApplicableDocumentTypes();
-        $optionalDocTypes   = $mobileAsset->getOptionalDocumentTypes();
-        $docLabels          = MobileAssetDocument::labelsEs();
-        $noExpiryDocs       = MobileAssetDocument::NO_EXPIRY_DOCS;
+        $optionalDocTypes = $mobileAsset->getOptionalDocumentTypes();
+        $docLabels = MobileAssetDocument::labelsEs();
+        $noExpiryDocs = MobileAssetDocument::NO_EXPIRY_DOCS;
         $nextMaintenanceFolio = $this->previewNextMaintenanceFolio($mobileAsset);
         $hasDownloadableDocuments = $mobileAsset->documents
             ->whereIn('document_type', array_merge($applicableDocTypes, $optionalDocTypes))
@@ -296,9 +296,9 @@ class MobileAssetController extends Controller
         }
 
         $safeAssetName = Str::slug($mobileAsset->name ?: 'vehiculo');
-        $zipPath = $tmpDir . '/documentos_' . $safeAssetName . '_' . $mobileAsset->id . '_' . time() . '.zip';
+        $zipPath = $tmpDir.'/documentos_'.$safeAssetName.'_'.$mobileAsset->id.'_'.time().'.zip';
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $opened = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         if ($opened !== true) {
@@ -316,7 +316,7 @@ class MobileAssetController extends Controller
             $contents = $disk->get($doc->file_path);
             $extension = pathinfo($doc->file_path, PATHINFO_EXTENSION);
             $label = $docLabels[$doc->document_type] ?? $doc->document_type;
-            $fileName = Str::slug($label) . ($extension ? '.' . strtolower($extension) : '');
+            $fileName = Str::slug($label).($extension ? '.'.strtolower($extension) : '');
 
             $zip->addFromString($fileName, $contents);
         }
@@ -330,7 +330,7 @@ class MobileAssetController extends Controller
 
             $extension = pathinfo($log->inspection_file, PATHINFO_EXTENSION);
             $folio = Str::slug($log->folio ?: 'inspeccion');
-            $fileName = 'bitacora/' . $folio . '-' . $log->id . ($extension ? '.' . strtolower($extension) : '');
+            $fileName = 'bitacora/'.$folio.'-'.$log->id.($extension ? '.'.strtolower($extension) : '');
 
             $zip->addFromString($fileName, $disk->get($log->inspection_file));
         }
@@ -365,21 +365,21 @@ class MobileAssetController extends Controller
     public function update(Request $request, MobileAsset $mobileAsset): RedirectResponse
     {
         $validated = $request->validate([
-            'name'           => 'required|string|max:255',
-            'folio'          => 'nullable|string|max:100',
-            'policy'         => 'nullable|string|max:100',
-            'card_number'    => 'nullable|string|max:100',
-            'milage'         => 'nullable|string|max:50',
-            'brand'          => 'nullable|string|max:255',
-            'model'          => 'nullable|string|max:255',
-            'year'           => 'nullable|string|max:10',
-            'serial'         => 'nullable|string|max:255',
-            'color'          => 'nullable|string|max:100',
-            'operator'       => 'nullable|string|max:255',
+            'name' => 'required|string|max:255',
+            'folio' => 'nullable|string|max:100',
+            'policy' => 'nullable|string|max:100',
+            'card_number' => 'nullable|string|max:100',
+            'milage' => 'nullable|string|max:50',
+            'brand' => 'nullable|string|max:255',
+            'model' => 'nullable|string|max:255',
+            'year' => 'nullable|string|max:10',
+            'serial' => 'nullable|string|max:255',
+            'color' => 'nullable|string|max:100',
+            'operator' => 'nullable|string|max:255',
             'asset_function' => 'nullable|string|max:255',
-            'type'           => 'nullable|in:parque_vehicular,maquinaria_pesada,semiremolque',
-            'plates'         => 'nullable|string|max:20',
-            'status'         => 'nullable|in:activo,vendido,obsoleto,reparacion',
+            'type' => 'nullable|in:parque_vehicular,maquinaria_pesada,semiremolque',
+            'plates' => 'nullable|string|max:20',
+            'status' => 'nullable|in:activo,vendido,obsoleto,reparacion',
         ]);
 
         if (($validated['type'] ?? null) === 'maquinaria_pesada') {
@@ -394,11 +394,11 @@ class MobileAssetController extends Controller
         $mobileAsset->update($validated);
 
         $this->notification->send([
-            'type'         => 'MobileAsset',
-            'action_by'    => Auth::id(),
+            'type' => 'MobileAsset',
+            'action_by' => Auth::id(),
             'model_action' => 'update',
-            'model_id'     => $mobileAsset->id,
-            'data'         => 'actualizó la información del bien móvil ' . $mobileAsset->name,
+            'model_id' => $mobileAsset->id,
+            'data' => 'actualizó la información del bien móvil '.$mobileAsset->name,
         ]);
 
         return redirect()->route('mobile_assets.show', $mobileAsset)
@@ -411,11 +411,11 @@ class MobileAssetController extends Controller
     public function destroy(MobileAsset $mobileAsset): RedirectResponse
     {
         $name = $mobileAsset->name;
-        $id   = $mobileAsset->id;
+        $id = $mobileAsset->id;
 
         // Limpiar archivos S3 del bien
         foreach ([1, 2, 3] as $slot) {
-            $field = 'photo' . $slot;
+            $field = 'photo'.$slot;
             if ($mobileAsset->$field) {
                 Storage::disk('s3')->delete($mobileAsset->$field);
             }
@@ -436,11 +436,11 @@ class MobileAssetController extends Controller
         $mobileAsset->delete();
 
         $this->notification->send([
-            'type'         => 'MobileAsset',
-            'action_by'    => Auth::id(),
+            'type' => 'MobileAsset',
+            'action_by' => Auth::id(),
             'model_action' => 'destroy',
-            'model_id'     => $id,
-            'data'         => 'eliminó el bien móvil ' . $name,
+            'model_id' => $id,
+            'data' => 'eliminó el bien móvil '.$name,
         ]);
 
         return redirect()->route('mobile_assets.index')
@@ -460,7 +460,7 @@ class MobileAssetController extends Controller
             'file' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
 
         // Eliminar foto anterior si existe
         if ($mobileAsset->$field) {
@@ -468,8 +468,8 @@ class MobileAssetController extends Controller
         }
 
         $uploadedFile = $request->file('file');
-        $extension    = $uploadedFile->getClientOriginalExtension();
-        $s3Path       = 'mobile_assets/' . $mobileAsset->id . '/photo' . $slot . '_' . time() . '.' . $extension;
+        $extension = $uploadedFile->getClientOriginalExtension();
+        $s3Path = 'mobile_assets/'.$mobileAsset->id.'/photo'.$slot.'_'.time().'.'.$extension;
 
         $stored = Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
 
@@ -480,7 +480,7 @@ class MobileAssetController extends Controller
         $mobileAsset->update([$field => $s3Path]);
 
         return response()->json([
-            'url'  => Storage::disk('s3')->url($s3Path),
+            'url' => Storage::disk('s3')->url($s3Path),
             'path' => $s3Path,
             'slot' => $slot,
         ]);
@@ -495,7 +495,7 @@ class MobileAssetController extends Controller
             abort(404);
         }
 
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
 
         if ($mobileAsset->$field) {
             Storage::disk('s3')->delete($mobileAsset->$field);
@@ -520,7 +520,7 @@ class MobileAssetController extends Controller
         $noExpiry = in_array($docType, MobileAssetDocument::NO_EXPIRY_DOCS);
 
         $request->validate([
-            'file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
+            'file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:51200',
             'expiry_date' => 'nullable|date',
         ]);
 
@@ -532,12 +532,12 @@ class MobileAssetController extends Controller
             }
 
             $uploadedFile = $request->file('file');
-            $extension    = $uploadedFile->getClientOriginalExtension();
-            $s3Path       = 'mobile_assets/' . $mobileAsset->id . '/docs/' . $docType . '_' . time() . '.' . $extension;
+            $extension = $uploadedFile->getClientOriginalExtension();
+            $s3Path = 'mobile_assets/'.$mobileAsset->id.'/docs/'.$docType.'_'.time().'.'.$extension;
 
             Storage::disk('s3')->put($s3Path, file_get_contents($uploadedFile));
 
-            $doc->file_path   = $s3Path;
+            $doc->file_path = $s3Path;
             $doc->uploaded_at = now()->toDateString();
         }
 

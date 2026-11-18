@@ -4,7 +4,8 @@ type: ext-rule
 title: Autorización parcial, pagos de más y abonos entre hitos
 module: Hitos
 module_key: milestones
-status: borrador
+status: implementado
+implemented: 2026-11-17
 author: Jorge Peña
 reviewers: [Mariam]
 branch: satellite
@@ -12,16 +13,12 @@ created: 2026-11-16
 profile: docs/specs/_project.json
 docs:
   - docs/controller-structure-and-notifications.md
-  - docs/purchase-order-payment-health-flow.md
-  - docs/supplier-account-statement.md
 open_questions: 0
 ---
 
 # HR-006 · Hitos — Autorización parcial, pagos de más y abonos entre hitos
 
 **Módulo:** Hitos (`milestones`) · **Tipo:** C3 · Cambio de regla
-
-> ⚠ Estado: **Borrador**. No implementar hasta que el estado sea "aprobado".
 
 ## 0. Contexto obligatorio
 
@@ -30,8 +27,6 @@ Antes de generar código, lee completos estos archivos. Sus reglas aplican sin r
 - `.github/copilot-instructions.md`
 - `docs/specs/_project.json` — perfil del proyecto (Laravel 13, layouts, paquetes, archivos protegidos)
 - `docs/controller-structure-and-notifications.md`
-- `docs/purchase-order-payment-health-flow.md`
-- `docs/supplier-account-statement.md`
 
 ## 1. Propósito
 
@@ -44,8 +39,6 @@ OC con 3 hitos de $100.00, $80.00 y $200.00; cada hito nace con su PAY por el 10
 ## 2. Módulo afectado
 
 - **Módulo:** Hitos
-- **Controllers:** `PurchaseOrderMilestoneController`, `PaymentController`
-- **Modelos:** `PurchaseOrderMilestone` (`purchase_order_milestones`), `Payment` (`payments`)
 - **Usa Livewire:** no
 
 **Comportamiento actual**

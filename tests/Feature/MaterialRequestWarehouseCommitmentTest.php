@@ -12,6 +12,7 @@ use App\Models\ProjectWork;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MaterialRequestWarehouseCommitmentTest extends TestCase
@@ -294,6 +295,8 @@ class MaterialRequestWarehouseCommitmentTest extends TestCase
 
     private function userWithRole(string $role): User
     {
+        // Usa roles anteriores (suministros, Solmat); ya no los crea el seeder (Fase 5).
+        Role::findOrCreate($role, 'web');
         $user = User::factory()->create();
         $user->assignRole($role);
 

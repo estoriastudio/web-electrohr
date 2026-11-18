@@ -55,9 +55,11 @@
             <i class="ri-user-line me-1"></i>{{ $projectWork->project->client_name }}
         </div>
     </div>
+    @can('projects.update')
     <a href="{{ route('project_works.edit', $projectWork) }}" class="btn btn-sm btn-soft-primary">
         <i class="ri-edit-line me-1"></i> Editar obra
     </a>
+    @endcan
 </div>
 
 

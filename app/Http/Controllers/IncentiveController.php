@@ -25,12 +25,14 @@ class IncentiveController extends Controller
     {
         $workerId = $request->input('worker_id', '');
         $incentives = Incentive::query()
+            ->visibleTo(Auth::user(), 'hr_incentives')
             ->with('worker')
             ->when($workerId, fn ($query) => $query->where('worker_id', $workerId))
             ->orderByDesc('incentive_date')
             ->paginate(25);
         $formIncentive = new Incentive;
         $workers = Worker::query()
+            ->visibleTo(Auth::user(), 'hr_incentives', 'create')
             ->whereIn('status', ['pre_registered', 'active'])
             ->orderBy('last_name')
             ->orderBy('first_name')
@@ -47,6 +49,7 @@ class IncentiveController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validatedData($request);
+        $this->authorizeAccess(Worker::findOrFail($data['worker_id']), 'hr_incentives', 'create');
         $data['status'] = 'active';
 
         try {

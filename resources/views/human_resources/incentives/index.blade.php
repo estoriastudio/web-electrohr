@@ -10,6 +10,7 @@
 @section('content')
 @include('human_resources.partials.flash')
 <div class="row g-3">
+    @can('hr_incentives.create')
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header"><h5 class="card-title mb-0">Asignar incentivo</h5></div>
@@ -22,6 +23,7 @@
             </div>
         </div>
     </div>
+    @endcan
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
@@ -51,11 +53,11 @@
                                 <td><span class="badge {{ $incentive->status === 'active' ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $incentive->status === 'active' ? 'Activo' : 'Cancelado' }}</span></td>
                                 <td class="text-muted">{{ $incentive->notes ?: '—' }}</td>
                                 <td class="text-end">
-                                    <form class="d-inline" method="POST" action="{{ route('human_resources.incentives.destroy', $incentive) }}" onsubmit="return confirm('¿Eliminar este incentivo?')">
+                                    @can('hr_incentives.update')<form class="d-inline" method="POST" action="{{ route('human_resources.incentives.destroy', $incentive) }}" onsubmit="return confirm('¿Eliminar este incentivo?')">
                                         @csrf
                                         @method('DELETE')
                                         <button class="btn btn-light btn-sm text-danger" title="Eliminar"><i class="ri-delete-bin-line"></i></button>
-                                    </form>
+                                    </form>@endcan
                                 </td>
                             </tr>
                         @empty

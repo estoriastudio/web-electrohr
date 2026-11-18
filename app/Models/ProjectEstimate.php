@@ -9,10 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ProjectEstimate extends Model
 {
     public const TYPE_ESTIMACION = 'estimacion';
+
     public const TYPE_NOTA_CREDITO = 'nota_credito';
+
     public const TYPE_ANTICIPO = 'anticipo';
 
     public const STATUS_PENDING = 'pendiente';
+
     public const STATUS_PAID = 'pagada';
 
     public const TYPES = [

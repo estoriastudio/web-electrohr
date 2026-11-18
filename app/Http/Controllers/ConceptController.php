@@ -2,38 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ConceptImport;
 use App\Models\Concept;
 use App\Models\ConceptCategory;
 use App\Models\ConceptSubcategory;
 use App\Models\PurchaseOrderItem;
-use App\Imports\ConceptImport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ConceptController extends Controller
 {
     public function index(Request $request): View
     {
-        $search   = $request->input('search', '');
-        $status   = $request->input('status', '');
-        $type     = $request->input('type', '');
+        $search = $request->input('search', '');
+        $status = $request->input('status', '');
+        $type = $request->input('type', '');
         $category = $request->input('category', '');
 
         $concepts = Concept::with(['category', 'subcategory'])
             ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             }))
             ->notArchived()
-            ->when($status,   fn ($q) => $q->where('status', $status))
-            ->when($type,     fn ($q) => $q->where('type', $type))
+            ->when($status, fn ($q) => $q->where('status', $status))
+            ->when($type, fn ($q) => $q->where('type', $type))
             ->when($category, fn ($q) => $q->where('concept_category_id', $category))
             ->orderBy('code')
             ->paginate(25)
@@ -47,19 +47,19 @@ class ConceptController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'description'             => ['required', 'string', 'max:2500'],
-            'unit'                    => ['required', 'string', 'max:50'],
-            'warehouse_location'      => ['required', 'string', 'max:255'],
-            'unit_price'              => ['nullable', 'numeric', 'min:0'],
-            'minimum_stock'           => ['nullable', 'numeric', 'min:0'],
-            'maximum_stock'           => ['nullable', 'numeric', 'gte:minimum_stock'],
-            'priority'                => ['sometimes', 'required', Rule::in(['high', 'medium', 'low'])],
+            'description' => ['required', 'string', 'max:2500'],
+            'unit' => ['required', 'string', 'max:50'],
+            'warehouse_location' => ['required', 'string', 'max:255'],
+            'unit_price' => ['nullable', 'numeric', 'min:0'],
+            'minimum_stock' => ['nullable', 'numeric', 'min:0'],
+            'maximum_stock' => ['nullable', 'numeric', 'gte:minimum_stock'],
+            'priority' => ['sometimes', 'required', Rule::in(['high', 'medium', 'low'])],
             'requires_origin_certificate' => ['nullable', 'boolean'],
             'requires_safety_certificate' => ['nullable', 'boolean'],
-            'status'                  => ['required', Rule::in(['active', 'inactive'])],
-            'type'                    => ['required', Rule::in(['materiales', 'mantenimiento'])],
-            'concept_category_id'     => ['required', 'exists:concept_categories,id'],
-            'concept_subcategory_id'  => ['required', 'exists:concept_subcategories,id'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'type' => ['required', Rule::in(['materiales', 'mantenimiento'])],
+            'concept_category_id' => ['required', 'exists:concept_categories,id'],
+            'concept_subcategory_id' => ['required', 'exists:concept_subcategories,id'],
         ]);
 
         $categoryId = (int) $validated['concept_category_id'];
@@ -92,20 +92,20 @@ class ConceptController extends Controller
     public function update(Request $request, Concept $concept): RedirectResponse
     {
         $validated = $request->validate([
-            'code'                    => ['required', 'string', 'max:100', Rule::unique('concepts', 'code')->ignore($concept->id)],
-            'description'             => ['required', 'string', 'max:2500'],
-            'unit'                    => ['required', 'string', 'max:50'],
-            'warehouse_location'      => ['required', 'string', 'max:255'],
-            'unit_price'              => ['nullable', 'numeric', 'min:0'],
-            'minimum_stock'           => ['nullable', 'numeric', 'min:0'],
-            'maximum_stock'           => ['nullable', 'numeric', 'gte:minimum_stock'],
-            'priority'                => ['sometimes', 'required', Rule::in(['high', 'medium', 'low'])],
+            'code' => ['required', 'string', 'max:100', Rule::unique('concepts', 'code')->ignore($concept->id)],
+            'description' => ['required', 'string', 'max:2500'],
+            'unit' => ['required', 'string', 'max:50'],
+            'warehouse_location' => ['required', 'string', 'max:255'],
+            'unit_price' => ['nullable', 'numeric', 'min:0'],
+            'minimum_stock' => ['nullable', 'numeric', 'min:0'],
+            'maximum_stock' => ['nullable', 'numeric', 'gte:minimum_stock'],
+            'priority' => ['sometimes', 'required', Rule::in(['high', 'medium', 'low'])],
             'requires_origin_certificate' => ['nullable', 'boolean'],
             'requires_safety_certificate' => ['nullable', 'boolean'],
-            'status'                  => ['required', Rule::in(['active', 'inactive'])],
-            'type'                    => ['required', Rule::in(['materiales', 'mantenimiento'])],
-            'concept_category_id'     => ['nullable', 'exists:concept_categories,id'],
-            'concept_subcategory_id'  => ['nullable', 'exists:concept_subcategories,id'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'type' => ['required', Rule::in(['materiales', 'mantenimiento'])],
+            'concept_category_id' => ['nullable', 'exists:concept_categories,id'],
+            'concept_subcategory_id' => ['nullable', 'exists:concept_subcategories,id'],
         ]);
 
         $validated['requires_origin_certificate'] = $request->boolean('requires_origin_certificate');
@@ -119,7 +119,7 @@ class ConceptController extends Controller
     public function nextCode(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'concept_category_id'    => ['required', 'integer', 'exists:concept_categories,id'],
+            'concept_category_id' => ['required', 'integer', 'exists:concept_categories,id'],
             'concept_subcategory_id' => ['required', 'integer', 'exists:concept_subcategories,id'],
         ]);
 
@@ -142,8 +142,8 @@ class ConceptController extends Controller
         $nextNumber = $this->nextNumberForPrefix($categoryId, $subcategoryId, $prefix);
 
         return response()->json([
-            'code'        => $this->makeAvailableCode($prefix, $nextNumber),
-            'prefix'      => $prefix,
+            'code' => $this->makeAvailableCode($prefix, $nextNumber),
+            'prefix' => $prefix,
             'next_number' => $nextNumber,
         ]);
     }
@@ -199,7 +199,7 @@ class ConceptController extends Controller
             ->whereNotNull('archived_at')
             ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             }))
             ->orderByDesc('archived_at')
             ->paginate(25)
@@ -210,26 +210,26 @@ class ConceptController extends Controller
 
     public function search(Request $request): JsonResponse
     {
-        $q        = trim((string) $request->input('q', ''));
-        $type     = $request->input('type', '');
+        $q = trim((string) $request->input('q', ''));
+        $type = $request->input('type', '');
         $category = $request->input('concept_category_id', $request->input('category_id', $request->input('category', '')));
-        $limit    = max(20, min((int) $request->input('limit', 300), 1000));
-        $perPage  = max(10, min((int) $request->input('per_page', 50), 200));
+        $limit = max(20, min((int) $request->input('limit', 300), 1000));
+        $perPage = max(10, min((int) $request->input('per_page', 50), 200));
         $paginated = $request->boolean('paginated');
-        $tokens   = collect(preg_split('/\s+/', mb_strtolower($q), -1, PREG_SPLIT_NO_EMPTY))
+        $tokens = collect(preg_split('/\s+/', mb_strtolower($q), -1, PREG_SPLIT_NO_EMPTY))
             ->map(fn ($t) => trim($t))
             ->filter()
             ->values();
 
         $query = Concept::query()
             ->available()
-            ->when($type,     fn ($q2) => $q2->where('type', $type))
+            ->when($type, fn ($q2) => $q2->where('type', $type))
             ->when($category, fn ($q2) => $q2->where('concept_category_id', $category))
             ->when($q !== '', function ($query) use ($q, $tokens) {
                 $query->where(function ($group) use ($q, $tokens) {
                     // Filtro base por texto completo
                     $group->where('code', 'like', "%{$q}%")
-                          ->orWhere('description', 'like', "%{$q}%");
+                        ->orWhere('description', 'like', "%{$q}%");
 
                     // Doble filtro: por cada token, buscar en código/descripcion
                     if ($tokens->isNotEmpty()) {
@@ -237,7 +237,7 @@ class ConceptController extends Controller
                             foreach ($tokens as $token) {
                                 $tokenGroup->where(function ($tokenMatch) use ($token) {
                                     $tokenMatch->whereRaw('LOWER(code) like ?', ["%{$token}%"])
-                                               ->orWhereRaw('LOWER(description) like ?', ["%{$token}%"]);
+                                        ->orWhereRaw('LOWER(description) like ?', ["%{$token}%"]);
                                 });
                             }
                         });
@@ -246,14 +246,14 @@ class ConceptController extends Controller
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->orderByRaw(
-                    "CASE
+                    'CASE
                         WHEN LOWER(description) LIKE ? THEN 0
                         WHEN LOWER(code) LIKE ? THEN 1
                         WHEN LOWER(description) LIKE ? THEN 2
                         WHEN LOWER(code) LIKE ? THEN 3
                         ELSE 4
-                    END",
-                    [mb_strtolower($q) . '%', mb_strtolower($q) . '%', '%' . mb_strtolower($q) . '%', '%' . mb_strtolower($q) . '%']
+                    END',
+                    [mb_strtolower($q).'%', mb_strtolower($q).'%', '%'.mb_strtolower($q).'%', '%'.mb_strtolower($q).'%']
                 );
             })
             ->orderBy('description')
@@ -280,10 +280,10 @@ class ConceptController extends Controller
             'data' => $result->items(),
             'meta' => [
                 'current_page' => $result->currentPage(),
-                'last_page'    => $result->lastPage(),
-                'per_page'     => $result->perPage(),
-                'total'        => $result->total(),
-                'has_more'     => $result->hasMorePages(),
+                'last_page' => $result->lastPage(),
+                'per_page' => $result->perPage(),
+                'total' => $result->total(),
+                'has_more' => $result->hasMorePages(),
             ],
         ]);
     }
@@ -332,11 +332,11 @@ class ConceptController extends Controller
         $codes = Concept::query()
             ->where('concept_category_id', $categoryId)
             ->where('concept_subcategory_id', $subcategoryId)
-            ->where('code', 'like', $prefix . '-%')
+            ->where('code', 'like', $prefix.'-%')
             ->pluck('code');
 
         foreach ($codes as $code) {
-            if (preg_match('/^' . preg_quote($prefix, '/') . '-(\d+)$/', (string) $code, $matches) === 1) {
+            if (preg_match('/^'.preg_quote($prefix, '/').'-(\d+)$/', (string) $code, $matches) === 1) {
                 $max = max($max, (int) $matches[1]);
             }
         }
@@ -349,7 +349,7 @@ class ConceptController extends Controller
         $number = max(1, $startNumber);
 
         do {
-            $code = $prefix . '-' . str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+            $code = $prefix.'-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT);
             $number++;
         } while (Concept::query()->where('code', $code)->exists());
 
@@ -358,7 +358,7 @@ class ConceptController extends Controller
 
     private function buildCodePrefix(string $categoryName, string $subcategoryName): string
     {
-        return $this->abbr($categoryName) . '-' . $this->abbr($subcategoryName);
+        return $this->abbr($categoryName).'-'.$this->abbr($subcategoryName);
     }
 
     private function abbr(string $name): string
@@ -370,4 +370,3 @@ class ConceptController extends Controller
         return str_pad($piece, 3, 'X');
     }
 }
-

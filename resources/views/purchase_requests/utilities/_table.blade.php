@@ -6,6 +6,15 @@
       - trashed  -> purchase_requests.soft_deleted
 --}}
 @php
+    // Editar, archivar y borrar: Compras y admin siempre; Almacén solo SOLCOM no enviadas a Compras (matriz).
+    $canEditSolcomRow = function ($pr) {
+        $user = auth()->user();
+
+        return $user->can('purchase_requests.update')
+            && ($user->hasFullAccessScope('purchase_requests', 'update') || in_array($pr->status, ['pending', 'changes_requested'], true));
+    };
+@endphp
+@php
     $mode = request()->routeIs('purchase_requests.archived')
         ? 'archived'
         : (request()->routeIs('purchase_requests.soft_deleted') ? 'trashed' : 'index');
@@ -89,15 +98,13 @@
                                         --}}
 
                                         @if ($mode === 'index')
-                                            @hasanyrole('admin|Solcom')
-                                            @can('update')
+                                            @if ($canEditSolcomRow($pr))
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('purchase_requests.edit', $pr) }}">
                                                     <i class="ri-pencil-line me-2 text-muted"></i>Editar
                                                 </a>
                                             </li>
-                                            @endcan
-                                            @endhasanyrole
+                                            @endif
                                         @endif
 
                                         <li>
@@ -106,7 +113,7 @@
                                             </a>
                                         </li>
 
-                                        @hasanyrole('admin|Solcom|Orden de compra')
+                                        @if ($canEditSolcomRow($pr))
                                         <li><hr class="dropdown-divider"></li>
                                         @if ($mode === 'index')
                                             <li>
@@ -129,10 +136,9 @@
                                                 </form>
                                             </li>
                                         @endif
-                                        @endhasanyrole
+                                        @endif
 
-                                        @hasanyrole('admin|Solcom')
-                                        @can('delete')
+                                        @if ($canEditSolcomRow($pr))
                                         <li>
                                             <form action="{{ route('purchase_requests.destroy', $pr) }}"
                                                 method="POST"
@@ -145,8 +151,7 @@
                                                 </button>
                                             </form>
                                         </li>
-                                        @endcan
-                                        @endhasanyrole
+                                        @endif
                                     @endif
                                 </ul>
                             </div>

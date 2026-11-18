@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\StockExitController;
+use App\Models\StockExit;
 use App\Services\NotificationService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
@@ -104,9 +106,9 @@ class StockReturnCalendarTest extends TestCase
         ]))->assertOk()->assertJsonPath('0.title', 'LOAN-SUPPLY - SUM-001')
             ->assertJsonPath('0.extendedProps.tool', 'SUM-001 - Taladro (x1)');
 
-        $response = app(\App\Http\Controllers\StockExitController::class)->returnTool(
+        $response = app(StockExitController::class)->returnTool(
             Request::create(route('stocks.exits.return', ['stockExit' => 1]), 'POST', ['received_at' => '2026-09-30']),
-            \App\Models\StockExit::findOrFail(1)
+            StockExit::findOrFail(1)
         );
         $this->assertSame(route('stocks.exits.index'), $response->getTargetUrl());
         $this->assertDatabaseHas('stock_entries', [

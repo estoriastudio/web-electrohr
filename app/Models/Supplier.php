@@ -67,7 +67,7 @@ class Supplier extends Model
     {
         $requirement = self::profileRequirement($key);
 
-        if (!$requirement) {
+        if (! $requirement) {
             return $query;
         }
 
@@ -107,7 +107,7 @@ class Supplier extends Model
                     'location' => $location,
                 };
 
-                return [$requirement['label'] => !empty($model?->{$requirement['column']})];
+                return [$requirement['label'] => ! empty($model?->{$requirement['column']})];
             })
             ->all();
     }
@@ -128,7 +128,7 @@ class Supplier extends Model
     public function getMissingFieldsAttribute(): array
     {
         return collect($this->profileRequirements())
-            ->filter(fn (bool $filled) => !$filled)
+            ->filter(fn (bool $filled) => ! $filled)
             ->keys()
             ->all();
     }

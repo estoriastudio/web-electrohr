@@ -15,6 +15,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -118,11 +120,12 @@ class SupplierAccountStatementTest extends TestCase
         $milestone = PurchaseOrderMilestone::create(['purchase_order_id' => $order->id]);
         $invoice = PurchaseOrderInvoice::create([
             'purchase_order_id' => $order->id, 'amount' => 600, 'status' => 'aceptada',
-            'folio' => 'FACT-' . $order->id, 'currency' => $order->currency,
+            'folio' => 'FACT-'.$order->id, 'currency' => $order->currency,
         ]);
         $invoice->milestones()->attach($milestone);
         $payment = Payment::create(['milestone_id' => $milestone->id, 'amount' => 400, 'status' => $status]);
         Payment::create(['milestone_id' => $milestone->id, 'amount' => 200, 'status' => 'por_autorizar']);
+
         return [$order, $milestone, $invoice, $payment];
     }
 
@@ -207,16 +210,16 @@ class SupplierAccountStatementTest extends TestCase
         foreach (['admin', 'Pagos', 'Orden de compra'] as $role) {
             $user->syncRoles([$role]);
             foreach (['index', 'export', 'order'] as $endpoint) {
-                $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertOk();
+                $this->get(route('suppliers.account_statement.'.$endpoint, $endpoint === 'order' ? $order : []))->assertOk();
             }
         }
         $user->syncRoles(['supplier_portal_access']);
         foreach (['index', 'export', 'order'] as $endpoint) {
-            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+            $this->get(route('suppliers.account_statement.'.$endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
         }
         $user->syncRoles([]);
         foreach (['index', 'export', 'order'] as $endpoint) {
-            $this->get(route('suppliers.account_statement.' . $endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
+            $this->get(route('suppliers.account_statement.'.$endpoint, $endpoint === 'order' ? $order : []))->assertForbidden();
         }
         $this->assertSame($before, $this->financialState());
         foreach (app('router')->getRoutes() as $route) {
@@ -241,7 +244,7 @@ class SupplierAccountStatementTest extends TestCase
         $file = tempnam(sys_get_temp_dir(), 'statement-test-');
         try {
             file_put_contents($file, $bytes);
-            \PhpOffice\PhpSpreadsheet\Cell\Cell::setValueBinder(new \PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder());
+            Cell::setValueBinder(new DefaultValueBinder);
             $sheet = IOFactory::load($file)->getActiveSheet();
             $this->assertEquals(400, $sheet->getCell('N2')->getValue());
             $this->assertEquals(200, $sheet->getCell('O2')->getValue());
@@ -259,19 +262,19 @@ class SupplierAccountStatementTest extends TestCase
         $file = tempnam(sys_get_temp_dir(), 'statement-test-');
         try {
             file_put_contents($file, $bytes);
-            \PhpOffice\PhpSpreadsheet\Cell\Cell::setValueBinder(new \PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder());
+            Cell::setValueBinder(new DefaultValueBinder);
             $sheet = IOFactory::load($file)->getActiveSheet();
             $this->assertSame('"$"#,##0.00', $sheet->getStyle('N2')->getNumberFormat()->getFormatCode());
             $this->assertSame('"US$"#,##0.00', $sheet->getStyle('N3')->getNumberFormat()->getFormatCode());
             $summaryRow = null;
             foreach ($sheet->getRowIterator() as $row) {
-                if ($sheet->getCell('A' . $row->getRowIndex())->getValue() === 'Moneda' && $row->getRowIndex() > 1) {
+                if ($sheet->getCell('A'.$row->getRowIndex())->getValue() === 'Moneda' && $row->getRowIndex() > 1) {
                     $summaryRow = $row->getRowIndex() + 1;
                 }
             }
-            $this->assertSame('MXN', $sheet->getCell('A' . $summaryRow)->getValue());
-            $this->assertSame('"$"#,##0.00', $sheet->getStyle('B' . $summaryRow)->getNumberFormat()->getFormatCode());
-            $this->assertSame('General', $sheet->getStyle('H' . $summaryRow)->getNumberFormat()->getFormatCode());
+            $this->assertSame('MXN', $sheet->getCell('A'.$summaryRow)->getValue());
+            $this->assertSame('"$"#,##0.00', $sheet->getStyle('B'.$summaryRow)->getNumberFormat()->getFormatCode());
+            $this->assertSame('General', $sheet->getStyle('H'.$summaryRow)->getNumberFormat()->getFormatCode());
             $this->assertLessThan(40, $sheet->getColumnDimension('B')->getWidth());
         } finally {
             unlink($file);
@@ -311,6 +314,7 @@ class SupplierAccountStatementTest extends TestCase
         foreach (['purchase_orders', 'purchase_order_milestones', 'payments', 'purchase_order_invoices', 'invoice_milestone'] as $table) {
             $state[$table] = DB::table($table)->get()->toJson();
         }
+
         return $state;
     }
 }

@@ -124,11 +124,26 @@ class PayrollPeriodController extends Controller
             ->with('success', 'Periodo de nómina eliminado correctamente.');
     }
 
-    public function markPaid(PayrollPeriod $payrollPeriod): RedirectResponse
+    /** Fase 4 (V-02): Dirección autoriza la nómina cerrada; solo entonces RRHH la marca como pagada. */
+    public function authorizePayroll(PayrollPeriod $payrollPeriod): RedirectResponse
     {
         if ($payrollPeriod->status !== 'closed') {
+            return redirect()->back()
+                ->with('error', 'Solo se autorizan periodos cerrados.');
+        }
+
+        $payrollPeriod->update(['status' => 'authorized', 'authorized_by' => Auth::id(), 'authorized_at' => now()]);
+        $this->notify($payrollPeriod, 'update', "autorizó la nómina {$payrollPeriod->week_number}/{$payrollPeriod->year}.");
+
+        return redirect()->back()
+            ->with('success', 'Nómina autorizada.');
+    }
+
+    public function markPaid(PayrollPeriod $payrollPeriod): RedirectResponse
+    {
+        if ($payrollPeriod->status !== 'authorized') {
             return redirect()->route('human_resources.payroll-periods.index')
-                ->with('error', 'Solo los periodos cerrados se pueden marcar como pagados.');
+                ->with('error', 'Solo la nómina autorizada por Dirección se puede marcar como pagada.');
         }
 
         $payrollPeriod->update(['status' => 'paid']);

@@ -24,11 +24,13 @@ class PurchaseOrderEvidenceController extends Controller
         ]);
 
         $purchaseOrder = PurchaseOrder::findOrFail($validated['purchase_order_id']);
+        // Evidencias de la OC que el usuario ve (Gerente y Supervisor: sus proyectos).
+        $this->authorizeAccess($purchaseOrder, 'purchase_orders');
 
         $milestoneId = $validated['purchase_order_milestone_id'] ?? null;
         if ($milestoneId) {
             $isValidMilestone = $purchaseOrder->milestones()->whereKey($milestoneId)->exists();
-            if (!$isValidMilestone) {
+            if (! $isValidMilestone) {
                 return redirect()->route('purchase_orders.show', $purchaseOrder)
                     ->with('error', 'El hito seleccionado no pertenece a esta orden de compra.');
             }
@@ -39,7 +41,7 @@ class PurchaseOrderEvidenceController extends Controller
         $mime = $file->getClientMimeType();
 
         $nextNumber = $purchaseOrder->evidences()->count() + 1;
-        $fileName = 'OC' . $purchaseOrder->id . '-EVID' . $nextNumber . '.' . $extension;
+        $fileName = 'OC'.$purchaseOrder->id.'-EVID'.$nextNumber.'.'.$extension;
         $filePath = PurchaseOrderEvidence::storeUpload($file, $purchaseOrder->id, $fileName);
 
         $evidence = PurchaseOrderEvidence::create([
@@ -59,7 +61,7 @@ class PurchaseOrderEvidenceController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'create',
             'model_id' => $evidence->id,
-            'data' => 'subió evidencia ' . $fileName . ' en la OC #' . ($purchaseOrder->folio ?? $purchaseOrder->id),
+            'data' => 'subió evidencia '.$fileName.' en la OC #'.($purchaseOrder->folio ?? $purchaseOrder->id),
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)
@@ -68,6 +70,7 @@ class PurchaseOrderEvidenceController extends Controller
 
     public function download(Request $request, PurchaseOrderEvidence $evidence)
     {
+        $this->authorizeAccess($evidence->purchaseOrder, 'purchase_orders');
         $disposition = $request->query('disposition') === 'inline' ? 'inline' : 'attachment';
         $response = $evidence->streamFile($disposition);
 
@@ -78,6 +81,7 @@ class PurchaseOrderEvidenceController extends Controller
 
     public function destroy(PurchaseOrderEvidence $evidence): RedirectResponse
     {
+        $this->authorizeAccess($evidence->purchaseOrder, 'purchase_orders');
         $purchaseOrder = $evidence->purchaseOrder;
         $fileName = $evidence->file_name;
 
@@ -95,7 +99,7 @@ class PurchaseOrderEvidenceController extends Controller
             'action_by' => Auth::id(),
             'model_action' => 'destroy',
             'model_id' => $evidence->id,
-            'data' => 'eliminó evidencia ' . $fileName . ' de la OC #' . ($purchaseOrder->folio ?? $purchaseOrder->id),
+            'data' => 'eliminó evidencia '.$fileName.' de la OC #'.($purchaseOrder->folio ?? $purchaseOrder->id),
         ]);
 
         return redirect()->route('purchase_orders.show', $purchaseOrder)

@@ -32,7 +32,7 @@ class MobileAsset extends Model
     public function maintenanceOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class)
-                    ->where('type', 'mantenimiento');
+            ->where('type', 'mantenimiento');
     }
 
     public function documents(): HasMany
@@ -91,7 +91,8 @@ class MobileAsset extends Model
      */
     public function photoUrl(int $slot): ?string
     {
-        $field = 'photo' . $slot;
+        $field = 'photo'.$slot;
+
         return $this->$field ? Storage::disk('s3')->url($this->$field) : null;
     }
 }
