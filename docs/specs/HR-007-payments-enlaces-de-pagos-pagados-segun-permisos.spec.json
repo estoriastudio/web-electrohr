@@ -1,0 +1,204 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-007",
+    "title": "Enlaces de Pagos pagados según permisos",
+    "module": "Pagos",
+    "module_key": "payments",
+    "extends": "HR-006",
+    "author": "Jorge Peña",
+    "reviewers": "",
+    "status": "aprobado",
+    "branch": "master",
+    "created": "2026-11-18",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Evitar que la pantalla Pagos pagados presente enlaces a pantallas que el usuario actual no puede consultar. Los enlaces se mostrarán según los permisos existentes, sin cambiar permisos, alcance de datos ni acceso a rutas.",
+    "flow": "Un proveedor con el rol supplier_portal_access abre Pagos pagados. Consulta sus propios pagos, puede seguir navegando a sus órdenes y descargar sus comprobantes cuando estén disponibles, pero no ve el enlace Por Pagar ni un enlace al detalle interno del proveedor, porque su perfil no tiene los permisos correspondientes. Los usuarios que sí tengan esos permisos conservan los enlaces.",
+    "prefix": "",
+    "middleware": "auth; rutas existentes según permisos",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "Cualquier perfil con payments_paid.view; los enlaces se condicionan con payments_payable.view y suppliers.view.",
+    "host_view": "payments/paid",
+    "position": "Acciones de encabezado y columna Proveedor",
+    "follow_filters": true,
+    "export_excel": true,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "La vista resources/views/payments/paid.blade.php renderiza siempre el enlace Por Pagar y convierte siempre el nombre del proveedor de cada fila en un enlace a suppliers.show. El perfil PRV tiene payments_paid.view con alcance own_supplier, pero no tiene payments_payable.view ni suppliers.view. La ruta de Por Pagar requiere el primer permiso y la ruta de detalle del proveedor requiere el segundo.",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "none",
+    "backfill": "",
+    "impact": {
+      "validation": false,
+      "forms": false,
+      "index": true,
+      "filters": false,
+      "show": false,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "render",
+    "trigger": "Al renderizar Pagos pagados.",
+    "notify": false,
+    "notify_data": "",
+    "rule_current": "La vista muestra el enlace Por Pagar y el enlace suppliers.show para todos los usuarios que acceden a Pagos pagados, incluso si no tienen el permiso requerido por esas rutas.",
+    "rule_new": "Renderizar Por Pagar solo dentro de @can('payments_payable.view'). Convertir el nombre del proveedor en enlace a suppliers.show solo dentro de @can('suppliers.view'); sin permiso, mostrar el mismo nombre como texto plano. Mantener sin cambios los demás enlaces.",
+    "historic": "No aplica: no se modifican ni recalculan datos existentes.",
+    "enforce": "view",
+    "parent": "HR-006",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": false,
+      "edit": false,
+      "delete": false,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "",
+      "table": "",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "",
+          "key": ""
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "where": "",
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "payments/paid",
+      "render": "blade",
+      "behavior": "Mostrar Por Pagar solo con payments_payable.view. Mostrar como enlace el nombre del proveedor solo con suppliers.view; sin ese permiso, renderizar el nombre como texto plano. Mantener los demás enlaces y la información de la pantalla."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "resources/views/payments/paid.blade.php"
+  ],
+  "keep": [
+    "El listado de pagos, su consulta y el alcance own_supplier.",
+    "La visibilidad y el funcionamiento de Exportar a Excel y Regularización documental, que corresponden a payments_paid.view.",
+    "El enlace a la orden de compra y el enlace de descarga SPEI, sujetos a sus permisos y alcance actuales.",
+    "El nombre del proveedor y los demás datos de cada fila; sin suppliers.view, el nombre se muestra como texto sin enlace.",
+    "Los permisos de la matriz, middleware, rutas, controladores, modelos, exportaciones y datos.",
+    "El aspecto y acomodo de la pantalla fuera de los dos enlaces indicados."
+  ],
+  "risks": [
+    "Una condición basada en el permiso incorrecto podría ocultar enlaces a usuarios autorizados o dejar visible un enlace que responde 403. Se deben usar exactamente payments_payable.view y suppliers.view.",
+    "El ocultamiento en Blade solo mejora la navegación; no sustituye la autorización de las rutas."
+  ],
+  "cases": [
+    "Un usuario con payments_paid.view, pero sin payments_payable.view, no ve Por Pagar; un usuario con ambos permisos sí lo ve.",
+    "Un usuario sin suppliers.view ve el nombre del proveedor como texto plano; un usuario con suppliers.view conserva el enlace.",
+    "Una fila sin proveedor sigue mostrando el guion actual.",
+    "Exportar a Excel, Regularización documental, el enlace a la orden de compra y la descarga SPEI conservan su comportamiento."
+  ],
+  "rules": [
+    "payments_payable.view controla solamente la visibilidad del enlace Por Pagar.",
+    "suppliers.view controla solamente la presencia del enlace sobre el nombre del proveedor.",
+    "No se derivan permisos desde roles ni se agregan excepciones específicas para supplier_portal_access; se usa @can con los permisos ya definidos.",
+    "No cambian la autorización del backend, las consultas ni el alcance de los registros."
+  ],
+  "validations": [
+    {
+      "field": "",
+      "rule": ""
+    }
+  ],
+  "questions": [
+    {
+      "q": "",
+      "a": ""
+    }
+  ],
+  "exceptions": [
+    ""
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Cambiar la matriz de permisos, roles, middleware, rutas o autorización del backend.",
+    "Cambiar el alcance de los pagos o de las órdenes de compra.",
+    "Ocultar o modificar Exportar a Excel, Regularización documental, el enlace a la orden de compra o la descarga SPEI.",
+    "Cambiar otras vistas, el navbar o la pantalla de error adjunta.",
+    "Tests permanentes, excluidos por docs/specs/_project.json.",
+    "Modificar archivos protegidos o instalar paquetes."
+  ],
+  "docsOff": []
+}

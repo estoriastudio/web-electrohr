@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-17T13:03:01-06:00",
+    "generated_at": "2026-11-18T16:12:00-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -5114,7 +5114,7 @@
                     "name": "payments.paid",
                     "action": "PaymentController@paid",
                     "view": "payments.paid",
-                    "fp": "925ac525a9",
+                    "fp": "4c4f5caaec",
                     "livewire": []
                 },
                 {
@@ -5125,7 +5125,7 @@
                     "name": "payments.paid.export",
                     "action": "PaymentController@exportPaid",
                     "view": null,
-                    "fp": "af0b1c52c1",
+                    "fp": "9edc488747",
                     "livewire": []
                 },
                 {
@@ -5269,7 +5269,7 @@
                     "name": "payments.store",
                     "action": "PaymentController@store",
                     "view": null,
-                    "fp": "4be08d5d0d",
+                    "fp": "937f194000",
                     "livewire": []
                 },
                 {
@@ -5280,7 +5280,7 @@
                     "name": "payments.request_reactivation",
                     "action": "PaymentController@requestReactivation",
                     "view": null,
-                    "fp": "048a063526",
+                    "fp": "daa5bc1d74",
                     "livewire": []
                 },
                 {
@@ -5324,7 +5324,7 @@
                     "name": "payments.regularization",
                     "action": "PaymentController@regularization",
                     "view": "payments.regularization",
-                    "fp": "086e7a43ad",
+                    "fp": "0305a46f44",
                     "livewire": []
                 },
                 {
@@ -5335,7 +5335,7 @@
                     "name": "payments.contrarecibo",
                     "action": "PaymentController@contrarecibo",
                     "view": null,
-                    "fp": "3bf8d5668a",
+                    "fp": "13ea2782c9",
                     "livewire": []
                 },
                 {
@@ -5346,7 +5346,7 @@
                     "name": "payments.spei_receipt.download",
                     "action": "PaymentController@downloadSpeiReceipt",
                     "view": null,
-                    "fp": "3bb4dff1e6",
+                    "fp": "d38f5ace2b",
                     "livewire": []
                 }
             ],
@@ -8771,7 +8771,8 @@
                 "PreventsCircularRecursion",
                 "TransformsToResource",
                 "ForwardsCalls",
-                "HasCollection"
+                "HasCollection",
+                "HasAccessScope"
             ],
             "fillable": [
                 "milestone_id",
@@ -20635,7 +20636,7 @@
             "module": "Hitos",
             "module_key": "milestones",
             "extends": null,
-            "status": "aprobado",
+            "status": "implementado",
             "archived": false,
             "file": "docs/specs/HR-006-milestones-autorizacion-parcial-pagos-de-mas-y-abonos.spec.json"
         }

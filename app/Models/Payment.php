@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccessScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Payment extends Model
 {
+    use HasAccessScope;
+
     public const COMMITTED_STATUSES = ['por_autorizar', 'autorizado', 'pagado', 'pospuesto'];
 
     public const STATUS_SUSTITUIDO = 'sustituido';
@@ -54,6 +58,18 @@ class Payment extends Model
         'checklist_verified_at' => 'datetime',
         'regularized_at' => 'datetime',
     ];
+
+    /** Alcances de la matriz por la OC del hito: el proveedor del portal solo ve sus pagos. */
+    public function applyAccessScope(Builder $query, string $scope, User $user): void
+    {
+        match ($scope) {
+            'own_supplier' => $query->whereHas(
+                'milestone.purchaseOrder',
+                fn (Builder $orders) => (new PurchaseOrder)->applyAccessScope($orders, $scope, $user)
+            ),
+            default => $this->unsupportedAccessScope($scope),
+        };
+    }
 
     public function regularizationInvoice(): BelongsTo
     {

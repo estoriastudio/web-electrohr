@@ -292,6 +292,7 @@ class PaymentController extends Controller
         $paymentCondition = $this->selectedPaymentCondition($request);
 
         $payments = Payment::with(['milestone.purchaseOrder.supplier', 'milestone.purchaseOrder.projectRelation', 'milestone.purchaseOrder.workRelation'])
+            ->visibleTo(Auth::user(), 'payments_paid')
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')
@@ -325,7 +326,7 @@ class PaymentController extends Controller
         ]);
 
         return Excel::download(
-            new PaidPaymentExport($validated['start_date'], $validated['end_date']),
+            new PaidPaymentExport($validated['start_date'], $validated['end_date'], $request->user()),
             'pagos-pagados-'.$validated['start_date'].'-a-'.$validated['end_date'].'.xlsx'
         );
     }
@@ -1360,6 +1361,8 @@ class PaymentController extends Controller
      */
     public function downloadSpeiReceipt(Request $request, Payment $payment)
     {
+        abort_unless($payment->isVisibleTo($request->user(), 'payments_paid'), 403);
+
         $disk = Storage::disk('s3');
 
         if (! $payment->spei_receipt_path || ! $disk->exists($payment->spei_receipt_path)) {
@@ -1386,6 +1389,8 @@ class PaymentController extends Controller
      */
     public function contrarecibo(Payment $payment)
     {
+        abort_unless($payment->isVisibleTo(Auth::user(), 'payments_paid'), 403);
+
         $payment->load([
             'milestone.purchaseOrder.supplier',
             'milestone.purchaseOrder.projectRelation',
@@ -1415,6 +1420,7 @@ class PaymentController extends Controller
         $buyerId = Auth::user()->invoiceBuyerFilter();
 
         $query = Payment::query()
+            ->visibleTo(Auth::user(), 'payments_paid')
             ->has('milestone.purchaseOrder')
             ->join('purchase_order_milestones', 'payments.milestone_id', '=', 'purchase_order_milestones.id')
             ->join('purchase_orders', 'purchase_order_milestones.purchase_order_id', '=', 'purchase_orders.id')

@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Payment;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -15,12 +16,14 @@ class PaidPaymentExport implements FromQuery, ShouldAutoSize, WithHeadings, With
     public function __construct(
         private readonly string $startDate,
         private readonly string $endDate,
+        private readonly User $user,
     ) {
     }
 
     public function query(): Builder
     {
         return Payment::query()
+            ->visibleTo($this->user, 'payments_paid')
             ->with([
                 'milestone.invoices:id,folio',
                 'milestone.purchaseOrder:id,folio,supplier_id,currency',

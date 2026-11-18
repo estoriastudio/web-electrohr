@@ -49,9 +49,11 @@
                     <a href="{{ route('payments.regularization') }}" class="btn btn-sm btn-outline-warning">
                         <i class="ri-file-warning-line me-1"></i> Regularización documental
                     </a>
+                    @can('payments_payable.view')
                     <a href="{{ route('payments.payable') }}" class="btn btn-sm btn-outline-success">
                         <i class="ri-money-dollar-circle-line me-1"></i> Por Pagar
                     </a>
+                    @endcan
                 </div>
             </div>
 
@@ -129,9 +131,13 @@
                                     </td>
                                     <td>
                                         @if ($supplier)
+                                            @can('suppliers.view')
                                             <a href="{{ route('suppliers.show', $supplier) }}" class="text-dark" title="{{ $supplierName }}">
                                                 {{ $supplierName }}
                                             </a>
+                                            @else
+                                                {{ $supplierName }}
+                                            @endcan
                                         @else
                                             —
                                         @endif
