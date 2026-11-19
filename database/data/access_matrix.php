@@ -261,7 +261,8 @@ return [
                 ],
                 'PAG' => [
                     'raw' => 'V',
-                    'actions' => ['view'],
+                    'actions' => ['view', 'download'],
+                    'decision' => 'Pagos también descarga el estado de cuenta (2026-11-19).',
                 ],
                 'PRV' => [
                     'raw' => 'V (solo el propio)',
