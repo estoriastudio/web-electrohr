@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-18T16:12:00-06:00",
+    "generated_at": "2026-11-19T09:08:40-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -1786,7 +1786,7 @@
                     "name": "suppliers.account_statement.index",
                     "action": "SupplierAccountStatementController@index",
                     "view": "suppliers.account_statement",
-                    "fp": "6f0e76d106",
+                    "fp": "fb609f36fe",
                     "livewire": []
                 },
                 {
@@ -1797,7 +1797,7 @@
                     "name": "suppliers.account_statement.export",
                     "action": "SupplierAccountStatementController@export",
                     "view": null,
-                    "fp": "6ede503f36",
+                    "fp": "4cd39dec46",
                     "livewire": []
                 },
                 {
@@ -1808,7 +1808,7 @@
                     "name": "suppliers.account_statement.export_documents",
                     "action": "SupplierAccountStatementController@exportDocuments",
                     "view": null,
-                    "fp": "003ba6ecc2",
+                    "fp": "6fae49f0ab",
                     "livewire": []
                 },
                 {
@@ -1819,7 +1819,7 @@
                     "name": "suppliers.account_statement.export_documents.report",
                     "action": "SupplierAccountStatementController@documentExportReport",
                     "view": null,
-                    "fp": "bda65f4bf7",
+                    "fp": "91e8a78679",
                     "livewire": []
                 },
                 {
@@ -1830,7 +1830,7 @@
                     "name": "suppliers.account_statement.order",
                     "action": "SupplierAccountStatementController@purchaseOrderSummary",
                     "view": "suppliers.partials._account_statement_oc_summary",
-                    "fp": "4ae7628d75",
+                    "fp": "626bb11d09",
                     "livewire": []
                 },
                 {
@@ -5114,7 +5114,7 @@
                     "name": "payments.paid",
                     "action": "PaymentController@paid",
                     "view": "payments.paid",
-                    "fp": "4c4f5caaec",
+                    "fp": "2d71af78bd",
                     "livewire": []
                 },
                 {
@@ -5125,7 +5125,7 @@
                     "name": "payments.paid.export",
                     "action": "PaymentController@exportPaid",
                     "view": null,
-                    "fp": "9edc488747",
+                    "fp": "8d8fc6117a",
                     "livewire": []
                 },
                 {
@@ -5324,7 +5324,7 @@
                     "name": "payments.regularization",
                     "action": "PaymentController@regularization",
                     "view": "payments.regularization",
-                    "fp": "0305a46f44",
+                    "fp": "a1026927be",
                     "livewire": []
                 },
                 {
@@ -5355,7 +5355,10 @@
             "disks": [
                 "s3"
             ],
-            "specs": [],
+            "specs": [
+                "HR-008",
+                "HR-007"
+            ],
             "depends_on": [
                 {
                     "module": "invoices",
@@ -5806,7 +5809,9 @@
             "disks": [
                 "s3"
             ],
-            "specs": [],
+            "specs": [
+                "HR-009"
+            ],
             "depends_on": [
                 {
                     "module": "concepts",
@@ -20630,6 +20635,39 @@
             "file": "docs/specs/HR-005-concepts-descripcion-de-hasta-2500-caracteres-en-solmat.spec.json"
         },
         {
+            "id": "HR-008",
+            "type": "ext-rule",
+            "title": "Bloqueo de funciones internas para proveedores",
+            "module": "Pagos",
+            "module_key": "payments",
+            "extends": "HR-007",
+            "status": "implementado",
+            "archived": false,
+            "file": "docs/specs/HR-008-payments-bloqueo-de-funciones-internas-para-proveedores.spec.json"
+        },
+        {
+            "id": "HR-009",
+            "type": "ext-rule",
+            "title": "Editar y eliminar movimientos por Almacén",
+            "module": "Inventario",
+            "module_key": "stocks",
+            "extends": null,
+            "status": "aprobado",
+            "archived": false,
+            "file": "docs/specs/HR-009-stocks-editar-y-eliminar-movimientos-por-almacen.spec.json"
+        },
+        {
+            "id": "HR-010",
+            "type": "ext-rule",
+            "title": "Descarga de PDF de OC por Almacén",
+            "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": null,
+            "status": "borrador",
+            "archived": false,
+            "file": "docs/specs/HR-010-ordenes-de-compra-descarga-de-pdf-de-oc-por-almacen.spec.json"
+        },
+        {
             "id": "HR-006",
             "type": "ext-rule",
             "title": "Autorización parcial, pagos de más y abonos entre hitos",
@@ -20637,8 +20675,19 @@
             "module_key": "milestones",
             "extends": null,
             "status": "implementado",
-            "archived": false,
-            "file": "docs/specs/HR-006-milestones-autorizacion-parcial-pagos-de-mas-y-abonos.spec.json"
+            "archived": true,
+            "file": "docs/specs/_archive/HR-006-milestones-autorizacion-parcial-pagos-de-mas-y-abonos.spec.json"
+        },
+        {
+            "id": "HR-007",
+            "type": "ext-rule",
+            "title": "Enlaces de Pagos pagados según permisos",
+            "module": "Pagos",
+            "module_key": "payments",
+            "extends": "HR-006",
+            "status": "implementado",
+            "archived": true,
+            "file": "docs/specs/_archive/HR-007-payments-enlaces-de-pagos-pagados-segun-permisos.spec.json"
         }
     ],
     "manuals": {
@@ -20702,6 +20751,13 @@
                 "name": "Conceptos",
                 "specs": [
                     "HR-005"
+                ]
+            },
+            {
+                "module": "payments",
+                "name": "Alta de facturas",
+                "specs": [
+                    "HR-008"
                 ]
             },
             {

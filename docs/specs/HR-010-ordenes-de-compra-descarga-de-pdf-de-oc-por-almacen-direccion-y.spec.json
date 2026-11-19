@@ -1,0 +1,237 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-010",
+    "title": "Descarga de PDF de OC por Almacén, Dirección y Pagos",
+    "module": "Ordenes de Compra",
+    "module_key": "ordenes_de_compra",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "",
+    "status": "implementado",
+    "branch": "master",
+    "created": "2026-11-19",
+    "implemented": "2026-11-19"
+  },
+  "v": {
+    "goal": "Permitir que los roles Almacén, Dirección y Pagos generen y descarguen el PDF de todas las órdenes de compra emitidas o autorizadas, sin importar quién sea el comprador asignado, mediante los controles y rutas actuales. Compras conserva el PDF solo de sus OC y el resto de las acciones sobre la OC no cambia.",
+    "flow": "El usuario con rol Almacén, Dirección o Pagos (solo o combinado con otros roles) abre una OC emitida o autorizada, desde el listado o desde el detalle. Ve la opción \"Descargar PDF\" en el listado y el botón \"Generar PDF\" en el detalle, y obtiene el PDF con o sin anexos igual que Compras. No ve Editar, Cancelar, cierre ni los demás controles reservados al comprador de la OC; Dirección conserva además sus controles de autorización.",
+    "prefix": "",
+    "middleware": "",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "",
+    "host_view": "index",
+    "position": "",
+    "follow_filters": true,
+    "export_excel": false,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "En la matriz (database/data/access_matrix.php, vista purchase_orders) las celdas ALM y PAG solo tienen view, y DIR tiene view y authorize; download lo tiene Compras con alcance own_buyer y admin. La ruta purchase_orders.pdf y las rutas de anexos exigen permission:purchase_orders.download, y PurchaseOrderController (downloadPdf, saveAnnex, downloadPdfWithAnnexes) autoriza con authorizeAccess($purchaseOrder, 'purchase_orders', 'download'). Las vistas (purchase_orders/show.blade.php y purchase_orders/utilities/_table.blade.php) muestran el PDF con hasFullAccessScope('purchase_orders', 'download') o con purchase_orders.download y comprador igual al usuario. Un usuario Almacén, Dirección o Pagos no tiene el permiso: no ve el botón y recibe 403 por URL directa. Un usuario Orden de compra + Almacén solo lo ve en las OC donde es el comprador. docs/roles-permissions-matrix.md indica que Pagos, Almacén y Dirección no descargan el PDF (decisión 2026-11-10).",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": false,
+      "forms": false,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "GET",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": false,
+    "notify_data": "",
+    "rule_current": "Solo Compras (sobre sus OC) y admin descargan el PDF de una OC. Almacén, Pagos y Dirección no lo hacen, aunque consulten todas las OC.",
+    "rule_new": "Los roles Almacén (ALM), Dirección (DIR) y Pagos (PAG) tienen la acción download sobre purchase_orders sin alcance, es decir, sobre todas las OC. Con ello pueden abrir la opción de PDF en el listado y el detalle de cualquier OC emitida o autorizada y generar el PDF con o sin anexos. El resto de las acciones sobre la OC no cambia. No se concede ninguna otra acción a estos roles.",
+    "historic": "No hay migraciones, backfill ni modificación de registros. El cambio aplica desde que se corre AccessMatrixSeeder en cada entorno, a todos los usuarios que ya tengan los roles Almacén, Dirección o Pagos.",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "",
+      "table": "",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "",
+          "key": ""
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "where": "",
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Listado con búsqueda. Crear vía modal."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Detalle del registro."
+    },
+    {
+      "name": "edit",
+      "render": "blade",
+      "behavior": "Formulario de edición."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "database/data/access_matrix.php: en purchase_orders, cambiar actions de las celdas ALM y PAG a ['view', 'download'] y la de DIR a ['view', 'authorize', 'download'], sin agregar scope a ninguna. Actualizar raw a 'V D' (ALM y PAG) y 'V D (A)' (DIR).",
+    "routes/web.php: actualizar únicamente el comentario del grupo \"PDF con anexos\" que dice «solo Compras (sus OC) y admin»; conservar rutas y middleware.",
+    "resources/views/purchase_orders/utilities/_table.blade.php: actualizar únicamente el comentario del PDF que dice «solo Compras (sus OC) y admin»; conservar la condición.",
+    "docs/roles-permissions-matrix.md: reemplazar la regla «PDF de OC» y ajustar la descripción de purchase_orders.*, que hoy excluye a Almacén, Dirección y Pagos del PDF."
+  ],
+  "keep": [
+    "Las condiciones Blade del botón \"Generar PDF\", del modal de anexos y de \"Descargar PDF\" del listado: hasFullAccessScope('purchase_orders', 'download') ya resulta verdadero con las nuevas celdas, por lo que no requieren cambio.",
+    "PurchaseOrderController, sus validaciones, el contenido y el nombre de los PDF, y la condición de estatus emitida o autorizada.",
+    "Todas las rutas, verbos, nombres y middleware; siguen exigiendo purchase_orders.download.",
+    "El permiso de Compras: solo descarga el PDF de sus OC (own_buyer) y conserva todas sus acciones; los alcances de update, cancel y demás acciones de la OC siguen siendo de Compras sobre sus OC, de modo que Almacén, Dirección y Pagos no ganan Editar OC, Cancelar, cierre, cumplimientos de hitos ni solicitudes de cambio.",
+    "La acción authorize de Dirección sobre OC, y las acciones de Dirección y Pagos en el resto de las vistas (autorizaciones, pagos, facturas, bandeja de Dirección).",
+    "Los permisos de Gerente, Supervisor, Almacén Autoriza y proveedor (PRV), que no obtienen download.",
+    "Los permisos de Almacén sobre recepciones (purchase_order_receipts), evidencias, facturas, SOLCOM y demás vistas.",
+    "Los PDF de SOLCOM, SOLMAT y vales de material.",
+    "No se crean roles, permisos nuevos, migraciones, modelos ni tablas."
+  ],
+  "risks": [
+    "Los PDF con anexos usan el mismo permiso download: saveAnnex guarda la configuración de anexos de la OC. Almacén, Dirección y Pagos podrán guardar y modificar esa configuración en todas las OC al generar el PDF con anexos.",
+    "El permiso purchase_orders.download es único: dárselo a estos roles habilita también purchase_orders.annex.save y purchase_orders.pdfWithAnnexes; no existe un permiso solo para el PDF simple.",
+    "Una cuenta con Orden de compra + Almacén, Dirección o Pagos pasa a ver \"Generar PDF\" en todas las OC emitidas o autorizadas, aunque otro comprador las tenga asignadas, porque scopesFor devuelve alcance total si alguno de sus perfiles lo concede sin restricción.",
+    "AccessMatrixSeeder sincroniza los permisos de todos los roles de la matriz y elimina permisos con punto que ya no están en ella, no solo el de este cambio. Revisar sus efectos y coordinar su ejecución por entorno; si HR-009 aún no se ha sembrado, el seeder también aplicará esos cambios.",
+    "Ocultar o mostrar controles en Blade no cambia el permiso: hasta correr el seeder, los tres roles siguen sin el permiso en la base de datos."
+  ],
+  "cases": [
+    "Con rol Almacén, Dirección o Pagos solamente, el detalle de una OC emitida o autorizada muestra \"Generar PDF\" y el listado muestra \"Descargar PDF\"; GET purchase_orders.pdf devuelve el PDF, y POST purchase_orders.pdfWithAnnexes devuelve el PDF con anexos.",
+    "Con cualquiera de esos tres roles, en una OC borrador, cerrada u otro estatus distinto de emitida o autorizada, el botón \"Generar PDF\" sigue sin mostrarse, igual que para Compras.",
+    "Con roles Orden de compra + Almacén (o Dirección o Pagos), en una OC cuyo comprador es otro usuario, aparece \"Generar PDF\"; no aparecen Editar OC, Cancelar ni los controles de cumplimiento de hitos reservados al comprador.",
+    "Con roles Orden de compra + Almacén (o Dirección o Pagos), en una OC propia, todos los controles de Compras siguen apareciendo.",
+    "Con rol Almacén solamente, \"Entregas\" sigue apareciendo en OC autorizadas por purchase_order_receipts.register, sin cambios.",
+    "Dirección conserva sus controles de autorización de OC y de solicitudes de cambio o cancelación, sin cambios.",
+    "Un usuario con solo Orden de compra sigue descargando únicamente el PDF de sus OC; en la OC de otro comprador recibe 403 por URL directa.",
+    "Gerente, Supervisor, Almacén Autoriza (sin otro rol que lo conceda) y proveedor siguen sin descargar el PDF y reciben 403 por URL directa.",
+    "Admin conserva el acceso actual."
+  ],
+  "rules": [
+    "Contexto adicional obligatorio: leer docs/roles-permissions-matrix.md, database/data/access_matrix.php, app/Services/AccessMatrix.php, database/seeders/AccessMatrixSeeder.php, routes/web.php, app/Http/Controllers/PurchaseOrderController.php (downloadPdf, saveAnnex, downloadPdfWithAnnexes), resources/views/purchase_orders/show.blade.php y resources/views/purchase_orders/utilities/_table.blade.php, además de las instrucciones aplicables de .github/instructions/.",
+    "Cambiar únicamente las celdas ALM, DIR y PAG de purchase_orders: agregar download a actions (ALM y PAG: ['view', 'download']; DIR: ['view', 'authorize', 'download']), sin clave scope, y actualizar raw conservando el resto del texto ('V D', 'V D (A)', 'V D'). Conservar decision y demás claves de la celda DIR. No tocar las demás celdas.",
+    "Sin scope en la celda, AccessMatrix::scopesFor($user, 'purchase_orders', 'download') devuelve alcance total para estos roles, y también para una cuenta que los combine con Compras. update, cancel y las demás acciones siguen saliendo solo de Compras con own_buyer.",
+    "Mantener los middleware permission:purchase_orders.download y la autorización por registro authorizeAccess(..., 'download'); no agregar excepciones por rol en controllers ni vistas.",
+    "Despliegue: después de revisar los efectos de sincronización del seeder, ejecutar php artisan db:seed --class=AccessMatrixSeeder en cada entorno autorizado. El seeder limpia la caché de permisos y sincroniza los roles de la matriz. La ejecución en un entorno real requiere autorización del operador.",
+    "Actualizar solo los dos comentarios indicados; no modificar ninguna condición ni ruta.",
+    "Implementación por capas: capa 1, matriz; capa 2, sin cambios sobre datos existentes (seeder por entorno); capa 3, comentarios y documentación. Detenerse tras cada capa para confirmación conforme a las instrucciones del proyecto."
+  ],
+  "validations": [
+    {
+      "field": "",
+      "rule": ""
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué acción se concede a Almacén, Dirección y Pagos?",
+      "a": "Descargar el PDF de todas las OC."
+    },
+    {
+      "q": "¿Incluye el PDF con anexos y guardar la configuración de anexos?",
+      "a": "Sí, porque comparten el permiso purchase_orders.download y el botón \"Generar PDF\" abre el modal de anexos. Queda registrado en Riesgos para su revisión al aprobar el spec."
+    }
+  ],
+  "exceptions": [
+    "docs/roles-permissions-matrix.md, regla «PDF de OC» (decisión 2026-11-10): «solo con D de la matriz: Compras (sus OC) y admin. Pagos, Almacén y Dirección ya no descargan el PDF». Se sustituye: Almacén, Dirección y Pagos pasan a descargar el PDF de todas las OC, con y sin anexos. Compras conserva solo sus OC.",
+    "La indicación automática del generador en Orden de implementación que dice «sin detenerte entre ellas» no aplica en este repositorio: debe solicitarse confirmación al terminar cada capa, conforme a .github/copilot-instructions.md. Esta excepción resuelve expresamente ese texto automático."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Conceder a Almacén, Dirección o Pagos otra acción sobre la OC (editar, cancelar, cierre, cumplimientos de hitos, solicitudes de cambio) o cambiar el alcance de Compras.",
+    "Conceder el PDF a Gerente, Supervisor, Almacén Autoriza o proveedor.",
+    "Crear un permiso distinto para el PDF simple o separar el PDF con anexos.",
+    "Cambiar el contenido o formato de los PDF, o la condición de estatus emitida o autorizada.",
+    "Añadir roles, permisos nuevos, migraciones, pruebas permanentes o paquetes.",
+    "Ejecutar el seeder en una base de datos real sin autorización del operador.",
+    "Implementar el cambio antes de aprobar el spec."
+  ],
+  "docsOff": []
+}

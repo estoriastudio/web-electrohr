@@ -5,7 +5,8 @@ title: Bloqueo de funciones internas para proveedores
 module: Pagos
 module_key: payments
 extends: HR-007
-status: aprobado
+status: implementado
+implemented: 2026-11-19
 author: Jorge Peña
 reviewers: []
 branch: master
@@ -21,6 +22,8 @@ open_questions: 0
 # HR-008 · Pagos — Bloqueo de funciones internas para proveedores
 
 **Módulo:** Pagos (`payments`) · **Tipo:** C3 · Cambio de regla · **Extiende:** HR-007
+
+> ✓ Estado: **Implementado** (2026-11-19). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 

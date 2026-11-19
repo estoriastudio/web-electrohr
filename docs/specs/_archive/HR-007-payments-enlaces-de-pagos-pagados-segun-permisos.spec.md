@@ -5,7 +5,8 @@ title: Enlaces de Pagos pagados según permisos
 module: Pagos
 module_key: payments
 extends: HR-006
-status: aprobado
+status: implementado
+implemented: 2026-11-19
 author: Jorge Peña
 reviewers: []
 branch: master
@@ -21,6 +22,8 @@ open_questions: 0
 # HR-007 · Pagos — Enlaces de Pagos pagados según permisos
 
 **Módulo:** Pagos (`payments`) · **Tipo:** C3 · Cambio de regla · **Extiende:** HR-006
+
+> ✓ Estado: **Implementado** (2026-11-19). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 

@@ -735,7 +735,7 @@ return [
             'access' => [
                 'ALM' => [
                     'raw' => 'V C R',
-                    'actions' => ['view', 'create', 'register'],
+                    'actions' => ['view', 'create', 'update', 'register'],
                 ],
                 'ALM-A' => [
                     'raw' => 'V',
@@ -763,7 +763,7 @@ return [
                 ],
                 'ALM' => [
                     'raw' => 'V C R (ligada a Vale)',
-                    'actions' => ['view', 'create', 'register'],
+                    'actions' => ['view', 'create', 'update', 'register'],
                     'note' => 'ligada a Vale',
                 ],
                 'ALM-A' => [
@@ -965,13 +965,13 @@ return [
                     'scope' => 'assigned_projects',
                 ],
                 'DIR' => [
-                    'raw' => 'V (A)',
-                    'actions' => ['view', 'authorize'],
+                    'raw' => 'V D (A)',
+                    'actions' => ['view', 'authorize', 'download'],
                     'decision' => 'Fase 4: autoriza OC emitidas y las solicitudes de cambio o cancelación de OC autorizadas (2026-11-11).',
                 ],
                 'ALM' => [
-                    'raw' => 'V',
-                    'actions' => ['view'],
+                    'raw' => 'V D',
+                    'actions' => ['view', 'download'],
                 ],
                 'COM' => [
                     'raw' => 'V C E X D',
@@ -980,8 +980,8 @@ return [
                     'decision' => 'Cada comprador ve y opera solo sus OC (comprador asignado), como hoy (decisión 2026-11-10).',
                 ],
                 'PAG' => [
-                    'raw' => 'V',
-                    'actions' => ['view'],
+                    'raw' => 'V D',
+                    'actions' => ['view', 'download'],
                 ],
                 'PRV' => [
                     'raw' => 'V (propias, portal)',

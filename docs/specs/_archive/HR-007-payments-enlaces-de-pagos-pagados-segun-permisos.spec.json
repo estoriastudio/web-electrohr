@@ -10,10 +10,10 @@
     "extends": "HR-006",
     "author": "Jorge Peña",
     "reviewers": "",
-    "status": "aprobado",
+    "status": "implementado",
     "branch": "master",
     "created": "2026-11-18",
-    "implemented": ""
+    "implemented": "2026-11-19"
   },
   "v": {
     "goal": "Evitar que la pantalla Pagos pagados presente enlaces a pantallas que el usuario actual no puede consultar. Los enlaces se mostrarán según los permisos existentes, sin cambiar permisos, alcance de datos ni acceso a rutas.",

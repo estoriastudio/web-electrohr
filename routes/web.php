@@ -599,7 +599,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::delete('/ordenes-de-compra/{id}/eliminar-permanente', [PurchaseOrderController::class, 'forceDestroy'])->name('purchase_orders.force_destroy');
         });
 
-        // PDF con anexos: D de la matriz, solo Compras (sus OC) y admin (decisión 2026-11-10).
+        // PDF con anexos: D de la matriz. Compras (sus OC), Almacén, Dirección y Pagos (todas) y admin.
         Route::middleware('permission:purchase_orders.download')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/anexos', [PurchaseOrderController::class, 'saveAnnex'])->name('purchase_orders.annex.save');
             Route::post('/ordenes-de-compra/{purchase_order}/pdf-con-anexos', [PurchaseOrderController::class, 'downloadPdfWithAnnexes'])->name('purchase_orders.pdfWithAnnexes');
@@ -882,8 +882,8 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
 
         // ── Inventario ───────────────────────────────────────────────────────
-        // Existencias (`stocks`), Entradas (`stock_entries`) y Salidas (`stock_exits`). Corregir o borrar
-        // movimientos y ajustar existencias usa editar, que en la matriz solo tiene admin (decisión 2026-11-10).
+        // Entradas y Salidas permiten a Almacén corregir y borrar movimientos con sus permisos de edición.
+        // Ajustar existencias usa `stocks.update`, que permanece reservado para admin.
         Route::middleware('permission:stocks.view')->group(function () {
             Route::get('/inventario', [StockController::class, 'index'])->name('stocks.index');
             Route::get('/inventario/reportes/bajo-minimo', [StockController::class, 'lowStock'])->name('stocks.low_stock');

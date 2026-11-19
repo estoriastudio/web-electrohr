@@ -76,10 +76,10 @@ Se eliminan: `Engineer`, `Solmat`, `Inventario`, `Solcom`, `suministros`, `Proye
 - **Estimaciones (Proyectos):** Gerente y Supervisor solo las consultan en Mis Proyectos, como dice la matriz; las cargan Contratos, Dirección y admin.
 - **Documentos del proyecto:** la documentación contractual, los convenios y los archivos y facturas de estimaciones son solo de quien edita Proyectos (Contratos, Dirección y admin). Los roles con solo V ven datos del proyecto, obras y estimaciones.
 - **SOLMAT:** Gerente, Supervisor y Almacén crean y editan SOLMAT. Gerente y Supervisor solo en sus proyectos y mientras esté Pendiente o con cambios; Almacén, todas. Solo el gerente del proyecto (y admin) la aprueba y envía a Almacén; Almacén ya no la envía.
-- **Inventario:** como dice la matriz, Almacén solo crea entradas y salidas. Corregir o borrar movimientos y ajustar existencias queda para admin.
+- **Inventario:** Almacén puede crear, corregir y borrar entradas y salidas. Ajustar existencias mediante `stocks.update` sigue reservado para admin.
 - **OC por comprador:** cada comprador ve y opera solo las OC que tiene asignadas, como hoy. Quedó como alcance `own_buyer` de Compras en la matriz.
 - **SOLCOM:** Almacén la edita solo hasta enviarla a Compras; después la edita Compras.
-- **PDF de OC:** solo con D de la matriz: Compras (sus OC) y admin. Pagos, Almacén y Dirección ya no descargan el PDF (tampoco el PDF con anexos).
+- **PDF de OC:** solo con D de la matriz. Compras descarga el PDF de sus OC; Almacén, Dirección y Pagos, el de todas las OC emitidas o autorizadas, con y sin anexos (sustituye la decisión del 2026-11-10 que los excluía; HR-010). Gerente, Supervisor, Almacén Autoriza y proveedor no lo descargan.
 - **Pagos y Recepción (2026-11-11):** se respeta la matriz. Pagos ya no crea ni edita hitos, no da de alta facturas ni sube evidencias; Compras ya no registra entregas ni sube evidencias. Compras ve y valida solo las facturas de sus OC (alcance `own_buyer` en Facturas).
 - **Proveedores (2026-11-11):** exportar el listado, el Excel del estado de cuenta y los documentos es D de la matriz: solo admin.
 - **Acciones marcadas `( )` en el Excel** (Dirección autoriza Cambios SOLCOM y Órdenes de Compra; Gerente y Supervisor autorizan Hitos): se construyeron en la Fase 4 y ya están concedidas en la matriz.
@@ -153,7 +153,7 @@ Criterios aplicados al traducir rutas a permisos:
   - El listado "SOLMATs" del menú es para quien ve todas; Gerente y Supervisor siguen en Mis Proyectos.
 - **Cambios SOLMAT:** el panel pide `material_request_changes.view` y se filtra por las SOLMAT que el usuario ve. Pedir y resolver cambios pide `material_request_changes.update` (Almacén). La solicitud del Supervisor con autorización del Gerente es flujo nuevo de la Fase 4.
 - **Pila SOLMAT:** `material_request_queue.view` (Almacén y Compras); comprometer existencias, `material_request_queue.update` (Almacén). Crear SOLCOM desde la pila pide `purchase_requests.create`: Compras ya no lo hace, como dice la matriz.
-- **Inventario:** Consulta pide `stocks.view` (Gerente, Dirección, Almacén, Almacén Autoriza y Compras; el Supervisor no, V-08). Entradas y Salidas piden `stock_entries.*` y `stock_exits.*`. Registrar el retorno de herramienta usa R de Salidas.
+- **Inventario:** Consulta pide `stocks.view` (Gerente, Dirección, Almacén, Almacén Autoriza y Compras; el Supervisor no, V-08). Entradas y Salidas piden `stock_entries.*` y `stock_exits.*`. Almacén tiene `stock_entries.update` y `stock_exits.update` para editar y eliminar movimientos, incluidos los ajustes manuales al eliminar; estos últimos no se pueden editar. Crear ajustes sigue exigiendo `stocks.update`. Registrar el retorno de herramienta usa R de Salidas. Se conservan las validaciones de existencias y los efectos sobre préstamos y retornos vinculados.
 - **Vales de Material:** `material_vouchers.*` (Almacén, Almacén Autoriza y Móviles operan; Dirección consulta). Imprimir pide D. Autorizar el vale (también por cambio de estatus) pide `material_voucher_authorizations.authorize`: solo **Almacén Autoriza** y admin.
 - Cambios de comportamiento a revisar:
   - **Pagos** pierde Vales de Material (hoy marca Facturado y Pagado) y el detalle de SOLMAT. La matriz no le da esas vistas.
@@ -168,12 +168,12 @@ Criterios aplicados al traducir rutas a permisos:
 - **Cambios SOLCOM:** el panel pide `purchase_request_changes.view` y se filtra por las SOLCOM que el usuario ve; pedir y resolver cambios, `purchase_request_changes.create` (Almacén y Compras). La autorización de Dirección es Fase 4.
 - **Pila SOLCOM:** `purchase_request_queue.view`; sigue mostrando las SOLCOM asignadas al usuario.
 - **Carga de Trabajo:** `purchasing_workload.view`. Dirección y admin ven a todos los compradores; cada comprador, solo su carga.
-- **OC** (`purchase_orders.*`): `PurchaseOrder` usa `HasAccessScope` con `own_buyer`, `assigned_projects` y `own_supplier`. Compras crea, edita, emite, cierra y archiva solo sus OC; borrar pide X. Pagos, Almacén y Dirección consultan todas; Gerente y Supervisor, las de sus proyectos y sin hitos, pagos, facturas ni evidencias. "OC vencidas de entrega" pide editar OC.
+- **OC** (`purchase_orders.*`): `PurchaseOrder` usa `HasAccessScope` con `own_buyer`, `assigned_projects` y `own_supplier`. Compras crea, edita, emite, cierra y archiva solo sus OC; borrar pide X. Pagos, Almacén y Dirección consultan todas y descargan su PDF (con y sin anexos, `purchase_orders.download` sin alcance); Gerente y Supervisor, las de sus proyectos y sin hitos, pagos, facturas ni evidencias. "OC vencidas de entrega" pide editar OC.
 - Sin cambio en esta fase (siguen con `role:`): autorizar OC y reabrir (admin), hitos, entregas (recepción), evidencias y reporte de entregas. Pasan con el módulo de Pagos y Recepción.
 - Cambios de comportamiento a revisar:
   - **Contratos** (antes `Proyectos`) ya no abre OC: la matriz no le da esa vista.
   - **Compras** ya no crea SOLCOM ni reasigna comprador; Almacén lo hace.
-  - **Pagos** pierde el PDF de la OC y el PDF con anexos.
+  - **Pagos** perdió el PDF de la OC y el PDF con anexos en esta fase; HR-010 se los devolvió (junto con Almacén y Dirección).
 
 ### Fase 2: Pagos y Recepción
 
@@ -348,6 +348,8 @@ Usa esta seccion para mantener clara la relacion entre modulo funcional y rol es
 
 Agrega una linea por cambio para trazabilidad.
 
+- 2026-11-19: Almacén, Dirección y Pagos descargan el PDF de todas las OC, con y sin anexos (`purchase_orders.download` sin alcance); Compras conserva solo sus OC. Requiere sincronizar los roles con `AccessMatrixSeeder` en cada entorno autorizado.
+- 2026-11-18: Almacén puede editar y eliminar entradas y salidas, incluidos ajustes manuales al eliminar; crear ajustes sigue reservado para admin. Requiere sincronizar los roles con `AccessMatrixSeeder` en cada entorno autorizado.
 - 2026-06-15: Creacion inicial de matriz de roles y permisos.
 - 2026-06-16: Roles renombrados a español; eliminados `orders`/`payments` (inglés). Agregado rol `Recepción` (solo Alta de Facturas). Bienes Móviles y Proyectos ahora protegidos por middleware. Solmat accede a Proyectos y Pila SOLMAT. Orden de compra reemplaza a Solcom como nombre de rol.
 - 2026-07-13: Se agrega rol `supplier_portal_access` y su mapeo de Portal de Proveedores. Se documenta tambien `Proveedor` en Vales de Material y se actualizan mapeos de Hitos/Alta de Facturas segun rutas actuales.
@@ -369,7 +371,7 @@ Agrega una linea por cambio para trazabilidad.
 - 2026-11-11: Fase 2, Proveedores: Listado y Estado de Cuenta con permisos de la matriz; exportar solo admin.
 - 2026-11-11: Fase 2, Pagos y Recepción: Facturas, Alta de Facturas, Hitos, Pagos (Dirección autoriza), Recepción de OC, validación de hitos y Evidencias con permisos de la matriz, sin excepciones para Pagos ni Compras; Recepción conserva Alta de Facturas. Requiere el seeder y `access:migrate-users --apply`.
 - 2026-11-10: Fase 2, Compras: SOLCOM, Cambios SOLCOM, Pila SOLCOM, Carga de Trabajo y OC con permisos de la matriz; `action_scopes` en la matriz; OC solo del comprador asignado, SOLCOM editable por Almacén hasta enviarla, PDF de OC solo con D. Requiere haber corrido el seeder y `access:migrate-users --apply`.
-- 2026-11-10: Fase 2, Almacén: SOLMAT, Cambios SOLMAT, Pila SOLMAT, Inventario y Vales con permisos de la matriz; Gerente, Supervisor y Almacén crean SOLMAT, solo el gerente del proyecto la envía a Almacén, correcciones de inventario solo admin, autorización de vales para Almacén Autoriza. Requiere haber corrido `access:migrate-users --apply`.
+- 2026-11-10: Fase 2, Almacén: SOLMAT, Cambios SOLMAT, Pila SOLMAT, Inventario y Vales con permisos de la matriz; Gerente, Supervisor y Almacén crean SOLMAT, solo el gerente del proyecto la envía a Almacén, correcciones de inventario solo admin (decisión posteriormente sustituida), autorización de vales para Almacén Autoriza. Requiere haber corrido `access:migrate-users --apply`.
 - 2026-11-10: Fase 2, Proyectos: rutas con permisos `projects.*`, alcance `assigned_projects` para Gerente y Supervisor, Mis Proyectos de solo consulta (sin crear ni editar estimaciones), documentos y convenios solo para quien edita y menú por alcance. Requiere haber corrido `access:migrate-users --apply`.
 - 2026-11-10: Fase 2, Recursos Humanos: rutas con permisos `hr_*`, filtros por obra con `HasAccessScope`, sueldo y recibos ocultos para Gerente y Supervisor, Dirección de solo consulta y menú con `@can`. Requiere haber corrido `access:migrate-users --apply`.
 

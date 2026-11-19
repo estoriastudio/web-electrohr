@@ -119,7 +119,7 @@
                                             </li>
                                             @endif
                                         @endif
-                                        {{-- PDF: D de la matriz, solo Compras (sus OC) y admin (decisión 2026-11-10). --}}
+                                        {{-- PDF: D de la matriz. Compras (sus OC), Almacén, Dirección y Pagos (todas) y admin. --}}
                                         @if (auth()->user()->hasFullAccessScope('purchase_orders', 'download') || (auth()->user()->can('purchase_orders.download') && (int) $order->buyer_id === (int) auth()->id()))
                                         <li>
                                             <a class="dropdown-item" href="{{ route('purchase_orders.pdf', $order) }}" target="_blank">

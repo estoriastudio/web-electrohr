@@ -10,10 +10,10 @@
     "extends": "HR-007",
     "author": "Jorge Peña",
     "reviewers": "",
-    "status": "aprobado",
+    "status": "implementado",
     "branch": "master",
     "created": "2026-11-18",
-    "implemented": ""
+    "implemented": "2026-11-19"
   },
   "v": {
     "goal": "Ocultar Exportar a Excel y Regularización documental de Pagos pagados al usuario con supplier_portal_access, y denegar con HTTP 403 sus rutas. Ocultar y bloquear también el Estado de Cuenta interno global de proveedores, incluidas sus consultas auxiliares y exportaciones. Conservar el estado de cuenta propio del portal.",

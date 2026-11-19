@@ -1,0 +1,224 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-009",
+    "title": "Editar y eliminar movimientos por Almacén",
+    "module": "Inventario",
+    "module_key": "stocks",
+    "extends": "",
+    "author": "Jorge Peña",
+    "reviewers": "",
+    "status": "implementado",
+    "branch": "master",
+    "created": "2026-11-18",
+    "implemented": "2026-11-19"
+  },
+  "v": {
+    "goal": "Permitir al rol Almacén editar y eliminar entradas y salidas existentes de inventario mediante los controles y rutas actuales, sin conceder el permiso para crear ajustes manuales de existencias.",
+    "flow": "El usuario Almacén abre Entradas o Salidas, selecciona el icono de editar o eliminar y utiliza el flujo existente. Al eliminar se muestra la confirmación actual. Los movimientos de ajustes manuales se pueden eliminar, pero siguen sin poder editarse. Las validaciones y consecuencias existentes sobre inventario y movimientos vinculados se conservan.",
+    "prefix": "",
+    "middleware": "",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "",
+    "host_view": "index",
+    "position": "",
+    "follow_filters": true,
+    "export_excel": false,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "La matriz asigna a ALM los permisos view, create y register de stock_entries y stock_exits, pero no update. Los iconos de editar y eliminar están protegidos por @can de update y las cuatro rutas mutantes exigen ese mismo permiso. Por ello Almacén no ve los iconos y recibe 403 por URL directa. En la matriz la creación de ajustes manuales depende del permiso distinto stocks.update.",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "Corregir o borrar entradas y salidas queda reservado a admin; Almacén solo tiene los permisos de consulta, creación y registro declarados en la matriz.",
+    "rule_new": "Añadir update a las acciones de ALM para stock_entries y stock_exits en database/data/access_matrix.php. AccessMatrix y AccessMatrixSeeder suministran los permisos existentes stock_entries.update y stock_exits.update al rol Almacén; los middleware y las condiciones @can actuales habilitan sus rutas e iconos. Ambos permisos también permiten eliminar movimientos de ajustes manuales. No conceder stocks.update ni cambiar los demás permisos.",
+    "historic": "No se modifican movimientos, existencias, archivos ni asignaciones de usuarios por este cambio. Al ejecutar AccessMatrixSeeder en cada entorno se sincronizan los permisos de los roles conforme a la matriz y se limpia la caché de permisos; se deben revisar previamente sus efectos y coordinar su ejecución. No ejecutar el seeder automáticamente durante la implementación ni usar access:migrate-users: los usuarios que ya tienen Almacén reciben sus permisos por el rol.",
+    "enforce": "service",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "",
+      "table": "",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "",
+          "key": ""
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "where": "",
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Listado con búsqueda. Crear vía modal."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Detalle del registro."
+    },
+    {
+      "name": "edit",
+      "render": "blade",
+      "behavior": "Formulario de edición."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "database/data/access_matrix.php: agregar update a las acciones ALM de stock_entries y stock_exits, conservando el texto raw de la matriz original.",
+    "routes/web.php: actualizar únicamente el comentario de Inventario que afirma que editar o borrar es solo para admin; conservar rutas y middleware.",
+    "docs/roles-permissions-matrix.md: documentar el acceso de Almacén y la excepción para eliminación de ajustes, conservando el permiso independiente de ajuste manual."
+  ],
+  "keep": [
+    "Los controles existentes de resources/views/stocks/entries/index.blade.php y resources/views/stocks/exits/index.blade.php, incluidos @can, confirmaciones, formularios y la prohibición visual de editar ajustes manuales.",
+    "StockEntryController y StockExitController: reglas de validación, transacciones, límites de existencias, eliminación de archivos, registro de auditoría y demás efectos actuales.",
+    "Todas las rutas, verbos, nombres, middleware y permisos existentes; las rutas de edición y eliminación siguen requiriendo stock_entries.update o stock_exits.update.",
+    "Los permisos de los demás roles y las demás acciones de Almacén, en particular no se concede stocks.update ni la creación de ajustes manuales.",
+    "La edición de ajustes manuales continúa prohibida para todos; eliminarlos sigue sujeto al flujo y validaciones actuales.",
+    "No se modifican movimientos históricos ni se crean migraciones, roles, permisos, seeders ni paquetes."
+  ],
+  "risks": [
+    "El permiso update existente autoriza tanto editar como eliminar; incluye eliminar movimientos de ajustes manuales. El usuario confirmó expresamente este alcance.",
+    "Eliminar una entrada puede rechazarse si deja existencias negativas; eliminar una entrada de retorno puede reabrir el préstamo asociado. Eliminar un préstamo devuelto también elimina su entrada de retorno vinculada, según el flujo existente.",
+    "AccessMatrixSeeder sincroniza los permisos de todos los roles de la matriz y elimina permisos con punto que ya no están en ella, no solo los dos permisos de este cambio. Revisar la matriz y coordinar su ejecución por entorno.",
+    "Modificar únicamente los iconos no autoriza las rutas; los permisos deben aplicarse al rol mediante el seeder existente."
+  ],
+  "cases": [
+    "Después de aplicar la matriz actualizada y sincronizar el rol, Almacén ve los iconos de editar y eliminar una entrada de compra y una salida definitiva normales, y puede ejecutar sus rutas con datos válidos.",
+    "Almacén puede eliminar un movimiento de ajuste manual de entrada o de salida conforme a las validaciones existentes; no aparece el icono de editarlo y un intento directo de edición conserva el rechazo actual.",
+    "Almacén no obtiene stocks.update y continúa sin poder crear un ajuste manual de existencias.",
+    "Almacén no puede reducir ni eliminar una entrada cuando la validación existente determina que dejaría existencias negativas; tampoco aumentar una salida por encima de las existencias disponibles.",
+    "Editar o eliminar conserva las notificaciones de auditoría existentes. Eliminar una entrada de retorno reabre el préstamo asociado; eliminar un préstamo devuelto también elimina su entrada de retorno vinculada.",
+    "Un usuario sin stock_entries.update o stock_exits.update sigue sin ver los controles de la acción correspondiente y recibe 403 al invocar su ruta directamente. Admin conserva el comportamiento anterior.",
+    "Al ejecutar el seeder repetidamente el rol Almacén conserva ambos permisos update sin duplicados. Los demás roles conservan los permisos declarados en la matriz."
+  ],
+  "rules": [
+    "Contexto adicional obligatorio: leer docs/roles-permissions-matrix.md, database/data/access_matrix.php, app/Services/AccessMatrix.php, database/seeders/AccessMatrixSeeder.php, routes/web.php, los dos controllers de movimientos y sus vistas de listado, además de las instrucciones aplicables de .github/instructions/.",
+    "Cambiar únicamente las listas actions de las celdas ALM de stock_entries y stock_exits para incluir update; conservar raw como representación del Excel original y el resto de la matriz. No crear permisos nuevos.",
+    "Mantener los middleware permission:stock_entries.update y permission:stock_exits.update en las rutas existentes PUT/PATCH y DELETE, y los @can correspondientes en ambas vistas. La modificación de la matriz es la fuente de autorización, no un chequeo nuevo por nombre de rol ni una excepción solo visual.",
+    "La autorización también cubre eliminar entradas y salidas de ajuste manual, que usan esas mismas rutas. No habilita su edición: los controllers y las vistas mantienen el rechazo existente. No habilita POST stocks.adjust, que sigue exigiendo stocks.update.",
+    "Conservar el tratamiento existente de compras, salidas definitivas, préstamos, retornos y ajustes; no agregar ni retirar validaciones, restricciones por tipo, lógica de saldo, transacciones o notificaciones.",
+    "Despliegue: después de revisar los efectos de sincronización del seeder, ejecutar php artisan db:seed --class=AccessMatrixSeeder en cada entorno autorizado. El seeder existente limpia la caché de permisos y sincroniza los roles de la matriz. La ejecución en un entorno real requiere autorización del operador.",
+    "Implementación por capas: primero actualizar la matriz y el comentario de rutas; segunda capa sin cambios de datos históricos; tercera capa actualizar la documentación. Tras cada capa, listar archivos y esperar confirmación conforme a las instrucciones del proyecto."
+  ],
+  "validations": [
+    {
+      "field": "",
+      "rule": ""
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Almacén también puede eliminar movimientos generados por ajustes manuales?",
+      "a": "Sí. La edición y creación de ajustes manuales no se amplían."
+    }
+  ],
+  "exceptions": [
+    "Sustituye la regla de docs/roles-permissions-matrix.md que reserva a admin corregir y borrar movimientos: Almacén también puede editar y eliminar entradas y salidas con los permisos existentes. Ajustar existencias mediante stocks.update permanece reservado como antes.",
+    "La indicación automática del generador en Orden de implementación que dice «sin detenerte entre ellas» no aplica: se solicita confirmación al terminar cada capa, conforme a .github/copilot-instructions.md."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Cambiar el permiso stocks.update, crear ajustes manuales para Almacén o permitir editar movimientos de ajuste.",
+    "Cambiar el comportamiento o la seguridad de los controllers de inventario, las vistas, las rutas o los cálculos de existencias.",
+    "Añadir roles, permisos, migraciones, seeders, pruebas permanentes o paquetes.",
+    "Ejecutar el seeder en una base de datos real sin autorización del operador.",
+    "Implementar el cambio antes de aprobar el spec."
+  ],
+  "docsOff": []
+}

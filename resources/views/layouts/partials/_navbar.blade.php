@@ -404,9 +404,11 @@
             @endcan
             @endcanany
 
+            @unlessrole('supplier_portal_access')
             @canany(['purchase_requests.view', 'purchase_request_changes.view', 'purchase_request_queue.view', 'purchasing_workload.view', 'purchase_orders.view', 'event_followups.view'])
             <li class="menu-title">Compras</li>
             @endcanany
+            @endunlessrole
 
             {{-- Gerente y Supervisor consultan SOLCOM y OC de sus proyectos en Mis Proyectos. --}}
             @if(auth()->user()->can('purchase_requests.view') && auth()->user()->hasFullAccessScope('purchase_requests'))
