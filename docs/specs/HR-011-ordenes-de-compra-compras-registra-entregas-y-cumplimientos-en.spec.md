@@ -5,7 +5,8 @@ title: Compras registra entregas y cumplimientos en sus OC
 module: Ordenes de Compra
 module_key: ordenes_de_compra
 extends: HR-002
-status: aprobado
+status: implementado
+implemented: 2026-11-19
 author: Jorge Peña
 reviewers: []
 branch: master
@@ -21,6 +22,8 @@ open_questions: 0
 # HR-011 · Ordenes de Compra — Compras registra entregas y cumplimientos en sus OC
 
 **Módulo:** Ordenes de Compra (`ordenes_de_compra`) · **Tipo:** C3 · Cambio de regla · **Extiende:** HR-002
+
+> ✓ Estado: **Implementado** (2026-11-19). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 

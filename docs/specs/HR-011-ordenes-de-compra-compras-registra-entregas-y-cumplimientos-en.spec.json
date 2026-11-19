@@ -10,10 +10,10 @@
     "extends": "HR-002",
     "author": "Jorge Peña",
     "reviewers": "",
-    "status": "aprobado",
+    "status": "implementado",
     "branch": "master",
     "created": "2026-11-19",
-    "implemented": ""
+    "implemented": "2026-11-19"
   },
   "v": {
     "goal": "Permitir que el rol Orden de compra (COM) registre entregas físicas y cumplimientos de hito (Estimación, Documental y Anticipo) en las OC donde es el comprador asignado, desde el botón \"Entregas\" del detalle de la OC. Hoy recibe 403 al registrar porque la matriz de acceso no le da los permisos que exigen las rutas, aunque HR-002 y docs/checklist-de-hitos-autorizacion-de-pagos.md dicen que Compras registra en sus OC. Los controles, rutas y controllers actuales no cambian.",
