@@ -1,0 +1,240 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-011",
+    "title": "Compras registra entregas y cumplimientos en sus OC",
+    "module": "Ordenes de Compra",
+    "module_key": "ordenes_de_compra",
+    "extends": "HR-002",
+    "author": "Jorge Peña",
+    "reviewers": "",
+    "status": "aprobado",
+    "branch": "master",
+    "created": "2026-11-19",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Permitir que el rol Orden de compra (COM) registre entregas físicas y cumplimientos de hito (Estimación, Documental y Anticipo) en las OC donde es el comprador asignado, desde el botón \"Entregas\" del detalle de la OC. Hoy recibe 403 al registrar porque la matriz de acceso no le da los permisos que exigen las rutas, aunque HR-002 y docs/checklist-de-hitos-autorizacion-de-pagos.md dicen que Compras registra en sus OC. Los controles, rutas y controllers actuales no cambian.",
+    "flow": "El comprador abre una OC autorizada y propia, pulsa \"Entregas\", elige el tipo de cumplimiento (Recepción física, Estimación o avance, Documental o Anticipo), selecciona el hito y adjunta la evidencia, y registra. El sistema guarda la entrega o el cumplimiento sin 403. También puede confirmar o revocar la entrega de un hito de su OC y usar \"Buscar OCs\" del menú, que lista solo sus OC. En una OC cuyo comprador es otro usuario, y que no ve por otro rol, sigue sin poder registrar.",
+    "prefix": "",
+    "middleware": "",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "",
+    "host_view": "index",
+    "position": "",
+    "follow_filters": true,
+    "export_excel": false,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "En database/data/access_matrix.php el rol COM solo tiene view en purchase_order_receipts y en milestone_validations tiene view, create y update, sin authorize. Las rutas purchase_orders.deliveries.store y purchase_orders.delivery_report exigen permission:purchase_order_receipts.register; purchase_orders.fulfillments.store y purchase_orders.milestones.confirm_delivery exigen permission:milestone_validations.authorize. Un usuario solo con Orden de compra no tiene ninguno y no ve el botón \"Entregas\" (resources/views/purchase_orders/show.blade.php: $canRecordDeliveries). Un usuario que además tiene otro rol que concede el permiso con alcance assigned_projects (por ejemplo Supervisor) sí ve el botón, pero PurchaseOrderController::storeDelivery llama authorizeAccess($purchaseOrder, 'purchase_order_receipts', 'register'); el alcance resultante es solo assigned_projects, así que en una OC propia fuera de sus proyectos recibe 403. AccessMatrix::scopesFor une los alcances de todos sus perfiles. docs/roles-permissions-matrix.md (decisión 2026-11-11) dice que Compras ya no valida hitos y que registrar entregas pide R de Almacén, Gerente y Supervisor, lo que contradice a HR-002 y al checklist de hitos.",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": false,
+      "forms": false,
+      "index": false,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "GET",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": false,
+    "notify_data": "",
+    "rule_current": "Solo Almacén (sobre todas las OC), Gerente y Supervisor (sobre las OC de sus proyectos) y admin pueden registrar entregas físicas y cumplimientos de hito. El comprador de la OC (rol Orden de compra) no tiene los permisos y recibe 403 al registrar; si tiene además el rol Supervisor, el alcance de ese rol no incluye sus OC fuera de sus proyectos.",
+    "rule_new": "El rol Orden de compra (COM) obtiene register en purchase_order_receipts y authorize en milestone_validations, ambos con alcance own_buyer: puede registrar entregas físicas, registrar cumplimientos de hito, confirmar y revocar la entrega de un hito y consultar \"Buscar OCs\" únicamente en las OC donde es el comprador asignado. Una cuenta con varios roles suma los alcances de todos sus perfiles. Registrar sigue pidiendo OC autorizada y abierta. No se concede ninguna otra acción a COM y los demás roles no cambian.",
+    "historic": "No hay migraciones, backfill ni modificación de registros. El cambio aplica desde que se corre AccessMatrixSeeder en cada entorno, a todos los usuarios que ya tengan el rol Orden de compra. Las entregas y cumplimientos ya registrados no cambian.",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "",
+      "table": "",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "",
+          "key": ""
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "where": "",
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Listado con búsqueda. Crear vía modal."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Detalle del registro."
+    },
+    {
+      "name": "edit",
+      "render": "blade",
+      "behavior": "Formulario de edición."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "database/data/access_matrix.php: en purchase_order_receipts, celda COM, cambiar actions a ['view', 'register'], agregar 'action_scopes' => ['register' => 'own_buyer'] y actualizar raw a 'V R (sus OC)'. En milestone_validations, celda COM, cambiar actions a ['view', 'create', 'update', 'authorize'], agregar 'action_scopes' => ['authorize' => 'own_buyer'] y actualizar raw a 'V C E A (sus OC)'. Agregar en ambas celdas una clave decision que cite HR-011 y que restaura HR-002. No tocar las demás celdas.",
+    "routes/web.php: actualizar únicamente los comentarios de los grupos de purchase_order_receipts.register (reportar entregas y entregas por concepto) y de milestone_validations.authorize, que hoy listan solo Almacén, Gerente y Supervisor, para incluir a Compras en sus OC; conservar rutas y middleware.",
+    "docs/roles-permissions-matrix.md: reemplazar las reglas de Recepción de OC y Validación de hitos que excluyen a Compras («Compras ya no valida»; registrar entregas pide R de Almacén, Gerente y Supervisor) y agregar la decisión 2026-11-19 al historial.",
+    "docs/checklist-de-hitos-autorizacion-de-pagos.md: solo verificar que lo que dice sobre quién registra la entrega siga coincidiendo; no debería requerir cambios."
+  ],
+  "keep": [
+    "Todas las rutas, verbos, nombres y middleware; siguen exigiendo purchase_order_receipts.register o milestone_validations.authorize.",
+    "PurchaseOrderController (storeDelivery, deliveryReport, confirmMilestoneDelivery), PurchaseOrderMilestoneFulfillmentController, sus validaciones, notificaciones y mensajes: ya limitan por alcance con authorizeAccess y visibleTo.",
+    "resources/views/purchase_orders/show.blade.php y delivery_report.blade.php: $canRecordDeliveries y $canRecordFulfillment (comprador con purchase_orders.update) ya resultan verdaderos para el comprador con los permisos nuevos, por lo que no requieren cambio.",
+    "Las reglas de HR-002: un hito se cumple por un solo tipo, solo se registra en OC autorizada y abierta, el recálculo del plazo de crédito y las notificaciones.",
+    "Los permisos de Almacén, Gerente, Supervisor, Dirección, Pagos, Almacén Autoriza, proveedor y admin sobre purchase_order_receipts y milestone_validations.",
+    "El alcance de COM sobre purchase_orders (own_buyer) y todas sus demás acciones.",
+    "Revertir una entrega (purchase_orders.deliveries.revert) sigue siendo solo de admin.",
+    "No se crean roles, permisos nuevos, migraciones, modelos ni tablas."
+  ],
+  "risks": [
+    "milestone_validations.authorize es un solo permiso: dárselo a COM habilita también confirmar y revocar la entrega de un hito (purchase_orders.milestones.confirm_delivery). Confirmarla valida el hito y habilita el pago según el checklist, por lo que el comprador de la OC puede validar y no solo registrar. Esto revierte la decisión 2026-11-11 de docs/roles-permissions-matrix.md («Compras ya no valida»); revisarlo al aprobar el spec.",
+    "El alcance own_buyer lo aplican los controllers con authorizeAccess; la ruta solo exige el permiso. Un comprador cuya OC no es suya recibe 403 por URL directa, pero ve en el menú \"Buscar OCs\" aunque la lista salga vacía.",
+    "PurchaseOrderMilestoneFulfillmentController autoriza con authorizeAccess($purchaseOrder, 'purchase_orders') (ver la OC), no con el alcance de milestone_validations. Si otro rol que ve la OC enviara un cumplimiento no físico por URL directa, el controller lo aceptaría, aunque la vista solo ofrece esos tipos al comprador. Es el comportamiento actual y este spec no lo cambia.",
+    "Una cuenta con Orden de compra + Supervisor (u otro rol con alcance assigned_projects) suma alcances: puede registrar en sus OC y en las de sus proyectos. El botón \"Entregas\" se sigue mostrando en cualquier OC que la cuenta ve, y el 403 aparece al enviar si ninguno de sus alcances cubre esa OC.",
+    "AccessMatrixSeeder sincroniza los permisos de todos los roles de la matriz y elimina permisos con punto que ya no están en ella, no solo el de este cambio. Revisar sus efectos y coordinar su ejecución por entorno.",
+    "Ocultar o mostrar controles en Blade no cambia el permiso: hasta correr el seeder, el rol Orden de compra sigue sin los permisos en la base de datos y el 403 persiste."
+  ],
+  "cases": [
+    "Con solo el rol Orden de compra, en una OC autorizada donde es el comprador, aparece \"Entregas\"; registrar una Recepción física con hito y evidencia guarda la entrega sin 403.",
+    "Con solo el rol Orden de compra, en una OC autorizada propia, registrar Estimación o avance, Documental o Anticipo guarda el cumplimiento y deja el hito verificado, sin 403.",
+    "Con solo el rol Orden de compra, en una OC propia, confirmar y revocar la entrega de un hito funciona.",
+    "Con solo el rol Orden de compra, \"Buscar OCs\" aparece en el menú y busca únicamente entre sus OC.",
+    "Con solo el rol Orden de compra, en una OC de otro comprador, POST purchase_orders.deliveries.store, purchase_orders.fulfillments.store y purchase_orders.milestones.confirm_delivery devuelven 403, igual que ver la OC.",
+    "Con Orden de compra + Supervisor (caso reportado), en una OC propia fuera de sus proyectos, registrar entrega física y cumplimientos funciona sin 403.",
+    "Con Orden de compra + Supervisor, en una OC de otro comprador dentro de sus proyectos, registra como hoy; en una OC de otro comprador fuera de sus proyectos recibe 403.",
+    "En una OC que no está autorizada, o que está cerrada, registrar sigue devolviendo el mensaje de error actual.",
+    "Almacén, Gerente, Supervisor, Dirección, Pagos, Almacén Autoriza y proveedor conservan sus permisos actuales sobre entregas y validación de hitos.",
+    "Admin conserva el acceso actual, incluida la reversión de entregas."
+  ],
+  "rules": [
+    "Contexto adicional obligatorio: leer docs/specs/HR-002-ordenes-de-compra-cumplimiento-de-hitos.spec.md, docs/roles-permissions-matrix.md, docs/checklist-de-hitos-autorizacion-de-pagos.md, database/data/access_matrix.php (encabezado, que documenta action_scopes), app/Services/AccessMatrix.php, app/Models/Concerns/HasAccessScope.php, app/Models/PurchaseOrder.php (applyAccessScope), database/seeders/AccessMatrixSeeder.php, routes/web.php, app/Http/Controllers/PurchaseOrderController.php (storeDelivery, deliveryReport, confirmMilestoneDelivery) y PurchaseOrderMilestoneFulfillmentController.php, además de las instrucciones aplicables de .github/instructions/.",
+    "Cambiar únicamente la celda COM de purchase_order_receipts y la celda COM de milestone_validations. Usar action_scopes para que el alcance own_buyer aplique solo a register y a authorize, y que view, create y update conserven el alcance que tienen. No tocar las demás celdas.",
+    "Con action_scopes, AccessMatrix::scopesFor($user, 'purchase_order_receipts', 'register') devuelve own_buyer para COM, y PurchaseOrder::applyAccessScope ya sabe resolverlo (buyer_id = usuario). Con varios roles se unen los alcances.",
+    "Mantener los middleware permission:purchase_order_receipts.register y permission:milestone_validations.authorize y la autorización por registro de los controllers; no agregar excepciones por rol en controllers, rutas ni vistas.",
+    "Despliegue: después de revisar los efectos de sincronización del seeder, ejecutar php artisan db:seed --class=AccessMatrixSeeder en cada entorno autorizado. El seeder limpia la caché de permisos y sincroniza los roles de la matriz. La ejecución en un entorno real requiere autorización del operador.",
+    "Actualizar solo los comentarios de ruta indicados; no modificar rutas ni middleware.",
+    "Implementación por capas: capa 1, matriz; capa 2, sin cambios sobre datos existentes (seeder por entorno); capa 3, comentarios y documentación. Detenerse tras cada capa para confirmación conforme a las instrucciones del proyecto."
+  ],
+  "validations": [
+    {
+      "field": "",
+      "rule": ""
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué acciones se le conceden a Compras en sus OC?",
+      "a": "Registrar entregas físicas y cumplimientos de hito (Estimación, Documental y Anticipo), con alcance own_buyer (decisión del equipo, 2026-11-19)."
+    },
+    {
+      "q": "¿Incluye confirmar y revocar la entrega de un hito?",
+      "a": "Sí, porque comparte el permiso milestone_validations.authorize con registrar el cumplimiento y la ruta de confirmar. Queda registrado en Riesgos para su revisión al aprobar el spec."
+    }
+  ],
+  "exceptions": [
+    "docs/roles-permissions-matrix.md, regla de Validación de hitos (decisión 2026-11-11): «Compras ya no valida». Se sustituye: Compras (rol Orden de compra) registra el cumplimiento y confirma o revoca la entrega solo en las OC donde es el comprador asignado.",
+    "docs/roles-permissions-matrix.md, regla de Recepción de OC: «registrar entregas y \"Buscar OCs\" piden R (Almacén; Gerente y Supervisor en sus proyectos)». Se sustituye: Compras también tiene R, limitado a sus OC (own_buyer).",
+    "La indicación automática del generador en Orden de implementación que dice «sin detenerte entre ellas» no aplica en este repositorio: debe solicitarse confirmación al terminar cada capa, conforme a .github/copilot-instructions.md. Esta excepción resuelve expresamente ese texto automático."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Cambiar rutas, controllers, validaciones o vistas de entregas y cumplimientos.",
+    "Separar registrar el cumplimiento de confirmar o revocar la entrega en permisos distintos, o crear permisos nuevos.",
+    "Restringir en PurchaseOrderMilestoneFulfillmentController los tipos no físicos al comprador de la OC.",
+    "Ocultar el botón \"Entregas\" en las OC donde la cuenta no tiene alcance para registrar.",
+    "Conceder a COM acciones de entregas o validación sobre OC de otros compradores, o a otros roles acciones nuevas.",
+    "Añadir roles, migraciones, pruebas permanentes o paquetes.",
+    "Ejecutar el seeder en una base de datos real sin autorización del operador.",
+    "Implementar el cambio antes de aprobar el spec."
+  ],
+  "docsOff": []
+}

@@ -578,7 +578,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
             Route::get('/ordenes-de-compra/archivadas', [PurchaseOrderController::class, 'archived'])->name('purchase_orders.archived');
         });
 
-        // Reportar entregas por folio (Recepción de OC, R): Almacén; Gerente y Supervisor, sus proyectos.
+        // Reportar entregas por folio (Recepción de OC, R): Almacén; Gerente y Supervisor, sus proyectos; Compras, sus OC.
         Route::middleware('permission:purchase_order_receipts.register')->group(function () {
             Route::get('/ordenes-de-compra/reportar-entregas', [PurchaseOrderController::class, 'deliveryReport'])
                 ->name('purchase_orders.delivery_report');
@@ -769,13 +769,14 @@ Route::namespace('App\Http\Controllers')->group(function () {
         Route::delete('/evidencias/{evidence}', [PurchaseOrderEvidenceController::class, 'destroy'])
             ->middleware('permission:purchase_order_evidences.create')->name('evidences.destroy');
 
-        // Entregas por concepto (Recepción de OC, R): Almacén; Gerente y Supervisor en sus proyectos.
+        // Entregas por concepto (Recepción de OC, R): Almacén; Gerente y Supervisor en sus proyectos; Compras en sus OC.
         Route::middleware('permission:purchase_order_receipts.register')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/entregas', [PurchaseOrderController::class, 'storeDelivery'])
                 ->name('purchase_orders.deliveries.store');
         });
         // Validación de hitos (Fase 4, A de `milestone_validations` y de Hitos): registrar el cumplimiento o
-        // confirmar la entrega valida el hito y habilita su pago. Validan Gerente y Supervisor (sus proyectos) y Almacén.
+        // confirmar la entrega valida el hito y habilita su pago. Validan Gerente y Supervisor (sus proyectos), Almacén
+        // y Compras (sus OC).
         Route::middleware('permission:milestone_validations.authorize')->group(function () {
             Route::post('/ordenes-de-compra/{purchase_order}/cumplimientos', [PurchaseOrderMilestoneFulfillmentController::class, 'store'])
                 ->name('purchase_orders.fulfillments.store');

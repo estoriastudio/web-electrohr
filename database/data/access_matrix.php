@@ -1023,9 +1023,11 @@ return [
                     'actions' => ['view'],
                 ],
                 'COM' => [
-                    'raw' => 'V N',
-                    'actions' => ['view'],
+                    'raw' => 'V R (sus OC) N',
+                    'actions' => ['view', 'register'],
+                    'action_scopes' => ['register' => 'own_buyer'],
                     'notify' => true,
+                    'decision' => 'Registra entregas en las OC donde es el comprador; restaura HR-002 (HR-011, 2026-11-19).',
                 ],
                 'PAG' => [
                     'raw' => 'V N',
@@ -1465,8 +1467,10 @@ return [
                     'note' => 'entrega en Almacén Central',
                 ],
                 'COM' => [
-                    'raw' => 'V C E',
-                    'actions' => ['view', 'create', 'update'],
+                    'raw' => 'V C E A (sus OC)',
+                    'actions' => ['view', 'create', 'update', 'authorize'],
+                    'action_scopes' => ['authorize' => 'own_buyer'],
+                    'decision' => 'Registra el cumplimiento y confirma o revoca la entrega en las OC donde es el comprador; restaura HR-002 (HR-011, 2026-11-19).',
                 ],
                 'PAG' => [
                     'raw' => 'V',

@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-19T09:46:18-06:00",
+    "generated_at": "2026-11-19T12:32:34-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -20666,6 +20666,17 @@
             "status": "implementado",
             "archived": false,
             "file": "docs/specs/HR-010-ordenes-de-compra-descarga-de-pdf-de-oc-por-almacen-direccion-y.spec.json"
+        },
+        {
+            "id": "HR-011",
+            "type": "ext-rule",
+            "title": "Compras registra entregas y cumplimientos en sus OC",
+            "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": "HR-002",
+            "status": "aprobado",
+            "archived": false,
+            "file": "docs/specs/HR-011-ordenes-de-compra-compras-registra-entregas-y-cumplimientos-en.spec.json"
         },
         {
             "id": "HR-006",
