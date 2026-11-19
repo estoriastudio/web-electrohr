@@ -2661,7 +2661,7 @@
                         {{-- Archivo PDF --}}
                         <div class="col-12">
                             <label class="form-label fw-medium">
-                                Archivo PDF
+                                Archivo PDF <span class="text-danger">*</span>
                                 <small class="text-muted fw-normal">(máx. 10 MB)</small>
                             </label>
                             <input id="adminInvoicePdfFile" type="file" class="form-control @error('pdf_file') is-invalid @enderror"
@@ -2673,11 +2673,11 @@
                         <div class="col-12">
                             <label class="form-label fw-medium">
                                 Archivo XML
-                                <small class="text-muted fw-normal">(CFDI timbrado)</small>
+                                <small class="text-muted fw-normal">(opcional, CFDI timbrado)</small>
                             </label>
                             <input id="adminInvoiceXmlFile" type="file" class="form-control @error('xml_file') is-invalid @enderror"
                                    name="xml_file" accept=".xml,text/xml" aria-describedby="adminInvoiceXmlHelp adminInvoiceXmlFeedback">
-                            <div id="adminInvoiceXmlHelp" class="form-text">Al cargar el XML se autocompletarán el folio fiscal (UUID) y el importe.</div>
+                            <div id="adminInvoiceXmlHelp" class="form-text">Al cargar el XML se autocompletarán el folio fiscal (UUID) y el importe. Si no cuentas con XML, captura el importe manualmente.</div>
                             <div id="adminInvoiceXmlFeedback" class="invalid-feedback {{ $errors->has('xml_file') ? 'd-block' : 'd-none' }}" role="alert">
                                 @error('xml_file'){{ $message }}@enderror
                             </div>
@@ -3923,13 +3923,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var amountField = document.getElementById('adminInvoiceAmount');
     var submitButton = document.getElementById('adminInvoiceSubmit');
     var pdfField = document.getElementById('adminInvoicePdfFile');
-    var xmlField = document.getElementById('adminInvoiceXmlFile');
     if (!form) return;
 
-    // Habilita el botón solo con PDF, XML y, si la OC tiene hitos disponibles, al menos uno seleccionado
+    // Habilita el botón solo con PDF (el XML es opcional) y, si la OC tiene hitos disponibles, al menos uno seleccionado
     function syncSubmitButton() {
         if (!submitButton) return;
-        var hasFiles = !!(pdfField && pdfField.files.length && xmlField && xmlField.files.length);
+        var hasFiles = !!(pdfField && pdfField.files.length);
         var hasAvailableMilestones = form.querySelectorAll('input[name="milestone_ids[]"]:not(:disabled)').length > 0;
         var hasMilestone = form.querySelectorAll('input[name="milestone_ids[]"]:checked').length > 0;
         submitButton.disabled = !hasFiles || (hasAvailableMilestones && !hasMilestone);

@@ -235,8 +235,10 @@ class PurchaseOrderInvoiceController extends Controller
             'currency' => 'required|in:MXN,USD,EUR',
             'milestone_ids' => 'nullable|array',
             'milestone_ids.*' => 'exists:purchase_order_milestones,id',
-            'pdf_file' => 'nullable|file|mimes:pdf|max:10240',
+            'pdf_file' => 'required|file|mimes:pdf|max:10240',
             'xml_file' => ['nullable', 'file', $this->xmlExtensionRule(), 'max:10240'],
+        ], [
+            'pdf_file.required' => 'El archivo PDF de la factura es obligatorio.',
         ]);
 
         $validated['amount'] = round((float) $validated['amount'], 2);
