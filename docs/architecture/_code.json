@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-19T12:32:34-06:00",
+    "generated_at": "2026-11-19T14:18:35-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -20591,17 +20591,6 @@
             "file": "docs/specs/HR-001-suppliers-estado-de-cuenta-de-proveedores.spec.json"
         },
         {
-            "id": "HR-002",
-            "type": "ext-sub",
-            "title": "Cumplimiento de hitos",
-            "module": "Ordenes de Compra",
-            "module_key": "ordenes_de_compra",
-            "extends": null,
-            "status": "implementado",
-            "archived": false,
-            "file": "docs/specs/HR-002-ordenes-de-compra-cumplimiento-de-hitos.spec.json"
-        },
-        {
             "id": "HR-003",
             "type": "new",
             "title": "",
@@ -20674,9 +20663,20 @@
             "module": "Ordenes de Compra",
             "module_key": "ordenes_de_compra",
             "extends": "HR-002",
-            "status": "aprobado",
+            "status": "implementado",
             "archived": false,
             "file": "docs/specs/HR-011-ordenes-de-compra-compras-registra-entregas-y-cumplimientos-en.spec.json"
+        },
+        {
+            "id": "HR-002",
+            "type": "ext-sub",
+            "title": "Cumplimiento de hitos",
+            "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": null,
+            "status": "implementado",
+            "archived": true,
+            "file": "docs/specs/_archive/HR-002-ordenes-de-compra-cumplimiento-de-hitos.spec.json"
         },
         {
             "id": "HR-006",
@@ -20776,13 +20776,6 @@
                 "name": "Proyectos",
                 "specs": [
                     "HR-004"
-                ]
-            },
-            {
-                "module": "purchase_orders",
-                "name": "Buscar OCs",
-                "specs": [
-                    "HR-002"
                 ]
             },
             {

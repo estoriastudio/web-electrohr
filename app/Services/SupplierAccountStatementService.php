@@ -200,7 +200,7 @@ class SupplierAccountStatementService
             }
             $needsReconciliation = isset($flaggedInvoices[$invoice->id]) || $capacities[$invoice->id] < 0
                 || $currency !== $order->currency;
-            $balance = $needsReconciliation ? null : $capacities[$invoice->id] - $applied[$invoice->id];
+            $balance = $needsReconciliation ? null : $this->withinTolerance($capacities[$invoice->id] - $applied[$invoice->id]);
             $status = $needsReconciliation ? 'conciliacion' : ($balance === 0 ? 'pagado' : (
                 $invoice->due_date && $invoice->due_date->toDateString() < today()->toDateString()
                     ? 'vencido' : 'pendiente'
@@ -234,10 +234,10 @@ class SupplierAccountStatementService
 
         foreach ($payments as $payment) {
             $remaining = $this->cents($payment->paid_amount_value) - $used[$payment->id];
-            if ($remaining <= 0) {
+            $hasInvoice = isset($flaggedPayments[$payment->id]);
+            if ($remaining <= 0 || (!$hasInvoice && $remaining <= self::TOLERANCE_CENTS)) {
                 continue;
             }
-            $hasInvoice = isset($flaggedPayments[$payment->id]);
             $rows->push(array_merge($this->orderFields($order), [
                 'key' => 'payment-' . $payment->id,
                 'type' => 'payment',
@@ -268,9 +268,9 @@ class SupplierAccountStatementService
                 'invoiced' => $invoices->contains(fn ($invoice) => ($invoice->currency ?: $order->currency) !== $order->currency)
                     ? null : array_sum($capacities),
                 'pending_invoice' => $invoices->contains(fn ($invoice) => ($invoice->currency ?: $order->currency) !== $order->currency)
-                    ? null : $this->cents($order->amount) - array_sum($capacities),
+                    ? null : $this->withinTolerance($this->cents($order->amount) - array_sum($capacities)),
                 'paid' => $payments->sum(fn ($payment) => $this->cents($payment->paid_amount_value)),
-                'pending_order' => $this->cents($order->amount) - $payments->sum(fn ($payment) => $this->cents($payment->paid_amount_value)),
+                'pending_order' => $this->withinTolerance($this->cents($order->amount) - $payments->sum(fn ($payment) => $this->cents($payment->paid_amount_value))),
                 'pending_invoices' => $rows->contains('status', 'conciliacion')
                     ? null : $rows->where('type', 'invoice')->sum('balance'),
             ],
@@ -363,6 +363,12 @@ class SupplierAccountStatementService
     private function uniqueReasons(array $reasons): array
     {
         return array_values(array_unique($reasons, SORT_REGULAR));
+    }
+
+    // Una diferencia de hasta la tolerancia, a favor o en contra, se considera saldada.
+    private function withinTolerance(int $cents): int
+    {
+        return abs($cents) <= self::TOLERANCE_CENTS ? 0 : $cents;
     }
 
     private function cents($amount): int
