@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-19T09:08:40-06:00",
+    "generated_at": "2026-11-19T09:46:18-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -471,7 +471,7 @@
                     "name": "purchase_orders.show",
                     "action": "PurchaseOrderController@show",
                     "view": "purchase_orders.show",
-                    "fp": "0fa03e885b",
+                    "fp": "d57f083084",
                     "livewire": []
                 },
                 {
@@ -493,7 +493,7 @@
                     "name": "purchase_orders.index",
                     "action": "PurchaseOrderController@index",
                     "view": "purchase_orders.index",
-                    "fp": "d2e3dee545",
+                    "fp": "e0132e13f3",
                     "livewire": []
                 },
                 {
@@ -504,7 +504,7 @@
                     "name": "purchase_orders.archived",
                     "action": "PurchaseOrderController@archived",
                     "view": "purchase_orders.archive",
-                    "fp": "c02c374a6b",
+                    "fp": "2ca7fa5910",
                     "livewire": []
                 },
                 {
@@ -537,7 +537,7 @@
                     "name": "purchase_orders.soft_deleted",
                     "action": "PurchaseOrderController@softDeleted",
                     "view": "purchase_orders.soft_deleted",
-                    "fp": "a30bc94a61",
+                    "fp": "9b3ed0828e",
                     "livewire": []
                 },
                 {
@@ -2845,7 +2845,7 @@
                     "name": "my-projects.show",
                     "action": "EngineerProjectController@show",
                     "view": "my_projects.show",
-                    "fp": "f66ee75afd",
+                    "fp": "458f9476ed",
                     "livewire": []
                 }
             ],
@@ -20652,20 +20652,20 @@
             "module": "Inventario",
             "module_key": "stocks",
             "extends": null,
-            "status": "aprobado",
+            "status": "implementado",
             "archived": false,
             "file": "docs/specs/HR-009-stocks-editar-y-eliminar-movimientos-por-almacen.spec.json"
         },
         {
             "id": "HR-010",
             "type": "ext-rule",
-            "title": "Descarga de PDF de OC por Almacén",
+            "title": "Descarga de PDF de OC por Almacén, Dirección y Pagos",
             "module": "Ordenes de Compra",
             "module_key": "ordenes_de_compra",
             "extends": null,
-            "status": "borrador",
+            "status": "implementado",
             "archived": false,
-            "file": "docs/specs/HR-010-ordenes-de-compra-descarga-de-pdf-de-oc-por-almacen.spec.json"
+            "file": "docs/specs/HR-010-ordenes-de-compra-descarga-de-pdf-de-oc-por-almacen-direccion-y.spec.json"
         },
         {
             "id": "HR-006",
@@ -20772,6 +20772,13 @@
                 "name": "Buscar OCs",
                 "specs": [
                     "HR-002"
+                ]
+            },
+            {
+                "module": "stocks",
+                "name": "Consulta",
+                "specs": [
+                    "HR-009"
                 ]
             },
             {
