@@ -9,11 +9,11 @@ Verifica la implementación del spec ${file} contra los cambios de esta rama (`g
 2. Lista cualquier archivo modificado que:
    - esté en `protected` de `docs/specs/_project.json`
    - no se justifique por el spec
-   - corresponda a algo de "Fuera de alcance"
+   - corresponda a algo de "Fuera de alcance" (la lista `oos` de `_project.json` más la del spec, menos lo que el spec dice que sí incluye)
 3. Revisa "Debe permanecer igual" (en specs de extensión) y confirma que el diff no lo afecta.
 4. Revisa que los commits de la rama incluyan el `spec_id`.
 5. Si existe `app/Console/Commands/DocsMap.php`, corre `php artisan docs:map --check --no-write` e incluye en el reporte las diferencias que muestre entre los specs y el código.
-6. Revisa las convenciones de docs/ en los archivos tocados (paginate(25), flash keys, NotificationService, clases del UI kit, nombres en inglés).
+6. Revisa las convenciones de docs/ en los archivos tocados (si ya leíste esos docs en esta conversación y no cambiaron, no los vuelvas a leer) (paginate(25), flash keys, NotificationService, clases del UI kit, nombres en inglés).
 7. Manual: si el spec no es `public-view`, confirma que existe `docs/manual/<module_key>.md` (o el del módulo funcional que lo agrupa en `architecture.modules` de `_project.json`; si la sección no existe o `modules` está vacío, la clave es `module_key` y no es un pendiente) y que su `covers` incluye este spec. Si no, indica que falta correr `/generar-manual`.
 
 Devuelve un resumen final: `listo para PR` o la lista de pendientes. No corrijas nada sin que te lo pida.

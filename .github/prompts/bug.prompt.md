@@ -11,11 +11,12 @@ Un bug es cuando el código **no hace lo que dice** el spec implementado o el ma
 
 Antes de tocar código, responde con:
 - **Qué dice que debe pasar:** cita el spec (`docs/specs/<ID>...spec.md`, sección y línea) o el paso del manual (`docs/manual/<clave>.md`, `step:<id>`). Lee el spec vigente, no `docs/specs/_archive/`.
+- **Si hubo un cambio autorizado después:** busca con `git log --grep "\[autorizado" -- <archivos del módulo>`. Si un commit `[autorizado]` posterior al spec cambió esa regla, lo vigente es ese commit y el manual, no el spec. Si el código hace lo que el commit autorizó, no es bug.
 - **Qué pasa hoy** y en qué archivo y línea está la causa.
 - **Archivos que vas a tocar.**
 
 Detente y avísame en lugar de arreglarlo si:
-- No hay spec ni paso del manual que diga cómo debe funcionar, o lo que pido contradice lo que dicen. Entonces no es un bug, es un cambio: necesita spec.
+- No hay spec, paso del manual ni commit `[autorizado]` que diga cómo debe funcionar, o lo que pido contradice lo que dicen. Entonces no es un bug, es un cambio: va con `/autorizar` o necesita spec si toca el esquema.
 - El arreglo necesita una migración, una ruta nueva, cambiar permisos (`@can`, `@role`, middleware) o tocar archivos protegidos de `_project.json`.
 - El arreglo crece a varios módulos o más de unos 8 archivos.
 

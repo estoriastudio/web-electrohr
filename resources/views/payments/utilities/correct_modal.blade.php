@@ -1,7 +1,7 @@
 {{--
-    Corrección de admin sobre un pago pagado: cambiar el importe o el comprobante, regresarlo a autorizado
-    o eliminarlo. Cada acción muestra su vista previa y, si deja sin cubrir un hito con hitos siguientes ya
-    pagados, pide confirmar la advertencia.
+    Corrección de un pago pagado: cambiar el importe o el comprobante, regresarlo a autorizado
+    o eliminarlo si se cuenta con la autorización necesaria. Cada acción muestra su vista previa y,
+    si deja sin cubrir un hito con hitos siguientes ya pagados, pide confirmar la advertencia.
 
     Variables: $payment, $currency, $returnTo (opcional), $fromDetail (bool).
 --}}
@@ -20,7 +20,7 @@
                 <p class="text-muted fs-13">
                     Pagado: <strong>{{ $currency }} {{ number_format($payment->paid_amount_value, 2) }}</strong>
                     (aplicado al hito {{ $currency }} {{ number_format($payment->applied_amount_value, 2) }}).
-                    Solo admin corrige un pago ya registrado con SPEI.
+                    Pagos y quienes tienen autorización de pagos pueden corregir un pago registrado con SPEI.
                 </p>
 
                 {{-- Importe y comprobante --}}
@@ -72,6 +72,7 @@
                 </form>
 
                 {{-- Eliminar --}}
+                @if (auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update'))
                 <form action="{{ route('payments.destroy', $payment) }}" method="POST" class="js-amount-preview-form border border-danger-subtle rounded p-3"
                       onsubmit="return confirm('¿Eliminar este pago ya registrado con SPEI?')">
                     @csrf @method('DELETE')
@@ -87,6 +88,7 @@
                         </button>
                     </div>
                 </form>
+                @endif
             </div>
         </div>
     </div>

@@ -645,7 +645,7 @@ class PaymentController extends Controller
         $orderId = $milestone->purchase_order_id;
         $milestone->purchaseOrder->ensureOpen();
         $returnTo = $validated['return_to'] ?? 'purchase_order';
-        // Autorizar, posponer, rechazar, reactivar y corregir pagos pagados es de quien autoriza pagos.
+        // Autorizar, posponer, rechazar y reactivar es de quien autoriza pagos.
         $isAdmin = Auth::user()->can('payment_authorizations.authorize');
 
         $hasStatusChange = array_key_exists('status', $validated) && ! is_null($validated['status']);
@@ -657,7 +657,7 @@ class PaymentController extends Controller
         }
 
         if ($payment->status === 'pagado') {
-            return $this->correctPaidPayment($request, $payment, $validated, $isAdmin, $returnTo);
+            return $this->correctPaidPayment($request, $payment, $validated, $isAdmin || $request->user()->hasRole('Pagos'), $returnTo);
         }
 
         if (! $hasStatusChange && ! $hasSpeiFile) {
@@ -779,10 +779,9 @@ class PaymentController extends Controller
         );
     }
 
-    /** Un pago pagado solo lo corrige admin: importe, comprobante, regresarlo a autorizado. */
-    private function correctPaidPayment(Request $request, Payment $payment, array $validated, bool $isAdmin, string $returnTo): RedirectResponse
+    private function correctPaidPayment(Request $request, Payment $payment, array $validated, bool $canCorrect, string $returnTo): RedirectResponse
     {
-        abort_unless($isAdmin, 403, self::PAID_LOCKED_MESSAGE);
+        abort_unless($canCorrect, 403, self::PAID_LOCKED_MESSAGE);
 
         $orderId = $payment->milestone->purchase_order_id;
         $confirmed = (bool) ($validated['confirm_correction'] ?? false);
@@ -1145,13 +1144,14 @@ class PaymentController extends Controller
         $folio = $payment->folio;
         $milestoneId = $payment->milestone_id;
 
-        DB::transaction(function () use ($request, $payment, $orderId) {
+        DB::transaction(function () use ($request, $payment, $orderId, $isAdmin) {
             $order = PurchaseOrder::query()->lockForUpdate()->findOrFail($orderId);
             $order->ensureOpen();
             PurchaseOrderMilestone::query()->where('purchase_order_id', $orderId)->orderBy('id')->lockForUpdate()->get(['id']);
             $payment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
 
             if ($payment->status === 'pagado') {
+                abort_unless($isAdmin, 403, self::PAID_LOCKED_MESSAGE);
                 $this->milestonePayments->deletePaid($payment, (bool) $request->boolean('confirm_correction'));
 
                 return;
@@ -1194,7 +1194,11 @@ class PaymentController extends Controller
 
         $isAdmin = Auth::user()->can('payment_authorizations.authorize');
         abort_if($validated['accion'] === 'autorizar' && ! $isAdmin, 403);
-        abort_if($payment->status === 'pagado' && ! $isAdmin, 403, self::PAID_LOCKED_MESSAGE);
+        if ($payment->status === 'pagado') {
+            $canCorrect = $isAdmin || $request->user()->hasRole('Pagos');
+            abort_unless($canCorrect, 403, self::PAID_LOCKED_MESSAGE);
+            abort_if(($validated['correccion'] ?? null) === 'eliminar' && ! $isAdmin, 403, self::PAID_LOCKED_MESSAGE);
+        }
 
         $amount = (float) $validated['monto'];
         $skipChecklist = $isAdmin && ($validated['origin'] ?? null) === 'purchase_order_detail';

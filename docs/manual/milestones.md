@@ -2,8 +2,8 @@
 module: milestones
 name: Hitos de pago
 area: Pagos
-covers: [HR-006]
-generated_at: 2026-11-17
+covers: [HR-006, HR-012]
+generated_at: 2026-11-25
 status: generado
 verified_by:
 verified_at:
@@ -33,10 +33,11 @@ Desde el detalle de la OC, quien autoriza decide **cuánto** se paga de cada PAY
 | Eliminar un hito | Compras en sus OC y administración; en una OC autorizada, solo administración |
 | Autorizar un PAY con monto | Quien autoriza pagos (administración y Dirección) |
 | Registrar un PAY como pagado | Pagos y administración |
-| Corregir, regresar a autorizado o eliminar un pago ya pagado | Solo quien autoriza pagos y puede modificar pagos (administración). Pagos recibe un error de acceso |
+| Corregir el importe o comprobante, o regresar a autorizado un pago ya pagado | Pagos y quienes autorizan y pueden modificar pagos |
+| Eliminar un pago ya pagado | Quien autoriza y puede modificar pagos. Pagos no puede hacerlo solo por tener ese rol |
 <!-- /gen:roles -->
 
-> ⏳ Pendiente: El spec HR-006 dice que autorizar con monto y corregir pagos es "solo admin", pero el sistema lo permite a quien tiene el permiso de autorizar pagos (incluye Dirección). ¿Debe ser solo administración?
+> ⏳ Pendiente: El spec HR-006 dice que autorizar con monto es "solo admin", pero el sistema lo permite a quien tiene el permiso de autorizar pagos (incluye Dirección). ¿Debe ser solo administración?
 
 ## Conceptos
 
@@ -178,7 +179,9 @@ Si el monto no cabe en el hito y los siguientes, el sistema muestra el máximo p
 
 El pago no se registra si el hito anterior no está pagado completo ("No se puede registrar pagado: el Hito N aún no está pagado completo."). Un PAY de abono también revisa el checklist de su hito. Con el **SPEI múltiple** en **Por Pagar** un solo comprobante registra varios PAY, cada uno por lo autorizado.
 
-### Corregir un pago ya pagado (administración)
+### Corregir un pago ya pagado
+
+Pagos y quienes autorizan y pueden modificar pagos pueden hacer esta corrección en una OC abierta.
 
 1. En el PAY **Pagado**, abre el menú de tres puntos y elige **Corregir pago**.
 2. En **Corregir pago PAY-…** elige una opción:
@@ -191,7 +194,7 @@ La corrección revierte lo que ese pago movió (lo aplicado, los abonos y el sal
 ### Eliminar un pago
 
 1. Un PAY pendiente se elimina desde el menú de tres puntos con **Eliminar pago**; confirma "¿Eliminar este pago?". Aparece "Pago eliminado."
-2. Un PAY **Pagado** solo lo elimina administración, desde **Corregir pago** → **Eliminar pago**, con su vista previa y la advertencia si aplica.
+2. Un PAY **Pagado** solo lo elimina quien autoriza y puede modificar pagos, desde **Corregir pago** → **Eliminar pago**, con su vista previa y la advertencia si aplica. Pagos no ve esta opción salvo que también tenga esa autorización.
 
 Un PAY **Sustituido** no se elimina. Un PAY autorizado que ya generó resto, abonos o sustituciones tampoco se puede regresar, rechazar, posponer ni eliminar.
 
@@ -203,7 +206,7 @@ Un PAY **Sustituido** no se elimina. Un PAY autorizado que ya generó resto, abo
 | **Por autorizar** | Espera la decisión de quien autoriza | **Autorizado**, **Rechazado**, **Pospuesto**, **Sustituido** (automático) |
 | **Pospuesto** | Se dejó para después; opera igual que Por autorizar | **Por autorizar**, **Autorizado**, **Rechazado**, **Sustituido** (automático) |
 | **Autorizado** | Aprobado por un monto; falta el SPEI | **Pagado**; **Por autorizar** (administración, si no generó movimientos) |
-| **Pagado** | Tiene comprobante SPEI. Solo administración lo corrige | **Autorizado** (administración) |
+| **Pagado** | Tiene comprobante SPEI. Pagos y quienes autorizan y pueden modificar pagos lo corrigen | **Autorizado** (Pagos y quienes autorizan y pueden modificar pagos) |
 | **Rechazado** | No se paga | **Por autorizar** (reactivación) |
 | **Sustituido** | Reemplazado por otro PAY o el hito ya quedó cubierto. No se opera | Ninguno |
 
@@ -224,12 +227,12 @@ Un PAY **Sustituido** no se elimina. Un PAY autorizado que ya generó resto, abo
 | "No hay hito siguiente con saldo donde abonar el excedente. Lo más que se puede autorizar es $X, el saldo de este hito." | Captura un monto menor o igual al máximo |
 | "Pagar menos de lo autorizado no está permitido: el monto se decide al autorizar." | Captura el importe autorizado (o hasta $0.50 menos) |
 | "Este PAY fue sustituido y ya no se puede autorizar ni pagar." | Usa el PAY que lo sustituye |
-| "Este pago ya se registró con SPEI y no se puede modificar ni eliminar." | Pide la corrección a administración |
+| "Este pago ya se registró con SPEI y no se puede modificar ni eliminar." | Pide la corrección a Pagos o a quien autoriza y puede modificar pagos; para eliminarlo, pide ayuda a quien autoriza y puede modificar pagos |
 | "Este pago generó abonos autorizados en PAY-… y no se puede corregir." | Revisa esos PAY de abono antes de intentar otra vez |
 | "El hito #N no cumple su checklist (pendiente: …)." | Completa el requisito indicado (por ejemplo, confirmar la entrega) |
 | "Solo admin puede agregar hitos a una OC autorizada que no es destajo." | Pide el cambio a administración |
 | "Solo admin puede editar hitos de una OC autorizada." | Pide el cambio a administración |
-| "No se puede eliminar un hito con pago en estatus pagado." | Corrige o elimina antes el pago (administración) |
+| "No se puede eliminar un hito con pago en estatus pagado." | Pide a Pagos o a quien autoriza y puede modificar pagos que regrese el pago a autorizado; para eliminar el pago, acude a quien autoriza y puede modificar pagos |
 <!-- /gen:messages -->
 
 ## Relación con otros módulos

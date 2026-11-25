@@ -77,6 +77,8 @@
     // Entregas y validación de hitos (matriz: Recepción de OC R y validación de hitos); el controlador aplica el alcance.
     // Pagos y montos pagados: solo quien consulta algún módulo de Pagos (Gerente y Supervisor no).
     $canSeePayments = auth()->user()->canAny(['payment_authorizations.view', 'payments_payable.view', 'payments_paid.view']);
+    $canCorrectPaid = auth()->user()->can('payments_payable.update')
+        && (auth()->user()->can('payment_authorizations.authorize') || auth()->user()->hasRole('Pagos'));
     $canRecordDeliveries = auth()->user()->canAny(['purchase_order_receipts.register', 'milestone_validations.authorize']);
     $canModifyPurchaseOrder = $purchaseOrder->status !== 'autorizada' || $isAdmin;
     $canCreateMilestone = $canModifyPurchaseOrder || $purchaseOrder->is_destajo;
@@ -1792,7 +1794,6 @@
                                             ];
                                             $ps = $payStatusMap[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-secondary-subtle text-secondary', 'bg' => 'bg-secondary-subtle', 'accent' => 'border-secondary', 'icon' => 'ri-question-line'];
                                             $isAdminUser = auth()->user()?->hasRole('admin');
-                                            $canCorrectPaid = auth()->user()->can('payment_authorizations.authorize') && auth()->user()->can('payments_payable.update');
                                             $originText = match ($payment->origin) {
                                                 \App\Models\Payment::ORIGIN_REST => $payment->sourcePayment ? 'Resto de '.$payment->sourcePayment->folio : 'Resto de un PAY eliminado',
                                                 \App\Models\Payment::ORIGIN_CREDIT => $payment->sourcePayment ? 'Abono del excedente de '.$payment->sourcePayment->folio : 'Abono de un PAY eliminado',
@@ -1907,7 +1908,7 @@
                                                         @endif
                                                         @endcan
 
-                                                        {{-- Corrección de admin sobre un pago pagado --}}
+                                                        {{-- Corrección de un pago pagado --}}
                                                         @if ($payment->status === 'pagado' && $canCorrectPaid)
                                                         <li>
                                                             <button type="button" class="dropdown-item"
@@ -2007,6 +2008,8 @@
                                     : 'ATENCION: el hito no cumple su checklist ('.implode(', ', $milestoneChecklist['pending']).'). Se autorizara como excepcion de administrador.',
                             ])
                         @endforeach
+                        @endif
+                        @if ($canCorrectPaid)
                         @foreach ($milestone->payments->where('status', 'pagado') as $payment)
                             @include('payments.utilities.correct_modal', ['payment' => $payment, 'currency' => $purchaseOrder->currency])
                         @endforeach

@@ -1,0 +1,223 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-012",
+    "title": "Pagos corrige pagos en hitos de órdenes de compra",
+    "module": "Pagos",
+    "module_key": "payments",
+    "extends": "HR-008",
+    "author": "",
+    "reviewers": "",
+    "status": "aprobado",
+    "branch": "",
+    "created": "2026-11-25",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Permitir al rol Pagos corregir el importe o comprobante SPEI de un pago pagado y regresarlo a autorizado desde el detalle de una orden de compra, sin permitirle eliminar ese pago por el solo hecho de tener el rol Pagos.",
+    "flow": "En una orden de compra abierta, Pagos abre el menú de un PAY pagado en la tarjeta del hito y elige Corregir pago. Puede cambiar el importe o reemplazar el comprobante y guardar, o regresar el pago a autorizado, con las vistas previas y confirmaciones existentes. No ve la opción de eliminar salvo que también tenga el acceso que actualmente permite eliminar pagos pagados.",
+    "prefix": "",
+    "middleware": "",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "",
+    "host_view": "index",
+    "position": "",
+    "follow_filters": true,
+    "export_excel": false,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "El detalle de la OC muestra Corregir pago para un PAY pagado solo si el usuario tiene payment_authorizations.authorize y payments_payable.update. El controller exige payment_authorizations.authorize para la vista previa y la corrección de un pago pagado y también para eliminarlo. Pagos tiene payments_payable.update y payments_paid.register, pero no payment_authorizations.authorize; no ve la opción y recibe 403 al intentar corregir por las rutas existentes. El modal compartido incluye cambiar importe o comprobante, regresar a autorizado y eliminar.",
+    "uses_livewire": false,
+    "table": "",
+    "strategy": "nullable",
+    "backfill": "",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": true,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "",
+    "method": "",
+    "verb": "POST",
+    "action_uri": "",
+    "action_route": "",
+    "who": "",
+    "input": "",
+    "response": "redirect",
+    "trigger": "",
+    "notify": true,
+    "notify_data": "",
+    "rule_current": "Corregir o eliminar un pago pagado requiere payment_authorizations.authorize además del middleware payments_payable.update de las rutas.",
+    "rule_new": "Además de los usuarios que ya pueden corregir pagos pagados, una cuenta con el rol Pagos y acceso a las rutas existentes puede cambiar el importe o el comprobante SPEI y regresar el pago a autorizado. El rol Pagos por sí solo no permite eliminar pagos pagados: esa acción y su vista previa siguen requiriendo la autorización existente. La concesión es específica de estas correcciones y no concede payment_authorizations.authorize.",
+    "historic": "No hay migraciones, backfill, cambios masivos de datos ni sincronización de roles o permisos. La nueva regla aplica tras el despliegue a cuentas existentes con el rol Pagos; los pagos históricos pagados quedan sujetos a las mismas validaciones de corrección.",
+    "enforce": "controller",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "tab",
+    "child_render": "blade",
+    "child_ops": {
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "show": false
+    }
+  },
+  "models": [
+    {
+      "name": "",
+      "table": "",
+      "auditable": true,
+      "soft_deletes": false,
+      "fields": [
+        {
+          "name": "",
+          "type": "",
+          "nullable": false,
+          "extra": ""
+        }
+      ],
+      "relations": [
+        {
+          "kind": "belongsTo",
+          "model": "",
+          "key": ""
+        }
+      ]
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "",
+      "type": "",
+      "nullable": false,
+      "where": "",
+      "extra": ""
+    }
+  ],
+  "views": [
+    {
+      "name": "index",
+      "render": "blade",
+      "behavior": "Listado con búsqueda. Crear vía modal."
+    },
+    {
+      "name": "show",
+      "render": "blade",
+      "behavior": "Detalle del registro."
+    },
+    {
+      "name": "edit",
+      "render": "blade",
+      "behavior": "Formulario de edición."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "app/Http/Controllers/PaymentController.php: separar la autorización de corrección de la autorización existente para eliminar y autorizar; proteger las operaciones y sus vistas previas.",
+    "resources/views/purchase_orders/show.blade.php: mostrar Corregir pago al rol Pagos con acceso a las rutas y conservar el acceso previo.",
+    "resources/views/payments/utilities/correct_modal.blade.php: mostrar la eliminación solo a quien ya puede eliminar un pago pagado y actualizar el texto sobre quién puede corregir.",
+    "docs/roles-permissions-matrix.md: documentar el alcance de corrección de Pagos y la exclusión de eliminación.",
+    "docs/manual/milestones.md: actualizar los pasos y destinatarios afectados mediante el procedimiento de generación de manuales del proyecto."
+  ],
+  "keep": [
+    "La eliminación de pagos pagados, incluida su vista previa, conserva payment_authorizations.authorize y el middleware payments_payable.update; Pagos sin esa autorización recibe 403 y no ve el formulario de eliminación.",
+    "La autorización de pagos y su vista previa siguen requiriendo payment_authorizations.authorize; no se amplían los permisos de autorización, las excepciones de checklist ni las transiciones ajenas a la corrección.",
+    "Las validaciones, transacciones, bloqueos, vistas previas, confirmaciones, recálculos y efectos existentes de cada corrección, incluyendo las restricciones de OC cerrada y pagos que generaron abonos.",
+    "Los accesos previos de administración y de las cuentas con las combinaciones de permisos existentes, así como las restricciones de los demás roles y del portal de proveedores.",
+    "Las rutas, verbos, middleware, matriz de permisos, roles, asignaciones, modelos y esquema de base de datos."
+  ],
+  "risks": [
+    "Cambiar un importe o regresar a autorizado revierte y recalcula efectos financieros existentes; deben conservarse las validaciones y advertencias actuales.",
+    "El modal reúne operaciones con permisos diferentes: ocultar Eliminar no basta; tanto la vista previa como la ruta de eliminación deben seguir protegidas en el servidor.",
+    "No usar el permiso de autorización de pagos para conceder esta capacidad a Pagos: también permitiría otras operaciones de autorización."
+  ],
+  "cases": [
+    "Pagos sin payment_authorizations.authorize ve Corregir pago en un PAY pagado de una OC abierta y puede cambiar el importe, reemplazar el comprobante y regresar a autorizado, sujeto a las reglas existentes.",
+    "Pagos sin payment_authorizations.authorize no ve Eliminar pago en el modal; solicitar la vista previa de eliminación o enviar DELETE para el PAY pagado devuelve 403.",
+    "Una cuenta Pagos que además cumpla los permisos actualmente necesarios para eliminar conserva esa capacidad; la combinación de roles no elimina derechos preexistentes.",
+    "Un usuario sin el rol Pagos y sin autorización previa no obtiene acceso a las vistas previas o cambios de pagos pagados mediante solicitudes directas.",
+    "Las vistas previas y transiciones para autorizar pagos siguen rechazando a Pagos sin payment_authorizations.authorize.",
+    "Para una OC cerrada o un pago que no puede corregirse por sus movimientos, siguen operando los bloqueos y mensajes existentes.",
+    "Administración conserva la corrección y eliminación y se mantienen las confirmaciones y vistas previas actuales.",
+    "Pagos no ve Corregir pago para un PAY que no esté pagado; los demás controles y transiciones conservan sus condiciones actuales."
+  ],
+  "rules": [
+    "Contexto adicional obligatorio: leer docs/roles-permissions-matrix.md, docs/manual/milestones.md, database/data/access_matrix.php, routes/web.php, app/Http/Controllers/PaymentController.php, el servicio de pagos de hitos, resources/views/purchase_orders/show.blade.php y resources/views/payments/utilities/correct_modal.blade.php, además de las instrucciones aplicables de controllers y vistas.",
+    "Este spec extiende HR-008 y modifica exclusivamente su requisito de conservar todos los permisos de usuarios sin supplier_portal_access: se concede a Pagos la corrección aquí descrita. También modifica exclusivamente la preservación de las acciones de Pagos en pagos indicada en HR-010; las demás garantías de ambos specs siguen vigentes.",
+    "Conservar el middleware payments_payable.update. Para el PAY pagado, permitir corrección de importe, comprobante y regreso a autorizado a quien ya tenga payment_authorizations.authorize o tenga el rol Pagos; mantener controles de autorización distintos para las operaciones no comprendidas en este cambio.",
+    "En payments.preview diferenciar la vista previa de eliminación de las de cambio de importe y regreso a autorizado; Pagos sin payment_authorizations.authorize no obtiene la vista previa de eliminación. En payments.destroy conservar la verificación existente de eliminación de pagos pagados, también para solicitudes directas.",
+    "No conceder payment_authorizations.authorize a Pagos ni usar una comprobación general que permita autorizar pagos o eludir el checklist. Los roles combinados conservan los permisos previamente concedidos.",
+    "El dropdown y el modal deben respetar las mismas capacidades que el servidor. El formulario Eliminar se muestra solo si el usuario cumple la condición existente de eliminación; las demás opciones de corrección se muestran para los usuarios autorizados a corregir.",
+    "Orden por capas: primero autorización en controller y vistas previas; luego controles del detalle y modal; finalmente documentación y manual. Al terminar cada capa, listar los archivos y esperar confirmación antes de la siguiente."
+  ],
+  "validations": [
+    {
+      "field": "",
+      "rule": ""
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿Qué operaciones del modal se conceden al rol Pagos?",
+      "a": "Cambiar importe o comprobante y regresar a autorizado; no eliminar pagos pagados por el solo hecho de tener el rol Pagos."
+    }
+  ],
+  "exceptions": [
+    "docs/roles-permissions-matrix.md, sección Pagos y Recepción: se precisa que Pagos puede corregir importe o comprobante y regresar a autorizado un PAY pagado, sin conceder autorización de pagos ni eliminación de PAY pagados."
+  ],
+  "oosOff": [],
+  "oosCustom": [
+    "Eliminar pagos pagados por el solo hecho de tener el rol Pagos.",
+    "Conceder a Pagos autorización de pagos, excepciones de checklist o cambios en otras transiciones.",
+    "Crear permisos, roles, rutas, migraciones, paquetes o cambiar asignaciones de permisos.",
+    "Modificar pagos históricos en masa o implementar antes de la aprobación del spec."
+  ],
+  "docsOff": []
+}

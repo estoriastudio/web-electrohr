@@ -11,7 +11,7 @@ Un spec está listo cuando un desarrollador puede implementar el flujo que descr
 
 ## Pasos
 
-1. Lee `.github/copilot-instructions.md`, `docs/specs/_project.json` y todos los docs de su sección "0. Contexto obligatorio".
+1. Lee `.github/copilot-instructions.md`, `docs/specs/_project.json` y todos los docs de su sección "0. Contexto obligatorio". Si ya los leíste en esta conversación y no cambiaron, no los vuelvas a leer: lee solo los que este spec agrega.
 2. Revisa el código existente que el spec menciona (modelos, controllers, rutas, vistas del módulo afectado).
 3. Clasifica cada hallazgo en uno de tres niveles:
 
