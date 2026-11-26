@@ -1,0 +1,233 @@
+{
+  "version": 3,
+  "type": "ext-rule",
+  "variant": "crud",
+  "meta": {
+    "id": "HR-013",
+    "title": "Órdenes de compra y pagos permiten OC atemporales",
+    "module": "Ordenes de Compra",
+    "module_key": "ordenes_de_compra",
+    "extends": "HR-012",
+    "author": "",
+    "reviewers": "",
+    "status": "aprobado",
+    "branch": "",
+    "created": "2026-11-26",
+    "implemented": ""
+  },
+  "v": {
+    "goal": "Permitir que Admin y Dirección marquen una OC como Atemporal para omitir las reglas de secuencia de autorización, estatus/pago y fechas entre sus hitos, sin omitir el checklist de autorización.",
+    "flow": "Admin o Dirección edita la OC y activa OC Atemporal. Dirección puede editar el formulario general de la OC, incluso si está autorizada, pero esta excepción no le permite emitir, archivar, cerrar, cancelar, reasignar compradores ni ejecutar otras acciones. En una OC Atemporal se procesan sus pagos sin comparar el avance o las fechas de un hito contra los demás; cada autorización sigue requiriendo el checklist de su propio hito.",
+    "prefix": "",
+    "middleware": "",
+    "search": "",
+    "uploads": false,
+    "disk": "local",
+    "uploads_notes": "",
+    "uploads_on_replace": "delete",
+    "uploads_on_delete": "keep",
+    "uploads_existing": "none",
+    "uploads_move": "",
+    "import_cfg": "",
+    "uri": "",
+    "route_name": "",
+    "interactive": false,
+    "cache": false,
+    "cache_ttl": "",
+    "seo": true,
+    "seo_notes": "",
+    "access": "public",
+    "location": "page",
+    "roles": "admin, Dirección",
+    "host_view": "edit",
+    "position": "",
+    "follow_filters": true,
+    "export_excel": false,
+    "export_pdf": false,
+    "target_ref": null,
+    "current": "La edición general corresponde a Admin y al comprador asignado en sus OC, pero Dirección no puede editar el formulario. La regla de secuencia compara estatus y fechas de los pagos iniciales entre hitos de la misma OC y bloquea avances fuera de orden. Los pagos también deben cumplir el checklist independiente del hito para ser autorizados.",
+    "uses_livewire": false,
+    "table": "purchase_orders",
+    "strategy": "default",
+    "backfill": "La nueva columna is_atemporal tiene default false. Las OCs existentes conservan el comportamiento actual.",
+    "impact": {
+      "validation": true,
+      "forms": true,
+      "index": false,
+      "filters": false,
+      "show": true,
+      "import_export": false
+    },
+    "controller": "PurchaseOrderController",
+    "method": "edit, update",
+    "verb": "PUT",
+    "action_uri": "/ordenes-de-compra/{purchase_order}",
+    "action_route": "purchase_orders.update",
+    "who": "Admin y Dirección pueden activar o desactivar is_atemporal. Dirección puede usar edit/update del formulario general incluso en una OC autorizada; no obtiene las demás acciones existentes protegidas por purchase_orders.update. Otros usuarios conservan sus permisos actuales y no pueden alterar is_atemporal.",
+    "input": "is_atemporal: boolean, procesado solo para Admin y Dirección.",
+    "response": "redirect",
+    "trigger": "Al guardar la edición de la OC.",
+    "notify": true,
+    "notify_data": "Conservar la notificación de actualización existente de la OC; no crear un flujo de notificación nuevo.",
+    "rule_current": "Todas las OCs aplican las reglas de secuencia de estatus, autorización y fechas entre hitos. El checklist de autorización es una regla independiente y se exige también a Admin.",
+    "rule_new": "Cuando is_atemporal=true, omitir todas las validaciones de secuencia entre hitos: ensureStatusSequence, ensureAuthorizationOrder, ensurePaymentOrder, ensurePaymentDateSequence, ensureNewInitialPaymentDate y ensureExistingMilestoneFirstPaymentDate. Mantener el checklist, los permisos de autorización y todas las demás validaciones. Cuando is_atemporal=false, conservar íntegra la regla actual.",
+    "historic": "Sin backfill de comportamiento ni modificación de pagos. La columna nueva se crea con default false; solo las OCs marcadas explícitamente por Admin o Dirección omiten secuencias.",
+    "enforce": "controller and service",
+    "parent": "",
+    "nesting": "shallow",
+    "placement": "form",
+    "child_render": "blade",
+    "child_ops": {
+      "create": false,
+      "edit": true,
+      "delete": false,
+      "show": true
+    }
+  },
+  "models": [
+    {
+      "name": "PurchaseOrder",
+      "table": "purchase_orders",
+      "auditable": true,
+      "soft_deletes": true,
+      "fields": [
+        {
+          "name": "is_atemporal",
+          "type": "boolean",
+          "nullable": false,
+          "extra": "default false; boolean cast; persistente"
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "newFields": [
+    {
+      "action": "add",
+      "name": "is_atemporal",
+      "type": "boolean",
+      "nullable": false,
+      "where": "purchase_orders",
+      "extra": "default false; no backfill a true"
+    }
+  ],
+  "views": [
+    {
+      "name": "purchase_orders.edit",
+      "render": "blade",
+      "behavior": "Mostrar el switch OC Atemporal solo a Admin y Dirección; preservar el valor si otros usuarios actualizan campos que ya tienen permitidos."
+    }
+  ],
+  "statuses": [
+    {
+      "value": "",
+      "label": "",
+      "to": ""
+    }
+  ],
+  "sources": [
+    {
+      "model": "",
+      "filter": "",
+      "fields": ""
+    }
+  ],
+  "indicators": [
+    {
+      "name": "",
+      "calc": "",
+      "group": "",
+      "period": "",
+      "show": ""
+    }
+  ],
+  "filters": [
+    {
+      "filter": "",
+      "default": ""
+    }
+  ],
+  "files": [
+    "database/migrations/: nueva migración para purchase_orders.is_atemporal con default false.",
+    "app/Models/PurchaseOrder.php: fillable y cast booleano.",
+    "app/Http/Controllers/PurchaseOrderController.php: autorización acotada de Dirección para edit/update, validación y persistencia de is_atemporal solo por Admin/Dirección; preservar auditoría y demás campos.",
+    "routes/web.php: permitir Dirección únicamente en rutas edit/update; conservar restringidas las demás rutas actualmente agrupadas bajo purchase_orders.update.",
+    "resources/views/purchase_orders/edit.blade.php: switch OC Atemporal, visible solo para Admin y Dirección.",
+    "app/Services/PurchaseOrderPaymentSequenceValidator.php: no aplicar secuencias para OCs marcadas, en todos sus seis métodos públicos.",
+    "routes/console.php: excluir solo las alertas de secuencia de OCs atemporales del reporte purchase-orders:health; mantener los avisos no secuenciales.",
+    "tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php y tests/Feature/: cobertura para ambos valores de is_atemporal, permisos de edición y checklist.",
+    "docs/roles-permissions-matrix.md: documentar el alcance de edición de Dirección sin concederle otras acciones de purchase_orders.update.",
+    "docs/purchase-order-payment-health-flow.md, docs/checklist-de-hitos-autorizacion-de-pagos.md y docs/manual/milestones.md: describir la excepción a secuencia y confirmar que el checklist continúa aplicando."
+  ],
+  "keep": [
+    "El checklist de autorización por hito, su visibilidad, sus comprobaciones, sus marcas de verificación y sus bloqueos permanecen iguales para todas las OCs, incluidas las atemporales.",
+    "Para OCs no atemporales se conservan todas las reglas de secuencia y mensajes actuales.",
+    "La nueva columna es false por defecto para registros existentes; no hay backfill a true.",
+    "Solo Admin y Dirección pueden cambiar is_atemporal; los usuarios con permisos ordinarios de edición no pueden cambiarlo mediante una solicitud directa.",
+    "Dirección recibe acceso únicamente a edit/update del formulario general, incluso para una OC autorizada; no recibe permisos para emitir, archivar, cerrar, cancelar, reasignar comprador ni otras acciones actualmente bajo purchase_orders.update.",
+    "Los controles de saldo, límites por hito, asignación de excedentes, pagos parciales, transacciones, bloqueos y cierre de OC no cambian."
+  ],
+  "risks": [
+    "La excepción a HR-012 y a los documentos vigentes debe ser explícita: puede haber pagos autorizados, pagados o fechas fuera de orden dentro de una OC marcada.",
+    "El checklist no es una regla de secuencia y no debe omitirse junto con ella.",
+    "Añadir purchase_orders.update al rol Dirección le daría acceso a más rutas de las solicitadas; el acceso debe limitarse a edit/update.",
+    "Un usuario sin autorización podría intentar cambiar is_atemporal enviando el campo directamente; el controller debe rechazar ese intento y no confiar en la vista.",
+    "El reporte purchase-orders:health no debe clasificar como anomalías las secuencias permitidas por la marca; los pagos rechazados y otros hallazgos no secuenciales siguen reportándose."
+  ],
+  "cases": [
+    "Una OC no atemporal conserva el bloqueo de autorización cuando un hito previo no está aprobado.",
+    "Una OC atemporal permite autorizar un pago de un hito posterior aunque los hitos previos no estén pagados, si el checklist del hito seleccionado está completo.",
+    "Una OC atemporal permite pagar, cambiar estatus, reactivar pagos y modificar/crear fechas de hitos sin comparación de secuencia entre hitos.",
+    "Una OC atemporal con checklist incompleto continúa rechazando la autorización y muestra el motivo del checklist.",
+    "Admin puede activar y desactivar el switch; Dirección también puede hacerlo en OC pendiente, emitida y autorizada.",
+    "Dirección puede editar el formulario general de una OC, incluida una autorizada, pero obtiene 403/no acceso en emisión, archivo, cierre, cancelación, asignación de comprador y otras acciones no incluidas.",
+    "Un comprador u otro usuario que puede editar campos generales no ve el switch; una solicitud directa para cambiar is_atemporal es rechazada y no cambia el valor.",
+    "Una actualización ordinaria de un usuario sin permiso para el switch conserva el valor persistido si no envía el campo.",
+    "Todas las OCs existentes se comportan como no atemporales después de la migración.",
+    "Los pagos de OCs atemporales que no cumplen el checklist siguen rechazados; se conservan permisos y demás validaciones.",
+    "El reporte purchase-orders:health no genera alertas de orden, estatus ni fechas para una OC atemporal; conserva los avisos de pagos rechazados y pagos iniciales faltantes."
+  ],
+  "rules": [
+    "Contexto obligatorio: docs/specs/_project.json, docs/controller-structure-and-notifications.md, docs/purchase-order-payment-health-flow.md, docs/checklist-de-hitos-autorizacion-de-pagos.md, docs/roles-permissions-matrix.md, database/data/access_matrix.php (celda purchase_orders), routes/web.php, routes/console.php (purchase-orders:health), app/Http/Controllers/PurchaseOrderController.php (edit/update), app/Models/PurchaseOrder.php, app/Services/PurchaseOrderPaymentSequenceValidator.php, app/Services/MilestonePaymentService.php, app/Services/MilestoneAmountAdjuster.php, app/Http/Controllers/PaymentController.php (todos los puntos de mutación que invocan el validador), app/Http/Controllers/PurchaseOrderMilestoneController.php y las instrucciones aplicables de .github/instructions/.",
+    "Este spec extiende HR-012 y modifica únicamente la regla de secuencia para OCs con is_atemporal=true. HR-012 y la guía de pagos permanecen vigentes para OCs no atemporales. También declara la excepción de acceso a edit/update de Dirección, sin conceder otras acciones.",
+    "Agregar a purchase_orders la columna booleana is_atemporal con default false y cast booleano en el modelo. No cambiar registros históricos a true.",
+    "Centralizar el comportamiento en los métodos del PurchaseOrderPaymentSequenceValidator para que las seis validaciones de secuencia omitan la regla únicamente cuando la OC está marcada. Mantener todos los callers y validaciones no secuenciales.",
+    "No saltar PurchaseOrderMilestoneChecklist ni aceptar pagos cuyo hito no cumple los requisitos. Mantener las comprobaciones en autorización individual, múltiple, interactiva y autorización de OC.",
+    "El controller debe verificar el rol Admin/Dirección antes de persistir is_atemporal; la protección debe aplicar también a solicitudes directas. Usuarios sin permiso no pueden cambiarlo y el campo no debe ser asignable por mass assignment general.",
+    "Dirección podrá acceder a edit/update de cualquier OC, incluidas autorizadas, pero no a otras rutas agrupadas por purchase_orders.update. No agregar purchase_orders.update a la matriz de Dirección si habilita acciones fuera del alcance.",
+    "La edición de Dirección conserva validaciones y restricciones de campos actuales salvo la excepción explícita que permite editar una OC autorizada; no permite cambiar el estatus de la OC.",
+    "Actualizar la matriz/documentación de roles para reflejar con precisión la edición de Dirección y mantener la diferencia entre edición general, autorización de OC y operaciones de emisión/cierre.",
+    "Describir la nueva regla en docs y manuales. La frase actual que dice que la secuencia aplica a todas las OCs debe especificar la excepción; la regla del checklist de autorización no cambia.",
+    "Actualizar solo el reporte purchase-orders:health definido en routes/console.php para no informar como anomalías permitidas las alertas de orden, estatus y fechas de OCs atemporales. Conservar alertas de pagos rechazados y pagos iniciales faltantes. Se habilita expresamente Artisan commands en Fuera de alcance solo para este reporte.",
+    "Incluir pruebas de unidad para cada método de secuencia con OC normal y atemporal, y pruebas de autorización de edición/toggle y preservación del checklist. Fuera de alcance: Unit / Feature tests se habilita expresamente para este spec.",
+    "Antes de implementar, el spec debe estar aprobado y tener open_questions=0. No desplegar ni ejecutar migraciones en entornos reales como parte de este trabajo."
+  ],
+  "validations": [
+    {
+      "field": "is_atemporal",
+      "rule": "nullable|boolean; procesar solo cuando el usuario tiene rol admin o Dirección"
+    }
+  ],
+  "questions": [
+    {
+      "q": "¿El reporte purchase-orders:health excluye las secuencias de OCs atemporales o las conserva como alertas informativas?",
+      "a": "Las excluye de las alertas de orden, estatus y fechas; conserva alertas no secuenciales, como pagos rechazados y pagos iniciales faltantes."
+    }
+  ],
+  "exceptions": [
+    "HR-012 y docs/purchase-order-payment-health-flow.md: las secuencias de estatus, autorización y fechas entre hitos no aplican si purchase_orders.is_atemporal=true; permanecen vigentes para las demás OCs.",
+    "docs/checklist-de-hitos-autorizacion-de-pagos.md y docs/purchase-order-payment-health-flow.md: OC Atemporal no constituye excepción al checklist; este sigue siendo obligatorio.",
+    "docs/roles-permissions-matrix.md: Dirección puede editar el formulario general mediante edit/update, incluidas OCs autorizadas, sin adquirir otras acciones que hoy comparten purchase_orders.update."
+  ],
+  "oosOff": [
+    "Unit / Feature tests",
+    "Artisan commands"
+  ],
+  "oosCustom": [
+    "Omitir o relajar checklist, permisos de autorización, límites de monto, controles de saldo, requisitos de facturas/entregas u otras reglas no secuenciales.",
+    "Agregar al rol Dirección permisos para emitir, archivar, cerrar, cancelar, asignar compradores o ejecutar otras acciones fuera de edit/update.",
+    "Cambiar la secuencia para OCs que no tengan is_atemporal=true.",
+    "Marcar OCs existentes como atemporales por migración/backfill."
+  ],
+  "docsOff": []
+}

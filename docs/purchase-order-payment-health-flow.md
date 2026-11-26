@@ -21,6 +21,7 @@ purchase_orders
 - Para la salud de una OC, los hitos se ordenan por `purchase_order_milestones.id` ascendente.
 - Dentro de cada hito, los pagos se ordenan por `payments.id` ascendente.
 - El pago inicial es el pago con menor `id` de un hito. Solo ese pago participa en las reglas de secuencia entre hitos.
+- `purchase_orders.is_atemporal` permite a Admin o Dirección omitir las reglas de secuencia de esa OC; el valor predeterminado es `false`, también para las OCs existentes.
 - El alcance operativo y del reporte son OCs activas: se excluyen las archivadas (`archived_at`) y las eliminadas lógicamente.
 
 ## Flujo de la OC
@@ -109,6 +110,7 @@ Antes de que un pago pueda autorizarse, su hito debe cumplir un checklist. Admin
 - **Entrega confirmada**: `delivery_confirmed_at/by` significa "cumplimiento verificado" para cualquier tipo. El tipo se elige en el modal Entregas y no se guarda en el hito; se deduce: con entregas ligadas (`purchase_order_item_deliveries.milestone_id`) es Recepcion fisica; con un registro en `purchase_order_milestone_fulfillments` (unique por hito; tipos `estimation`, `documentary`, `advance`) es el tipo del registro; si no, queda sin tipo (`PurchaseOrderMilestone::fulfillment_type`). Recepcion fisica: con al menos una entrega ligada, un usuario con permiso de entregas confirma "entrega completa para este hito". Estimacion, Documental y Anticipo: `POST /ordenes-de-compra/{purchase_order}/cumplimientos` (`purchase_orders.fulfillments.store`, comprador de la OC y admin) guarda la evidencia, crea el registro y verifica el hito en el mismo paso. Un hito se cumple por un solo tipo (no se mezclan entregas y registro). Revocar (`confirmMilestoneDelivery`) elimina el registro y conserva el archivo; no se puede eliminar desde Evidencias la evidencia de un registro vigente. Revertir la ultima entrega ligada limpia la confirmacion solo si el hito tampoco tiene registro. Los hitos de OCs ya `entregado` al desplegar quedaron confirmados por la migracion.
 - **Bloqueo**: `PurchaseOrderMilestoneChecklist::ensureComplete` se invoca en `PaymentController::swipe`, `update` (a `autorizado`), `authorizeMultiple` y `PurchaseOrderController::approveWithPayments`. Al autorizar se guarda `payments.checklist_verified_at`, visible en la bandeja Por pagar.
 - **Visibilidad**: detalle de la OC (panel por hito), `payments.index` (badges, autorizar deshabilitado y filtro), modo interactivo (solo muestra pagos con checklist completo), `milestones.index` (columna y filtro).
+- **Indicadores de autorizacion**: `payments.index` muestra Pagos vencidos y Total por autorizar separados por moneda, sin conversion. Ambos suman `payments.amount` del conjunto filtrado de la tabla (busqueda por proveedor, vencimiento, moneda, condicion de pago y checklist), pero siempre excluyen pagos cuyo hito no tiene checklist completo, incluso al seleccionar Todos los checklists. El filtro Checklist pendiente mantiene los pagos en la tabla, pero deja las tarjetas sin importes. El total incluye pagos `por_autorizar` y `pospuesto`; vencidos incluye solo los que tienen `due_date` del hito anterior a hoy (zona horaria de Laravel), excluyendo hoy y sin fecha. Una moneda con pagos elegibles sin vencidos muestra cero; sin pagos elegibles se informa que no hay pagos con checklist completo para los filtros actuales.
 - La seleccion persistida para autorizar en bloque descarta pagos con checklist pendiente.
 
 ## Estado del evento, regularizacion documental y resumen economico
@@ -157,6 +159,10 @@ El cierre es un estatus propio (`purchase_orders.closed_at`, `closed_by`, `closu
 - **Migracion**: las OCs ya entregadas y pagadas quedaron cerradas con una nota de cierre automatico.
 
 ## Invariantes de salud
+
+### Excepción: OC Atemporal
+
+Admin o Dirección pueden marcar una OC como **Atemporal** desde su formulario general. En esas OCs no se comparan entre hitos el orden de autorización, avance de estatus ni fechas; tampoco se aplican las comprobaciones de secuencia al crear o editar fechas de pagos iniciales. La excepción no elimina el checklist por hito, los permisos de autorización, ni las validaciones de saldo, monto u otras reglas no secuenciales. Las OCs no marcadas conservan las reglas siguientes.
 
 ### 1. Secuencia de estatus
 
@@ -237,6 +243,8 @@ El reporte es de solo lectura y presenta:
 - `Alertas de fechas`: fechas de pagos iniciales fuera de orden entre hitos de una misma OC.
 - `Hitos omitidos sin pagos`: registros que aun no tienen pago inicial y no pueden compararse.
 
+Las OCs atemporales se excluyen de las alertas de orden, estatus y fechas, pero sus pagos rechazados y sus hitos sin pago inicial se siguen reportando.
+
 Cada categoria muestra el conteo y el listado sin duplicados de folios de OCs afectadas. Las alertas individuales indican los hitos, pagos y valores que originaron el hallazgo.
 
 ## Ajustes futuros
@@ -255,8 +263,8 @@ Antes de cambiar las reglas, definir el efecto esperado sobre las OCs ya existen
 ## Verificacion recomendada
 
 1. Crear una OC con varios hitos y pagos iniciales en fechas crecientes.
-2. Intentar autorizar o pagar un hito posterior mientras uno anterior sigue pendiente; la solicitud debe ser rechazada.
-3. Intentar asignar una fecha anterior a un hito posterior; la solicitud debe ser rechazada.
+2. En una OC normal, intentar autorizar o pagar un hito posterior mientras uno anterior sigue pendiente; la solicitud debe ser rechazada. Repetir en una OC atemporal con checklist completo; debe permitirse.
+3. En una OC normal, intentar asignar una fecha anterior a un hito posterior; la solicitud debe ser rechazada. Repetir en una OC atemporal; debe permitirse, sin omitir el checklist al autorizar.
 4. Autorizar o pagar varios hitos de la misma OC en una sola operacion; debe permitirse si el resultado final conserva la secuencia.
 5. Ejecutar `php artisan purchase-orders:health` para revisar datos historicos y confirmar que las nuevas OCs no generan alertas.
 
@@ -264,6 +272,7 @@ Antes de cambiar las reglas, definir el efecto esperado sobre las OCs ya existen
 
 - [tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php](../tests/Unit/PurchaseOrderPaymentSequenceValidatorTest.php): contrato de validacion de secuencias.
 - [tests/Feature/PurchaseOrderHealthReportCommandTest.php](../tests/Feature/PurchaseOrderHealthReportCommandTest.php): salida y aislamiento por OC del reporte.
+- [tests/Feature/PurchaseOrderAtemporalAccessTest.php](../tests/Feature/PurchaseOrderAtemporalAccessTest.php): acceso de edición y protección del atributo Atemporal.
 - [tests/Feature/PaymentMultipleMilestoneTest.php](../tests/Feature/PaymentMultipleMilestoneTest.php): comportamiento de pagos divididos y operaciones de pago.
 - [tests/Feature/MilestoneEventStatusTest.php](../tests/Feature/MilestoneEventStatusTest.php): estado del evento, regularizacion documental y resumen economico.
 - [tests/Feature/MilestoneCreditTermsTest.php](../tests/Feature/MilestoneCreditTermsTest.php): plazo de credito, recalculo de vencimiento y checklist segun el inicio del plazo.

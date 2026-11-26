@@ -613,10 +613,12 @@ Route::namespace('App\Http\Controllers')->group(function () {
         });
         Route::delete('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'destroy'])
             ->middleware('permission:purchase_orders.cancel')->name('purchase_orders.destroy');
-        Route::middleware('permission:purchase_orders.update')->group(function () {
+        Route::middleware('role:admin|Dirección|Orden de compra')->group(function () {
             Route::get('/ordenes-de-compra/{purchase_order}/edit', [PurchaseOrderController::class, 'edit'])->name('purchase_orders.edit');
             Route::put('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update'])->name('purchase_orders.update');
             Route::patch('/ordenes-de-compra/{purchase_order}', [PurchaseOrderController::class, 'update']);
+        });
+        Route::middleware('permission:purchase_orders.update')->group(function () {
             Route::patch('/ordenes-de-compra/{purchase_order}/archivar', [PurchaseOrderController::class, 'archive'])->name('purchase_orders.archive');
             Route::patch('/ordenes-de-compra/{purchase_order}/desarchivar', [PurchaseOrderController::class, 'unarchive'])->name('purchase_orders.unarchive');
             Route::patch('/ordenes-de-compra/{purchase_order}/comprador', [PurchaseOrderController::class, 'assignBuyer'])->name('purchase_orders.buyer.update');

@@ -144,7 +144,7 @@ Para poder cerrar una OC deben cumplirse **todos** estos puntos (el panel "Cierr
 
 - Registrar, dividir, editar o rechazar pagos funciona igual.
 - Marcar un pago ya autorizado como **pagado** no requiere volver a validar el checklist.
-- El orden y las fechas entre hitos de una OC siguen las reglas de secuencia existentes.
+- Por defecto, el orden y las fechas entre hitos siguen las reglas de secuencia existentes. Admin o Dirección pueden marcar una OC como **Atemporal** para omitir esas reglas; el checklist de cada hito sigue siendo obligatorio.
 
 ## Hitos y OCs existentes
 
@@ -162,8 +162,8 @@ Verifica que esté **ligada al hito** y con estatus **Aceptada**.
 **El proveedor entregó solo una parte.**
 Registra la entrega parcial normalmente. Confirma la entrega del hito únicamente cuando lo recibido cubra lo correspondiente a ese hito.
 
-**¿Se puede autorizar con excepción?**
-No. El bloqueo aplica a todos los usuarios, incluido Admin. Si el requisito no aplica al hito (por ejemplo un pago previo), el hito debe estar marcado como **Anticipo**.
+**¿Una OC Atemporal permite omitir el checklist?**
+No. La marca solo omite el orden entre hitos. Cada pago sigue sujeto al checklist de su propio hito, incluso para Admin.
 
 **¿Dónde veo cuántos pagos están detenidos por checklist?**
 En Pagos → Autorizaciones (barra amarilla) o en Hitos de Pago filtrando por **Checklist pendiente**.

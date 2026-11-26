@@ -12,7 +12,8 @@
 @section('content')
 
 @php
-    $canManageOrder = auth()->user()->hasFullAccessScope('purchase_orders', 'update') || (auth()->user()->can('purchase_orders.update') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canManageOrder = auth()->user()->hasRole('Dirección') || auth()->user()->hasFullAccessScope('purchase_orders', 'update') || (auth()->user()->can('purchase_orders.update') && (int) $purchaseOrder->buyer_id === (int) auth()->id());
+    $canChangeAtemporal = auth()->user()->hasAnyRole(['admin', 'Dirección']);
 @endphp
 
 @if ($errors->any())
@@ -74,6 +75,19 @@
                                 <div class="form-text">Permite agregar condiciones de pago y pagos después de autorizar la OC.</div>
                             </div>
                         </div>
+
+                        @if ($canChangeAtemporal)
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check form-switch mb-2">
+                                    <input type="hidden" name="is_atemporal" value="0">
+                                    <input class="form-check-input" type="checkbox" role="switch"
+                                           id="is_atemporal" name="is_atemporal" value="1"
+                                           @checked(old('is_atemporal', $purchaseOrder->is_atemporal))>
+                                    <label class="form-check-label fw-medium" for="is_atemporal">OC Atemporal</label>
+                                    <div class="form-text">Permite procesar pagos de hitos sin seguir el orden de los hitos anteriores. El checklist de autorización sigue aplicando.</div>
+                                </div>
+                            </div>
+                        @endif
 
                         {{-- Proyecto / Obra --}}
                         <div class="col-md-6 campo-project">

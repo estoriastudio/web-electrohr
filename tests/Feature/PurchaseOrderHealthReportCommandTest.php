@@ -71,6 +71,35 @@ class PurchaseOrderHealthReportCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    public function test_it_skips_sequence_alerts_but_reports_rejected_payments_for_atemporal_orders(): void
+    {
+        $purchaseOrder = $this->createPurchaseOrder(['is_atemporal' => true]);
+        $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-30');
+        $this->createMilestoneWithPayment($purchaseOrder, 'autorizado', '2026-09-01');
+        $this->createMilestoneWithPayment($purchaseOrder, 'pagado', '2026-09-15');
+        $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-01');
+        $this->createMilestoneWithPayment($purchaseOrder, 'rechazado', '2026-09-01');
+        PurchaseOrderMilestone::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'type' => 'regular',
+            'payment_condition' => 'credito',
+            'value_type' => 'fijo',
+            'value' => 100,
+            'covered_amount' => 0,
+            'due_date' => '2026-09-01',
+        ]);
+
+        $this->artisan('purchase-orders:health')
+            ->expectsOutputToContain('OCs atemporales: se excluyen sus alertas de orden, estatus y fechas; los hallazgos no secuenciales siguen incluidos.')
+            ->expectsOutputToContain('Alertas de estatus: 0')
+            ->expectsOutputToContain('Alertas de fechas: 0')
+            ->expectsOutputToContain('Alertas de bloqueo por orden de hitos: 0')
+            ->expectsOutputToContain('Alertas de pagos rechazados: 1')
+            ->expectsOutputToContain('está rechazado y requiere revisión.')
+            ->expectsOutputToContain('Hitos omitidos sin pagos: 1')
+            ->assertExitCode(0);
+    }
+
     public function test_it_does_not_compare_payments_between_different_purchase_orders(): void
     {
         $firstPurchaseOrder = $this->createPurchaseOrder();

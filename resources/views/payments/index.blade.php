@@ -42,6 +42,51 @@
 @endif
 
 <div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h4 class="card-title mb-0">Pagos vencidos</h4>
+                    <div class="avatar-md bg-danger-subtle rounded">
+                        <i class="ri-alarm-warning-line fs-32 text-danger avatar-title" aria-hidden="true"></i>
+                    </div>
+                </div>
+                @forelse ($payment_totals_by_currency as $total_currency => $totals)
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">{{ $total_currency }}</span>
+                        <span class="text-danger fw-semibold fs-22">${{ number_format($totals['overdue'], 2) }}</span>
+                    </div>
+                @empty
+                    <p class="text-muted mb-2">Sin pagos con checklist completo para los filtros actuales.</p>
+                @endforelse
+                <p class="text-muted fs-13 mb-0">Pagos con checklist completo y vencimiento anterior a hoy, según los filtros actuales.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h4 class="card-title mb-0">Total por autorizar</h4>
+                    <div class="avatar-md bg-primary-subtle rounded">
+                        <i class="ri-wallet-3-line fs-32 text-primary avatar-title" aria-hidden="true"></i>
+                    </div>
+                </div>
+                @forelse ($payment_totals_by_currency as $total_currency => $totals)
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">{{ $total_currency }}</span>
+                        <span class="text-primary fw-semibold fs-22">${{ number_format($totals['total'], 2) }}</span>
+                    </div>
+                @empty
+                    <p class="text-muted mb-2">Sin pagos con checklist completo para los filtros actuales.</p>
+                @endforelse
+                <p class="text-muted fs-13 mb-0">Pagos por autorizar y pospuestos con checklist completo, según los filtros actuales.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
     <div class="col-xl-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center border-bottom">

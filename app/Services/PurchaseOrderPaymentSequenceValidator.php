@@ -21,6 +21,10 @@ class PurchaseOrderPaymentSequenceValidator
 
     public function ensureStatusSequence(PurchaseOrder $purchaseOrder, array $statusUpdates): void
     {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $statusUpdates = collect($statusUpdates)
             ->mapWithKeys(fn ($status, $paymentId) => [(int) $paymentId => $status])
             ->all();
@@ -83,6 +87,10 @@ class PurchaseOrderPaymentSequenceValidator
      */
     public function ensureAuthorizationOrder(PurchaseOrder $purchaseOrder, array $paymentIds, string $errorKey = 'status'): void
     {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $paymentIds = array_map('intval', $paymentIds);
         $milestones = $this->orderedMilestones($purchaseOrder);
 
@@ -107,6 +115,10 @@ class PurchaseOrderPaymentSequenceValidator
      */
     public function ensurePaymentOrder(PurchaseOrder $purchaseOrder, array $paymentIds, string $errorKey = 'status'): void
     {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $paymentIds = array_map('intval', $paymentIds);
         $milestones = $this->orderedMilestones($purchaseOrder);
 
@@ -131,6 +143,10 @@ class PurchaseOrderPaymentSequenceValidator
 
     public function ensurePaymentDateSequence(PurchaseOrder $purchaseOrder, array $paymentDateUpdates, string $errorKey = 'payment_date'): void
     {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $paymentDateUpdates = collect($paymentDateUpdates)
             ->mapWithKeys(fn ($date, $paymentId) => [(int) $paymentId => Carbon::parse($date)])
             ->all();
@@ -175,6 +191,10 @@ class PurchaseOrderPaymentSequenceValidator
 
     public function ensureNewInitialPaymentDate(PurchaseOrder $purchaseOrder, CarbonInterface|string $paymentDate, string $errorKey = 'payment_date'): void
     {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $candidateDate = Carbon::parse($paymentDate);
         $latestPayment = collect($this->milestonePayments($purchaseOrder))
             ->filter(fn ($entry) => $entry['payment'] !== null && $entry['payment']->payment_date !== null)
@@ -194,6 +214,10 @@ class PurchaseOrderPaymentSequenceValidator
         CarbonInterface|string $paymentDate,
         string $errorKey = 'payment_date',
     ): void {
+        if ($purchaseOrder->is_atemporal) {
+            return;
+        }
+
         $candidateDate = Carbon::parse($paymentDate);
         $milestonePayments = $this->milestonePayments($purchaseOrder);
         $currentIndex = collect($milestonePayments)

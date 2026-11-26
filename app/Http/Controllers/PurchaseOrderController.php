@@ -53,16 +53,33 @@ class PurchaseOrderController extends Controller
         private MilestonePaymentService $milestonePayments,
     ) {}
 
-    private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder): ?RedirectResponse
+    private function blockIfAuthorizedAndNotAdmin(PurchaseOrder $purchaseOrder, bool $allowDirection = false): ?RedirectResponse
     {
         $purchaseOrder->ensureOpen();
 
-        if ($purchaseOrder->status === 'autorizada' && ! Auth::user()->hasRole('admin')) {
+        $user = Auth::user();
+        $canEditAuthorizedOrder = $user->hasRole('admin')
+            || ($allowDirection && $user->hasRole('Dirección'));
+
+        if ($purchaseOrder->status === 'autorizada' && !$canEditAuthorizedOrder) {
             return redirect()->route('purchase_orders.show', $purchaseOrder)
                 ->with('error', 'La OC está autorizada: pide el cambio o la cancelación a Dirección.');
         }
 
         return null;
+    }
+
+    private function authorizePurchaseOrderEdit(PurchaseOrder $purchaseOrder): void
+    {
+        $user = Auth::user();
+
+        if ($user->hasRole('Dirección')) {
+            $this->authorizeAccess($purchaseOrder, 'purchase_orders', 'view');
+
+            return;
+        }
+
+        $this->authorizeAccess($purchaseOrder, 'purchase_orders', 'update');
     }
 
     public function index(Request $request): View
@@ -666,8 +683,8 @@ class PurchaseOrderController extends Controller
 
     public function edit(PurchaseOrder $purchaseOrder): View|RedirectResponse
     {
-        $this->authorizeAccess($purchaseOrder, 'purchase_orders', 'update');
-        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+        $this->authorizePurchaseOrderEdit($purchaseOrder);
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder, true)) {
             return $redirect;
         }
 
@@ -681,9 +698,14 @@ class PurchaseOrderController extends Controller
 
     public function update(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        $this->authorizeAccess($purchaseOrder, 'purchase_orders', 'update');
-        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder)) {
+        $this->authorizePurchaseOrderEdit($purchaseOrder);
+        if ($redirect = $this->blockIfAuthorizedAndNotAdmin($purchaseOrder, true)) {
             return $redirect;
+        }
+
+        $canChangeAtemporal = Auth::user()->hasAnyRole(['admin', 'Dirección']);
+        if (!$canChangeAtemporal && array_key_exists('is_atemporal', $request->all())) {
+            abort(403);
         }
 
         $rules = [
@@ -702,6 +724,10 @@ class PurchaseOrderController extends Controller
             'authorized_signatory' => 'nullable|string|max:255',
         ];
 
+        if ($canChangeAtemporal) {
+            $rules['is_atemporal'] = 'sometimes|boolean';
+        }
+
         if ($request->type === 'materiales_servicios') {
             $rules['project_id'] = 'nullable|exists:projects,id';
             $rules['project_work_id'] = 'nullable|exists:project_works,id';
@@ -714,6 +740,9 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate($rules);
+        if ($canChangeAtemporal && array_key_exists('is_atemporal', $validated)) {
+            $validated['is_atemporal'] = $request->boolean('is_atemporal');
+        }
         $validated['is_destajo'] = $request->boolean('is_destajo');
         $validated['status'] = $purchaseOrder->status;
 

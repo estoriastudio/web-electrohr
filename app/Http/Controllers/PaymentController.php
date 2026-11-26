@@ -133,7 +133,19 @@ class PaymentController extends Controller
             ->when($checklistFilter === 'pending', fn ($items) => $items->reject(fn ($payment) => $checklists[$payment->milestone_id]['complete']))
             ->values();
 
-        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState', 'checklists', 'checklistFilter', 'pendingChecklistCount'));
+        $today = Carbon::today();
+        $payment_totals_by_currency = $payments
+            ->filter(fn (Payment $payment) => $checklists[$payment->milestone_id]['complete'])
+            ->groupBy(fn (Payment $payment) => $payment->milestone->purchaseOrder->currency)
+            ->map(fn ($currency_payments) => [
+                'total' => round((float) $currency_payments->sum('amount'), 2),
+                'overdue' => round((float) $currency_payments
+                    ->filter(fn (Payment $payment) => $payment->milestone->due_date?->lt($today))
+                    ->sum('amount'), 2),
+            ])
+            ->sortKeys();
+
+        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState', 'checklists', 'checklistFilter', 'pendingChecklistCount', 'payment_totals_by_currency'));
     }
 
     public function syncAuthorizationSelection(Request $request): JsonResponse

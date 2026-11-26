@@ -10,6 +10,7 @@ use App\Models\PurchaseOrderItemDelivery;
 use App\Models\PurchaseOrderMilestone;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\MilestonePaymentService;
 use App\Services\PurchaseOrderMilestoneChecklist;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,6 +79,38 @@ class MilestoneChecklistTest extends TestCase
         $this->expectException(ValidationException::class);
 
         app(PurchaseOrderMilestoneChecklist::class)->ensureComplete([$payment]);
+    }
+
+    public function test_atemporal_order_does_not_skip_an_incomplete_authorization_checklist(): void
+    {
+        $this->actingAs($this->admin());
+        $order = $this->purchaseOrder();
+        $order->update(['is_atemporal' => true]);
+        $previousMilestone = $this->milestone(order: $order);
+        $this->payment($previousMilestone);
+        $targetMilestone = $this->milestone(order: $order);
+        $payment = $this->payment($targetMilestone);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('no cumple su checklist');
+
+        app(MilestonePaymentService::class)->authorizeWithAmount($payment, 1000);
+    }
+
+    public function test_atemporal_order_allows_later_authorization_when_its_checklist_is_complete(): void
+    {
+        $this->actingAs($this->admin());
+        $order = $this->purchaseOrder();
+        $order->update(['is_atemporal' => true]);
+        $previousMilestone = $this->milestone(order: $order);
+        $this->payment($previousMilestone);
+        $targetMilestone = $this->milestone(order: $order);
+        $payment = $this->payment($targetMilestone);
+        $this->completeChecklist($targetMilestone);
+
+        app(MilestonePaymentService::class)->authorizeWithAmount($payment, 1000);
+
+        $this->assertSame('autorizado', $payment->fresh()->status);
     }
 
     public function test_authorize_multiple_is_blocked_until_checklist_is_complete(): void

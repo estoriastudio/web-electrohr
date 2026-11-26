@@ -162,6 +162,7 @@ Artisan::command('purchase-orders:health', function () {
     $this->line('- Alertas de estatus: un pago inicial de un hito posterior está más avanzado que el de un hito anterior.');
     $this->line('- Pagos rechazados: el primer pago de un hito está rechazado y requiere revisión.');
     $this->line('- Alertas de fechas: la fecha de pago inicial de un hito posterior es anterior a una fecha previa; se excluyen hitos con plazo de crédito propio.');
+    $this->line('- OCs atemporales: se excluyen sus alertas de orden, estatus y fechas; los hallazgos no secuenciales siguen incluidos.');
     $this->line('- Hitos omitidos sin pagos: no tienen pago inicial para comparar y no generan alerta en esta revisión.');
     $this->line('- Bloqueadas por orden de hitos: un hito tiene pagos por autorizar o pagar, pero el hito anterior no tiene pagos pendientes y no está cubierto; hay que regularizarla en la base de datos.');
     $this->newLine();
@@ -195,7 +196,7 @@ Artisan::command('purchase-orders:health', function () {
 
         foreach ($milestones as $position => $milestone) {
             $milestone->setRelation('purchaseOrder', $purchaseOrder);
-            if ($position === 0) {
+            if ($position === 0 || $purchaseOrder->is_atemporal) {
                 continue;
             }
 
@@ -225,6 +226,10 @@ Artisan::command('purchase-orders:health', function () {
                 continue;
             }
 
+            if ($purchaseOrder->is_atemporal) {
+                continue;
+            }
+
             $currentRank = $statusRanks[$currentPayment->status] ?? null;
             if ($currentRank === null) {
                 continue;
@@ -249,6 +254,10 @@ Artisan::command('purchase-orders:health', function () {
                 $statusAlertFolios[$purchaseOrder->id] = $purchaseOrder->folio;
                 $this->warn("ALERTA [estatus] OC #{$purchaseOrder->folio}: Hito {$current['position']} (pago #{$currentPayment->folio}, {$currentPayment->status}) está más avanzado que Hito {$previous['position']} (pago #{$previousPayment->folio}, {$previousPayment->status}).");
             }
+        }
+
+        if ($purchaseOrder->is_atemporal) {
+            continue;
         }
 
         $latestComparablePayment = null;

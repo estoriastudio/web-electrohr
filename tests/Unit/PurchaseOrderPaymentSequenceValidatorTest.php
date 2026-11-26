@@ -62,11 +62,70 @@ class PurchaseOrderPaymentSequenceValidatorTest extends TestCase
         );
     }
 
-    private function createPurchaseOrder(): PurchaseOrder
+    public function test_it_skips_all_sequence_checks_for_an_atemporal_order(): void
+    {
+        $purchaseOrder = $this->createPurchaseOrder(['is_atemporal' => true]);
+        $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-15');
+        $laterPayment = $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-30');
+        $validator = app(PurchaseOrderPaymentSequenceValidator::class);
+
+        $validator->ensureStatusSequence($purchaseOrder, [$laterPayment->id => 'autorizado']);
+        $validator->ensureAuthorizationOrder($purchaseOrder, [$laterPayment->id]);
+        $validator->ensurePaymentOrder($purchaseOrder, [$laterPayment->id]);
+        $validator->ensurePaymentDateSequence($purchaseOrder, [$laterPayment->id => '2026-09-01']);
+        $validator->ensureNewInitialPaymentDate($purchaseOrder, '2026-09-01');
+        $validator->ensureExistingMilestoneFirstPaymentDate(
+            $purchaseOrder,
+            $laterPayment->milestone_id,
+            '2026-09-01',
+        );
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_it_keeps_all_sequence_checks_for_a_regular_order(): void
+    {
+        $purchaseOrder = $this->createPurchaseOrder();
+        $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-15');
+        $laterPayment = $this->createMilestoneWithPayment($purchaseOrder, 'por_autorizar', '2026-09-30');
+        $validator = app(PurchaseOrderPaymentSequenceValidator::class);
+
+        $checks = [
+            fn () => $validator->ensureStatusSequence($purchaseOrder, [$laterPayment->id => 'autorizado']),
+            fn () => $validator->ensureAuthorizationOrder($purchaseOrder, [$laterPayment->id]),
+            fn () => $validator->ensurePaymentOrder($purchaseOrder, [$laterPayment->id]),
+            fn () => $validator->ensurePaymentDateSequence($purchaseOrder, [$laterPayment->id => '2026-09-01']),
+            fn () => $validator->ensureNewInitialPaymentDate($purchaseOrder, '2026-09-01'),
+            fn () => $validator->ensureExistingMilestoneFirstPaymentDate(
+                $purchaseOrder,
+                $laterPayment->milestone_id,
+                '2026-09-01',
+            ),
+        ];
+
+        foreach ($checks as $check) {
+            $this->assertValidationException($check);
+        }
+    }
+
+    private function assertValidationException(callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (ValidationException) {
+            $this->addToAssertionCount(1);
+
+            return;
+        }
+
+        $this->fail('Expected a sequence validation exception.');
+    }
+
+    private function createPurchaseOrder(array $attributes = []): PurchaseOrder
     {
         $supplier = Supplier::create(['rfc_name' => 'Proveedor de prueba']);
 
-        return PurchaseOrder::create([
+        return PurchaseOrder::create(array_merge([
             'folio' => random_int(25000, 99999),
             'type' => 'materiales_servicios',
             'supplier_id' => $supplier->id,
@@ -74,7 +133,7 @@ class PurchaseOrderPaymentSequenceValidatorTest extends TestCase
             'amount' => 1000,
             'status' => 'autorizada',
             'recurrence_type' => 'unico',
-        ]);
+        ], $attributes));
     }
 
     private function createMilestoneWithPayment(PurchaseOrder $purchaseOrder, string $status, string $paymentDate): Payment
