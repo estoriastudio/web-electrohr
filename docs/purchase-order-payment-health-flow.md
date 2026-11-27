@@ -24,6 +24,16 @@ purchase_orders
 - `purchase_orders.is_atemporal` permite a Admin o Dirección omitir las reglas de secuencia de esa OC; el valor predeterminado es `false`, también para las OCs existentes.
 - El alcance operativo y del reporte son OCs activas: se excluyen las archivadas (`archived_at`) y las eliminadas lógicamente.
 
+### Fórmula económica
+
+El total dinámico y el importe persistido recalculado usan:
+
+```text
+Total = subtotal + IVA - ISR - retención IVA - retención ISR - impuesto cedular
+```
+
+El impuesto cedular conserva el cálculo sobre el subtotal y se redondea individualmente a dos decimales. Las órdenes cerradas conservan su importe histórico guardado, aunque el total dinámico ya refleja esta fórmula.
+
 ## Flujo de la OC
 
 ### Estados de la OC
@@ -111,6 +121,7 @@ Antes de que un pago pueda autorizarse, su hito debe cumplir un checklist. Admin
 - **Bloqueo**: `PurchaseOrderMilestoneChecklist::ensureComplete` se invoca en `PaymentController::swipe`, `update` (a `autorizado`), `authorizeMultiple` y `PurchaseOrderController::approveWithPayments`. Al autorizar se guarda `payments.checklist_verified_at`, visible en la bandeja Por pagar.
 - **Visibilidad**: detalle de la OC (panel por hito), `payments.index` (badges, autorizar deshabilitado y filtro), modo interactivo (solo muestra pagos con checklist completo), `milestones.index` (columna y filtro).
 - **Indicadores de autorizacion**: `payments.index` muestra Pagos vencidos y Total por autorizar separados por moneda, sin conversion. Ambos suman `payments.amount` del conjunto filtrado de la tabla (busqueda por proveedor, vencimiento, moneda, condicion de pago y checklist), pero siempre excluyen pagos cuyo hito no tiene checklist completo, incluso al seleccionar Todos los checklists. El filtro Checklist pendiente mantiene los pagos en la tabla, pero deja las tarjetas sin importes. El total incluye pagos `por_autorizar` y `pospuesto`; vencidos incluye solo los que tienen `due_date` del hito anterior a hoy (zona horaria de Laravel), excluyendo hoy y sin fecha. Una moneda con pagos elegibles sin vencidos muestra cero; sin pagos elegibles se informa que no hay pagos con checklist completo para los filtros actuales.
+- **Excel de autorizaciones**: el boton exporta todas las filas del listado con los filtros aplicados, incluido checklist. La condicion de pago de la OC aparece en una columna junto a Orden de Compra: Contado, Crédito o Ambas. El tipo de hito (Anticipo o Pago regular) y su propia condicion de pago aparecen en columnas separadas. Los estados de Entrega confirmada y Factura aceptada tienen columnas separadas y filtrables. La columna NOTA dice `LISTO PARA APROBAR` con checklist completo y `NO APROBAR` con checklist pendiente; no comprueba otras restricciones de autorizacion. Monto e importe original son numericos, moneda y origen van separados. La descarga es de solo lectura y no cambia la seleccion. Requiere `payment_authorizations.view` y excluye cuentas con `supplier_portal_access`, aun si tienen otro rol.
 - La seleccion persistida para autorizar en bloque descarta pagos con checklist pendiente.
 
 ## Estado del evento, regularizacion documental y resumen economico

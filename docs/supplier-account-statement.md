@@ -55,6 +55,8 @@ El folio abre un modal de solo lectura, sin panel lateral. Usa toda la OC selecc
 | Pendiente pagar sobre OC | Total OC menos pagado |
 | Facturado sin pagar | Suma de saldos determinados de facturas aceptadas |
 
+El total contractual persistido se recalcula con el impuesto cedular restado. Las OCs cerradas u omitidas de la actualización histórica conservan su importe persistido; el resto de cálculos dinámicos ya usa la fórmula nueva.
+
 Incluye detalle por estatus/moneda. Si hay facturas por revisar, Facturado sin pagar indica Por revisar; si hay facturas con moneda discordante, no convierte ni suma su importe al total de la OC. Diferencias historicas negativas se muestran con advertencia, no se ocultan con truncamiento. No se agrega resumen al detalle existente de OC.
 
 ## Despliegue

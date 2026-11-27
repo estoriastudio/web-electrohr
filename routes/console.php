@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use App\Services\PurchaseOrderCedularBackfill;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -122,6 +123,86 @@ Artisan::command('payments:backfill-from-milestones {--dry-run : Simula sin guar
     $this->line("Pagos " . ($dryRun ? 'a crear' : 'creados') . ": {$created}");
     $this->line("Omitidos por falta de due_date: {$skippedNoDueDate}");
 })->purpose('Genera pagos faltantes para hitos existentes sin pago vinculado');
+
+Artisan::command('purchase-orders:backfill-cedular {--apply : Aplica la actualización histórica autorizada}', function (PurchaseOrderCedularBackfill $backfill) {
+    $apply = (bool) $this->option('apply');
+
+    if ($apply) {
+        $this->warn('AUTORIZACIÓN EXPLÍCITA: se actualizarán únicamente OCs emitidas elegibles sin conflictos.');
+    } else {
+        $this->info('Previsualización: no se modificarán registros.');
+    }
+
+    $report = $apply ? $backfill->apply() : $backfill->preview();
+    $preview = $apply ? $report['preview'] : $report;
+
+    $this->table(
+        ['OC', 'Estado', 'Anterior', 'Propuesto', 'Pagos por autorizar', 'Motivo'],
+        collect($preview['eligible'])->map(fn (array $row) => [
+            $row['folio'],
+            $row['status'],
+            number_format($row['anterior'], 2),
+            number_format($row['propuesto'], 2),
+            collect($row['pagos_cambiarian'])->map(fn (array $payment) =>
+                "#{$payment['payment_id']}: ".number_format($payment['anterior'], 2).' -> '.number_format($payment['propuesto'], 2)
+            )->implode('; ') ?: 'Sin cambios',
+            $row['motivo'],
+        ])->all()
+    );
+
+    $this->table(
+        ['OC', 'Estado', 'Anterior', 'Propuesto', 'Motivo'],
+        collect($preview['conflicts'])->map(fn (array $row) => [
+            $row['folio'],
+            $row['status'],
+            number_format($row['anterior'], 2),
+            number_format($row['propuesto'], 2),
+            implode('; ', $row['motivos_conflicto']),
+        ])->all()
+    );
+
+    $this->table(
+        ['OC', 'Estado', 'Anterior', 'Propuesto', 'Motivo'],
+        collect($preview['closed'])->map(fn (array $row) => [
+            $row['folio'],
+            $row['status'],
+            number_format($row['anterior'], 2),
+            number_format($row['propuesto'], 2),
+            $row['motivo'],
+        ])->all()
+    );
+
+    $this->table(
+        ['OC', 'Estado', 'Anterior', 'Propuesto', 'Motivo'],
+        collect($preview['excluded'])->map(fn (array $row) => [
+            $row['folio'],
+            $row['status'],
+            number_format($row['anterior'], 2),
+            number_format($row['propuesto'], 2),
+            $row['motivo'],
+        ])->all()
+    );
+
+    $this->newLine();
+    $this->line('Elegibles: '.count($preview['eligible']));
+    $this->line('Conflictos omitidos: '.count($preview['conflicts']));
+    $this->line('Cerradas conservadas: '.count($preview['closed']));
+    $this->line('Excluidas: '.count($preview['excluded']));
+
+    if ($apply) {
+        $this->line('Actualizadas: '.collect($report['applied'])->where('resultado', 'actualizada')->count());
+        $this->line('Omitidas durante ejecución: '.collect($report['applied'])->where('resultado', '!=', 'actualizada')->count());
+        $this->line('Errores: '.count($report['errors']));
+        foreach ($report['errors'] as $error) {
+            $this->error("OC #{$error['folio']}: {$error['motivo']}");
+        }
+        $this->info('Actualización histórica finalizada.');
+    } else {
+        $this->comment('Repite con --apply solo después de revisar respaldo, recuperación y autorización.');
+    }
+
+    return self::SUCCESS;
+})->purpose('Previsualiza o aplica la nueva fórmula del impuesto cedular a OCs históricas emitidas');
 
 Artisan::command('purchase-orders:health', function () {
     $statusRanks = [

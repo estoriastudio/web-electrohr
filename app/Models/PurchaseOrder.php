@@ -375,7 +375,7 @@ class PurchaseOrder extends Model
             - $this->isr_amount
             - $this->retention_iva_amount
             - $this->retention_isr_amount
-            + $this->cedular_amount,
+            - $this->cedular_amount,
             2
         );
     }
@@ -402,7 +402,7 @@ class PurchaseOrder extends Model
 
             $this->update([
                 'amount' => round(
-                    $subtotal + $taxAmount - $isrAmount - $retentionIvaAmount - $retentionIsrAmount + $cedularAmount,
+                    $subtotal + $taxAmount - $isrAmount - $retentionIvaAmount - $retentionIsrAmount - $cedularAmount,
                     2
                 ),
             ]);

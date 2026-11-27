@@ -657,6 +657,7 @@ Route::namespace('App\Http\Controllers')->group(function () {
         // Pagado (Pagos registra el pago). Compras y Dirección consultan.
         Route::middleware('permission:payment_authorizations.view')->group(function () {
             Route::get('/pagos/autorizar', [PaymentController::class, 'index'])->name('payments.index');
+            Route::get('/pagos/autorizar/exportar-excel', [PaymentController::class, 'exportAuthorization'])->name('payments.authorization.export');
         });
         Route::middleware('permission:payments_payable.view')->group(function () {
             Route::get('/pagos/por-pagar', [PaymentController::class, 'payable'])->name('payments.payable');

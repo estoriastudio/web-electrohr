@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 class PurchaseOrderTotalsTest extends TestCase
 {
-    public function test_total_adds_iva_and_cedular_and_subtracts_retentions(): void
+    public function test_total_subtracts_cedular_and_other_retentions(): void
     {
         $purchaseOrder = new PurchaseOrder([
             'tax_rate' => 16,
@@ -27,7 +27,25 @@ class PurchaseOrderTotalsTest extends TestCase
         $this->assertSame(32.0, $purchaseOrder->iva);
         $this->assertSame(5.0, $purchaseOrder->cedular_amount);
         $this->assertSame(30.75, $purchaseOrder->additional_taxes_amount);
-        $this->assertSame(206.25, $purchaseOrder->total_with_iva);
+        $this->assertSame(196.25, $purchaseOrder->total_with_iva);
+    }
+
+    public function test_cedular_example_reaches_one_thousand(): void
+    {
+        $purchaseOrder = new PurchaseOrder([
+            'tax_rate' => 16,
+            'isr_rate' => 10,
+            'retention_iva_rate' => 4,
+            'retention_isr_rate' => 2,
+            'cedular_rate' => 3,
+        ]);
+
+        $purchaseOrder->setRelation('items', new Collection([
+            new PurchaseOrderItem(['quantity' => 1, 'unit_price' => 1000]),
+        ]));
+
+        $this->assertSame(30.0, $purchaseOrder->cedular_amount);
+        $this->assertSame(970.0, $purchaseOrder->total_with_iva);
     }
 
     public function test_total_with_cents_between_one_and_nine_is_not_rounded_down(): void

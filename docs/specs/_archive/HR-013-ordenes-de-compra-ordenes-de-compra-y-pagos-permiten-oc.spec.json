@@ -10,10 +10,10 @@
     "extends": "HR-012",
     "author": "",
     "reviewers": "",
-    "status": "aprobado",
+    "status": "implementado",
     "branch": "",
     "created": "2026-11-26",
-    "implemented": ""
+    "implemented": "2026-11-27"
   },
   "v": {
     "goal": "Permitir que Admin y Dirección marquen una OC como Atemporal para omitir las reglas de secuencia de autorización, estatus/pago y fechas entre sus hitos, sin omitir el checklist de autorización.",

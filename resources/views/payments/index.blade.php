@@ -95,6 +95,12 @@
                     <p class="text-muted fs-13 mb-0">Los pagos con vencimiento en los próximos 7 días aparecen primero.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    @unlessrole('supplier_portal_access')
+                    <a href="{{ route('payments.authorization.export', ['search' => $search, 'due_date_filter' => $dueDateFilter, 'currency' => $currency, 'payment_condition' => $paymentCondition, 'checklist_filter' => $checklistFilter]) }}"
+                       class="btn btn-sm btn-outline-success">
+                        <i class="ri-file-excel-2-line me-1"></i> Exportar a Excel
+                    </a>
+                    @endunlessrole
                     @can('payment_authorizations.authorize')
                     <button type="button" id="btnClearAuthorizationSelection" class="btn btn-sm btn-outline-secondary"
                             @disabled($persistedSelectedPaymentCount === 0)>

@@ -5,7 +5,8 @@ title: Órdenes de compra y pagos permiten OC atemporales
 module: Ordenes de Compra
 module_key: ordenes_de_compra
 extends: HR-012
-status: aprobado
+status: implementado
+implemented: 2026-11-27
 author: 
 reviewers: []
 branch: 
@@ -21,6 +22,8 @@ open_questions: 0
 # HR-013 · Ordenes de Compra — Órdenes de compra y pagos permiten OC atemporales
 
 **Módulo:** Ordenes de Compra (`ordenes_de_compra`) · **Tipo:** C3 · Cambio de regla · **Extiende:** HR-012
+
+> ✓ Estado: **Implementado** (2026-11-27). Este spec describe código que ya existe: no lo vuelvas a implementar. Los cambios nuevos van en un spec de extensión (C1–C4).
 
 ## 0. Contexto obligatorio
 

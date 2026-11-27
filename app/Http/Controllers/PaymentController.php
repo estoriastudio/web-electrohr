@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\AuthorizationPaymentExport;
 use App\Exports\PaidPaymentExport;
 use App\Exports\PayablePaymentExport;
 use App\Models\Payment;
@@ -47,6 +48,52 @@ class PaymentController extends Controller
 
     public function index(Request $request): View
     {
+        // Selección para autorizar en lote: quien autoriza pagos (Dirección, admin).
+        $selectionState = Auth::user()->can('payment_authorizations.authorize')
+            ? $this->getAuthorizationSelectionState($request)
+            : ['selected_ids' => [], 'selected_count' => 0];
+
+        [
+            'payments' => $payments,
+            'urgentDate' => $urgentDate,
+            'search' => $search,
+            'dueDateFilter' => $dueDateFilter,
+            'currency' => $currency,
+            'paymentCondition' => $paymentCondition,
+            'checklists' => $checklists,
+            'checklistFilter' => $checklistFilter,
+            'pendingChecklistCount' => $pendingChecklistCount,
+        ] = $this->authorizationPayments($request);
+
+        $today = Carbon::today();
+        $payment_totals_by_currency = $payments
+            ->filter(fn (Payment $payment) => $checklists[$payment->milestone_id]['complete'])
+            ->groupBy(fn (Payment $payment) => $payment->milestone->purchaseOrder->currency)
+            ->map(fn ($currency_payments) => [
+                'total' => round((float) $currency_payments->sum('amount'), 2),
+                'overdue' => round((float) $currency_payments
+                    ->filter(fn (Payment $payment) => $payment->milestone->due_date?->lt($today))
+                    ->sum('amount'), 2),
+            ])
+            ->sortKeys();
+
+        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState', 'checklists', 'checklistFilter', 'pendingChecklistCount', 'payment_totals_by_currency'));
+    }
+
+    public function exportAuthorization(Request $request)
+    {
+        abort_if(Auth::user()->hasRole('supplier_portal_access'), 403);
+
+        $data = $this->authorizationPayments($request);
+
+        return Excel::download(
+            new AuthorizationPaymentExport($data['payments'], $data['checklists'], $data['urgentDate']),
+            'pagos-pendientes-de-autorizacion.xlsx'
+        );
+    }
+
+    private function authorizationPayments(Request $request): array
+    {
         $urgentDate = Carbon::now()->addDays(7);
         $search = trim($request->input('search', ''));
         $dueDateFilter = $request->input('due_date_filter', '');
@@ -59,11 +106,6 @@ class PaymentController extends Controller
         $checklistFilter = in_array($request->input('checklist_filter'), ['complete', 'pending', 'all'], true)
             ? $request->input('checklist_filter')
             : 'complete';
-        // Selección para autorizar en lote: quien autoriza pagos (Dirección, admin).
-        $selectionState = Auth::user()->can('payment_authorizations.authorize')
-            ? $this->getAuthorizationSelectionState($request)
-            : ['selected_ids' => [], 'selected_count' => 0];
-
         $payments = Payment::with([
             'sourcePayment:id,folio',
             'milestone.purchaseOrder.supplier',
@@ -133,19 +175,7 @@ class PaymentController extends Controller
             ->when($checklistFilter === 'pending', fn ($items) => $items->reject(fn ($payment) => $checklists[$payment->milestone_id]['complete']))
             ->values();
 
-        $today = Carbon::today();
-        $payment_totals_by_currency = $payments
-            ->filter(fn (Payment $payment) => $checklists[$payment->milestone_id]['complete'])
-            ->groupBy(fn (Payment $payment) => $payment->milestone->purchaseOrder->currency)
-            ->map(fn ($currency_payments) => [
-                'total' => round((float) $currency_payments->sum('amount'), 2),
-                'overdue' => round((float) $currency_payments
-                    ->filter(fn (Payment $payment) => $payment->milestone->due_date?->lt($today))
-                    ->sum('amount'), 2),
-            ])
-            ->sortKeys();
-
-        return view('payments.index', compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'selectionState', 'checklists', 'checklistFilter', 'pendingChecklistCount', 'payment_totals_by_currency'));
+        return compact('payments', 'urgentDate', 'search', 'dueDateFilter', 'currency', 'paymentCondition', 'checklists', 'checklistFilter', 'pendingChecklistCount');
     }
 
     public function syncAuthorizationSelection(Request $request): JsonResponse
