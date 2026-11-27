@@ -1,6 +1,6 @@
 {
     "generator": "estoria/docs:map 0.5.0",
-    "generated_at": "2026-11-19T14:18:35-06:00",
+    "generated_at": "2026-11-27T13:15:22-06:00",
     "project": "ElectroHR",
     "laravel": "13.6.0",
     "packages": {
@@ -402,7 +402,9 @@
             "public": false,
             "notifies": false,
             "disks": [],
-            "specs": [],
+            "specs": [
+                "HR-013"
+            ],
             "depends_on": [
                 {
                     "module": "usuarios",
@@ -471,7 +473,7 @@
                     "name": "purchase_orders.show",
                     "action": "PurchaseOrderController@show",
                     "view": "purchase_orders.show",
-                    "fp": "d57f083084",
+                    "fp": "a002415ed7",
                     "livewire": []
                 },
                 {
@@ -614,7 +616,7 @@
                     "name": "purchase_orders.store",
                     "action": "PurchaseOrderController@store",
                     "view": null,
-                    "fp": "b5a7acd385",
+                    "fp": "5e62904431",
                     "livewire": []
                 },
                 {
@@ -636,7 +638,7 @@
                     "name": "purchase_orders.edit",
                     "action": "PurchaseOrderController@edit",
                     "view": "purchase_orders.edit",
-                    "fp": "48aa3f402e",
+                    "fp": "6b01ba8cfb",
                     "livewire": []
                 },
                 {
@@ -647,7 +649,7 @@
                     "name": "purchase_orders.update",
                     "action": "PurchaseOrderController@update",
                     "view": null,
-                    "fp": "0965d7a8d1",
+                    "fp": "d60673fd68",
                     "livewire": []
                 },
                 {
@@ -658,7 +660,7 @@
                     "name": null,
                     "action": "PurchaseOrderController@update",
                     "view": null,
-                    "fp": "bdfdf90f2b",
+                    "fp": "9884733704",
                     "livewire": []
                 },
                 {
@@ -702,7 +704,7 @@
                     "name": "purchase_orders.items.store",
                     "action": "PurchaseOrderController@storeItem",
                     "view": null,
-                    "fp": "2ec42bebfe",
+                    "fp": "988730f177",
                     "livewire": []
                 },
                 {
@@ -713,7 +715,7 @@
                     "name": "purchase_orders.items.update",
                     "action": "PurchaseOrderController@updateItem",
                     "view": null,
-                    "fp": "305962fea8",
+                    "fp": "7c28af7b46",
                     "livewire": []
                 },
                 {
@@ -724,7 +726,7 @@
                     "name": "purchase_orders.items.destroy",
                     "action": "PurchaseOrderController@destroyItem",
                     "view": null,
-                    "fp": "8a66211574",
+                    "fp": "819283ba7b",
                     "livewire": []
                 },
                 {
@@ -5081,7 +5083,18 @@
                     "name": "payments.index",
                     "action": "PaymentController@index",
                     "view": "payments.index",
-                    "fp": "8bcee28aea",
+                    "fp": "2b7e887e50",
+                    "livewire": []
+                },
+                {
+                    "methods": [
+                        "GET"
+                    ],
+                    "uri": "/pagos/autorizar/exportar-excel",
+                    "name": "payments.authorization.export",
+                    "action": "PaymentController@exportAuthorization",
+                    "view": null,
+                    "fp": "01825fb207",
                     "livewire": []
                 },
                 {
@@ -5235,7 +5248,7 @@
                     "name": "payments.preview",
                     "action": "PaymentController@preview",
                     "view": null,
-                    "fp": "aafedddb70",
+                    "fp": "a22231b7b4",
                     "livewire": []
                 },
                 {
@@ -5258,7 +5271,7 @@
                     "name": "payments.destroy",
                     "action": "PaymentController@destroy",
                     "view": null,
-                    "fp": "cce5c8977c",
+                    "fp": "72fddd5f32",
                     "livewire": []
                 },
                 {
@@ -5357,7 +5370,9 @@
             ],
             "specs": [
                 "HR-008",
-                "HR-007"
+                "HR-015",
+                "HR-007",
+                "HR-012"
             ],
             "depends_on": [
                 {
@@ -11086,6 +11101,7 @@
                 "purchase_request_id",
                 "type",
                 "is_destajo",
+                "is_atemporal",
                 "supplier_id",
                 "mobile_asset_id",
                 "project_id",
@@ -11132,6 +11148,7 @@
                 "retention_isr_rate": "decimal:4",
                 "cedular_rate": "decimal:4",
                 "is_destajo": "boolean",
+                "is_atemporal": "boolean",
                 "is_delivered": "boolean",
                 "recurrence_start_date": "date",
                 "recurrence_end_date": "date",
@@ -11492,6 +11509,14 @@
                     "full_type": "decimal(15,2)",
                     "nullable": false,
                     "default": "0.00",
+                    "auto": false
+                },
+                {
+                    "name": "is_atemporal",
+                    "type": "tinyint",
+                    "full_type": "tinyint(1)",
+                    "nullable": false,
+                    "default": "0",
                     "auto": false
                 }
             ],
@@ -20668,6 +20693,28 @@
             "file": "docs/specs/HR-011-ordenes-de-compra-compras-registra-entregas-y-cumplimientos-en.spec.json"
         },
         {
+            "id": "HR-014",
+            "type": "ext-rule",
+            "title": "Impuesto cedular como retención en órdenes de compra",
+            "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": "HR-013",
+            "status": "implementado",
+            "archived": false,
+            "file": "docs/specs/HR-014-ordenes-de-compra-impuesto-cedular-como-retencion-en-ordenes-de.spec.json"
+        },
+        {
+            "id": "HR-015",
+            "type": "ext-rule",
+            "title": "Exportar pagos pendientes de autorización a Excel",
+            "module": "Pagos",
+            "module_key": "payments",
+            "extends": "HR-008",
+            "status": "aprobado",
+            "archived": false,
+            "file": "docs/specs/HR-015-payments-exportar-pagos-pendientes-de-autorizacion-a.spec.json"
+        },
+        {
             "id": "HR-002",
             "type": "ext-sub",
             "title": "Cumplimiento de hitos",
@@ -20699,6 +20746,28 @@
             "status": "implementado",
             "archived": true,
             "file": "docs/specs/_archive/HR-007-payments-enlaces-de-pagos-pagados-segun-permisos.spec.json"
+        },
+        {
+            "id": "HR-012",
+            "type": "ext-rule",
+            "title": "Pagos corrige pagos en hitos de órdenes de compra",
+            "module": "Pagos",
+            "module_key": "payments",
+            "extends": "HR-008",
+            "status": "aprobado",
+            "archived": true,
+            "file": "docs/specs/_archive/HR-012-payments-pagos-corrige-pagos-en-hitos-de-ordenes-de.spec.json"
+        },
+        {
+            "id": "HR-013",
+            "type": "ext-rule",
+            "title": "Órdenes de compra y pagos permiten OC atemporales",
+            "module": "Ordenes de Compra",
+            "module_key": "ordenes_de_compra",
+            "extends": "HR-012",
+            "status": "implementado",
+            "archived": true,
+            "file": "docs/specs/_archive/HR-013-ordenes-de-compra-ordenes-de-compra-y-pagos-permiten-oc.spec.json"
         }
     ],
     "manuals": {
@@ -20708,9 +20777,10 @@
                 "file": "docs/manual/milestones.md",
                 "name": "Hitos de pago",
                 "status": "generado",
-                "generated_at": "2026-11-17",
+                "generated_at": "2026-11-25",
                 "covers": [
-                    "HR-006"
+                    "HR-006",
+                    "HR-012"
                 ],
                 "pending": 3,
                 "steps": [
